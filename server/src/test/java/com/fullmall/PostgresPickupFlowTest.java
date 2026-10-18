@@ -60,6 +60,8 @@ class PostgresPickupFlowTest {
 
     @Test
     void pickupOrderCanBePaidPickedAndCollected() {
+        String adminToken = loginAsAdmin();
+
         JsonNode products = get("/api/v1/products?locale=zh-CN&size=20");
         assertFalse(products.get("items").isEmpty(), "Seed data must expose at least one product");
 
@@ -104,7 +106,7 @@ class PostgresPickupFlowTest {
         assertEquals("FULFILLED", finalOrder.get("status").asText());
 
         JsonNode batches = get("/admin/v1/inventory/batches?locationType=STORE&locationId="
-                + STORE_ID + "&skuId=" + SKU_ID);
+                + STORE_ID + "&skuId=" + SKU_ID, adminToken);
         JsonNode storeBatch = null;
         for (JsonNode batch : batches) {
             if ("MILK-SH-20261012".equals(batch.get("batchNo").asText())) {
@@ -117,8 +119,32 @@ class PostgresPickupFlowTest {
         assertEquals(0, storeBatch.get("reservedQuantity").asInt());
     }
 
+    private String loginAsAdmin() {
+        JsonNode captcha = get("/admin/v1/auth/captcha");
+        String[] operands = captcha.get("question").asText().replace("= ?", "").split("\\+");
+        int answer = Integer.parseInt(operands[0].trim()) + Integer.parseInt(operands[1].trim());
+        JsonNode login = post("/admin/v1/auth/login", Map.of(
+                "username", "admin",
+                "password", "Admin@123456",
+                "captchaId", captcha.get("captchaId").asText(),
+                "captchaAnswer", String.valueOf(answer)));
+        return login.get("token").asText();
+    }
+
     private JsonNode get(String path) {
-        ResponseEntity<JsonNode> response = rest.getForEntity(path, JsonNode.class);
+        return get(path, null);
+    }
+
+    private JsonNode get(String path, String token) {
+        HttpHeaders headers = new HttpHeaders();
+        if (token != null) {
+            headers.setBearerAuth(token);
+        }
+        ResponseEntity<JsonNode> response = rest.exchange(
+                path,
+                HttpMethod.GET,
+                new HttpEntity<>(headers),
+                JsonNode.class);
         assertTrue(response.getStatusCode().is2xxSuccessful(), "GET " + path + " failed: " + response.getBody());
         return response.getBody();
     }

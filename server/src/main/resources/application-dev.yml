@@ -1,0 +1,12 @@
+app:
+  mode: dev
+  demo:
+    read-only: false
+  payment:
+    provider: mock
+  logistics:
+    provider: mock
+
+logging:
+  level:
+    com.fullmall: DEBUG

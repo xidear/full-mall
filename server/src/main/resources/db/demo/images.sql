@@ -1,0 +1,10 @@
+UPDATE sku SET image_url = '/images/products/milk.svg' WHERE sku_code = 'MILK-1L';
+UPDATE sku SET image_url = '/images/products/mug.svg' WHERE sku_code = 'MUG-350ML';
+UPDATE sku SET image_url = '/images/products/apple.svg' WHERE sku_code = 'APPLE-1KG';
+UPDATE sku SET image_url = '/images/products/cleanser.svg' WHERE sku_code = 'CLEANSER-120G';
+UPDATE sku SET image_url = '/images/products/headphone.svg' WHERE sku_code = 'HEADPHONE-ANC';
+UPDATE sku SET image_url = '/images/products/band.svg' WHERE sku_code = 'BAND-SPORT';
+UPDATE sku SET image_url = '/images/products/juicer.svg' WHERE sku_code = 'JUICER-PORTABLE';
+UPDATE sku SET image_url = '/images/products/motor.svg' WHERE sku_code = 'MOTOR-NEMA17';
+UPDATE sku SET image_url = '/images/products/flange.svg' WHERE sku_code = 'FLANGE-DN50';
+UPDATE sku SET image_url = '/images/products/yoga.svg' WHERE sku_code = 'YOGA-MAT-8MM';

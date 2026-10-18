@@ -1,0 +1,120 @@
+.app-shell {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-family);
+  font-size: calc(16px * var(--font-scale, 1));
+}
+
+.theme-switcher {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.theme-select {
+  min-height: 34px;
+  padding: 6px 10px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--text);
+  font-size: 12px;
+}
+
+.app-shell[data-theme="industrial"] {
+  background-color: #10161b;
+  background-image:
+    linear-gradient(rgba(47, 111, 143, 0.08) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(47, 111, 143, 0.08) 1px, transparent 1px);
+  background-size: 32px 32px;
+}
+
+.app-shell[data-theme="industrial"] .site-header {
+  background: rgba(16, 22, 27, 0.94);
+  border-bottom-color: #30414c;
+}
+
+.app-shell[data-theme="industrial"] .site-footer {
+  background: #10161b;
+}
+
+.app-shell[data-theme="industrial"] .hero {
+  background:
+    linear-gradient(135deg, rgba(47, 111, 143, 0.22), rgba(16, 22, 27, 0.96)),
+    repeating-linear-gradient(135deg, transparent 0 14px, rgba(217, 154, 43, 0.06) 14px 15px);
+  border-radius: var(--radius);
+  border-color: #30414c;
+}
+
+.app-shell[data-theme="industrial"] .hero-card {
+  background: #22303a;
+  border: 1px solid #d99a2b;
+}
+
+.app-shell[data-theme="industrial"] .eyebrow,
+.app-shell[data-theme="industrial"] .brand-mark,
+.app-shell[data-theme="industrial"] .badge {
+  font-family: var(--font-family);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.app-shell[data-theme="industrial"] .product-grid {
+  grid-template-columns: 1fr;
+}
+
+.app-shell[data-theme="industrial"] .product-card {
+  display: grid;
+  grid-template-columns: 220px minmax(0, 1fr);
+  border-radius: var(--radius);
+  border-color: #30414c;
+  background: #182129;
+}
+
+.app-shell[data-theme="industrial"] .product-media {
+  aspect-ratio: auto;
+  min-height: 180px;
+}
+
+.app-shell[data-theme="industrial"] .product-body {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.app-shell[data-theme="industrial"] .button {
+  border-radius: var(--radius);
+  font-family: var(--font-family);
+  letter-spacing: 0.04em;
+}
+
+.app-shell[data-theme="industrial"] .theme-select {
+  border-radius: 2px;
+  background: #182129;
+  color: #e8edf0;
+}
+
+.app-shell[data-theme="minimal"] .hero {
+  background: #ffffff;
+}
+
+.app-shell[data-theme="minimal"] .product-card {
+  box-shadow: none;
+}
+
+.app-shell[data-theme="minimal"] .button {
+  border-radius: 0;
+}
+
+@media (max-width: 860px) {
+  .theme-switcher {
+    width: 100%;
+    justify-content: flex-end;
+  }
+
+  .app-shell[data-theme="industrial"] .product-card {
+    grid-template-columns: 1fr;
+  }
+}

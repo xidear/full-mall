@@ -1,0 +1,311 @@
+name: fullmall
+
+x-app-env: &app-env
+  SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-api,dev}
+  APP_MODE: ${APP_MODE:-dev}
+  PAYMENT_PROVIDER: ${PAYMENT_PROVIDER:-mock}
+  LOGISTICS_PROVIDER: ${LOGISTICS_PROVIDER:-mock}
+  SMS_PROVIDER: ${SMS_PROVIDER:-mock}
+  MAIL_PROVIDER: ${MAIL_PROVIDER:-mailpit}
+  DEMO_READ_ONLY: ${DEMO_READ_ONLY:-false}
+  SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB:-fullmall}
+  SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER:-fullmall}
+  SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:-change-me-local}
+  SPRING_DATA_REDIS_HOST: valkey
+  SPRING_DATA_REDIS_PORT: 6379
+  SPRING_RABBITMQ_HOST: rabbitmq
+  SPRING_RABBITMQ_PORT: 5672
+  SPRING_RABBITMQ_USERNAME: ${RABBITMQ_DEFAULT_USER:-fullmall}
+  SPRING_RABBITMQ_PASSWORD: ${RABBITMQ_DEFAULT_PASS:-change-me-local}
+  OPENSEARCH_URL: http://opensearch:9200
+  S3_ENDPOINT: http://seaweedfs:8333
+  S3_ACCESS_KEY: fullmall
+  S3_SECRET_KEY: change-me-local
+  S3_BUCKET: fullmall
+  OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-lgtm:4317
+  OTEL_SERVICE_NAME: fullmall-api
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    profiles: [core]
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-fullmall}
+      POSTGRES_USER: ${POSTGRES_USER:-fullmall}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-change-me-local}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-fullmall} -d ${POSTGRES_DB:-fullmall}"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  valkey:
+    image: valkey/valkey:8-alpine
+    profiles: [core]
+    command: ["valkey-server", "--appendonly", "yes"]
+    ports:
+      - "${VALKEY_PORT:-6379}:6379"
+    volumes:
+      - valkey-data:/data
+    healthcheck:
+      test: ["CMD", "valkey-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  rabbitmq:
+    image: rabbitmq:4-management-alpine
+    profiles: [core]
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_DEFAULT_USER:-fullmall}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_DEFAULT_PASS:-change-me-local}
+    ports:
+      - "${RABBITMQ_PORT:-5672}:5672"
+      - "${RABBITMQ_MANAGEMENT_PORT:-15672}:15672"
+    volumes:
+      - rabbitmq-data:/var/lib/rabbitmq
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+
+  opensearch:
+    image: opensearchproject/opensearch:2
+    profiles: [core]
+    environment:
+      discovery.type: single-node
+      DISABLE_SECURITY_PLUGIN: "true"
+      OPENSEARCH_JAVA_OPTS: "-Xms512m -Xmx512m"
+    ports:
+      - "${OPENSEARCH_PORT:-9200}:9200"
+    volumes:
+      - opensearch-data:/usr/share/opensearch/data
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:9200/_cluster/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+
+  opensearch-dashboards:
+    image: opensearchproject/opensearch-dashboards:2
+    profiles: [core]
+    environment:
+      OPENSEARCH_HOSTS: '["http://opensearch:9200"]'
+      DISABLE_SECURITY_DASHBOARDS_PLUGIN: "true"
+    ports:
+      - "${OPENSEARCH_DASHBOARDS_PORT:-5601}:5601"
+    depends_on:
+      opensearch:
+        condition: service_healthy
+
+  seaweedfs:
+    image: chrislusf/seaweedfs:3.80
+    profiles: [core]
+    command: ["server", "-dir=/data", "-s3", "-s3.port=8333", "-master.port=9333", "-filer", "-filer.port=8888"]
+    ports:
+      - "${SEAWEEDFS_S3_PORT:-8333}:8333"
+      - "${SEAWEEDFS_MASTER_PORT:-9333}:9333"
+      - "${SEAWEEDFS_FILER_PORT:-8888}:8888"
+    volumes:
+      - seaweedfs-data:/data
+
+  mailpit:
+    image: axllent/mailpit:latest
+    profiles: [core]
+    ports:
+      - "${MAILPIT_SMTP_PORT:-1025}:1025"
+      - "${MAILPIT_HTTP_PORT:-8025}:8025"
+
+  api:
+    image: maven:3.9-eclipse-temurin-21
+    working_dir: /workspace
+    profiles: [app]
+    environment:
+      <<: *app-env
+      SPRING_PROFILES_ACTIVE: api,dev
+      SERVER_PORT: 8080
+      JAVA_TOOL_OPTIONS: "-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*:5005"
+    ports:
+      - "${API_PORT:-8080}:8080"
+      - "${API_DEBUG_PORT:-5005}:5005"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      valkey:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    volumes:
+      - ./server:/workspace
+      - maven-cache:/root/.m2
+    command: ["mvn", "-q", "spring-boot:run"]
+
+  worker:
+    image: maven:3.9-eclipse-temurin-21
+    working_dir: /workspace
+    profiles: [app]
+    environment:
+      <<: *app-env
+      SPRING_PROFILES_ACTIVE: worker,dev
+      JAVA_TOOL_OPTIONS: "-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*:5006"
+    ports:
+      - "${WORKER_ACTUATOR_PORT:-8082}:8082"
+      - "${WORKER_DEBUG_PORT:-5006}:5006"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      valkey:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    volumes:
+      - ./server:/workspace
+      - maven-cache:/root/.m2
+    command: ["mvn", "-q", "spring-boot:run"]
+
+  ws:
+    image: maven:3.9-eclipse-temurin-21
+    working_dir: /workspace
+    profiles: [app]
+    environment:
+      <<: *app-env
+      SPRING_PROFILES_ACTIVE: ws,dev
+      SERVER_PORT: 8081
+      JAVA_TOOL_OPTIONS: "-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*:5007"
+    ports:
+      - "${WS_PORT:-8081}:8081"
+      - "${WS_DEBUG_PORT:-5007}:5007"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      valkey:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    volumes:
+      - ./server:/workspace
+      - maven-cache:/root/.m2
+    command: ["mvn", "-q", "spring-boot:run"]
+
+  storefront:
+    build:
+      context: ./web
+      dockerfile: apps/storefront/Dockerfile
+    profiles: [app]
+    environment:
+      NUXT_PUBLIC_API_BASE: http://localhost:8080
+      NUXT_API_INTERNAL_BASE: http://api:8080
+      NUXT_PUBLIC_APP_MODE: ${APP_MODE:-dev}
+      NUXT_PUBLIC_THEME: ${THEME:-mall}
+    ports:
+      - "${STOREFRONT_PORT:-3000}:3000"
+    depends_on:
+      - api
+
+  admin:
+    build:
+      context: ./web
+      dockerfile: Dockerfile.vite
+      args:
+        APP_DIR: apps/admin
+        VITE_API_BASE: http://localhost:8080
+        VITE_APP_MODE: ${APP_MODE:-dev}
+    profiles: [app]
+    ports:
+      - "${ADMIN_PORT:-5173}:80"
+    depends_on:
+      - api
+
+  store-console:
+    build:
+      context: ./web
+      dockerfile: Dockerfile.vite
+      args:
+        APP_DIR: apps/store-console
+        VITE_API_BASE: http://localhost:8080
+        VITE_APP_MODE: ${APP_MODE:-dev}
+    profiles: [app]
+    ports:
+      - "${STORE_CONSOLE_PORT:-5174}:80"
+    depends_on:
+      - api
+
+  supplier-portal:
+    build:
+      context: ./web
+      dockerfile: Dockerfile.vite
+      args:
+        APP_DIR: apps/supplier-portal
+        VITE_API_BASE: http://localhost:8080
+        VITE_APP_MODE: ${APP_MODE:-dev}
+    profiles: [app]
+    ports:
+      - "${SUPPLIER_PORTAL_PORT:-5175}:80"
+    depends_on:
+      - api
+
+  support-console:
+    build:
+      context: ./web
+      dockerfile: Dockerfile.vite
+      args:
+        APP_DIR: apps/support-console
+        VITE_API_BASE: http://localhost:8080
+        VITE_WS_BASE: ws://localhost:8081
+        VITE_APP_MODE: ${APP_MODE:-dev}
+    profiles: [app]
+    ports:
+      - "${SUPPORT_CONSOLE_PORT:-5176}:80"
+    depends_on:
+      - api
+      - ws
+
+  otel-lgtm:
+    image: grafana/otel-lgtm:latest
+    profiles: [obs]
+    ports:
+      - "${GRAFANA_PORT:-3001}:3000"
+      - "${OTEL_GRPC_PORT:-4317}:4317"
+      - "${OTEL_HTTP_PORT:-4318}:4318"
+
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    profiles: [tools]
+    environment:
+      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_DEFAULT_EMAIL:-admin@example.com}
+      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_DEFAULT_PASSWORD:-change-me-local}
+    ports:
+      - "${PGADMIN_PORT:-5050}:80"
+    volumes:
+      - pgadmin-data:/var/lib/pgadmin
+
+  wiremock:
+    image: wiremock/wiremock:3
+    profiles: [tools]
+    ports:
+      - "${WIREMOCK_PORT:-8089}:8080"
+    volumes:
+      - ./deploy/wiremock:/home/wiremock
+
+  ollama:
+    image: ollama/ollama:latest
+    profiles: [ai]
+    ports:
+      - "${OLLAMA_PORT:-11434}:11434"
+    volumes:
+      - ollama-data:/root/.ollama
+
+volumes:
+  postgres-data:
+  valkey-data:
+  rabbitmq-data:
+  opensearch-data:
+  seaweedfs-data:
+  pgadmin-data:
+  ollama-data:
+  maven-cache:

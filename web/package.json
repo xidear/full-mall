@@ -1,0 +1,31 @@
+{
+  "name": "fullmall-web",
+  "private": true,
+  "version": "0.1.0",
+  "workspaces": [
+    "apps/storefront",
+    "apps/admin",
+    "apps/store-console",
+    "apps/supplier-portal",
+    "apps/support-console",
+    "packages/*"
+  ],
+  "scripts": {
+    "build": "npm run build --workspaces --if-present",
+    "test": "npm run test --workspaces --if-present",
+    "dev:storefront": "npm --workspace @fullmall/storefront run dev",
+    "dev:admin": "npm --workspace @fullmall/admin run dev",
+    "dev:store": "npm --workspace @fullmall/store-console run dev",
+    "dev:supplier": "npm --workspace @fullmall/supplier-portal run dev",
+    "dev:support": "npm --workspace @fullmall/support-console run dev",
+    "e2e": "playwright test"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.49.1"
+  },
+  "allowScripts": {
+    "esbuild@0.28.2": true,
+    "esbuild@0.25.12": true,
+    "esbuild@0.21.5": true
+  }
+}

@@ -1,0 +1,256 @@
+:root {
+  font-family: "PingFang SC", "Microsoft YaHei", "Noto Sans SC", system-ui, sans-serif;
+  color: #1f2421;
+  background: #f4f3ef;
+  --el-color-primary: #e1251b;
+  --el-color-primary-light-3: #ea5a52;
+  --el-color-primary-light-5: #f08c86;
+  --el-color-primary-light-7: #f7c3bf;
+  --el-color-primary-light-8: #fad9d6;
+  --el-color-primary-light-9: #fdeceb;
+  --el-color-primary-dark-2: #b51f17;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: #f4f3ef;
+}
+
+.admin-shell {
+  min-height: 100vh;
+}
+
+.admin-aside {
+  display: flex;
+  flex-direction: column;
+  border-right: 1px solid #dedbd3;
+  background: #1b1b1d;
+  color: #fff;
+}
+
+.admin-brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 22px 20px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.admin-brand-mark {
+  display: grid;
+  width: 40px;
+  height: 40px;
+  place-items: center;
+  border-radius: 12px;
+  background: #e1251b;
+  font-weight: 800;
+}
+
+.admin-brand strong,
+.admin-brand small {
+  display: block;
+}
+
+.admin-brand small {
+  color: rgba(255, 255, 255, 0.55);
+  font-size: 12px;
+}
+
+.admin-menu {
+  flex: 1;
+  border-right: 0;
+  background: transparent;
+}
+
+.admin-menu .el-menu-item {
+  margin: 6px 12px;
+  border-radius: 10px;
+  color: rgba(255, 255, 255, 0.72);
+}
+
+.admin-menu .el-menu-item.is-active {
+  background: #e1251b !important;
+  color: #fff !important;
+}
+
+.admin-menu .el-menu-item:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: #fff;
+}
+
+.admin-aside-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 18px 20px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  color: rgba(255, 255, 255, 0.55);
+  font-size: 12px;
+}
+
+.admin-user {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.admin-user strong {
+  color: #fff;
+  font-size: 13px;
+}
+
+.admin-user span {
+  color: rgba(255, 255, 255, 0.5);
+}
+
+.logout-button {
+  color: rgba(255, 255, 255, 0.65);
+}
+
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.admin-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: auto;
+  padding: 26px 34px;
+  border-bottom: 1px solid #dedbd3;
+  background: #fff;
+}
+
+.admin-header h1 {
+  margin: 0;
+  font-size: 24px;
+}
+
+.admin-header p {
+  margin: 4px 0 0;
+  color: #6b716c;
+  font-size: 13px;
+}
+
+.admin-main {
+  padding: 28px 34px 48px;
+}
+
+.metric-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+.metric-card {
+  padding: 20px;
+  border: 1px solid #dedbd3;
+  border-radius: 16px;
+  background: #fff;
+}
+
+.metric-card span {
+  color: #6b716c;
+  font-size: 12px;
+}
+
+.metric-card strong {
+  display: block;
+  margin-top: 8px;
+  font-size: 26px;
+}
+
+.panel {
+  padding: 22px;
+  border: 1px solid #dedbd3;
+  border-radius: 16px;
+  background: #fff;
+}
+
+.panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 18px;
+}
+
+.panel-header h2 {
+  margin: 0;
+  font-size: 18px;
+}
+
+.toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-bottom: 18px;
+}
+
+.form-section {
+  margin-bottom: 28px;
+  padding-bottom: 24px;
+  border-bottom: 1px solid #ece9e2;
+}
+
+.form-section:last-child {
+  border-bottom: 0;
+}
+
+.form-section h3 {
+  margin: 0 0 4px;
+  font-size: 16px;
+}
+
+.form-section > p {
+  margin: 0 0 18px;
+  color: #6b716c;
+  font-size: 12px;
+}
+
+.variant-row {
+  display: grid;
+  grid-template-columns: 1.2fr 1fr 0.9fr 0.7fr 1.1fr 0.8fr 44px;
+  gap: 10px;
+  align-items: center;
+  margin-bottom: 10px;
+}
+
+.policy-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 16px;
+}
+
+.expiry-warning {
+  color: #a33232;
+  font-weight: 700;
+}
+
+.muted {
+  color: #6b716c;
+  font-size: 12px;
+}
+
+@media (max-width: 900px) {
+  .admin-aside {
+    display: none;
+  }
+
+  .admin-header,
+  .admin-main {
+    padding: 18px;
+  }
+
+  .variant-row {
+    grid-template-columns: 1fr;
+  }
+}

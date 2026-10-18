@@ -1,0 +1,777 @@
+openapi: 3.1.0
+info:
+  title: Full Mall API
+  version: 1.0.0
+  description: |
+    源码开放跨境商城 API v1 契约。首发中国大陆，支持多仓/门店/供应商代发/自提。
+    金额字段均为最小货币单位整数（如人民币分），并携带 currency。
+    公开演示站仅允许 GET 和 /mock/**，禁止 POST/PUT/DELETE。
+servers:
+  - url: http://localhost:8080
+    description: Local
+tags:
+  - name: Catalog
+  - name: Stores
+  - name: Cart
+  - name: Orders
+  - name: Payments
+  - name: Fulfillment
+  - name: Inventory
+  - name: Legal
+  - name: Support
+  - name: Analytics
+  - name: Supplier
+  - name: Demo
+paths:
+  /api/v1/products:
+    get:
+      tags: [Catalog]
+      summary: 商品列表
+      parameters:
+        - in: query
+          name: locale
+          schema: { type: string, default: zh-CN }
+        - in: query
+          name: market
+          schema: { type: string, default: CN }
+        - in: query
+          name: categoryId
+          schema: { type: string }
+        - in: query
+          name: keyword
+          schema: { type: string }
+        - in: query
+          name: page
+          schema: { type: integer, default: 0 }
+        - in: query
+          name: size
+          schema: { type: integer, default: 20, maximum: 100 }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProductPage"
+  /api/v1/products/{productId}:
+    get:
+      tags: [Catalog]
+      summary: 商品详情
+      parameters:
+        - in: path
+          name: productId
+          required: true
+          schema: { type: string }
+        - in: query
+          name: locale
+          schema: { type: string, default: zh-CN }
+        - in: query
+          name: market
+          schema: { type: string, default: CN }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Product"
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /api/v1/stores:
+    get:
+      tags: [Stores]
+      summary: 查找支持自提的门店
+      parameters:
+        - in: query
+          name: latitude
+          schema: { type: number, format: double }
+        - in: query
+          name: longitude
+          schema: { type: number, format: double }
+        - in: query
+          name: skuId
+          schema: { type: string }
+        - in: query
+          name: market
+          schema: { type: string, default: CN }
+        - in: query
+          name: limit
+          schema: { type: integer, default: 10 }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Store"
+  /api/v1/checkout:
+    post:
+      tags: [Cart, Orders]
+      summary: 结算并创建订单
+      parameters:
+        - in: header
+          name: Idempotency-Key
+          required: false
+          description: 同一 key + 同一请求体重复提交返回同一订单；不同请求体返回 409
+          schema: { type: string, maxLength: 128 }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CheckoutRequest"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Order"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+  /api/v1/orders/{orderId}:
+    get:
+      tags: [Orders]
+      summary: 订单详情
+      parameters:
+        - in: path
+          name: orderId
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Order"
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /api/v1/orders/{orderId}/fulfillments:
+    get:
+      tags: [Fulfillment]
+      summary: 订单履约单
+      parameters:
+        - in: path
+          name: orderId
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/FulfillmentOrder"
+  /api/v1/payments/mock/{orderId}/pay:
+    post:
+      tags: [Payments]
+      summary: Mock 支付（dev/prod-mock；demo 模式禁用）
+      parameters:
+        - in: path
+          name: orderId
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Payment"
+  /api/v1/legal/documents:
+    get:
+      tags: [Legal]
+      summary: 获取当前生效法律文档
+      parameters:
+        - in: query
+          name: type
+          required: true
+          schema:
+            type: string
+            enum: [TERMS, PRIVACY, COOKIE, REFUND, SHIPPING, PICKUP, MEMBERSHIP, SUPPLIER_AGREEMENT]
+        - in: query
+          name: locale
+          schema: { type: string, default: zh-CN }
+        - in: query
+          name: market
+          schema: { type: string, default: CN }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LegalDocument"
+  /api/v1/legal/acceptances:
+    post:
+      tags: [Legal]
+      summary: 记录法律文档接受
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LegalAcceptanceRequest"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LegalAcceptance"
+  /api/v1/support/conversations:
+    post:
+      tags: [Support]
+      summary: 创建客服会话
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [subject]
+              properties:
+                subject: { type: string }
+                orderId: { type: string }
+                locale: { type: string, default: zh-CN }
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SupportConversation"
+  /api/v1/analytics/overview:
+    get:
+      tags: [Analytics]
+      summary: 经营总览
+      parameters:
+        - in: query
+          name: from
+          schema: { type: string, format: date }
+        - in: query
+          name: to
+          schema: { type: string, format: date }
+        - in: query
+          name: market
+          schema: { type: string, default: CN }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AnalyticsOverview"
+  /admin/v1/products:
+    post:
+      tags: [Catalog]
+      summary: 创建商品（草稿）
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ProductUpsertRequest"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Product"
+  /admin/v1/inventory/batches:
+    get:
+      tags: [Inventory]
+      summary: 查询批次库存
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: query
+          name: locationType
+          schema:
+            type: string
+            enum: [WAREHOUSE, STORE, SUPPLIER]
+        - in: query
+          name: locationId
+          schema: { type: string }
+        - in: query
+          name: skuId
+          schema: { type: string }
+        - in: query
+          name: expiringInDays
+          schema: { type: integer }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/InventoryBatch"
+  /store/v1/pick-tasks:
+    get:
+      tags: [Fulfillment]
+      summary: 门店拣货任务
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: query
+          name: storeId
+          required: true
+          schema: { type: string }
+        - in: query
+          name: status
+          schema: { type: string, enum: [PENDING, PICKING, PICKED, CANCELLED] }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/PickTask"
+  /store/v1/pick-tasks/{taskId}/confirm:
+    post:
+      tags: [Fulfillment]
+      summary: 确认拣货（扫码批次/效期校验）
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: path
+          name: taskId
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [batchId, quantity]
+              properties:
+                batchId: { type: string }
+                quantity: { type: integer, minimum: 1 }
+                scannedCode: { type: string }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PickTask"
+  /store/v1/pickups/{pickupCode}/verify:
+    post:
+      tags: [Fulfillment]
+      summary: 自提核销
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: path
+          name: pickupCode
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [verificationType, verificationValue]
+              properties:
+                verificationType: { type: string, enum: [PHONE, ID_CARD, PICKUP_CODE] }
+                verificationValue: { type: string }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Pickup"
+  /supplier/v1/orders:
+    get:
+      tags: [Supplier]
+      summary: 供应商待处理订单
+      security: [{ supplierHmac: [] }]
+      parameters:
+        - in: query
+          name: status
+          schema: { type: string, enum: [PENDING_ACCEPT, ACCEPTED, SHIPPED, CANCELLED] }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/SupplierOrder"
+  /open/v1/orders/{orderId}/ship:
+    post:
+      tags: [Supplier]
+      summary: 供应商回传发货
+      security: [{ supplierHmac: [] }]
+      parameters:
+        - in: path
+          name: orderId
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [carrierCode, trackingNo]
+              properties:
+                carrierCode: { type: string }
+                trackingNo: { type: string }
+                shippedAt: { type: string, format: date-time }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SupplierOrder"
+  /mock/checkout:
+    get:
+      tags: [Demo]
+      summary: 演示站只读结算模拟；不持久化、不调用外部服务
+      parameters:
+        - in: query
+          name: scenario
+          schema:
+            type: string
+            enum: [paid, unpaid, split, pickup]
+            default: paid
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DemoCheckoutResult"
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+    supplierHmac:
+      type: apiKey
+      in: header
+      name: X-Supplier-Signature
+  schemas:
+    Money:
+      type: object
+      required: [amount, currency]
+      properties:
+        amount:
+          type: integer
+          format: int64
+          description: 最小货币单位，如人民币分
+        currency:
+          type: string
+          example: CNY
+    Product:
+      type: object
+      required: [id, title, status, skus]
+      properties:
+        id: { type: string }
+        title: { type: string }
+        description: { type: string }
+        categoryId: { type: string }
+        brandId: { type: string }
+        status: { type: string, enum: [DRAFT, ACTIVE, ARCHIVED] }
+        inventoryTrackingLevel: { type: string, enum: [VARIANT, PRODUCT] }
+        shelfLifeManaged: { type: boolean }
+        images:
+          type: array
+          items: { type: string, format: uri }
+        skus:
+          type: array
+          items:
+            $ref: "#/components/schemas/Sku"
+    Sku:
+      type: object
+      required: [id, skuCode, price, options]
+      properties:
+        id: { type: string }
+        skuCode: { type: string }
+        barcode: { type: string }
+        price: { $ref: "#/components/schemas/Money" }
+        compareAtPrice: { $ref: "#/components/schemas/Money" }
+        options:
+          type: object
+          additionalProperties: { type: string }
+        image: { type: string, format: uri }
+    ProductPage:
+      type: object
+      required: [items, page, size, total]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/Product"
+        page: { type: integer }
+        size: { type: integer }
+        total: { type: integer, format: int64 }
+    Store:
+      type: object
+      required: [id, name, address, pickupEnabled]
+      properties:
+        id: { type: string }
+        name: { type: string }
+        address: { type: string }
+        latitude: { type: number, format: double }
+        longitude: { type: number, format: double }
+        distanceMeters: { type: integer }
+        pickupEnabled: { type: boolean }
+        pickupSlots:
+          type: array
+          items: { type: string }
+        stockAvailable: { type: boolean }
+    CheckoutRequest:
+      type: object
+      required: [items, fulfillmentMode, contact]
+      properties:
+        items:
+          type: array
+          minItems: 1
+          items:
+            type: object
+            required: [skuId, quantity]
+            properties:
+              skuId: { type: string }
+              quantity: { type: integer, minimum: 1 }
+        fulfillmentMode:
+          type: string
+          enum: [SHIP, PICKUP]
+        storeId:
+          type: string
+          description: PICKUP 时必填
+        contact:
+          type: object
+          required: [name, phone]
+          properties:
+            name: { type: string }
+            phone: { type: string }
+            email: { type: string, format: email }
+        address:
+          type: object
+          properties:
+            province: { type: string }
+            city: { type: string }
+            district: { type: string }
+            detail: { type: string }
+            postalCode: { type: string }
+        legalAcceptanceIds:
+          type: array
+          items: { type: string }
+    Order:
+      type: object
+      required: [id, status, currency, total, lines]
+      properties:
+        id: { type: string }
+        orderNo: { type: string }
+        status:
+          type: string
+          enum: [PENDING_PAYMENT, PAID, ALLOCATED, PARTIALLY_FULFILLED, FULFILLED, CANCELLED, REFUNDED]
+        currency: { type: string }
+        subtotal: { $ref: "#/components/schemas/Money" }
+        shippingFee: { $ref: "#/components/schemas/Money" }
+        discount: { $ref: "#/components/schemas/Money" }
+        total: { $ref: "#/components/schemas/Money" }
+        createdAt: { type: string, format: date-time }
+        lines:
+          type: array
+          items:
+            $ref: "#/components/schemas/OrderLine"
+    OrderLine:
+      type: object
+      required: [id, skuId, title, quantity, unitPrice]
+      properties:
+        id: { type: string }
+        skuId: { type: string }
+        title: { type: string }
+        skuCode: { type: string }
+        quantity: { type: integer }
+        unitPrice: { $ref: "#/components/schemas/Money" }
+        fulfillmentType:
+          type: string
+          enum: [WAREHOUSE_SHIP, STORE_SHIP, SUPPLIER_DROPSHIP, STORE_PICKUP]
+    FulfillmentOrder:
+      type: object
+      required: [id, type, status, lines]
+      properties:
+        id: { type: string }
+        type:
+          type: string
+          enum: [WAREHOUSE_SHIP, STORE_SHIP, SUPPLIER_DROPSHIP, STORE_PICKUP]
+        status:
+          type: string
+          enum: [PENDING, ALLOCATED, PICKING, PACKED, SHIPPED, READY_FOR_PICKUP, COMPLETED, CANCELLED]
+        sourceId: { type: string }
+        carrierCode: { type: string }
+        trackingNo: { type: string }
+        pickupCode: { type: string }
+        pickupExpiresAt: { type: string, format: date-time }
+        lines:
+          type: array
+          items:
+            $ref: "#/components/schemas/OrderLine"
+    InventoryBatch:
+      type: object
+      required: [id, skuId, locationType, locationId, batchNo, quantity, expiryDate, status]
+      properties:
+        id: { type: string }
+        skuId: { type: string }
+        locationType: { type: string, enum: [WAREHOUSE, STORE, SUPPLIER] }
+        locationId: { type: string }
+        batchNo: { type: string }
+        productionDate: { type: string, format: date }
+        expiryDate: { type: string, format: date }
+        quantity: { type: integer }
+        reservedQuantity: { type: integer }
+        status: { type: string, enum: [AVAILABLE, QUARANTINE, NEAR_EXPIRY, EXPIRED, BLOCKED] }
+        unitCost: { $ref: "#/components/schemas/Money" }
+    PickTask:
+      type: object
+      required: [id, fulfillmentOrderId, storeId, status, lines]
+      properties:
+        id: { type: string }
+        fulfillmentOrderId: { type: string }
+        storeId: { type: string }
+        status: { type: string, enum: [PENDING, PICKING, PICKED, CANCELLED] }
+        lines:
+          type: array
+          items:
+            type: object
+            properties:
+              skuId: { type: string }
+              quantity: { type: integer }
+              suggestedBatchId: { type: string }
+              suggestedExpiryDate: { type: string, format: date }
+    Pickup:
+      type: object
+      required: [pickupCode, status]
+      properties:
+        pickupCode: { type: string }
+        status: { type: string, enum: [PENDING, READY, COMPLETED, EXPIRED, CANCELLED] }
+        storeId: { type: string }
+        completedAt: { type: string, format: date-time }
+    Payment:
+      type: object
+      required: [id, orderId, provider, status, amount]
+      properties:
+        id: { type: string }
+        orderId: { type: string }
+        provider: { type: string, enum: [MOCK, WECHAT_PAY, ALIPAY, UNIONPAY, LOCAL] }
+        status: { type: string, enum: [PENDING, AUTHORIZED, PAID, FAILED, REFUNDED, PARTIALLY_REFUNDED] }
+        amount: { $ref: "#/components/schemas/Money" }
+        providerTransactionId: { type: string }
+        paidAt: { type: string, format: date-time }
+    LegalDocument:
+      type: object
+      required: [id, type, version, locale, title, content, effectiveFrom]
+      properties:
+        id: { type: string }
+        type: { type: string }
+        version: { type: string }
+        locale: { type: string }
+        market: { type: string }
+        title: { type: string }
+        content: { type: string }
+        contentHash: { type: string }
+        effectiveFrom: { type: string, format: date-time }
+        pdfUrl: { type: string, format: uri }
+    LegalAcceptanceRequest:
+      type: object
+      required: [documentVersionId, locale, method]
+      properties:
+        documentVersionId: { type: string }
+        locale: { type: string }
+        method: { type: string, enum: [CLICKWRAP, E_SIGN] }
+        orderId: { type: string }
+        sessionId: { type: string }
+    LegalAcceptance:
+      type: object
+      required: [id, documentVersionId, locale, acceptedAt, evidenceHash]
+      properties:
+        id: { type: string }
+        documentVersionId: { type: string }
+        locale: { type: string }
+        acceptedAt: { type: string, format: date-time }
+        evidenceHash: { type: string }
+    SupportConversation:
+      type: object
+      required: [id, status, locale]
+      properties:
+        id: { type: string }
+        status: { type: string, enum: [OPEN, PENDING, RESOLVED, CLOSED] }
+        locale: { type: string }
+        assignedAgentId: { type: string }
+        orderId: { type: string }
+    SupplierOrder:
+      type: object
+      required: [id, status, lines]
+      properties:
+        id: { type: string }
+        status: { type: string, enum: [PENDING_ACCEPT, ACCEPTED, SHIPPED, CANCELLED] }
+        acceptDeadline: { type: string, format: date-time }
+        shipDeadline: { type: string, format: date-time }
+        carrierCode: { type: string }
+        trackingNo: { type: string }
+        lines:
+          type: array
+          items:
+            type: object
+            properties:
+              skuId: { type: string }
+              quantity: { type: integer }
+    AnalyticsOverview:
+      type: object
+      properties:
+        gmv: { $ref: "#/components/schemas/Money" }
+        orders: { type: integer }
+        paidOrders: { type: integer }
+        aov: { $ref: "#/components/schemas/Money" }
+        pickupRate: { type: number, format: double }
+        fulfillmentOnTimeRate: { type: number, format: double }
+        nearExpiryValue: { $ref: "#/components/schemas/Money" }
+        botContainmentRate: { type: number, format: double }
+    DemoCheckoutResult:
+      type: object
+      properties:
+        scenario: { type: string }
+        readOnly: { type: boolean }
+        order:
+          $ref: "#/components/schemas/Order"
+        notice: { type: string }
+    Error:
+      type: object
+      required: [code, message, requestId]
+      properties:
+        code: { type: string }
+        message: { type: string }
+        requestId: { type: string }
+        details:
+          type: array
+          items: { type: string }
+  responses:
+    BadRequest:
+      description: Bad Request
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+    NotFound:
+      description: Not Found
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"

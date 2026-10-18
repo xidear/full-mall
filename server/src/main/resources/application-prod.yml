@@ -1,0 +1,14 @@
+app:
+  mode: prod
+  security:
+    hsts-enabled: true
+  demo:
+    read-only: false
+  payment:
+    provider: ${PAYMENT_PROVIDER}
+  logistics:
+    provider: ${LOGISTICS_PROVIDER}
+
+logging:
+  level:
+    com.fullmall: INFO

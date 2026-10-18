@@ -1,0 +1,75 @@
+name: CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+      - name: Unit tests
+        working-directory: server
+        run: mvn -B -ntp test
+      - name: Demo package
+        working-directory: server
+        run: mvn -B -ntp -DskipTests -Pdemo package
+      - name: Production package
+        working-directory: server
+        run: mvn -B -ntp -DskipTests -Pprod package
+      - name: SBOM
+        uses: anchore/sbom-action@v0
+        with:
+          path: .
+
+  web:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install
+        working-directory: web
+        run: npm install
+      - name: Build storefront
+        working-directory: web
+        run: npm run build --workspace @fullmall/storefront
+      - name: Build admin
+        working-directory: web
+        run: npm run build --workspace @fullmall/admin
+      - name: Build store console
+        working-directory: web
+        run: npm run build --workspace @fullmall/store-console
+      - name: Build supplier portal
+        working-directory: web
+        run: npm run build --workspace @fullmall/supplier-portal
+      - name: Build support console
+        working-directory: web
+        run: npm run build --workspace @fullmall/support-console
+      - name: Install mobile dependencies
+        working-directory: web/apps/mobile
+        run: npm install
+      - name: Build mobile H5
+        working-directory: web/apps/mobile
+        run: npm run build:h5
+      - name: Build WeChat mini-program
+        working-directory: web/apps/mobile
+        run: npm run build:mp-weixin
+
+  compose:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate Compose
+        run: docker compose --env-file .env.example config > /dev/null

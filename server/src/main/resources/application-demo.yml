@@ -1,0 +1,13 @@
+app:
+  mode: demo
+  demo:
+    read-only: true
+  payment:
+    provider: mock
+  logistics:
+    provider: mock
+
+logging:
+  level:
+    com.fullmall: INFO
+    org.springframework.web: WARN

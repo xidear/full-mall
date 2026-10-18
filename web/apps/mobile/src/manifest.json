@@ -1,0 +1,20 @@
+{
+  "name": "Full Mall Mobile",
+  "appid": "__UNI__FULLMALL",
+  "description": "Full Mall uni-app scaffold",
+  "versionName": "0.1.0",
+  "versionCode": "100",
+  "transformPx": false,
+  "h5": {
+    "router": {
+      "mode": "hash"
+    }
+  },
+  "mp-weixin": {
+    "appid": "",
+    "setting": {
+      "urlCheck": false
+    },
+    "usingComponents": true
+  }
+}

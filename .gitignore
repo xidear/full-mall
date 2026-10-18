@@ -1,0 +1,59 @@
+# Java
+target/
+*.class
+*.jar
+*.war
+hs_err_pid*
+replay_pid*
+
+# Maven
+.mvn/wrapper/maven-wrapper.jar
+!**/src/main/**/target/
+!**/src/test/**/target/
+
+# Node
+node_modules/
+.pnpm-store/
+.nuxt/
+.output/
+dist/
+coverage/
+*.tsbuildinfo
+.vite/
+
+# Env & secrets
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.jks
+secrets/
+
+# IDE
+.idea/
+.vscode/
+!.vscode/extensions.json
+!.vscode/launch.json
+*.iml
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs & runtime
+logs/
+*.log
+tmp/
+.tmp/
+
+# Docker
+docker-data/
+
+# Local only
+.zcode/
+
+# Test artifacts
+web/test-results/
+web/playwright-report/

@@ -1,0 +1,140 @@
+:root {
+  font-family: "PingFang SC", "Microsoft YaHei", "Noto Sans SC", system-ui, sans-serif;
+  color: #1f2421;
+  background: #f4f3ef;
+  --el-color-primary: #e1251b;
+  --el-color-primary-light-3: #ea5a52;
+  --el-color-primary-light-5: #f08c86;
+  --el-color-primary-light-7: #f7c3bf;
+  --el-color-primary-light-8: #fad9d6;
+  --el-color-primary-light-9: #fdeceb;
+  --el-color-primary-dark-2: #b51f17;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: #f4f3ef;
+}
+
+.store-shell {
+  min-height: 100vh;
+}
+
+.store-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 18px 28px;
+  border-bottom: 1px solid #dedbd3;
+  background: #1f2421;
+  color: #fff;
+}
+
+.store-header > div {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.store-mark {
+  display: grid;
+  width: 42px;
+  height: 42px;
+  place-items: center;
+  border-radius: 12px;
+  background: #e1251b;
+  font-weight: 800;
+}
+
+.store-header strong,
+.store-header small {
+  display: block;
+}
+
+.store-header small,
+.store-mode {
+  color: rgba(255, 255, 255, 0.6);
+  font-size: 12px;
+}
+
+.store-main {
+  width: min(1180px, calc(100% - 32px));
+  margin: 24px auto 48px;
+}
+
+.toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-bottom: 18px;
+}
+
+.panel {
+  padding: 22px;
+  border: 1px solid #dedbd3;
+  border-radius: 16px;
+  background: #fff;
+}
+
+.panel + .panel {
+  margin-top: 20px;
+}
+
+.panel h2 {
+  margin: 0 0 16px;
+  font-size: 18px;
+}
+
+.task-card {
+  padding: 16px;
+  border: 1px solid #dedbd3;
+  border-radius: 14px;
+  background: #fbfaf7;
+}
+
+.task-card + .task-card {
+  margin-top: 12px;
+}
+
+.task-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+
+.batch-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 0;
+  border-top: 1px dashed #dedbd3;
+  font-size: 13px;
+}
+
+.batch-code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 12px;
+}
+
+.muted {
+  color: #6b716c;
+  font-size: 12px;
+}
+
+.result {
+  overflow: auto;
+  max-height: 260px;
+  padding: 14px;
+  border-radius: 12px;
+  background: #20261f;
+  color: #d9e6dc;
+  font-size: 12px;
+}

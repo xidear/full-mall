@@ -82,16 +82,48 @@ public class PromotionPreviewService {
             return List.of();
         }
         long total = subtotalsBySku.values().stream().mapToLong(Long::longValue).sum();
+        java.util.Map<String, RuleScope> scopes = loadScopes();
+        java.util.Map<UUID, UUID> categoryOfSku = categoryOfSkus(subtotalsBySku.keySet());
+
         List<PromotionEngine.ScopedRule> result = new ArrayList<>();
         for (PromotionEngine.Rule rule : loadActiveRules(channel)) {
-            java.util.Set<String> scopeIds = scopeIds(rule.code());
-            long base = scopeIds.isEmpty() ? total
-                    : subtotalsBySku.entrySet().stream()
-                        .filter(entry -> scopeIds.contains(entry.getKey().toString()))
-                        .mapToLong(java.util.Map.Entry::getValue)
-                        .sum();
+            RuleScope scope = scopes.getOrDefault(rule.code(), new RuleScope("ALL", java.util.Set.of()));
+            // 只写了 scopeIds 未声明 scope 时按 SKU 处理（管理员更可能漏填类型而不是漏填 ID）
+            String scopeType = scope.ids().isEmpty() ? "ALL"
+                    : ("ALL".equals(scope.scope()) ? "SKU" : scope.scope());
+            long base = switch (scopeType) {
+                case "SKU" -> sumMatching(subtotalsBySku, skuId -> scope.ids().contains(skuId.toString()));
+                case "CATEGORY" -> sumMatching(subtotalsBySku, skuId -> {
+                    UUID categoryId = categoryOfSku.get(skuId);
+                    return categoryId != null && scope.ids().contains(categoryId.toString());
+                });
+                default -> total;
+            };
             result.add(new PromotionEngine.ScopedRule(rule, base));
         }
+        return result;
+    }
+
+    private long sumMatching(java.util.Map<UUID, Long> subtotalsBySku,
+                             java.util.function.Predicate<UUID> matcher) {
+        return subtotalsBySku.entrySet().stream()
+                .filter(entry -> matcher.test(entry.getKey()))
+                .mapToLong(java.util.Map.Entry::getValue)
+                .sum();
+    }
+
+    private java.util.Map<UUID, UUID> categoryOfSkus(java.util.Set<UUID> skuIds) {
+        if (skuIds.isEmpty()) {
+            return java.util.Map.of();
+        }
+        java.util.Map<UUID, UUID> result = new java.util.HashMap<>();
+        jdbcTemplate.query("""
+                SELECT s.id AS sku_id, p.category_id
+                  FROM sku s JOIN product p ON p.id = s.product_id
+                 WHERE s.id = ANY(?)
+                """, rs -> {
+            result.put(rs.getObject("sku_id", UUID.class), rs.getObject("category_id", UUID.class));
+        }, (Object) skuIds.toArray(new UUID[0]));
         return result;
     }
 
@@ -109,6 +141,32 @@ public class PromotionPreviewService {
                 .filter(item -> scopeIds.contains(item.skuId().toString()))
                 .mapToLong(item -> catalogService.getSku(item.skuId()).price().amount() * item.quantity())
                 .sum();
+    }
+
+    private record RuleScope(String scope, java.util.Set<String> ids) {
+    }
+
+    /** 一次查询拿到所有生效规则的范围配置（避免每条规则一次查询）。 */
+    private java.util.Map<String, RuleScope> loadScopes() {
+        java.util.Map<String, RuleScope> scopes = new java.util.HashMap<>();
+        jdbcTemplate.query("""
+                SELECT code, COALESCE(rules->>'scope', 'ALL') AS scope,
+                       COALESCE(rules->'scopeIds', '[]'::jsonb) AS ids
+                  FROM promotion
+                 WHERE status = 'ACTIVE' AND type IN ('FULL_REDUCTION', 'FULL_DISCOUNT')
+                """, rs -> {
+            String idsJson = rs.getString("ids");
+            java.util.Set<String> ids = new java.util.HashSet<>();
+            try {
+                com.fasterxml.jackson.databind.JsonNode node =
+                        new com.fasterxml.jackson.databind.ObjectMapper().readTree(idsJson);
+                node.forEach(element -> ids.add(element.asText()));
+            } catch (com.fasterxml.jackson.core.JsonProcessingException error) {
+                throw new IllegalStateException("促销范围解析失败: " + rs.getString("code"), error);
+            }
+            scopes.put(rs.getString("code"), new RuleScope(rs.getString("scope").toUpperCase(), ids));
+        });
+        return scopes;
     }
 
     private java.util.Set<String> scopeIds(String ruleCode) {

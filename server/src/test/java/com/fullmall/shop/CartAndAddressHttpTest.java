@@ -76,6 +76,8 @@ class CartAndAddressHttpTest {
         jdbc.update("DELETE FROM cart_item");
         jdbc.update("DELETE FROM cart");
         jdbc.update("DELETE FROM member_address");
+        // 测试用促销规则互相隔离，避免上一条用例残留的规则影响下一条
+        jdbc.update("DELETE FROM promotion WHERE code LIKE 'HTTP-%'");
         UUID marketId = UUID.fromString("99999999-aaaa-bbbb-cccc-000000000001");
         jdbc.update("""
                 INSERT INTO market (code, name, currency, default_locale, active)
@@ -353,6 +355,38 @@ class CartAndAddressHttpTest {
                 "SELECT discount_amount FROM orders WHERE id = ?::uuid", Long.class, orderId)).isZero();
 
         jdbc.update("DELETE FROM promotion WHERE code = 'HTTP-SCOPED'");
+    }
+
+    @Test
+    void categoryScopedRuleAppliesOnlyToMatchingCategory() {
+        UUID categoryId = UUID.fromString("99999999-8888-7777-6666-000000000001");
+        jdbc.update("""
+                INSERT INTO category (id, code, name, active) VALUES (?, 'HTTP-CAT', 'HTTP 类目', TRUE)
+                ON CONFLICT (id) DO NOTHING
+                """, categoryId);
+        jdbc.update("UPDATE product SET category_id = ? WHERE id = 'aaaaaaaa-2222-2222-2222-222222222222'",
+                categoryId);
+        jdbc.update("DELETE FROM promotion WHERE code = 'HTTP-CAT-RULE'");
+        jdbc.update("""
+                INSERT INTO promotion (id, code, type, title, status, starts_at, ends_at, rules, priority)
+                VALUES (?, 'HTTP-CAT-RULE', 'FULL_REDUCTION', '类目满减', 'ACTIVE',
+                        now() - interval '1 hour', now() + interval '1 day', ?::jsonb, 10)
+                """, UUID.randomUUID(),
+                "{\"thresholdAmount\":1000,\"value\":300,\"scope\":\"CATEGORY\",\"scopeIds\":[\"" + categoryId + "\"]}");
+
+        var matched = http.exchange("/api/v1/promotions/preview", HttpMethod.POST,
+                new HttpEntity<>(Map.of("items", java.util.List.of(
+                        Map.of("skuId", SKU.toString(), "quantity", 2))), guestHeaders()), String.class);
+        assertThat(matched.getBody()).contains("HTTP-CAT-RULE").contains("\"discountAmount\":300");
+
+        // 换个没有类目的商品 → 不命中
+        jdbc.update("UPDATE product SET category_id = NULL WHERE id = 'aaaaaaaa-2222-2222-2222-222222222222'");
+        var unmatched = http.exchange("/api/v1/promotions/preview", HttpMethod.POST,
+                new HttpEntity<>(Map.of("items", java.util.List.of(
+                        Map.of("skuId", SKU.toString(), "quantity", 2))), guestHeaders()), String.class);
+        assertThat(unmatched.getBody()).doesNotContain("HTTP-CAT-RULE");
+
+        jdbc.update("DELETE FROM promotion WHERE code = 'HTTP-CAT-RULE'");
     }
 
     @Test

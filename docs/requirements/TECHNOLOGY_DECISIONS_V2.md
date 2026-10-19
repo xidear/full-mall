@@ -263,6 +263,16 @@ Full Mall 的落地：
 - 用量：`ai_usage` 记录 provider/model/单位/单价快照/幂等键，月度与供应商账单对账。
 - 详见 `docs/I18N_MEDIA_AI_DESIGN.md`。
 
+## 3.6 已确认：支付双模式与配置方式（2026-10-19）
+
+- 微信/支付宝**同时支持直连商户模式与服务商模式**；服务商模式下我方是服务商，店铺是**子商户**，
+  资金直接进子商户，不做平台分账（非 b2b2c）；业务形态可为 B2C 或 B2B。
+- 适配器上下文必须携带 `mode + configId + subMchId`；服务商模式缺 `sub_mch_id` 直接失败。
+- 回调按 `sub_mch_id` 路由；对账按 `sp_mchid + sub_mchid` 拉子商户账单。
+- **所有对外 Provider 配置走 Web 图形界面**：每 provider+mode 独立表单、证书文件上传、枚举下拉、
+  禁止手写 JSON/粘贴 PEM、保存时强校验 + 连通性测试 + 审计。
+- 详见 `docs/PAYMENT_PROVIDER_MODES_AND_CONFIG_UI.md`。
+
 ## 4. 禁止事项
 
 - 禁止自研字段-角色权限矩阵作为默认方案。

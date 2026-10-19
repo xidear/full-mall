@@ -70,8 +70,9 @@
 
 | 任务 | 需求 | 验收 | 依赖 |
 |---|---|---|---|
-| C1 `PaymentConnector` SPI 收敛 | PAY-001 | 微信/支付宝/银联/聚合四适配器骨架，Mock 与真实实现同契约 | A3 |
-| C2 凭证后台配置与加密 | PAY-002 | 掩码显示、轮换审计、缺配置 fail-fast | C1 |
+| C1 `PaymentConnector` SPI 收敛（**含 mode + subMchId 上下文**） | PAY-001 | 四适配器骨架；Mock 同时支持直连/服务商模式 | A3 |
+| C2 凭证后台**图形配置**（禁止手写 JSON） | PAY-002 | 每 provider+mode 独立表单 schema、证书文件上传、下拉枚举、掩码、轮换审计、连通性自检 | C1 |
+| C2b 服务商模式子商户 | PAY-001/002 | `payment_sub_merchant`；下单/退款/回调/账单全带 `sub_mch_id`；缺失直接失败 | C2 |
 | C3 回调验签与幂等 inbox | PAY-004 | 重复/乱序回调不重复记账 | C1 |
 | C4 对账文件导入 | PAY-005 | 渠道 vs 订单 vs 退款 vs 结算差异分类 | C3 |
 | C5 拼团失败走真实退款 | PAY-006 | 适配器不可用明确失败，不标成功 | C1 |

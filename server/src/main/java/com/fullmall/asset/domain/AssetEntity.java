@@ -1,0 +1,68 @@
+package com.fullmall.asset.domain;
+
+import com.fullmall.platform.domain.BaseEntity;
+import jakarta.persistence.Column;
+import jakarta.persistence.Entity;
+import jakarta.persistence.Table;
+
+/**
+ * 素材库条目（P7 能力切片，同时作为 BaseEntity + Scope + CRUD 基类的范式试点）。
+ */
+@Entity
+@Table(name = "asset")
+public class AssetEntity extends BaseEntity {
+
+    @Column(name = "name", nullable = false, length = 200)
+    private String name;
+
+    @Column(name = "url", nullable = false, length = 1024)
+    private String url;
+
+    @Column(name = "kind", nullable = false, length = 32)
+    private String kind;
+
+    @Column(name = "owner_username", nullable = false, length = 64)
+    private String ownerUsername;
+
+    protected AssetEntity() {
+    }
+
+    public AssetEntity(String name, String url, String kind, String ownerUsername) {
+        this.name = name;
+        this.url = url;
+        this.kind = kind;
+        this.ownerUsername = ownerUsername;
+    }
+
+    public String getName() {
+        return name;
+    }
+
+    public void setName(String name) {
+        this.name = name;
+    }
+
+    public String getUrl() {
+        return url;
+    }
+
+    public void setUrl(String url) {
+        this.url = url;
+    }
+
+    public String getKind() {
+        return kind;
+    }
+
+    public void setKind(String kind) {
+        this.kind = kind;
+    }
+
+    public String getOwnerUsername() {
+        return ownerUsername;
+    }
+
+    public void setOwnerUsername(String ownerUsername) {
+        this.ownerUsername = ownerUsername;
+    }
+}

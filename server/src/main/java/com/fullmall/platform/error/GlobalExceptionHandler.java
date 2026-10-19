@@ -23,6 +23,14 @@ public class GlobalExceptionHandler {
                 .body(new ErrorResponse(exception.code(), exception.getMessage(), requestId(request), List.of()));
     }
 
+    @ExceptionHandler(org.springframework.dao.OptimisticLockingFailureException.class)
+    public ResponseEntity<ErrorResponse> handleOptimisticLock(
+            org.springframework.dao.OptimisticLockingFailureException exception, HttpServletRequest request) {
+        return ResponseEntity.status(HttpStatus.CONFLICT)
+                .body(new ErrorResponse("VERSION_CONFLICT",
+                        "数据已被其他操作修改，请刷新后重试", requestId(request), List.of()));
+    }
+
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public ResponseEntity<ErrorResponse> handleValidation(MethodArgumentNotValidException exception, HttpServletRequest request) {
         List<String> details = exception.getBindingResult().getFieldErrors().stream()

@@ -12,6 +12,7 @@ import org.springframework.test.context.ActiveProfiles;
                 "spring.datasource.username=sa",
                 "spring.datasource.password=",
                 "spring.flyway.enabled=false",
+                "spring.jpa.hibernate.ddl-auto=none",
                 "spring.modulith.events.jdbc.schema-initialization.enabled=false",
                 "spring.autoconfigure.exclude=org.springframework.boot.autoconfigure.amqp.RabbitAutoConfiguration,org.springframework.boot.autoconfigure.data.redis.RedisAutoConfiguration",
                 "app.payment.provider=mock",

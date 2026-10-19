@@ -93,7 +93,7 @@ Modulith 规则：
 - 过期/隔离/冻结批次不可售；退款回补只允许回到可售批次，否则 409 转人工处理。
 - 取消未支付订单会释放预占和促销名额；支付与取消都用条件状态更新，竞态只有一方成功。
 
-## 5. 数据库迁移（当前 Flyway v23）
+## 5. 数据库迁移（当前 Flyway v25）
 
 | 版本 | 内容 |
 |---|---|
@@ -120,6 +120,8 @@ Modulith 规则：
 | V21 | `promotion_redemption.released_at`，支持取消订单回退促销名额 |
 | V22 | `feature_flag`（supplier/pos.sale/pos.pickup 三个布尔开关 + 审计字段） |
 | V23 | 清理 V8 误插的演示会员/优惠券；被引用时显式失败，不静默跳过 |
+| V24 | JaVers 审计表 `jv_*` + 显式序列（JaVers 期望 `jv_*_pk_seq`，不能用 BIGSERIAL 自动命名） |
+| V25 | `asset` 素材库试点表（BaseEntity 字段：version/created_by/updated_by/deleted_at） |
 
 重要教训：
 
@@ -132,6 +134,8 @@ Modulith 规则：
   ```
   全新数据库无需处理。
 - Flyway 校验和会阻止修改已应用迁移；补字段用新迁移。
+- **JPA 实体与 schema 必须一致**：`spring.jpa.hibernate.ddl-auto=validate`。唯一例外是 `ServerContextTest`
+  （H2 + `spring.flyway.enabled=false`），它显式设置 `ddl-auto=none`，因为没有迁移就没有表。
 
 ## 6. 已实现功能面
 

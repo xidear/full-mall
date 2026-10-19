@@ -102,10 +102,13 @@ public class StaffAuthFilter extends OncePerRequestFilter {
 
         request.setAttribute(STAFF_USER_ATTRIBUTE, user);
         SecurityContext context = SecurityContextHolder.createEmptyContext();
-        context.setAuthentication(new UsernamePasswordAuthenticationToken(
+        UsernamePasswordAuthenticationToken authentication = new UsernamePasswordAuthenticationToken(
                 user.username(),
                 null,
-                List.of(new SimpleGrantedAuthority("ROLE_" + user.role()))));
+                List.of(new SimpleGrantedAuthority("ROLE_" + user.role())));
+        authentication.setDetails(new com.fullmall.platform.scope.ActorDetails(
+                user.id(), user.username(), user.role()));
+        context.setAuthentication(authentication);
         SecurityContextHolder.setContext(context);
         try {
             filterChain.doFilter(request, response);

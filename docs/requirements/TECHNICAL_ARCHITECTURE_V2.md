@@ -94,6 +94,13 @@ public abstract class BaseEntity {
 
 ### 2.5 基础仓储/服务
 
+> 实现状态（2026-10-19）：已落地在 `com.fullmall.platform`——
+> `domain.BaseEntity`、`scope.Scope`/`ScopeResolver`/`ActorDetails`、
+> `crud.BaseScopedService`/`BaseCrudController`、`audit.AuditConfig`/`AuditTrail`。
+> 首个试点为 `com.fullmall.asset`（素材库），越权返回 404、乐观锁冲突返回 409、
+> 每次写操作由 JaVers 留痕（见 `AssetScopeAndAuditTest`）。
+
+
 ```java
 public abstract class BaseScopedService<E extends BaseEntity, R extends JpaRepository<E, UUID>> {
     protected abstract Scope scope(Principal principal);

@@ -618,3 +618,40 @@ cd web && npx playwright test
 | 同一 SKU+批次的付费行与买赠行生成两条拣货行 | **产品缺陷**：扫码按批次确认无法区分，拣货任务永远停在 PENDING | `FulfillmentService` 按 `sku+batch` 合并拣货行并累加数量 |
 | POS 用例期望 payable 3380 / 积分 33 | 断言早于会员等级功能，未考虑 GOLD 95 折与 2 倍积分 | 修正为 3181 / 62 并写明推导 |
 | 自提用例期望批次余量 3 | 断言早于促销功能，未考虑"买二赠一"赠品行占用真实库存 | 修正为 2 并注明赠品行 |
+
+---
+
+## 2026-10-19（第 N+1 轮）：P0 公共基座（JPA + Scope + CRUD）与 JaVers 审计
+
+### 新增公共层（`com.fullmall.platform`）
+| 组件 | 作用 |
+|---|---|
+| `domain.BaseEntity` | `id/version/created_at/updated_at/created_by/updated_by/deleted_at`，`@Version` 乐观锁 |
+| `scope.Scope` + `ScopeResolver` + `ActorDetails` | 行级范围：ADMIN/OPERATOR 全量，其余按归属人；越权返回 404 不泄露存在性 |
+| `crud.BaseScopedService` | `getScoped/listScoped/create/update/softDelete`，软删除后视为不存在 |
+| `crud.BaseCrudController` | list/get/create/patch/delete 统一实现，禁止 Controller 拼 SQL/返回实体 |
+| `audit.AuditConfig` + `AuditTrail` | JaVers 7.11.9 手工装配，Flyway 管 `jv_*` 表（V24） |
+
+### 试点模块：素材库（`com.fullmall.asset`）
+- V25 `asset` 表；`AssetEntity extends BaseEntity`；`/admin/v1/assets` CRUD 全部来自基类。
+- 首个验证 `ddl-auto=validate` 的实体：实体与 Flyway schema 不一致会启动失败。
+
+### 依赖与选型
+- 新增 `spring-boot-starter-data-jpa`（存量 JdbcTemplate 模块不动）。
+- JaVers 用 `javers-core` + `javers-persistence-sql` 7.11.9；**starter 版本面向 Spring Boot 4，与本项目不兼容**（实测 `ClassNotFoundException`）。
+- **JaVers 7.11.9 不关闭连接**（实测 5 次 commit：打开 37、关闭 0）。当前对策：单连接复用 + `AuditTrail` 串行化，连接数恒为 1；升级前必须复查。详见 `TECHNOLOGY_DECISIONS_V2.md §3.2`。
+
+### OpenAPI 契约
+- 新增 `OpenApiContractTest`：springdoc 生成 `/v3/api-docs`，断言 8 个关键路径存在（商城、结算、后台登录、开关、素材、POS、自提核销、供应商 `/open/v1`）。
+- CI 的 `mvn test` 已包含该契约测试与 `ModulithStructureTest`（模块边界），等价于原先计划的 OpenAPI diff + 模块边界门禁。
+
+### 验证
+| 项目 | 结果 |
+|---|---|
+| 后端测试 | **68 个，全部通过，0 跳过**（上一轮 62） |
+| 新增测试 | `AssetScopeAndAuditTest` 5 个、`OpenApiContractTest` 1 个 |
+| 越权 | owner 读取他人素材 → 404；列表按归属过滤；管理员可见全部 |
+| 乐观锁 | 并发陈旧写入抛 `OptimisticLockingFailureException`，全局异常转 409 `VERSION_CONFLICT` |
+| 审计 | 创建/修改均产生 JaVers 快照，author 为操作人，`changed` 含被改字段 |
+| schema 一致性 | `ddl-auto=validate` 在真实 PostgreSQL 上通过 |
+| 构建 | `-Pprod`、`-Pdemo` 打包均成功 |

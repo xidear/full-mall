@@ -52,6 +52,24 @@
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-jdbc</artifactId>
         </dependency>
+        <!-- 新 CRUD 模块的 JPA 基座（存量 JdbcTemplate 不动，见 TECHNICAL_ARCHITECTURE_V2 §2） -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-data-jpa</artifactId>
+        </dependency>
+        <!-- 审计（谁/何时/哪些字段/旧值新值），成熟组件而非自研审计表。
+             使用 core + persistence-sql 手工装配：starter 面向 Spring Boot 4，本项目是 Boot 3.4，
+             schema 由 Flyway 管（javers.sqlSchemaManagementEnabled 关闭）。 -->
+        <dependency>
+            <groupId>org.javers</groupId>
+            <artifactId>javers-core</artifactId>
+            <version>7.11.9</version>
+        </dependency>
+        <dependency>
+            <groupId>org.javers</groupId>
+            <artifactId>javers-persistence-sql</artifactId>
+            <version>7.11.9</version>
+        </dependency>
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-websocket</artifactId>

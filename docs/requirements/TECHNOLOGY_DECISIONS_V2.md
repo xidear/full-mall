@@ -209,6 +209,28 @@ Full Mall 的落地：
 
 **站点状态单一真相**：`site.status` 仍存放在 `system_setting.site_status`（V7 已有，后台设置页已在用），`FeatureGuardFilter` 通过 `SystemSettingService.siteStatus()` 读取并缓存 30s；`FEATURE` 表只放布尔开关，避免同一语义两处存储。
 
+## 3.2 已结论：审计（JaVers）与 JPA 基座（P0，2026-10-19）
+
+| 候选 | 结论 |
+|---|---|
+| JaVers 7.11.9（`javers-core` + `javers-persistence-sql`） | **采纳**，手工装配 |
+| JaVers `javers-spring-boot-starter-sql` 7.11.9 | **不采纳**：该版本面向 Spring Boot 4，依赖 `org.springframework.boot.jpa.autoconfigure.JpaProperties`，本项目 Boot 3.4 启动即 `ClassNotFoundException` |
+| 自研审计表 | 不采纳：字段级旧值/新值、类型变更、查询 API 都要自己做 |
+
+**实测发现（必须在升级前复查）**：
+
+1. `javers-persistence-sql` **不关闭** `ConnectionProvider` 返回的连接。
+   用计数数据源实测：5 次 `commit` 打开 37 个连接、关闭 0 个；接 Hikari(20) 会在 20 次提交后耗尽连接池。
+2. 因此 `AuditConfig` **固定复用一条连接**，并由 `AuditTrail` 串行化所有 JaVers 调用（连接数恒为 1）。
+   代价是审计写入串行；升级 JaVers 后应改回连接池并重跑 `AssetScopeAndAuditTest`。
+3. JaVers 建表使用显式序列 `jv_*_pk_seq`，Flyway 迁移 V24 按此编写；不能用 `BIGSERIAL`（序列名不匹配）。
+4. 审计提交与业务事务不在同一事务（JaVers 用自己的连接）。当前策略是“多记不可漏记”，
+   强一致场景后续用 outbox。
+
+**JPA 基座**：`spring-boot-starter-data-jpa` + `ddl-auto=validate`。存量 JdbcTemplate 模块不迁移；
+新 CRUD 模块（首个试点 `asset`）继承 `BaseEntity` / `BaseScopedService` / `BaseCrudController`，
+行级范围由 `ScopeResolver` 统一解析，越权返回 404。
+
 ## 4. 禁止事项
 
 - 禁止自研字段-角色权限矩阵作为默认方案。

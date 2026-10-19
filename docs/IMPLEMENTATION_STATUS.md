@@ -1346,3 +1346,14 @@ cd web && npx playwright test
 > **未验证**：完整"加购 → 下单成功 → 购物车清空"路径未做 HTTP 端到端
 > （需要预置库存批次；下单逻辑本身已由 `PostgresPickupFlowTest` 覆盖）。
 
+### 补测：完整购物流（真实 HTTP）
+
+`CartAndAddressHttpTest` 新增成功路径：种市场/仓库/库存批次后，
+**加购 2 件 → 建地址 → 结算 → 返回 orderNo → 购物车清空**，全部走真实 HTTP + 真实 PostgreSQL。
+
+| 验证 | 结果 |
+|---|---|
+| 后端测试 | **221 个，全部通过，0 跳过** |
+| 主链路 | 浏览商品 → 加购 → 地址 → 下单，**首次端到端打通** |
+| 踩坑 | `market` 表列名是 `default_locale` 不是 `locale`，测试夹具写错导致 5 个用例全红，按真实 schema 修正 |
+

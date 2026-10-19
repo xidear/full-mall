@@ -75,12 +75,31 @@ class CartAndAddressHttpTest {
         jdbc.update("DELETE FROM cart_item");
         jdbc.update("DELETE FROM cart");
         jdbc.update("DELETE FROM member_address");
+        UUID marketId = UUID.fromString("99999999-aaaa-bbbb-cccc-000000000001");
+        jdbc.update("""
+                INSERT INTO market (code, name, currency, default_locale, active)
+                VALUES ('CN-TEST', '中国测试市场', 'CNY', 'zh-CN', TRUE)
+                ON CONFLICT (code) DO NOTHING
+                """);
+        UUID warehouseId = UUID.fromString("11111111-2222-3333-4444-555555555555");
+        jdbc.update("""
+                INSERT INTO warehouse (id, market_code, name, type, active)
+                VALUES (?, 'CN-TEST', 'HTTP 测试仓', 'SELF', TRUE)
+                ON CONFLICT (id) DO NOTHING
+                """, warehouseId);
+
         UUID productId = UUID.fromString("aaaaaaaa-2222-2222-2222-222222222222");
         jdbc.update("INSERT INTO product (id, title, status) VALUES (?, 'HTTP 测试商品', 'ACTIVE') ON CONFLICT (id) DO NOTHING", productId);
         jdbc.update("""
                 INSERT INTO sku (id, product_id, sku_code, price_amount, price_currency)
                 VALUES (?, ?, 'SKU-HTTP', 1000, 'CNY') ON CONFLICT (id) DO NOTHING
                 """, SKU, productId);
+        jdbc.update("""
+                INSERT INTO inventory_batch (id, sku_id, location_type, location_id, batch_no,
+                                             quantity, reserved_quantity, status)
+                VALUES ('dddddddd-1111-2222-3333-444444444444', ?, 'WAREHOUSE', ?, 'HTTP-BATCH', 50, 0, 'AVAILABLE')
+                ON CONFLICT (id) DO NOTHING
+                """, SKU, warehouseId);
     }
 
     private HttpHeaders guestHeaders() {
@@ -109,6 +128,29 @@ class CartAndAddressHttpTest {
                 new HttpEntity<>(guestHeaders()), String.class);
         assertThat(listResponse.getStatusCode().value()).isEqualTo(200);
         assertThat(listResponse.getBody()).contains("\"isDefault\":true");
+    }
+
+    @Test
+    void guestCanCheckoutFromCartAndCartIsCleared() {
+        http.exchange("/api/v1/cart/items", HttpMethod.POST,
+                new HttpEntity<>(Map.of("skuId", SKU.toString(), "quantity", 2), guestHeaders()), String.class);
+
+        var addressResponse = http.exchange("/api/v1/addresses", HttpMethod.POST,
+                new HttpEntity<>(Map.of("recipient", "张三", "phone", "13800000011",
+                        "province", "上海", "city", "上海", "district", "静安",
+                        "detail", "南京西路 1 号"), guestHeaders()), String.class);
+        String addressId = com.jayway.jsonpath.JsonPath.read(addressResponse.getBody(), "$[0].id");
+
+        var checkout = http.exchange("/api/v1/cart/checkout", HttpMethod.POST,
+                new HttpEntity<>(Map.of("addressId", addressId, "fulfillmentMode", "SHIP"), guestHeaders()),
+                String.class);
+
+        assertThat(checkout.getStatusCode().value()).isEqualTo(200);
+        assertThat(checkout.getBody()).contains("orderNo");
+        // 下单后购物车清空
+        var cart = http.exchange("/api/v1/cart", HttpMethod.GET,
+                new HttpEntity<>(guestHeaders()), String.class);
+        assertThat(cart.getBody()).isEqualTo("[]");
     }
 
     @Test

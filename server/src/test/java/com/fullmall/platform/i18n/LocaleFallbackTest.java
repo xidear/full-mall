@@ -26,10 +26,11 @@ class LocaleFallbackTest {
 
     @Test
     void malformedDefaultFailsLoudly() {
-        assertThatThrownBy(() -> LocaleFallback.preferred("es", "chinese"))
+        // 只有请求语言缺失时才会用到站点主语言，因此这里传 null 请求
+        assertThatThrownBy(() -> LocaleFallback.preferred(null, "chinese"))
                 .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("默认语言");
-        assertThatThrownBy(() -> LocaleFallback.preferred("es", null))
+                .hasMessageContaining("主语言");
+        assertThatThrownBy(() -> LocaleFallback.preferred(null, null))
                 .isInstanceOf(IllegalArgumentException.class);
     }
 
@@ -45,28 +46,38 @@ class LocaleFallbackTest {
     }
 
     @Test
-    void sourceIsSelfWhenLocalizedContentExists() {
-        var resolution = LocaleFallback.resolve("es", "zh-CN", true, true);
+    void localizedContentIsPreferred() {
+        var resolution = LocaleFallback.resolve("es", true, true);
         assertThat(resolution.locale()).isEqualTo("es");
-        assertThat(resolution.source()).isEqualTo(LocaleFallback.Source.SELF);
+        assertThat(resolution.source()).isEqualTo(LocaleFallback.Source.LOCALIZED);
     }
 
     @Test
-    void sourceIsDefaultWhenOnlyDefaultContentExists() {
-        var resolution = LocaleFallback.resolve("es", "zh-CN", false, true);
-        assertThat(resolution.locale()).isEqualTo("zh-CN");
+    void missingLocalizedContentFallsBackToEnglishDefault() {
+        var resolution = LocaleFallback.resolve("es", false, true);
+        assertThat(resolution.locale()).isEqualTo("en");
         assertThat(resolution.source()).isEqualTo(LocaleFallback.Source.DEFAULT);
     }
 
     @Test
-    void sourceIsPlaceholderWhenNothingExists() {
-        var resolution = LocaleFallback.resolve("es", "zh-CN", false, false);
-        assertThat(resolution.source()).isEqualTo(LocaleFallback.Source.PLACEHOLDER);
+    void chineseIsALocalizedLanguageNotTheDefault() {
+        var resolution = LocaleFallback.resolve("zh-CN", false, true);
+        assertThat(resolution.locale()).isEqualTo("en");
+        assertThat(resolution.source()).isEqualTo(LocaleFallback.Source.DEFAULT);
     }
 
     @Test
-    void requestedEqualToDefaultCountsAsSelf() {
-        var resolution = LocaleFallback.resolve("zh-CN", "zh-CN", false, true);
-        assertThat(resolution.source()).isEqualTo(LocaleFallback.Source.SELF);
+    void missingEnglishDefaultIsADataIntegrityErrorNotAPlaceholder() {
+        assertThatThrownBy(() -> LocaleFallback.resolve("es", false, false))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("英文默认");
+    }
+
+    @Test
+    void publishingRequiresEnglishDefaultContent() {
+        LocaleFallback.requirePublishable(true, "sku:1");
+        assertThatThrownBy(() -> LocaleFallback.requirePublishable(false, "sku:1"))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("不能发布");
     }
 }

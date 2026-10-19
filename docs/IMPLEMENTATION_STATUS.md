@@ -743,3 +743,17 @@ cd web && npx playwright test
 | 后端测试 | **89 个，全部通过，0 跳过** |
 | 新增测试 | `CurrentActorTest` 4 个（无认证、ActorDetails、回退用户名、匿名拒绝） |
 
+### A4 风控预警骨架
+
+- V28 `risk_alert`（rule_code/severity/subject/detail/created_at），严重度仅 LOW/MEDIUM/HIGH（DB CHECK 约束）。
+- `platform/risk/RiskAlertService`：**从已有审计与业务拒绝分支派生**，不另建事实表；
+  同规则+同对象在去重窗口内只留一条，避免刷屏；缺规则/缺对象直接抛错。
+- 首个规则 `EXPORT_SCOPE_DENIED`：会员导出越权尝试先告警（HIGH）再返回 403。
+- 查询接口 `GET /admin/v1/risk-alerts?limit=`，仅 `ADMIN`（方法级授权）。
+
+| 验证 | 结果 |
+|---|---|
+| 后端测试 | **94 个，全部通过，0 跳过** |
+| 新增测试 | `RiskAlertServiceTest` 5 个（去重跳过、写入、缺失参数、写入失败、条数越界） |
+| 迁移 | V28 空库冒烟通过 |
+

@@ -37,10 +37,13 @@ public class MemberExportService {
 
     private final MemberExportRepository repository;
     private final ExportAuditRepository auditRepository;
+    private final com.fullmall.platform.risk.RiskAlertService riskAlerts;
 
-    public MemberExportService(MemberExportRepository repository, ExportAuditRepository auditRepository) {
+    public MemberExportService(MemberExportRepository repository, ExportAuditRepository auditRepository,
+                               com.fullmall.platform.risk.RiskAlertService riskAlerts) {
         this.repository = repository;
         this.auditRepository = auditRepository;
+        this.riskAlerts = riskAlerts;
     }
 
     public record CsvExport(String filename, String content, int rowCount) {
@@ -48,6 +51,10 @@ public class MemberExportService {
 
     public CsvExport export(Scope scope, String actor, int limit, String requestId) {
         if (!scope.isAll()) {
+            // SEC-004：越权导出尝试属于风险事件，先告警再拒绝
+            riskAlerts.raise("EXPORT_SCOPE_DENIED", com.fullmall.platform.risk.RiskAlertService.Severity.HIGH,
+                    actor == null || actor.isBlank() ? "unknown-scope-" + scope.kind() : actor,
+                    "scope=" + scope.kind() + ";resource=member", java.time.Duration.ofHours(1));
             throw new ApiException(org.springframework.http.HttpStatus.FORBIDDEN,
                     "EXPORT_SCOPE_DENIED", "会员导出仅限平台运营");
         }

@@ -21,7 +21,9 @@ class MemberExportServiceTest {
 
     private final MemberExportRepository repository = mock(MemberExportRepository.class);
     private final ExportAuditRepository auditRepository = mock(ExportAuditRepository.class);
-    private final MemberExportService service = new MemberExportService(repository, auditRepository);
+    private final com.fullmall.platform.risk.RiskAlertService riskAlerts =
+            mock(com.fullmall.platform.risk.RiskAlertService.class);
+    private final MemberExportService service = new MemberExportService(repository, auditRepository, riskAlerts);
 
     private static List<MemberExportRepository.MemberRow> rows() {
         return List.of(
@@ -69,6 +71,10 @@ class MemberExportServiceTest {
                 .isInstanceOf(ApiException.class)
                 .hasMessageContaining("仅限平台运营");
         verify(repository, never()).findForExport(anyInt());
+        verify(riskAlerts).raise(org.mockito.ArgumentMatchers.eq("EXPORT_SCOPE_DENIED"),
+                org.mockito.ArgumentMatchers.eq(com.fullmall.platform.risk.RiskAlertService.Severity.HIGH),
+                org.mockito.ArgumentMatchers.eq("supplier-a"), org.mockito.ArgumentMatchers.anyString(),
+                org.mockito.ArgumentMatchers.any());
         verify(auditRepository, never()).record(any());
     }
 

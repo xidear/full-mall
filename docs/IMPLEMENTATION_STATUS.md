@@ -849,3 +849,24 @@ cd web && npx playwright test
 > **未覆盖**：尚无“真实请求触发 429”的集成用例（需要独立 test profile 把额度调低）。
 > 与 Bearer Token 一起放到下一轮。
 
+---
+
+## 2026-10-19（B2 续）：供应商 Bearer Token
+
+- V32 给 `supplier_credential` 加 `auth_mode`（HMAC_ONLY/TOKEN_ONLY/BOTH，DB CHECK 约束）、
+  `token_hash`、`token_expires_at`、`token_revoked_at`；历史凭证默认 `HMAC_ONLY`，行为不变。
+- `SupplierTokenService`：签发（明文只返回一次，库中只存 SHA-256）、轮换（覆盖旧 token）、吊销、
+  校验（未过期 + 未吊销 + active + 模式允许）。
+- `SupplierHmacFilter` 新增 Bearer 分支：`Authorization: Bearer <token>` 时走 token 校验与独立限流桶
+  （`token:<supplierId>`），HMAC 头存在时仍走 HMAC，**向后兼容**。
+- 校验失败统一 401 `SUPPLIER_TOKEN_INVALID`，不区分“不存在/过期/吊销”，避免枚举。
+
+| 验证 | 结果 |
+|---|---|
+| 后端测试 | **122 个，全部通过，0 跳过** |
+| 新增测试 | `SupplierTokenServiceTest` 6 个（签发只存哈希、无凭证失败、命中、空白/未知、吊销失败、非法 TTL） |
+| 迁移 | V32 空库冒烟通过 |
+
+> **未覆盖**：token 端到端（真实请求带 Bearer）+ 429 集成用例仍未补；
+> 后台签发/吊销接口与 SUP-031 风险提示尚未实现。
+

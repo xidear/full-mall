@@ -57,6 +57,7 @@ public class SupplierHmacFilter extends OncePerRequestFilter {
     private final long timestampSkewSeconds;
     private final SupplierNonceStore nonceStore;
     private final SupplierRateLimiter rateLimiter;
+    private final com.fullmall.supplier.app.SupplierTokenService tokenService;
     private final int rateLimitMaxRequests;
     private final long rateLimitWindowSeconds;
 
@@ -66,6 +67,7 @@ public class SupplierHmacFilter extends OncePerRequestFilter {
                               @Value("${app.supplier.timestamp-skew-seconds:300}") long timestampSkewSeconds,
                               SupplierNonceStore nonceStore,
                               SupplierRateLimiter rateLimiter,
+                              com.fullmall.supplier.app.SupplierTokenService tokenService,
                               @Value("${app.supplier.rate-limit.max-requests:120}") int rateLimitMaxRequests,
                               @Value("${app.supplier.rate-limit.window-seconds:60}") long rateLimitWindowSeconds) {
         this.repository = repository;
@@ -74,6 +76,7 @@ public class SupplierHmacFilter extends OncePerRequestFilter {
         this.timestampSkewSeconds = timestampSkewSeconds;
         this.nonceStore = nonceStore;
         this.rateLimiter = rateLimiter;
+        this.tokenService = tokenService;
         this.rateLimitMaxRequests = rateLimitMaxRequests;
         this.rateLimitWindowSeconds = rateLimitWindowSeconds;
     }
@@ -88,6 +91,41 @@ public class SupplierHmacFilter extends OncePerRequestFilter {
                                     FilterChain filterChain) throws ServletException, IOException {
         byte[] body = request.getInputStream().readAllBytes();
         CachedBodyRequest cachedRequest = new CachedBodyRequest(request, body);
+
+        // 认证路径二：Bearer Token（SUP-030）。HMAC 头存在时仍走 HMAC，保持向后兼容。
+        String authorization = request.getHeader("Authorization");
+        if (authorization != null && authorization.startsWith("Bearer ")) {
+            String token = authorization.substring("Bearer ".length()).trim();
+            java.util.Optional<UUID> supplierId = tokenService.verify(token);
+            if (supplierId.isEmpty()) {
+                unauthorized(response, "SUPPLIER_TOKEN_INVALID", "供应商 token 无效、已过期或已吊销");
+                return;
+            }
+            SupplierRateLimiter.Decision tokenDecision = rateLimiter.check("token:" + supplierId.get(),
+                    rateLimitMaxRequests, java.time.Duration.ofSeconds(rateLimitWindowSeconds), Instant.now());
+            if (!tokenDecision.allowed()) {
+                response.setStatus(429);
+                response.setContentType("application/json;charset=UTF-8");
+                response.setHeader("Retry-After", String.valueOf(tokenDecision.retryAfterSeconds()));
+                objectMapper.writeValue(response.getWriter(), java.util.Map.of(
+                        "code", "SUPPLIER_RATE_LIMITED",
+                        "message", "请求过于频繁，请 " + tokenDecision.retryAfterSeconds() + " 秒后重试",
+                        "requestId", UUID.randomUUID().toString()));
+                return;
+            }
+            request.setAttribute(SUPPLIER_ID_ATTRIBUTE, supplierId.get());
+            SecurityContext tokenContext = SecurityContextHolder.createEmptyContext();
+            tokenContext.setAuthentication(new UsernamePasswordAuthenticationToken(
+                    "supplier-token:" + supplierId.get(), null,
+                    List.of(new SimpleGrantedAuthority("ROLE_SUPPLIER"))));
+            SecurityContextHolder.setContext(tokenContext);
+            try {
+                filterChain.doFilter(cachedRequest, response);
+            } finally {
+                SecurityContextHolder.clearContext();
+            }
+            return;
+        }
 
         String accessKey = request.getHeader(ACCESS_KEY_HEADER);
         String timestampValue = request.getHeader(TIMESTAMP_HEADER);

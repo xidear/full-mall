@@ -56,17 +56,26 @@ public class SupplierHmacFilter extends OncePerRequestFilter {
     private final ObjectMapper objectMapper;
     private final long timestampSkewSeconds;
     private final SupplierNonceStore nonceStore;
+    private final SupplierRateLimiter rateLimiter;
+    private final int rateLimitMaxRequests;
+    private final long rateLimitWindowSeconds;
 
     public SupplierHmacFilter(SupplierRepository repository,
                               SupplierSecretCipher cipher,
                               ObjectMapper objectMapper,
                               @Value("${app.supplier.timestamp-skew-seconds:300}") long timestampSkewSeconds,
-                              SupplierNonceStore nonceStore) {
+                              SupplierNonceStore nonceStore,
+                              SupplierRateLimiter rateLimiter,
+                              @Value("${app.supplier.rate-limit.max-requests:120}") int rateLimitMaxRequests,
+                              @Value("${app.supplier.rate-limit.window-seconds:60}") long rateLimitWindowSeconds) {
         this.repository = repository;
         this.cipher = cipher;
         this.objectMapper = objectMapper;
         this.timestampSkewSeconds = timestampSkewSeconds;
         this.nonceStore = nonceStore;
+        this.rateLimiter = rateLimiter;
+        this.rateLimitMaxRequests = rateLimitMaxRequests;
+        this.rateLimitWindowSeconds = rateLimitWindowSeconds;
     }
 
     @Override
@@ -143,6 +152,20 @@ public class SupplierHmacFilter extends OncePerRequestFilter {
                 signature.trim().toLowerCase().getBytes(StandardCharsets.UTF_8))) {
             log.warn("Supplier signature mismatch canonical={}", canonical.replace("\n", "|"));
             unauthorized(response, "SUPPLIER_SIGNATURE_INVALID", "供应商签名校验失败");
+            return;
+        }
+
+        // SUP-033：验签通过后按 access key 限流，超限 429 + Retry-After
+        SupplierRateLimiter.Decision decision = rateLimiter.check(accessKey.trim(), rateLimitMaxRequests,
+                java.time.Duration.ofSeconds(rateLimitWindowSeconds), Instant.now());
+        if (!decision.allowed()) {
+            response.setStatus(429);
+            response.setContentType("application/json;charset=UTF-8");
+            response.setHeader("Retry-After", String.valueOf(decision.retryAfterSeconds()));
+            objectMapper.writeValue(response.getWriter(), java.util.Map.of(
+                    "code", "SUPPLIER_RATE_LIMITED",
+                    "message", "请求过于频繁，请 " + decision.retryAfterSeconds() + " 秒后重试",
+                    "requestId", UUID.randomUUID().toString()));
             return;
         }
 

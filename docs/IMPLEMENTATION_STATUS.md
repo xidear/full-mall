@@ -829,3 +829,23 @@ cd web && npx playwright test
 | 后端测试 | **110 个，全部通过，0 跳过** |
 | 说明 | 测试类旧名 `SupplierOpenSecurityIT` 不被 surefire 默认拾取，已改名 `...Test` |
 
+---
+
+## 2026-10-19（B2 续）：供应商限流
+
+- V31 `supplier_rate_window(access_key, window_start, request_count)`，主键=窗口桶。
+- `SupplierRateLimiter`：`INSERT ... ON CONFLICT DO UPDATE ... RETURNING request_count` 原子自增，
+  **多副本共享同一计数**而不是各自 N 倍额度；新窗口首个请求顺带清理历史窗口。
+- `SupplierHmacFilter` 验签通过后限流，超限返回 **429 `SUPPLIER_RATE_LIMITED` + `Retry-After`**。
+- 配置：`app.supplier.rate-limit.max-requests`（默认 120）、`window-seconds`（默认 60）；
+  **`max-requests<=0` 为显式关闭**，不是静默跳过。
+
+| 验证 | 结果 |
+|---|---|
+| 后端测试 | **116 个，全部通过，0 跳过** |
+| 新增测试 | `SupplierRateLimiterTest` 6 个（额度内、超限含 Retry-After 计算、清理只在新窗口、显式关闭、参数校验） |
+| 迁移 | V31 空库冒烟通过 |
+
+> **未覆盖**：尚无“真实请求触发 429”的集成用例（需要独立 test profile 把额度调低）。
+> 与 Bearer Token 一起放到下一轮。
+

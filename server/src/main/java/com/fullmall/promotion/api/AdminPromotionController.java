@@ -1,53 +1,50 @@
 package com.fullmall.promotion.api;
 
-import com.fullmall.promotion.api.PromotionDtos.CreatePromotionRequest;
-import com.fullmall.promotion.api.PromotionDtos.GroupBuyView;
-import com.fullmall.promotion.api.PromotionDtos.PromotionView;
-import com.fullmall.promotion.app.PromotionService;
-import com.fullmall.promotion.domain.PromotionStatus;
-import jakarta.validation.Valid;
+import com.fullmall.promotion.app.PromotionAdminService;
 import org.springframework.http.HttpStatus;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestParam;
-import org.springframework.web.bind.annotation.ResponseStatus;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.Authentication;
+import org.springframework.web.bind.annotation.*;
 
+import java.time.Instant;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
+/** 后台促销规则构建器：结构化字段，服务端生成 JSON。 */
 @RestController
-@RequestMapping("/admin/v1/promotions")
+@RequestMapping("/admin/v1/promotions/rules")
+@PreAuthorize("hasRole('ADMIN')")
 public class AdminPromotionController {
 
-    private final PromotionService promotionService;
+    private final PromotionAdminService service;
 
-    public AdminPromotionController(PromotionService promotionService) {
-        this.promotionService = promotionService;
+    public AdminPromotionController(PromotionAdminService service) {
+        this.service = service;
     }
 
-    @GetMapping
-    public List<PromotionView> list() {
-        return promotionService.listAll();
+    public record CreateRule(String code, String title, String type, long thresholdAmount, long value,
+                             String scope, List<UUID> scopeIds, String channel,
+                             Instant startsAt, Instant endsAt, int priority) {
     }
 
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
-    public PromotionView create(@Valid @RequestBody CreatePromotionRequest request) {
-        return promotionService.create(request);
+    public Map<String, UUID> create(@RequestBody CreateRule body, Authentication authentication) {
+        UUID id = service.create(new PromotionAdminService.Command(
+                body.code(), body.title(), body.type(), body.thresholdAmount(), body.value(),
+                body.scope(), body.scopeIds(), body.channel(), body.startsAt(), body.endsAt(),
+                body.priority()), authentication.getName());
+        return Map.of("id", id);
     }
 
-    @PostMapping("/{promotionId}/status")
-    public PromotionView updateStatus(@PathVariable UUID promotionId,
-                                      @RequestParam PromotionStatus status) {
-        return promotionService.updateStatus(promotionId, status);
+    @PostMapping("/{id}/activate")
+    public void activate(@PathVariable UUID id, Authentication authentication) {
+        service.activate(id, authentication.getName());
     }
 
-    @GetMapping("/group-buys")
-    public List<GroupBuyView> groupBuys(@RequestParam(required = false) UUID promotionId) {
-        return promotionService.listGroupBuys(promotionId);
+    @PostMapping("/{id}/end")
+    public void end(@PathVariable UUID id, Authentication authentication) {
+        service.end(id, authentication.getName());
     }
 }

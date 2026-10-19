@@ -47,8 +47,20 @@ public class NotificationService {
             throw new IllegalStateException("Order not found for notification: " + orderId);
         }
         notifyStaff(eventType, title, content);
+
+        // 身份统一：订单已绑定会员时，站内消息写到 MEMBER/<会员ID>（消息中心只认会员），
+        // 短信等外部渠道仍按手机号投递（短信必须用号码）。
+        UUID memberId = jdbcTemplate.query("""
+                SELECT member_id FROM orders WHERE id = ?
+                """, (rs, rowNum) -> rs.getObject("member_id", UUID.class), orderId)
+                .stream().filter(java.util.Objects::nonNull).findFirst().orElse(null);
+
         for (String channel : channels) {
-            deliver("CUSTOMER", phones.get(0), eventType, channel, title, content);
+            if (memberId != null && "IN_APP".equals(channel)) {
+                deliver("MEMBER", memberId.toString(), eventType, channel, title, content);
+            } else {
+                deliver("CUSTOMER", phones.get(0), eventType, channel, title, content);
+            }
         }
     }
 

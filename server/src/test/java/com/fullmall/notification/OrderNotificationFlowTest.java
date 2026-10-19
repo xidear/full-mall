@@ -112,12 +112,16 @@ class OrderNotificationFlowTest {
 
         payments.payMock(order.id());
 
-        // 顾客侧：同一事件按渠道各一条（IN_APP + SMS），**不是重复推送**
+        // 身份统一后：会员订单的站内消息只写到 MEMBER/<会员ID>，短信仍按手机号
         assertThat(jdbc.queryForList("""
                 SELECT channel FROM notification
                  WHERE recipient_type = 'CUSTOMER' AND recipient_id = ? AND event_type = 'ORDER_PAID'
                  ORDER BY channel
-                """, String.class, PHONE)).containsExactly("IN_APP", "SMS");
+                """, String.class, PHONE)).containsExactly("SMS");
+        assertThat(jdbc.queryForList("""
+                SELECT channel FROM notification
+                 WHERE recipient_type = 'MEMBER' AND recipient_id = ? AND event_type = 'ORDER_PAID'
+                """, String.class, MEMBER.toString())).containsExactly("IN_APP");
 
         // 支付：恰好一条会员消息
         assertThat(jdbc.queryForObject("""

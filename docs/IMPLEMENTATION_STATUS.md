@@ -2002,3 +2002,21 @@ SELECT channel FROM notification
 **教训（写在这里以免重犯）**：断言"重复"前必须先看 `channel`（以及幂等键），
 只按事件类型计数会把多渠道投递误判成重复。
 
+---
+
+## 2026-10-19：顾客身份统一（站内消息归会员主键）
+
+- `notifyOrderEvent`：订单已绑定会员时，`IN_APP` 投递到 **`MEMBER/<会员ID>`**；短信等外部渠道仍按手机号
+  （短信必须用号码）。未绑定会员的游客订单保持 `CUSTOMER/<手机号>`。
+- 移除 `PaymentService` 里重复的 `ORDER_PAID` 会员通知（`markPaid` 的 `notifyOrderEvent` 已覆盖），
+  避免同一事件两条站内消息。
+
+| 验证 | 结果 |
+|---|---|
+| 后端测试 | **284 个，全部通过，0 跳过** |
+| 断言 | 会员订单支付后：`CUSTOMER/手机号` 仅 `SMS` 一条；`MEMBER/会员ID` 仅 `IN_APP` 一条 |
+
+**踩坑（真实缺陷）**：`query(...).stream().findFirst()` 在结果含 `null`（游客订单无 `member_id`）时抛 NPE，
+导致游客订单支付直接 500。已改为过滤 null。这个错误只有"游客订单支付"路径会触发——
+会员订单测试全绿也发现不了，是 `PostgresPickupFlowTest` 抓到的。
+

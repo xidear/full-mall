@@ -128,7 +128,6 @@ public class PaymentService {
         referralService.settleOrder(orderId, paid.amount().amount(), paid.amount().currency());
         // 会员积分与成长值（MEM-002）：匿名订单不产生
         memberRewards.accrue(orderId, order.contactPhone(), paid.amount().amount());
-        notifyMember(orderId, "ORDER_PAID", "支付成功", "订单已支付成功，我们将尽快为您发货。");
         analyticsService.record("payment_succeeded", orderId, null, Map.of(
                 "provider", paid.provider(),
                 "amount", paid.amount().amount(),

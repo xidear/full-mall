@@ -143,3 +143,15 @@ cp -r "$SRC"/* "$DST"
 - [ ] 已检查是否存在可复用的开源方案
 - [ ] 已评估灾难性后果与回滚方案
 - [ ] 命令/代码失败时会暴露错误，而不是吞掉
+## 6. Git 推送规则（强制）
+
+- **默认只推 Gitea**：`gitea` remote（`https://company.binnarui.com:8148/xidear/full-mall.git`）。
+- 用户说“git 推送”“推送一下”且没有特别说明时，**只推 Gitea**，不得推 GitHub、Gitee 或三个端。
+- 只有用户明确说“推 GitHub”“推 Gitee”“三个端都推”时，才推对应远端。
+- Gitea 是私有完整仓库，可包含 `gitea-dev` 分支的 `.env` 和开发配置；GitHub 是公开仓库，禁止包含 `.env`、真实密钥、证书、私钥、token。
+- **`gitea-dev` 分支永远不要推到 GitHub/Gitee。**
+- 推送前必须：确认远端与分支、`git status`、密钥扫描、确认没有把私密分支推公开端。
+- GitHub 推送使用 `git -c http.version=HTTP/1.1`；直连失败时可使用代理 `192.168.1.2:7893`。
+- Gitee 由 GitHub Actions 自动镜像，不手动推送。
+- 不强制推送公共 `main`；不改写已推送历史，除非用户明确要求并确认影响。
+- 详细环境、密钥清单和分支操作见 `docs/GIT_AND_ENVIRONMENTS.md`。

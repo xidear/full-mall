@@ -22,6 +22,8 @@ coverage/
 .vite/
 
 # Env & secrets
+# main/public must never contain secrets. Gitea turnkey env is a tracked .env on the
+# private gitea-dev branch (force-added there); never push that branch to GitHub/Gitee.
 .env
 .env.*
 !.env.example

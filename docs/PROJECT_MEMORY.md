@@ -45,7 +45,9 @@ Full Mall 是一个**源码开放（source-available，非 OSI 开源）**的跨
 | Gitea | `https://company.binnarui.com:8148/xidear/full-mall.git` | 私有仓库，直接推送 |
 | Gitee | `https://gitee.com/xidear/full-mall.git` | 公开镜像，仅由 GitHub Actions 强制同步，**不要手动推送** |
 
-- 本地 `main` 跟踪 `github/main`；推送 GitHub 使用 `git -c http.version=HTTP/1.1 push github main`（HTTP/2 会间歇超时）。
+- **默认推送只推 Gitea**；用户没有明确说 GitHub/Gitee/三端时，不得推公开端。详细规则见 `AGENTS.md` 第 6 节和 `docs/GIT_AND_ENVIRONMENTS.md`。
+- Gitea 私有完整仓库使用 `main` + `gitea-dev`：`gitea-dev` 包含可直接运行的 `.env`，永远不要推 GitHub/Gitee。
+- 本地 `main` 跟踪 `github/main`；推送 GitHub 使用 `git -c http.version=HTTP/1.1 push github main`（HTTP/2 会间歇超时），直连失败时用代理 `192.168.1.2:7893`。
 - Gitee 由 `.github/workflows/mirror-gitee.yml` 在推送 `main`/tag 后同步，依赖 Actions secret `GITEE_TOKEN`；GitHub CI 失败不会阻止镜像复制，但应在 GitHub 修。
 - 当前环境没有 `gh` CLI，无法直接查 Actions 运行状态。
 - 许可证：PolyForm Noncommercial 1.0.0 + `Required Notice: Copyright (c) 2026 xidear and Full Mall contributors.` GitHub 会显示 SPDX `NOASSERTION`，这是正常的。
@@ -417,3 +419,7 @@ MSYS_NO_PATHCONV=1 wsl bash -lc "cd /mnt/d/works/full-mall && docker compose con
 - `docs/JAVA_DEPENDENCIES.md`：Java 第三方依赖与 SPI 策略。
 - `docs/erd.md`、`docs/openapi.yaml`：数据模型与接口。
 - `docs/ENVIRONMENT.md`：早期环境记录（部分内容已被本文 2026-10-19 的 Maven Central 结论更新）。
+- `docs/requirements/PRODUCT_REQUIREMENTS_V2.md`：v2 需求基线（代码复用、供应商协同、客服、会员促销、支付、ERP、门店、多语言、素材库、开关、安全、API 版本）。
+- `docs/requirements/TECHNICAL_ARCHITECTURE_V2.md`：v2 技术架构（JPA + JdbcTemplate 混合、字段权限、基础控制器、存储、WS、支付）。
+- `docs/DEVELOPMENT_PLAN_V2.md`：v2 分阶段计划、估算、依赖、风险、DoD。
+- `docs/GIT_AND_ENVIRONMENTS.md`：三个 Git 下游、Gitea 分支、密钥清单、启动方式。

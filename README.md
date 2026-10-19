@@ -5,6 +5,8 @@
 > 当前仓库已完成 Phase 0 地基、POS 收银 P0、供应商/仓储/RBAC/售后、会员等级/分销/客服、秒杀/买赠/拼团与门店数据权限。计划与决策见 [`docs/DEVELOPMENT_PLAN.md`](docs/DEVELOPMENT_PLAN.md) 和 [`docs/adr/`](docs/adr/)。
 >
 > **换机器或新会话开发前，请先读 [`docs/PROJECT_MEMORY.md`](docs/PROJECT_MEMORY.md)**：环境、构建命令、模块边界、种子数据、并发规则和已知陷阱都在里面。
+>
+> v2 需求与计划：[产品需求](docs/requirements/PRODUCT_REQUIREMENTS_V2.md)、[技术架构](docs/requirements/TECHNICAL_ARCHITECTURE_V2.md)、[开发计划](docs/DEVELOPMENT_PLAN_V2.md)、[Git 与密钥](docs/GIT_AND_ENVIRONMENTS.md)。
 
 ## 技术栈
 

@@ -968,3 +968,22 @@ cd web && npx playwright test
 > **仍未接入**：解析器还没有挂到 HTTP/DB 写入路径（需要 skuCode/SKU 映射与单事务写入），
 > 下一轮补 `POST /open/v1/inventory/feed.csv` 并保证**整批失败不落库**。
 
+---
+
+## 2026-10-19（A5）：角色化导出投影（成本/毛利列按权限）
+
+- `PosSalesExportService` 两套**列集合不同**的投影，不是前端隐藏：
+  - `OPS`：saleNo/skuCode/quantity/refundedQuantity/lineTotalAmount/currency
+  - `FINANCE`：上述 + costAmount/grossProfitAmount/grossMarginBps
+- 成本来自 `pos_sale_allocation.unit_cost_amount × quantity` 聚合（已有真实数据）。
+- **成本缺失标注 `COST_MISSING`**：批次未录成本时不给 0，否则毛利率虚高。
+- 权限：`ROLE_ADMIN` 或 `PERM_FINANCE_COST_VIEW` 才走 FINANCE 投影；导出审计记录列集合。
+- 接口 `GET /admin/v1/pos/sales/export.csv`，响应头 `X-Export-Projection` 标明投影。
+
+| 验证 | 结果 |
+|---|---|
+| 后端测试 | **151 个，全部通过，0 跳过** |
+| 新增测试 | `PosSalesExportServiceTest` 6 个（OPS 无成本列、FINANCE 含毛利与 bps、成本缺失标注、退款冲减净额、审计列集合、越界不查库） |
+
+> 仍为**同步导出**（上限 5000 行）；A6 异步任务与签名 URL 未开始。
+

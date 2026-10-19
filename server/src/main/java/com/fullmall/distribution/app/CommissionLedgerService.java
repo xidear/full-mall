@@ -115,6 +115,28 @@ public class CommissionLedgerService {
         return reversed;
     }
 
+    /**
+     * 部分退款：佣金不立即回冲（金额需要按比例重算，尚未实现），
+     * 但必须**延长冻结**，避免售后窗口内被解冻提现。
+     *
+     * @return 受影响的佣金条数
+     */
+    @Transactional
+    public int extendFreezeByOrder(UUID orderId, Duration extra, String reason) {
+        if (extra == null || extra.isNegative() || extra.isZero()) {
+            throw new IllegalArgumentException("延长冻结必须为正: " + extra);
+        }
+        if (reason == null || reason.isBlank()) {
+            throw new IllegalArgumentException("延长冻结必须填写原因: order=" + orderId);
+        }
+        int updated = jdbcTemplate.update("""
+                UPDATE distribution_commission
+                   SET frozen_until = frozen_until + make_interval(secs => ?)
+                 WHERE order_id = ? AND status = 'FROZEN'
+                """, extra.toSeconds(), orderId);
+        return updated;
+    }
+
     /** 可提现余额（只算 AVAILABLE）。 */
     public long availableBalance(UUID promoterId) {
         Long sum = jdbcTemplate.queryForObject("""

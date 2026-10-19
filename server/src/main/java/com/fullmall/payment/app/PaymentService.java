@@ -23,17 +23,34 @@ public class PaymentService {
     private final PaymentConnector mockPaymentConnector;
     private final AnalyticsService analyticsService;
     private final String configuredProvider;
+    private final com.fullmall.distribution.app.CommissionLedgerService commissionLedger;
 
     public PaymentService(PaymentRepository paymentRepository,
                           OrderService orderService,
                           PaymentConnector mockPaymentConnector,
                           AnalyticsService analyticsService,
-                          @Value("${app.payment.provider:mock}") String configuredProvider) {
+                          @Value("${app.payment.provider:mock}") String configuredProvider,
+                          com.fullmall.distribution.app.CommissionLedgerService commissionLedger) {
         this.paymentRepository = paymentRepository;
         this.orderService = orderService;
         this.mockPaymentConnector = mockPaymentConnector;
         this.analyticsService = analyticsService;
         this.configuredProvider = configuredProvider;
+        this.commissionLedger = commissionLedger;
+    }
+
+    /**
+     * 退款对佣金的处理（分销金融正确性）：
+     * 整单退款 → 佣金回冲；部分退款 → 佣金延长冻结（比例回冲尚未实现，绝不提前解冻）。
+     */
+    private void applyCommissionPolicy(UUID orderId, long refundedAmount) {
+        var order = orderService.getOrder(orderId);
+        long orderTotal = order.total().amount();
+        if (refundedAmount >= orderTotal) {
+            commissionLedger.reverseByOrder(orderId, "订单整单退款");
+        } else {
+            commissionLedger.extendFreezeByOrder(orderId, java.time.Duration.ofDays(7), "部分退款，延长冻结");
+        }
     }
 
     @Transactional
@@ -51,6 +68,7 @@ public class PaymentService {
         paymentRepository.update(refunded);
         paymentRepository.insertEvent(payment.id(), "PAYMENT_REFUNDED",
                 "{\"amount\":" + amount + "}");
+        applyCommissionPolicy(orderId, amount);
         analyticsService.record("payment_refunded", orderId, null, Map.of(
                 "provider", refunded.provider(),
                 "amount", amount,

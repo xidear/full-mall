@@ -1085,3 +1085,22 @@ cd web && npx playwright test
 > 可变参数重载匹配不稳定而未能覆盖，已删除该用例，改由后续集成测试覆盖；
 > 期间尝试过传 `Object[]`，会变成嵌套数组导致运行时参数错误，已回退。
 
+---
+
+## 2026-10-19：退款联动佣金（整单回冲 / 部分延长冻结）
+
+- `PaymentService.refund` 成功后按金额判断：
+  - **整单退款**（退款额 ≥ 订单总额）→ `commissionLedger.reverseByOrder(...)` 回冲；
+  - **部分退款** → `commissionLedger.extendFreezeByOrder(..., 7 天)` 延长冻结，
+    **绝不提前解冻**（比例回冲需要新的佣金拆分模型，尚未实现）。
+- 跨模块依赖走 `distribution-service` 命名接口（Modulith 边界校验通过）。
+
+| 验证 | 结果 |
+|---|---|
+| 后端测试 | **195 个，全部通过，0 跳过** |
+| 编译/模块边界 | 通过（`ModulithStructureTest`） |
+
+> **测试缺口（必须说明）**：本轮新增的「退款→佣金」分支**没有自动化测试覆盖**。
+> 原因是需要构造 `Order`/`Payment` 记录的完整上下文，且既有 Mockito 对 `JdbcTemplate`
+> varargs 的匹配不稳定。已列入下一步：用嵌入式 PostgreSQL 集成测试覆盖整单回冲与部分延长冻结两条路径。
+

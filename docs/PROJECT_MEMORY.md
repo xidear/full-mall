@@ -420,6 +420,7 @@ MSYS_NO_PATHCONV=1 wsl bash -lc "cd /mnt/d/works/full-mall && docker compose con
 - `docs/erd.md`、`docs/openapi.yaml`：数据模型与接口。
 - `docs/ENVIRONMENT.md`：早期环境记录（部分内容已被本文 2026-10-19 的 Maven Central 结论更新）。
 - `docs/requirements/PRODUCT_REQUIREMENTS_V2.md`：v2 需求基线（代码复用、供应商协同、客服、会员促销、支付、ERP、门店、多语言、素材库、开关、安全、API 版本）。
-- `docs/requirements/TECHNICAL_ARCHITECTURE_V2.md`：v2 技术架构（JPA + JdbcTemplate 混合、字段权限、基础控制器、存储、WS、支付）。
+- `docs/requirements/TECHNICAL_ARCHITECTURE_V2.md`：v2 技术架构（JPA + JdbcTemplate 混合、权限、基础控制器、存储、WS、支付）。
+- `docs/requirements/TECHNOLOGY_DECISIONS_V2.md`：成熟方案调研矩阵；字段可见性非硬性要求，禁止自建字段权限矩阵。
 - `docs/DEVELOPMENT_PLAN_V2.md`：v2 分阶段计划、估算、依赖、风险、DoD。
 - `docs/GIT_AND_ENVIRONMENTS.md`：三个 Git 下游、Gitea 分支、密钥清单、启动方式。

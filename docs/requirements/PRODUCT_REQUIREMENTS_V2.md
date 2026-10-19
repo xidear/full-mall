@@ -35,68 +35,62 @@
 - 不做 marketplace 分账、复杂 B2B 报价、完整 MRP。
 - 不复制 CRMEB/ThinkPHP 代码；只借鉴产品策略与架构思想。
 
-## 2. 代码复用与模型/控制器架构
+## 2. 代码复用、模型与权限架构
 
-### 2.1 单一模型定义
+> 原则：所有需求先调研成熟 Java/开源方案，选型与理由记录在 `TECHNOLOGY_DECISIONS_V2.md`。字段级可见性不是硬性要求；不得把 ThinkPHP 的做法直接翻译成自研框架。
 
-**CR-001（MUST）** 每张业务表必须有唯一“模型定义”作为字段、类型、约束、可见性、可写性、审计属性的来源。禁止在多个 Controller/Service 中重复手写列清单。
+### 2.1 模型与 schema
 
-**CR-002（MUST）** 模型必须支持按角色/业务域声明：
+**CR-001（MUST）** 生产 schema 以 Flyway 迁移为唯一版本来源；实体/模型只负责字段映射与校验一致性（Hibernate `ddl-auto=validate`），禁止 `ddl-auto=update` 上生产。
 
-- 字段是否可见（readable）；
-- 字段是否可写（writable）；
-- 字段是否只读（read-only）；
-- 字段是否仅内部可见（如成本、毛利、内部备注、风控标记）；
-- 字段是否可批量更新；
-- 字段是否参与审计 diff。
+**CR-002（MUST）** 禁止在多个 Controller/Service 重复手写同一张表的列清单；列定义、DTO、OpenAPI、审计字段必须可追溯或自动校验一致。
 
-**CR-003（MUST）** 供应商模型继承商品/订单/库存模型时：
+**CR-003（MUST）** 新 CRUD/ERP 模块优先使用 Spring Data JPA/Hibernate 的成熟能力：`@Version` 乐观锁、`@Filter`/`@TenantId` 行级范围、软删除、审计；库存/POS/促销热路径保留 JdbcTemplate，但复用同一 scope 与审计组件。
 
-- 成本、毛利、内部备注、风控标记、其他供应商数据默认不可见；
-- 售价、商品状态、结算状态等默认只读；
-- 供应商只能写库存、交期、发货信息、退货反馈等授权字段；
-- 任何越权字段必须在请求校验阶段返回 400/403，**不得静默丢弃**。
+### 2.2 行级数据范围（硬性）
 
-**CR-004（MUST）** 数据访问必须同时做“行级范围”和“字段级范围”：
+**CR-010（MUST）** 所有外部数据访问必须有行级范围：
 
-- 行级：供应商只看自己；门店只看绑定门店；客服只看分配会话/组；运营按权限。
-- 字段级：供应商看不到成本；客服看不到支付密钥；导出按权限脱敏。
+- 供应商只看自己；
+- 门店只看 `staff_store` 绑定门店；
+- 客服只看分配会话/组；
+- 运营按权限；
+- 导出遵守相同范围。
 
-**CR-005（MUST）** 模型变更只改一处；数据库迁移、DTO、OpenAPI、审计字段、字段权限从模型元数据派生或校验一致。
+**CR-011（MUST）** 行级范围通过统一 `ScopeResolver` / JPA `Specification` / Hibernate Filter 实现；禁止在每个 Controller 手写 where 条件。越权返回 404/403，并有负向测试。
 
-**CR-006（SHOULD）** 现有 `JdbcTemplate` 模块不要求一次性重写；新模块使用统一模型/基础控制器，存量模块按领域逐步迁移，迁移期间必须有契约测试保证行为一致。
+**CR-012（MUST）** 供应商不得通过“继承实体”获得写权限；供应商的读写范围由行级 scope + DTO/策略决定。成本、毛利、内部备注、风控标记、其他供应商数据默认不返回，任何越权写字段返回 400/403，不得静默丢弃。
 
-### 2.2 基础控制器与服务
+### 2.3 字段可见性（非硬性，按需）
 
-**CR-010（MUST）** 提供通用基础控制器，封装：
+**CR-020（SHOULD）** 默认用 DTO/投影裁剪输出字段；`@JsonView` 只能做序列化裁剪，不能代替输入校验或安全。
 
-- 分页查询、详情、创建、更新、软删除/恢复；
-- 统一参数校验、错误码、审计、幂等；
-- 行级范围钩子 `scope()`；
-- 字段权限钩子 `readableFields()/writableFields()`；
-- 变更前/后快照与审计 diff；
-- 乐观锁/版本冲突处理。
+**CR-021（MAY）** 仅当 ERP 明确需要（成本、毛利、薪资、供应商底价等）时启用字段级可见性。必须使用成熟策略引擎：
 
-**CR-011（MUST）** Admin、供应商、门店、客服控制器可继承基础控制器；专有方法在子类扩展，不复制 CRUD 代码。
+- OPA（CNCF，Rego，决策 API）；或
+- Casbin/jCasbin（嵌入式 ABAC）；
+- 由策略返回允许字段/脱敏值，应用用 DTO 执行；
+- **不自建“每张表字段-角色”权限矩阵/后台**。
 
-**CR-012（MUST）** 禁止把实体直接序列化给外部；必须使用 DTO/投影。供应商 DTO 不得包含内部字段。
+**CR-022（MUST）** Spring Security 只提供请求/方法/对象级授权，不原生支持字段级；Keycloak Authorization Services 也不提供自动字段脱敏。不得把它们宣称为字段级方案。
 
-**CR-013（MUST）** 批量更新/导入必须走同一字段权限校验；禁止“导入接口绕过权限”。
+**CR-023（SHOULD）** ERP 角色可见性参考 Odoo `groups=`/record rules、ERPNext permlevel 的产品模型；只借鉴，不复制代码。
 
-### 2.3 Java 方案要求
+### 2.4 基础控制器与服务
 
-**CR-020（MUST）** 选用成熟的 Java 模型/权限方案，不自行发明 ORM。推荐组合：
+**CR-030（SHOULD）** 通用 CRUD 可用基础控制器/服务封装分页、校验、审计、幂等、乐观锁；但权限判断必须委托 Spring Security + `ScopeResolver`，不自建字段权限钩子。
 
-- Spring Data JPA/Hibernate：实体模型、`@Version` 乐观锁、`@Filter`/租户过滤、软删除；
-- MapStruct：实体 ↔ DTO 映射；
-- Jackson `@JsonView` 或专用 DTO：输出字段裁剪；
-- `FieldAccessPolicy` + 请求 allowlist：输入字段强制校验；
-- Spring Security `@PreAuthorize`：操作权限；
-- 审计：Hibernate Envers 或统一审计表。
+**CR-031（MUST）** Admin、供应商、门店、客服可以复用基础 CRUD，但专有动作（接单/发货/审批）必须在子类实现；禁止复制粘贴 CRUD。
 
-**CR-021（MUST）** 热路径（库存扣减、POS、促销名额）可继续使用 JdbcTemplate/SQL，但必须复用同一字段/范围策略，不得形成第二套权限逻辑。
+**CR-032（MUST）** 禁止把实体直接序列化给外部；必须使用 DTO/投影。供应商 DTO 不得包含内部字段。
 
-**CR-022（SHOULD）** 供应商门户不得直接调用内部 Service；必须调用对外 `/open/v1` API（见 3.3）。
+**CR-033（MUST）** 批量更新/导入必须走同一 scope 与校验；导入接口不得绕过权限。
+
+### 2.5 研究门槛
+
+**CR-040（MUST）** 每个新需求/模块在实现前必须完成技术选型调研，记录候选、许可证、维护活跃度、安全、集成方式、放弃理由；没有记录的“自研”不得进入开发。
+
+**CR-041（MUST）** 优先采用成熟方案：Spring Security、Spring Data JPA/Hibernate、MapStruct、JaVers、Flowable、Drools/Easy Rules、Unleash/FF4j、Spring AI/LangChain4j、Tolgee/Weblate、springdoc/OpenAPI Generator、Resilience4j、Bucket4j、Apache Tika/ClamAV、官方支付/云存储 SDK。详见 `TECHNOLOGY_DECISIONS_V2.md`。
 
 ## 3. 供应商协同
 

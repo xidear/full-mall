@@ -3,7 +3,7 @@
 > 版本：2.0
 > 日期：2026-10-19
 > 基线：当前 `main`（Flyway v21，Playwright 10/10，后端 38 测试 / 36 通过 / 2 skipped）
-> 关联：`requirements/PRODUCT_REQUIREMENTS_V2.md`、`requirements/TECHNICAL_ARCHITECTURE_V2.md`
+> 关联：`requirements/PRODUCT_REQUIREMENTS_V2.md`、`requirements/TECHNICAL_ARCHITECTURE_V2.md`、`requirements/TECHNOLOGY_DECISIONS_V2.md`
 
 ## 0. 计划说明
 
@@ -34,24 +34,26 @@
 
 ### 目标
 
-让后续所有模块共享同一套模型/控制器/权限/审计/开关/API 版本能力。
+让后续所有模块共享同一套模型/控制器/权限/审计/开关/API 版本能力，并先完成成熟方案选型。
 
 ### 交付
 
+- **技术选型 spike + ADR**：Spring Security、JPA/Hibernate、OPA/Casbin、Drools/Easy Rules、Unleash/FF4j、Flowable、Spring AI/LangChain4j、Tolgee；结论写入 `TECHNOLOGY_DECISIONS_V2.md`。
 - `AGENTS.md` 推送策略：默认只推 Gitea；GitHub/Gitee/三端必须明确指定。
 - `gitea-dev` 分支：包含 `.env`、本地开发配置；GitHub `main` 不含任何私密配置。
-- 功能开关表与服务端执行点：供应商、POS 卖货、POS 自提、站点状态。
-- `BaseEntity/BaseScopedService/BaseCrudController/FieldAccessPolicy/ScopeResolver`。
-- 审计表与统一审计切面；导出脱敏基础。
-- API 版本骨架：`/open/v1` 契约测试、OpenAPI 生成、Changelog 模板。
+- 功能开关采用成熟组件（Unleash 或 FF4j）或在其上的薄封装；供应商、POS 卖货、POS 自提、站点状态。
+- `BaseEntity/BaseScopedService/BaseCrudController/ScopeResolver`；行级范围用 JPA Specification/Hibernate Filter，不建字段权限框架。
+- 审计采用 JaVers；导出脱敏基础；Spring Security 方法授权。
+- API 版本骨架：`/open/v1` 契约测试、springdoc/OpenAPI 生成、Changelog 模板。
 - CI：后端测试、前端构建、Playwright、secret scan、OpenAPI diff。
 
 ### 验收
 
 - 供应商 A 无法读写供应商 B 的任何数据。
-- 请求包含不可写字段返回 400/403，不被静默丢弃。
+- 越权操作/行返回 403/404；若启用 ERP 字段策略，越权字段返回 400/403，不静默丢弃。
 - 关闭供应商开关后 API/Web/登录 403/503；站点关闭后前台不可用但支付回调可用。
 - `gitea-dev` 可直接启动；`main` 不含 `.env`/密钥。
+- 选型文档包含候选、许可证、放弃理由，未记录的“自研”不得进入开发。
 
 ## 3. P1：供应商 API、门户与待办（3–4 周）
 
@@ -186,6 +188,7 @@
 ### 交付
 
 - 客服主管跨组视图；导出脱敏/范围/水印/文件过期；供应商结算范围。
+- ERP 角色可见性（按需）：页面/操作/行级默认；字段级仅在明确需要时用 OPA/Casbin 策略 + DTO 投影，不自建字段矩阵。
 - 操作日志覆盖：登录、权限、价格、库存、订单、退款、结算、开关、密钥、导出、供应商写操作。
 - 风险预警：异常登录、越权、签名失败、批量导出、结算/支付差异、Webhook 失败、库存异常。
 - 店长改价/作废授权；交接班审核；员工排班。
@@ -232,7 +235,7 @@
 ## 13. 风险
 
 1. **全 ORM 重写风险**：禁止大爆炸；新模块用新范式，存量逐步迁移。
-2. **字段权限只做输出裁剪**：必须输入 allowlist + 持久化保护，否则可越权写入。
+2. **字段可见性误当安全边界**：默认 DTO 投影；ERP 需要时用 OPA/Casbin + 输入校验，不自建字段矩阵。
 3. **供应商门户双 API**：必须统一 `/open/v1`，否则权限/文档/审计分叉。
 4. **POS 与线上促销混用**：渠道隔离不做会导致自提二次优惠/对账错误。
 5. **支付生产回退 Mock**：必须 fail-fast；否则假成功。
@@ -245,11 +248,11 @@
 ## 14. 第一批可执行任务（P0 前两周）
 
 1. 写 `AGENTS.md` 推送策略；建 `gitea-dev` 分支与 `.env`。
-2. 建 `feature_flag` 表、服务、Admin 页面与执行 Filter。
-3. 建 `BaseEntity/FieldAccessPolicy/ScopeResolver/BaseCrudController` 骨架与单测。
-4. 选一个低风险新模块（素材库或供应商结算）作为范式试点。
-5. 建 OpenAPI 生成/契约测试/Changelog 骨架。
-6. 审计表与统一审计切面。
+2. 完成技术选型 spike（Spring Security、JPA、OPA vs Casbin、Drools vs Easy Rules、Unleash vs FF4j、Spring AI/LangChain4j），写 ADR。
+3. 接入成熟功能开关（Unleash/FF4j）并加供应商/POS/站点执行点。
+4. 建 `BaseEntity/ScopeResolver/BaseCrudController` 骨架、Spring Security 方法授权、JaVers 审计与单测。
+5. 选一个低风险新模块（素材库或供应商结算）作为范式试点。
+6. 建 springdoc/OpenAPI 生成、契约测试、Changelog 骨架。
 7. CI 加 secret scan、OpenAPI diff、模块边界。
 
 ## 15. 完成定义（DoD）
@@ -271,7 +274,7 @@
 
 本计划新增/重做的重点：
 
-- 模型/控制器全量复用与字段权限。
+- 模型/控制器复用、行级权限、按需字段策略（OPA/Casbin），不自建字段矩阵。
 - 供应商 API 统一、待办 WSS、结算/CSV/Webhook/退货。
 - 线上会员、促销引擎完整化、渠道隔离。
 - 真实支付与对账。

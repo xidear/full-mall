@@ -155,3 +155,12 @@ cp -r "$SRC"/* "$DST"
 - Gitee 由 GitHub Actions 自动镜像，不手动推送。
 - 不强制推送公共 `main`；不改写已推送历史，除非用户明确要求并确认影响。
 - 详细环境、密钥清单和分支操作见 `docs/GIT_AND_ENVIRONMENTS.md`。
+
+## 7. 成熟方案优先（所有需求）
+
+- **所有需求先调研成熟方案**：标准库/官方 SDK → 成熟开源 → 最后才自研；调研结论写入 `docs/requirements/TECHNOLOGY_DECISIONS_V2.md`，包含候选、许可证、维护活跃度、安全、集成方式、放弃理由。
+- **禁止按“以前的土方法”直接实现**：ThinkPHP/其他框架的做法只是思路，不是 Java 的实现要求；必须寻找 Java 生态成熟替代。
+- **字段-角色可见性不是硬性要求**：默认只做行级范围（供应商/门店/客服）和 DTO 输出裁剪；只有 ERP 明确需要时才启用字段级可见性。
+- **禁止自建字段权限矩阵/框架**：需要字段级时使用成熟策略引擎（OPA/Casbin 等）+ DTO 投影；Spring Security/Keycloak 不是字段级方案。
+- **优先采用成熟组件**：Spring Security、Spring Data JPA/Hibernate、MapStruct、JaVers、Flowable、Drools/Easy Rules、Unleash/FF4j、Spring AI/LangChain4j、Tolgee/Weblate、springdoc/OpenAPI Generator、Resilience4j、Bucket4j、Apache Tika/ClamAV、官方支付/云存储 SDK。
+- 没有调研记录、没有 ADR 的自研，不得进入开发。

@@ -56,54 +56,47 @@ public abstract class BaseEntity {
 - 金额用 `long` + `currency`，禁止 `BigDecimal` 浮点运算或 `double`。
 - 枚举存字符串，状态列至少 `VARCHAR(32)`。
 
-### 2.2 字段可见性/可写性
+### 2.2 操作级权限：Spring Security
 
-不要只用 `@JsonView`，它只控制序列化，不阻止写入。采用三层：
+采用 Spring Security 6：
 
-1. **输出 DTO 投影**：每个角色/域有独立 DTO；供应商 DTO 不包含成本、毛利、内部备注、风控字段。
-2. **输入 allowlist**：`FieldAccessPolicy` 根据角色/域/记录状态返回可写字段集合；请求中出现不可写字段直接 400/403。
-3. **持久化保护**：实体字段 `@Column(updatable=false)` 或 Service 层显式更新白名单；禁止 `BeanUtils.copyProperties` 全量覆盖。
+- `@EnableMethodSecurity` + `@PreAuthorize` / `AuthorizationManager`；
+- 角色/权限映射到 GrantedAuthority；
+- 请求级粗粒度 + 方法级细粒度；
+- 对象级需要时用 `PermissionEvaluator` / Spring Security ACL。
 
-```java
-public interface FieldAccessPolicy<E> {
-    Set<String> readable(Principal p, E entity);
-    Set<String> writable(Principal p, E entity);
-    default void assertWritable(Principal p, E entity, Set<String> requested) {
-        Set<String> denied = new HashSet<>(requested);
-        denied.removeAll(writable(p, entity));
-        if (!denied.isEmpty()) {
-            throw new ForbiddenFieldException(denied); // 明确报错，不静默丢弃
-        }
-    }
-}
-```
+官方边界：Spring Security **不原生支持字段级 ABAC**；Keycloak Authorization Services 提供资源/作用域/策略，也**不提供自动字段脱敏**。字段可见性按 2.4 处理。
 
-供应商策略示例：
+### 2.3 行级范围：JPA / Hibernate
 
-| 字段 | 供应商可见 | 供应商可写 |
-|---|---|---|
-| 商品标题/图片/规格 | 是 | 否（由平台维护） |
-| 供货价/库存/交期 | 是 | 是 |
-| 建议零售价 | 是 | 否 |
-| 成本/毛利/内部备注 | 否 | 否 |
-| 订单收货人 PII | 脱敏 | 否 |
-| 发货承运商/运单号 | 是 | 是 |
-| 结算金额/状态 | 是 | 否 |
+- 新 CRUD/ERP 模块：Spring Data JPA `Specification` 强制注入 scope；
+- 多租户/供应商/门店：Hibernate `@FilterDef/@Filter` 或 `@TenantId`；
+- JdbcTemplate 热路径：统一 `ScopeResolver` 生成 where 条件，禁止 Controller 手写；
+- 仓储层提供 `findScoped(principal, id)`；外部接口禁止裸 `findById`；
+- 越权返回 404/403；供应商 A 读/写 B 必须有负向测试。
 
-### 2.3 行级范围
+### 2.4 字段可见性：非硬性，按需，禁止自建矩阵
 
-- Hibernate `@FilterDef/@Filter` 或 `@TenantId` 做供应商/门店/客服范围；
-- 复杂查询用 `Specification` 强制注入范围；
-- 仓储层提供 `findScoped(principal, id)`，禁止裸 `findById` 用于外部接口；
-- 越权返回 404 或 403，按安全策略统一；
-- 所有外部接口必须有负向测试：供应商 A 读/写供应商 B。
+默认：
 
-### 2.4 基础仓储/服务
+- 输出用角色 DTO/投影；供应商 DTO 不含成本、毛利、内部备注、风控字段；
+- 输入用专用 Create/Update DTO + Bean Validation；禁止 `BeanUtils.copyProperties` 全量覆盖；
+- 实体字段 `@Column(updatable=false)` 保护只读字段；
+- `@JsonView` 只做序列化裁剪，不作为安全边界。
+
+仅当 ERP 明确需要字段级可见性（成本、毛利、薪资、供应商底价等）：
+
+- 采用 **OPA**（CNCF，Rego，决策 API）或 **Casbin/jCasbin**（嵌入式 ABAC）返回允许字段/脱敏值；
+- 应用用 DTO 执行策略结果；
+- 不自建“每张表字段-角色”配置矩阵；
+- 参考 Odoo `groups=`/record rules、ERPNext permlevel 的产品做法，不复制代码；
+- Apache Ranger 只用于数据平台列脱敏，不用于应用 CRUD。
+
+### 2.5 基础仓储/服务
 
 ```java
 public abstract class BaseScopedService<E extends BaseEntity, R extends JpaRepository<E, UUID>> {
     protected abstract Scope scope(Principal principal);
-    protected abstract FieldAccessPolicy<E> fieldPolicy();
 
     public E getScoped(Principal p, UUID id) { ... }
     public E create(Principal p, CreateCommand cmd) { ... }
@@ -111,6 +104,8 @@ public abstract class BaseScopedService<E extends BaseEntity, R extends JpaRepos
     public void softDelete(Principal p, UUID id) { ... }
 }
 ```
+
+权限判断在 Controller/Service 方法上通过 Spring Security 完成；scope 通过 Specification/Filter 注入。不要新增 `FieldAccessPolicy` 之类的自研字段权限框架。
 
 ## 3. 基础控制器
 
@@ -144,9 +139,9 @@ public abstract class BaseCrudController<E extends BaseEntity, DTO, CREATE, UPDA
 供应商、Admin、门店可以继承同一基类，只实现：
 
 - `scope()`：供应商 id / 门店 id / 客服组；
-- `fieldPolicy()`：字段可见/可写；
 - `toDto()`：角色 DTO；
-- 专有动作（接单、发货、审批）作为子类方法。
+- `@PreAuthorize`/AuthorizationManager 操作权限；
+- 专有动作（接单、发货、审批）作为子类方法。字段级仅在 ERP 明确需要时接 OPA/Casbin。
 
 **禁止**：Controller 直接拼 SQL；Controller 直接返回实体；Controller 自己实现分页/审计/权限。
 
@@ -328,14 +323,14 @@ interface ObjectStorage {
 
 - 统一 `Principal`：角色、用户、供应商、门店、客服组、语言、市场。
 - `ScopeResolver`：供应商 id、门店 ids、客服组、运营权限。
-- `FieldAccessPolicy`：字段级。
+- 字段可见性：默认 DTO 投影；ERP 需要时 OPA/Casbin，不自建矩阵。
 - 审计：谁、何时、对哪个对象、哪些字段、旧值/新值、请求 id、IP/UA。
 - 导出：字段脱敏、范围、限流、文件过期、下载审计。
 - 风险引擎：规则 + 阈值 + 告警渠道；不阻塞主流程的异步评估，关键风险可阻断。
 
 ## 14. 迁移路线
 
-1. 先建公共层：`BaseEntity`、`FieldAccessPolicy`、`ScopeResolver`、`BaseCrudController`、审计、功能开关。
+1. 先建公共层：`BaseEntity`、`ScopeResolver`、`BaseCrudController`、Spring Security 方法授权、JaVers 审计、成熟功能开关（Unleash/FF4j）。
 2. 新模块（供应商结算、素材库、采购/质检、排班、知识库）直接使用新范式。
 3. 存量模块先接字段/范围策略，不急着换 ORM。
 4. 每个领域迁移前写契约测试，迁移后对比响应、错误码、审计、副作用。

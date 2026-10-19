@@ -231,6 +231,16 @@ Full Mall 的落地：
 新 CRUD 模块（首个试点 `asset`）继承 `BaseEntity` / `BaseScopedService` / `BaseCrudController`，
 行级范围由 `ScopeResolver` 统一解析，越权返回 404。
 
+## 3.3 待落地：成本计价与异步导出（2026-10-19）
+
+用户明确指出「进货价不是单一字段，而是长期均价」，且 ERP 需要按角色查看成本/毛利。
+
+- 计价模型：批次实际成本（已有 `inventory_batch.unit_cost_amount`）+ SKU/仓库移动加权平均 + **出库时点 COGS 快照**；
+  成熟参照：Moving Average / FIFO / Standard Cost（SAP、Odoo、ERPNext 均支持，本项目取移动加权 + 批次实际成本混合）。
+- 列可见性：按角色的 DTO 投影（CR-021 禁止字段矩阵）；组合爆炸时才上 Casbin/OPA。
+- 异步导出：`export_job` + `FOR UPDATE SKIP LOCKED` 抢占 + 流式 CSV + 对象存储签名 URL。
+- 详见 `docs/ERP_COST_EXPORT_AND_PERFORMANCE_DESIGN.md`。
+
 ## 4. 禁止事项
 
 - 禁止自研字段-角色权限矩阵作为默认方案。

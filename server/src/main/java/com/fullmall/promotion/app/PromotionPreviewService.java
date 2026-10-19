@@ -63,7 +63,8 @@ public class PromotionPreviewService {
                 subtotal - result.discountAmount(), result.appliedRuleCode(), resolvedLocale);
     }
 
-    private List<PromotionEngine.Rule> loadActiveRules() {
+    /** 当前生效的满减/满折规则（供结算与试算共用）。 */
+    public List<PromotionEngine.Rule> loadActiveRules() {
         List<PromotionEngine.Rule> rules = new ArrayList<>();
         jdbcTemplate.query("""
                 SELECT code, type, priority,

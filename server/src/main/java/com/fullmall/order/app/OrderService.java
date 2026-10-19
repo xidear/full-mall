@@ -55,6 +55,7 @@ public class OrderService {
     private final com.fullmall.platform.media.MediaUrlResolver mediaUrls;
     private final MemberDiscountLookup memberDiscounts;
     private final com.fullmall.member.app.MemberPointsService memberPoints;
+    private final com.fullmall.promotion.app.PromotionPreviewService promotionPreviews;
 
     private static final long FLAT_SHIPPING_FEE = 0L;
 
@@ -83,7 +84,8 @@ public class OrderService {
                         ObjectMapper objectMapper,
                         com.fullmall.platform.media.MediaUrlResolver mediaUrls,
                         MemberDiscountLookup memberDiscounts,
-                        com.fullmall.member.app.MemberPointsService memberPoints) {
+                        com.fullmall.member.app.MemberPointsService memberPoints,
+                        com.fullmall.promotion.app.PromotionPreviewService promotionPreviews) {
         this.orderRepository = orderRepository;
         this.catalogService = catalogService;
         this.inventoryService = inventoryService;
@@ -98,6 +100,7 @@ public class OrderService {
         this.mediaUrls = mediaUrls;
         this.memberDiscounts = memberDiscounts;
         this.memberPoints = memberPoints;
+        this.promotionPreviews = promotionPreviews;
     }
 
     @Transactional
@@ -199,6 +202,15 @@ public class OrderService {
         if (discount.amount() < 0) {
             throw new IllegalStateException("Promotion subtotal exceeds catalog subtotal for checkout");
         }
+        // 满减/满折（PRO-001）：与秒杀/买赠**互斥**——已有促销优惠时不再叠加，避免重复优惠
+        if (discount.amount() == 0) {
+            var engineResult = com.fullmall.promotion.app.PromotionEngine.choose(
+                    promotionPreviews.loadActiveRules(), subtotal.amount());
+            if (engineResult.applied()) {
+                discount = new Money(engineResult.discountAmount(), currency);
+            }
+        }
+
         // 会员等级价（MEM-002）：促销后金额再打折，运费不参与；匿名不享受
         Integer tierRate = memberDiscounts.discountRate(request.contact().phone());
         MemberPricing.Discount memberPricing = MemberPricing.apply(

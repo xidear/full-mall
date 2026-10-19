@@ -271,6 +271,36 @@ class CartAndAddressHttpTest {
     }
 
     @Test
+    void checkoutAppliesFullReductionWhenNoOtherPromotion() {
+        jdbc.update("DELETE FROM promotion WHERE code = 'HTTP-FULL-20'");
+        jdbc.update("""
+                INSERT INTO promotion (id, code, type, title, status, starts_at, ends_at, rules, priority)
+                VALUES (?, 'HTTP-FULL-20', 'FULL_REDUCTION', '满 20 减 5', 'ACTIVE',
+                        now() - interval '1 hour', now() + interval '1 day',
+                        '{"thresholdAmount":2000,"value":500}'::jsonb, 10)
+                """, UUID.randomUUID());
+
+        http.exchange("/api/v1/cart/items", HttpMethod.POST,
+                new HttpEntity<>(Map.of("skuId", SKU.toString(), "quantity", 2), guestHeaders()), String.class);
+        var address = http.exchange("/api/v1/addresses", HttpMethod.POST,
+                new HttpEntity<>(Map.of("recipient", "满减用户", "phone", "13800000077",
+                        "province", "上海", "city", "上海", "district", "静安",
+                        "detail", "南京西路 2 号"), guestHeaders()), String.class);
+        String addressId = com.jayway.jsonpath.JsonPath.read(address.getBody(), "$[0].id");
+
+        var checkout = http.exchange("/api/v1/cart/checkout", HttpMethod.POST,
+                new HttpEntity<>(Map.of("addressId", addressId), guestHeaders()), String.class);
+        assertThat(checkout.getStatusCode().value()).as(String.valueOf(checkout.getBody())).isEqualTo(200);
+
+        String orderId = com.jayway.jsonpath.JsonPath.read(checkout.getBody(), "$.id");
+        assertThat(jdbc.queryForObject(
+                "SELECT discount_amount FROM orders WHERE id = ?::uuid", Long.class, orderId))
+                .isEqualTo(500L);
+
+        jdbc.update("DELETE FROM promotion WHERE code = 'HTTP-FULL-20'");
+    }
+
+    @Test
     void promotionPreviewAppliesActiveFullReduction() {
         jdbc.update("DELETE FROM promotion WHERE code = 'HTTP-FULL-20'");
         jdbc.update("""

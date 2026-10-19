@@ -1643,3 +1643,19 @@ cd web && npx playwright test
 
 > 未做：结算流程尚未调用该引擎（下单仍用原有 `promoSubtotal`），两者需在下一轮统一，否则同一单可能重复优惠。
 
+---
+
+## 2026-10-19：结算接入满减/满折（互斥）
+
+- `OrderService` 在下单时调用 `PromotionEngine`：**仅当该单没有其它促销优惠时**才应用满减/满折，
+  与秒杀/买赠/拼团互斥，避免重复优惠。
+- `PromotionType` 枚举补 `FULL_REDUCTION` / `FULL_DISCOUNT`（原先缺失导致结算 500）。
+
+| 验证 | 结果 |
+|---|---|
+| 后端测试 | **253 个，全部通过，0 跳过** |
+| 真实 HTTP | 满 20 减 5 生效时下单，`orders.discount_amount = 500` |
+
+> **踩坑（真实缺陷）**：V46 放开数据库类型后，Java 枚举没同步，结算时 `PromotionType.valueOf` 直接抛
+> `No enum constant` → 500。这条只有端到端下单测试能发现（试算 API 走的是独立查询，不经过枚举）。
+

@@ -1372,3 +1372,18 @@ cd web && npx playwright test
 | 端到端 | 真实 HTTP：加购 → 地址 → 下单 → 支付 → **`distribution_commission` 出现 1 条且状态 `FROZEN`** |
 | 踩坑 | 推荐绑定必须在下单**前**建立（下单时挂上级），测试里放后置导致佣金为 0，调整顺序后通过 |
 
+---
+
+## 2026-10-19：佣金解冻调度
+
+- `CommissionReleaseScheduler`：`@Scheduled` 调用 `releaseDue`，**默认关闭**
+  （`app.distribution.release.enabled=false`），生产 worker 显式开启。
+- 不接这个调度，"冻结 7 天"永远不会到期——佣金会永久卡在 FROZEN。
+
+| 验证 | 结果 |
+|---|---|
+| 后端测试 | **222 个，全部通过，0 跳过** |
+| 新增测试 | 冻结期已过的佣金在 15s 内自动变 `AVAILABLE`，且 `commission_ledger` 有一条 `to_status=AVAILABLE` |
+
+> 未做：提现单与审核、解冻失败的告警。
+

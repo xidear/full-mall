@@ -128,5 +128,12 @@ class OrderNotificationFlowTest {
                 SELECT COUNT(*) FROM notification
                  WHERE recipient_type = 'MEMBER' AND recipient_id = ? AND event_type = 'ORDER_PAID'
                 """, Integer.class, MEMBER.toString())).isEqualTo(1);
+
+        // 退款：会员收到一条站内消息，且只一条
+        payments.refund(order.id(), order.total().amount());
+        assertThat(jdbc.queryForList("""
+                SELECT channel FROM notification
+                 WHERE recipient_type = 'MEMBER' AND recipient_id = ? AND event_type = 'ORDER_REFUNDED'
+                """, String.class, MEMBER.toString())).containsExactly("IN_APP");
     }
 }

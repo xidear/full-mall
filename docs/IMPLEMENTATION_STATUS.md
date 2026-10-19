@@ -2020,3 +2020,21 @@ SELECT channel FROM notification
 导致游客订单支付直接 500。已改为过滤 null。这个错误只有"游客订单支付"路径会触发——
 会员订单测试全绿也发现不了，是 `PostgresPickupFlowTest` 抓到的。
 
+---
+
+## 2026-10-19：消息链路三条事件全部验证
+
+`OrderNotificationFlowTest` 现在覆盖完整闭环：
+
+| 事件 | 断言 | 结果 |
+|---|---|---|
+| 下单 | `MEMBER/<id>` 的 `ORDER_CREATED` 恰好 1 条 | ✅ |
+| 支付 | `MEMBER/<id>` 的 `ORDER_PAID` 恰好 1 条；`CUSTOMER/手机号` 仅 `SMS` | ✅ |
+| 退款 | `MEMBER/<id>` 的 `ORDER_REFUNDED` 恰好 1 条 | ✅ |
+
+| 验证 | 结果 |
+|---|---|
+| 后端测试 | **284 个，全部通过，0 跳过** |
+
+> 消息中心不再是空壳：会员在下单、支付、退款三个节点都会收到站内消息，且身份统一到会员主键。
+

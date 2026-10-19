@@ -172,6 +172,93 @@ public final class PromotionEngine {
                 : new Result(best.code(), bestDiscount, "命中 " + best.type());
     }
 
+    /**
+     * 叠加/互斥（PRO-003）。
+     *
+     * @param rule      规则
+     * @param base      该规则的计费基数
+     * @param stackable 是否允许与其他组叠加
+     * @param group     优先级分组；同组只取最优
+     */
+    public record StackRule(Rule rule, long base, boolean stackable, String group) {
+    }
+
+    public record Applied(List<String> appliedRuleCodes, long discountAmount) {
+    }
+
+    /**
+     * 语义（确定性、可复现）：
+     * <ol>
+     *   <li>按 {@code group} 分组，每组选出最优一条（同 {@link #chooseScoped} 的平手规则）；</li>
+     *   <li>若**任何**入选规则的 {@code stackable=false}，则整体互斥——只保留优惠最大的那一条；</li>
+     *   <li>否则可叠加：各入选规则优惠求和；</li>
+     *   <li>合计优惠不超过最小基数（不出负应付）。</li>
+     * </ol>
+     */
+    public static Applied apply(List<StackRule> rules, long subtotalAmount) {
+        if (rules == null || rules.isEmpty()) {
+            return new Applied(List.of(), 0);
+        }
+        java.util.Map<String, List<ScopedRule>> grouped = new java.util.LinkedHashMap<>();
+        java.util.Map<String, Boolean> stackableByGroup = new java.util.HashMap<>();
+        for (StackRule rule : rules) {
+            String group = rule.group() == null || rule.group().isBlank() ? "DEFAULT" : rule.group();
+            grouped.computeIfAbsent(group, key -> new java.util.ArrayList<>())
+                    .add(new ScopedRule(rule.rule(), rule.base()));
+            stackableByGroup.merge(group, rule.stackable(), (a, b) -> a && b);
+        }
+
+        List<ScopedRule> winners = new java.util.ArrayList<>();
+        List<String> winnerGroups = new java.util.ArrayList<>();
+        for (var entry : grouped.entrySet()) {
+            Result best = chooseScoped(entry.getValue());
+            if (best.applied()) {
+                winners.add(new ScopedRule(
+                        entry.getValue().stream()
+                                .map(ScopedRule::rule)
+                                .filter(rule -> rule.code().equals(best.appliedRuleCode()))
+                                .findFirst().orElseThrow(),
+                        entry.getValue().stream()
+                                .filter(scoped -> scoped.rule().code().equals(best.appliedRuleCode()))
+                                .findFirst().orElseThrow().eligibleSubtotal()));
+                winnerGroups.add(entry.getKey());
+            }
+        }
+        if (winners.isEmpty()) {
+            return new Applied(List.of(), 0);
+        }
+
+        List<ScopedRule> selected;
+        boolean anyExclusive = winners.stream()
+                .anyMatch(scoped -> !stackableByGroup.getOrDefault(
+                        winnerGroups.get(winners.indexOf(scoped)), true));
+        if (anyExclusive) {
+            Result best = chooseScoped(winners);
+            selected = winners.stream()
+                    .filter(scoped -> scoped.rule().code().equals(best.appliedRuleCode()))
+                    .toList();
+        } else {
+            selected = winners;
+        }
+
+        long total = 0;
+        List<String> codes = new java.util.ArrayList<>();
+        for (ScopedRule scoped : selected) {
+            long discount = switch (scoped.rule().type()) {
+                case FULL_REDUCTION -> Math.min(scoped.rule().value(), scoped.eligibleSubtotal());
+                case FULL_DISCOUNT -> Math.min(
+                        BigDecimal.valueOf(scoped.eligibleSubtotal())
+                                .multiply(BigDecimal.valueOf(100 - scoped.rule().value()))
+                                .divide(BigDecimal.valueOf(100), 0, RoundingMode.HALF_UP)
+                                .longValueExact(),
+                        scoped.eligibleSubtotal());
+            };
+            total = Math.addExact(total, discount);
+            codes.add(scoped.rule().code());
+        }
+        return new Applied(List.copyOf(codes), Math.min(total, Math.max(subtotalAmount, 0)));
+    }
+
     /** 供上层排序展示用：按优先级降序、编码升序，保证稳定。 */
     public static Comparator<Rule> displayOrder() {
         return Comparator.comparingInt(Rule::priority).reversed().thenComparing(Rule::code);

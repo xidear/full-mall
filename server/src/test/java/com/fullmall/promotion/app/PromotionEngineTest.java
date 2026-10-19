@@ -94,6 +94,62 @@ class PromotionEngineTest {
     }
 
     @Test
+    void stackableRulesFromDifferentGroupsSum() {
+        var applied = PromotionEngine.apply(java.util.List.of(
+                new PromotionEngine.StackRule(
+                        new PromotionEngine.Rule("G1", PromotionEngine.Type.FULL_REDUCTION, 1000, 100, 1),
+                        5000, true, "REDUCE"),
+                new PromotionEngine.StackRule(
+                        new PromotionEngine.Rule("G2", PromotionEngine.Type.FULL_DISCOUNT, 1000, 95, 1),
+                        5000, true, "DISCOUNT")), 5000);
+
+        // 100 + 5000*5% = 100 + 250 = 350
+        assertThat(applied.discountAmount()).isEqualTo(350);
+        assertThat(applied.appliedRuleCodes()).containsExactlyInAnyOrder("G1", "G2");
+    }
+
+    @Test
+    void exclusiveRuleWinsAlone() {
+        var applied = PromotionEngine.apply(java.util.List.of(
+                new PromotionEngine.StackRule(
+                        new PromotionEngine.Rule("STACK", PromotionEngine.Type.FULL_REDUCTION, 1000, 100, 1),
+                        5000, true, "A"),
+                new PromotionEngine.StackRule(
+                        new PromotionEngine.Rule("EXCL", PromotionEngine.Type.FULL_REDUCTION, 1000, 400, 1),
+                        5000, false, "B")), 5000);
+
+        assertThat(applied.discountAmount()).isEqualTo(400);
+        assertThat(applied.appliedRuleCodes()).containsExactly("EXCL");
+    }
+
+    @Test
+    void sameGroupKeepsOnlyBest() {
+        var applied = PromotionEngine.apply(java.util.List.of(
+                new PromotionEngine.StackRule(
+                        new PromotionEngine.Rule("S1", PromotionEngine.Type.FULL_REDUCTION, 1000, 100, 1),
+                        5000, true, "SAME"),
+                new PromotionEngine.StackRule(
+                        new PromotionEngine.Rule("S2", PromotionEngine.Type.FULL_REDUCTION, 1000, 300, 1),
+                        5000, true, "SAME")), 5000);
+
+        assertThat(applied.appliedRuleCodes()).containsExactly("S2");
+        assertThat(applied.discountAmount()).isEqualTo(300);
+    }
+
+    @Test
+    void stackedTotalNeverExceedsSubtotal() {
+        var applied = PromotionEngine.apply(java.util.List.of(
+                new PromotionEngine.StackRule(
+                        new PromotionEngine.Rule("A", PromotionEngine.Type.FULL_REDUCTION, 1000, 600, 1),
+                        1000, true, "G1"),
+                new PromotionEngine.StackRule(
+                        new PromotionEngine.Rule("B", PromotionEngine.Type.FULL_REDUCTION, 1000, 600, 1),
+                        1000, true, "G2")), 1000);
+
+        assertThat(applied.discountAmount()).isEqualTo(1000);
+    }
+
+    @Test
     void rejectsInvalidRules() {
         assertThatThrownBy(() -> PromotionEngine.choose(
                 List.of(new PromotionEngine.Rule("BAD", PromotionEngine.Type.FULL_DISCOUNT, 1_000, 100, 1)), 5_000))

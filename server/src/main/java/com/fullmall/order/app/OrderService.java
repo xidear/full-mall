@@ -231,7 +231,11 @@ public class OrderService {
                     item.unitPrice(),
                     fulfillmentType,
                     item.promotionId(),
-                    item.lineType());
+                    item.lineType(),
+                    com.fullmall.order.domain.OrderLineSnapshot.toJson(
+                            sku.imageUrl(),
+                            OrderLine.attributesText(sku.options()),
+                            sku.compareAtPrice() == null ? null : sku.compareAtPrice().amount()));
             orderRepository.insertOrderLine(orderId, line);
 
             List<ReservationAllocation> allocations = inventoryService.reserveForOrderLine(

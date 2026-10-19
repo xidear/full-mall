@@ -51,8 +51,8 @@ public class OrderRepository {
         jdbcTemplate.update("""
                 INSERT INTO order_line (id, order_id, sku_id, title_snapshot, sku_code_snapshot,
                                         quantity, unit_price_amount, currency, fulfillment_type,
-                                        promotion_id, line_type)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                                        promotion_id, line_type, snapshot)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CAST(? AS jsonb))
                 """,
                 line.id(),
                 orderId,
@@ -64,7 +64,8 @@ public class OrderRepository {
                 line.unitPrice().currency(),
                 line.fulfillmentType().name(),
                 line.promotionId(),
-                line.lineType());
+                line.lineType(),
+                line.snapshot());
     }
 
     public Order findOrder(UUID orderId) {
@@ -81,7 +82,7 @@ public class OrderRepository {
     public List<OrderLine> findOrderLines(UUID orderId) {
         return jdbcTemplate.query("""
                 SELECT id, sku_id, title_snapshot, sku_code_snapshot, quantity, unit_price_amount,
-                       currency, fulfillment_type, promotion_id, line_type
+                       currency, fulfillment_type, promotion_id, line_type, snapshot::text AS snapshot
                 FROM order_line
                 WHERE order_id = ?
                 ORDER BY title_snapshot
@@ -94,7 +95,8 @@ public class OrderRepository {
                 new Money(rs.getLong("unit_price_amount"), rs.getString("currency")),
                 FulfillmentType.valueOf(rs.getString("fulfillment_type")),
                 rs.getObject("promotion_id", UUID.class),
-                rs.getString("line_type")), orderId);
+                rs.getString("line_type"),
+                rs.getString("snapshot")), orderId);
     }
 
     public boolean markPaidIfPending(UUID orderId) {

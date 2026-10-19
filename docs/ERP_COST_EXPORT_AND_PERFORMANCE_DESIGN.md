@@ -112,9 +112,13 @@ cost_ledger(id, sku_id, warehouse_id, occurred_at, qty_delta, unit_cost, value_d
 
 订单一旦创建，**商品信息冻结**（类似淘宝商品快照），后续改标题、改价、下架、删商品都不能影响历史订单：
 
-| 已冻结 | 新增冻结（V35） |
+| 已冻结 | 快照内容（V36：单 `snapshot JSONB` 字段） |
 |---|---|
-| `title_snapshot`、`sku_code_snapshot`、`unit_price_amount` | `image_snapshot`、`attributes_snapshot`、`brand_snapshot`、`category_snapshot`、`list_price_amount`、`cost_amount`（COGS）、`locale` |
+| `title_snapshot`、`sku_code_snapshot`、`unit_price_amount` | `image`、`attributes`、`brand`、`category`、`listPriceAmount`、`costAmount`（COGS）、`locale` 等 |
+
+> **设计修正（2026-10-19，用户指出）**：曾把快照拆成多个列，每加一项就要改表、改 INSERT、改映射；
+> 改为**一个 JSONB 快照字段**，商品字段继续演进也不用动订单表。这与"后台禁止手填 JSON"不冲突——
+> 该规则约束输入层，快照是服务端生成的历史事实。
 
 要点：
 

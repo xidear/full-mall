@@ -141,3 +141,25 @@ cost_ledger(id, sku_id, warehouse_id, occurred_at, qty_delta, unit_cost, value_d
 | 数据最小化与保留期 | 只存必要字段；订单/会话按法定期限保留，到期归档或删除（可配置） |
 | 用户权利（查询/删除） | 提供导出与删除流程，删除走软删 + 关联脱敏 |
 | 地区差异 | `pii_policy(region, field, action)` 配置化（MASK/ENCRYPT/DENY），大陆先落 MASK+ENCRYPT，其它地区按需扩展 |
+
+## 7. 字段收敛审计（2026-10-19，用户要求"都合并"）
+
+原则：**按类型会持续增加的字段，一律收敛为 JSONB**；只有用于过滤/排序/关联/对账的字段保留普通列。
+前端用组合表单生成结构化数据，后台存 JSON；这与"禁止手填 JSON"不冲突（约束输入层）。
+
+| 表 | 现状 | 处理 |
+|---|---|---|
+| `order_line` | 曾经拆成 image/attributes/brand/... 多列 | ✅ V36 收敛为 `snapshot JSONB` |
+| `payment_provider_config_version` | 8 个渠道专属列 | ✅ V37 收敛为 `settings JSONB`（`payment` 表仍保留 4 个路由列） |
+| `promotion` | **37 列**（类型专属：秒杀价、赠品、拼团人数…） | ⬜ 待做：`rules JSONB` + 保留 type/status/时间窗列；需同步重构 `PromotionService` 与后台表单 |
+| `legal_document` | 32 列（多市场多语言正文） | ⬜ 待做：正文与元数据入 `content JSONB` 或独立 translation 表 |
+| `theme_config` | 已是 `config_json` | ✅ 无需改 |
+| `system_setting` | 已是 key-value | ✅ 无需改 |
+| `sku.options` / `orders.address` | 已是 JSONB | ✅ 无需改 |
+| `audit_event.detail` | VARCHAR(1024) | ⬜ 改为 `detail JSONB`（事件类型不同，字段差异大） |
+
+保留普通列的判断标准（不要全塞 JSON）：
+
+1. 需要索引/WHERE/ORDER BY（如 `type`、`status`、`created_at`、`channel`）
+2. 参与外键关联
+3. 金额汇总与对账必需（`gross_amount`/`payable_amount` 等）

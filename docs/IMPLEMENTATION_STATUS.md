@@ -1387,3 +1387,23 @@ cd web && npx playwright test
 
 > 未做：提现单与审核、解冻失败的告警。
 
+---
+
+## 2026-10-19：提现（分销资金闭环）
+
+- V43 `withdrawal`：`PENDING → APPROVED → PAID`，或 `PENDING/APPROVED → REJECTED`；
+  金额必须 > 0（DB CHECK）。
+- `WithdrawalService`：
+  - `request`：可提现 = AVAILABLE 佣金 − 处理中提现，超申请直接拒绝；
+  - `approve` / `reject`（拒必须写原因）；
+  - `markPaid`：把等额 AVAILABLE 佣金按 FIFO 置为 `WITHDRAWN` 并写流水；
+    **可用佣金不足以覆盖时整笔失败**（不产生负数余额），必须记支付凭证号。
+
+| 验证 | 结果 |
+|---|---|
+| 后端测试 | **226 个，全部通过，0 跳过** |
+| 新增测试 | 4 个：超额申请拒绝、处理中提现占用额度、打款消耗佣金并写流水、拒绝需原因 |
+
+> 未做：后台/前台提现接口、打款失败回滚（FAILED 状态）、提现通知。
+> 佣金不可拆分：金额大于单条佣金时会跳过该条继续匹配更小的佣金；若凑不齐则整笔失败并要求人工核对。
+

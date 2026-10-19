@@ -168,6 +168,11 @@ class CartAndAddressHttpTest {
         assertThat(jdbc.queryForObject(
                 "SELECT member_id FROM orders WHERE id = ?::uuid", java.util.UUID.class, createdOrderId))
                 .isNotNull();
+
+        // 订单详情越权保护：游客访问已绑定会员的订单 → 404
+        var anonymousDetail = http.exchange("/api/v1/orders/" + createdOrderId, HttpMethod.GET,
+                new HttpEntity<>(guestHeaders()), String.class);
+        assertThat(anonymousDetail.getStatusCode().value()).isEqualTo(404);
         // 下单后购物车清空
         var cart = http.exchange("/api/v1/cart", HttpMethod.GET,
                 new HttpEntity<>(guestHeaders()), String.class);

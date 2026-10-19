@@ -96,6 +96,13 @@ public class OrderRepository {
                 """, orderId, phone.trim());
     }
 
+    /** @return 订单归属的会员 ID；游客订单返回 null。 */
+    public UUID memberIdOf(UUID orderId) {
+        List<UUID> rows = jdbcTemplate.queryForList(
+                "SELECT member_id FROM orders WHERE id = ?", UUID.class, orderId);
+        return rows.isEmpty() ? null : rows.get(0);
+    }
+
     public Order findOrder(UUID orderId) {
         List<Order> orders = jdbcTemplate.query("""
                 SELECT id, order_no, status, currency, subtotal_amount, shipping_fee_amount,

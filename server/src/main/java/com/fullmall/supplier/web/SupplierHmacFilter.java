@@ -55,16 +55,18 @@ public class SupplierHmacFilter extends OncePerRequestFilter {
     private final SupplierSecretCipher cipher;
     private final ObjectMapper objectMapper;
     private final long timestampSkewSeconds;
-    private final ConcurrentHashMap<String, Long> nonces = new ConcurrentHashMap<>();
+    private final SupplierNonceStore nonceStore;
 
     public SupplierHmacFilter(SupplierRepository repository,
                               SupplierSecretCipher cipher,
                               ObjectMapper objectMapper,
-                              @Value("${app.supplier.timestamp-skew-seconds:300}") long timestampSkewSeconds) {
+                              @Value("${app.supplier.timestamp-skew-seconds:300}") long timestampSkewSeconds,
+                              SupplierNonceStore nonceStore) {
         this.repository = repository;
         this.cipher = cipher;
         this.objectMapper = objectMapper;
         this.timestampSkewSeconds = timestampSkewSeconds;
+        this.nonceStore = nonceStore;
     }
 
     @Override
@@ -104,7 +106,7 @@ public class SupplierHmacFilter extends OncePerRequestFilter {
             unauthorized(response, "SUPPLIER_NONCE_INVALID", "X-Supplier-Nonce 不能超过 128 个字符");
             return;
         }
-        if (!registerNonce(accessKey, nonce)) {
+        if (!nonceStore.tryRegister(accessKey.trim(), nonce, Instant.now(), timestampSkewSeconds)) {
             conflict(response, "SUPPLIER_NONCE_REPLAYED", "Nonce 已使用，请重新生成");
             return;
         }
@@ -147,16 +149,6 @@ public class SupplierHmacFilter extends OncePerRequestFilter {
         } finally {
             SecurityContextHolder.clearContext();
         }
-    }
-
-    private boolean registerNonce(String accessKey, String nonce) {
-        long now = Instant.now().getEpochSecond();
-        if (nonces.size() > 10_000) {
-            nonces.entrySet().removeIf(entry -> entry.getValue() < now - timestampSkewSeconds);
-        }
-        String key = accessKey + ":" + nonce;
-        Long previous = nonces.putIfAbsent(key, now);
-        return previous == null;
     }
 
     private String sha256Hex(byte[] body) {

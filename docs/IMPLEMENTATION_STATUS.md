@@ -772,3 +772,22 @@ cd web && npx playwright test
 | 新增测试 | `SupplierOrderScopeTest` 2 个（越权 404、本人可读） |
 | 契约 | springdoc 生成的路径包含新增端点 |
 
+---
+
+## 2026-10-19（B3）：供应商 nonce 落库防重放
+
+- 原实现把 nonce 存在**内存 ConcurrentHashMap**（`SupplierHmacFilter`）：重启即清空、多副本不共享，
+  重放窗口内重启一次就能重放成功。
+- 新增 V29 `supplier_nonce(access_key, nonce, created_at)` 主键去重 + `SupplierNonceStore`：
+  `INSERT ... ON CONFLICT DO NOTHING`，插入成功=首次，冲突=重放；成功插入时顺带清理过期记录。
+- 时间窗 ±300s、常量时间比较（`MessageDigest.isEqual`）保持原样，未改动。
+
+| 验证 | 结果 |
+|---|---|
+| 后端测试 | **100 个，全部通过，0 跳过** |
+| 新增测试 | `SupplierNonceStoreTest` 4 个（首次放行、重放拒绝、TTL 清理、参数校验） |
+| 迁移 | V29 空库冒烟通过 |
+
+> **未覆盖**：尚无「真实 HMAC 请求重放」的集成测试（现有集成测试不调用 `/open/v1`）。
+> 已记录为下一步：用固定凭证构造两次同 nonce 请求，断言第二次 401。
+

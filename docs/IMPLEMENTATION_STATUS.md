@@ -1136,3 +1136,19 @@ cd web && npx playwright test
 | 迁移 | V39 在真实 PostgreSQL 跑通（含既有数据回填与 seed 重写） |
 | 说明 | 第一次跑失败是因为 seed 仍写生成列，改 seed 后通过——错误信息直接指出语句序号 |
 
+---
+
+## 2026-10-19：文章后台（创建 / 译文 / 审校 / 发布）
+
+- `ArticleAdminService`：创建（slug 格式校验 + 类型枚举）、写译文（DRAFT）、送审（→REVIEWED）、
+  发布（**必须有已审校的英文默认译文**，只发布 REVIEWED 译文；未审校的中文保持 DRAFT）。
+- 接口 `POST/PUT/.../admin/v1/articles`，全部 `@PreAuthorize("hasRole('ADMIN')")`；
+  创建/写译文/送审/发布均写审计（`ARTICLE_CREATED` / `ARTICLE_TRANSLATION_SAVED` /
+  `ARTICLE_TRANSLATION_REVIEWED` / `ARTICLE_PUBLISHED`）。
+
+| 验证 | 结果 |
+|---|---|
+| 后端测试 | **199 个，全部通过，0 跳过** |
+| 新增测试 | `ArticleAdminFlowTest` 2 个（无英文译文拒绝发布；补英文并审校后可发布且中文仍为 DRAFT；送审未知译文报错） |
+| 测试策略 | 写路径用嵌入式 PostgreSQL 真实 SQL 验证，符合上一轮定的规则 |
+

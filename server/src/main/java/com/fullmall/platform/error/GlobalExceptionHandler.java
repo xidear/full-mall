@@ -17,6 +17,22 @@ public class GlobalExceptionHandler {
 
     private static final Logger log = LoggerFactory.getLogger(GlobalExceptionHandler.class);
 
+    /**
+     * 不存在的路径 → **404**。
+     *
+     * <p>Spring Boot 4 对未知路径抛 {@code NoResourceFoundException}（静态资源兜底），
+     * 若不显式处理会落到 500 并打完整堆栈，把"路径写错"伪装成"服务故障"，
+     * 也让健康探测大量刷错误日志。
+     */
+    @ExceptionHandler(org.springframework.web.servlet.resource.NoResourceFoundException.class)
+    public ResponseEntity<ErrorResponse> handleNotFound(
+            org.springframework.web.servlet.resource.NoResourceFoundException exception,
+            HttpServletRequest request) {
+        return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                .body(new ErrorResponse("NOT_FOUND", "接口不存在: " + request.getRequestURI(),
+                        requestId(request), List.of()));
+    }
+
     @ExceptionHandler(ApiException.class)
     public ResponseEntity<ErrorResponse> handleApiException(ApiException exception, HttpServletRequest request) {
         return ResponseEntity.status(exception.status())

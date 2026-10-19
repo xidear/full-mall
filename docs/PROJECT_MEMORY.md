@@ -516,3 +516,29 @@ npm run build                                         # 构建 5 个 workspace �
 - 已实测通过：storefront（Nuxt）、admin、store-console、supplier-portal、support-console。
 - 前端调用与后端路由的一致性检查：`python3 scripts/check-api-alignment.py`。
 
+## 10. 容器内联调（无 Docker）
+
+```bash
+# 1) 用测试依赖起一个真实 PostgreSQL（替代 compose 的 postgres）
+cd server
+mvn -q -DskipTests test-compile
+mvn -q dependency:build-classpath -Dmdep.outputFile=/tmp/cp.txt -Dmdep.includeScope=test
+java -cp "target/test-classes:target/classes:$(cat /tmp/cp.txt)" com.fullmall.test.EmbeddedPgServer
+# 输出 PG_URL=jdbc:postgresql://localhost:55432/postgres
+
+# 2) 起后端（Flyway 自动建表 + demo 种子）
+SPRING_DATASOURCE_URL=jdbc:postgresql://localhost:55432/postgres \
+SPRING_DATASOURCE_USERNAME=postgres SPRING_DATASOURCE_PASSWORD= \
+SPRING_PROFILES_ACTIVE=dev mvn -q -DskipTests spring-boot:run
+
+# 3) 起前端产物（先 npm run build）
+cd ../web && NUXT_PUBLIC_API_BASE=http://localhost:8080 PORT=3099 \
+  node apps/storefront/.output/server/index.mjs
+```
+
+- 已实测：`/api/v1/products` 返回 200；storefront `/products` 页面 SSR 输出中包含后端商品标题
+  （`供应商直发测试商品`），即**前后端真联通**。
+- 容器内 **没有 `curl`**，用 `python3 -c "import urllib.request..."` 探测端口与接口。
+- 探测过程中发现：未知路径（如 `/api/status`）返回 **500 + 完整堆栈**，已在 `GlobalExceptionHandler`
+  中补 `NoResourceFoundException → 404`。
+

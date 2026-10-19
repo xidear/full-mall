@@ -2183,3 +2183,29 @@ npm run build                                         # 全部 workspace
 **踩坑**：`npm ci` 默认写 `~/.npm`（宿主用户目录，权限不足）→ `EACCES`。
 改用 `--cache /tmp/npm-cache` 后正常。这条要写进构建文档，否则别人 clone 下来同样会卡。
 
+---
+
+## 2026-10-19：首次前后端真联调（容器内，无 Docker）
+
+用测试依赖的嵌入式 PostgreSQL 起了真实数据库，再起后端与前端构建产物：
+
+| 步骤 | 结果 |
+|---|---|
+| 嵌入式 PG（`EmbeddedPgServer`，端口 55432） | ✅ 就绪 |
+| 后端（dev profile，Flyway 建表 + 演示数据） | ✅ `/api/v1/products` 200 |
+| 前端（storefront 生产构建，端口 3099） | ✅ `/` 与 `/products` 均 200 |
+| **真联通** | ✅ `/products` 页面 HTML 中含后端商品标题「供应商直发测试商品」 |
+
+### 顺带修掉一个真实缺陷
+
+未知路径（如 `/api/status`）原本返回 **500 + 完整堆栈**（`NoResourceFoundException` 落到兜底处理），
+把"路径写错"伪装成"服务故障"，并让探测请求刷满错误日志。
+已在 `GlobalExceptionHandler` 补 404 分支，`NotFoundHttpTest` 覆盖。
+
+| 验证 | 结果 |
+|---|---|
+| 后端测试 | **300 个，全部通过，0 跳过** |
+
+> 说明：`NotFoundHttpTest` 是**处理器的单元测试**；测试上下文的安全策略会在到达 dispatch 前返回 401，
+> 因此没有做 HTTP 层断言（运行中的应用已手工确认 404 行为）。
+

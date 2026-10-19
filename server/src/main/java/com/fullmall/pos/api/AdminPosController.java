@@ -27,31 +27,11 @@ public class AdminPosController {
     private final PosService posService;
     private final PosAdminService adminService;
 
-    private final com.fullmall.pos.app.PosSalesExportService exportService;
-
-    public AdminPosController(PosService posService, PosAdminService adminService,
-                              com.fullmall.pos.app.PosSalesExportService exportService) {
+    public AdminPosController(PosService posService, PosAdminService adminService) {
         this.posService = posService;
         this.adminService = adminService;
-        this.exportService = exportService;
     }
 
-    /** 销售导出：是否包含成本/毛利列由权限决定，文件本身不含未授权列（SEC-001）。 */
-    @org.springframework.web.bind.annotation.GetMapping(value = "/sales/export.csv", produces = "text/csv;charset=UTF-8")
-    @org.springframework.security.access.prepost.PreAuthorize("hasAnyRole('ADMIN','OPERATOR')")
-    public org.springframework.http.ResponseEntity<String> exportSales(
-            @org.springframework.web.bind.annotation.RequestParam(defaultValue = "500") int limit,
-            org.springframework.security.core.Authentication authentication) {
-        boolean canViewCost = authentication.getAuthorities().stream()
-                .map(org.springframework.security.core.GrantedAuthority::getAuthority)
-                .anyMatch(authority -> com.fullmall.pos.app.PosSalesExportService.PERMISSION_VIEW_COST
-                        .equals(authority) || "ROLE_ADMIN".equals(authority));
-        var csv = exportService.export(limit, canViewCost, authentication.getName(), null);
-        return org.springframework.http.ResponseEntity.ok()
-                .header("Content-Disposition", "attachment; filename=\"pos-sales-export.csv\"")
-                .header("X-Export-Projection", csv.projection())
-                .body(csv.content());
-    }
 
     @GetMapping("/reports/daily")
     public PosDailyReport dailyReport(@RequestParam UUID storeId,

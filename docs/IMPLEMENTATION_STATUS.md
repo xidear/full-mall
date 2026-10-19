@@ -1253,3 +1253,14 @@ cd web && npx playwright test
 
 > **未完成**：S3/SeaweedFS 实现（需要 SDK 与凭证配置）、签名 URL 下载、删除旧同步导出接口。
 
+### A6 下线同步导出
+
+- 删除 `MemberExportService`、`PosSalesExportService` 及其单测；删除 `GET /admin/v1/pos/sales/export.csv`。
+- 保留 `MemberExportRepository` / `PosSalesExportRepository`（异步 worker 复用）与 `ExportAuditRepository`（结算 CSA 仍在用）。
+- 导出统一入口：`POST /admin/v1/export-jobs` → 轮询 `GET /admin/v1/export-jobs/{id}` → `GET .../download`。
+
+| 验证 | 结果 |
+|---|---|
+| 后端测试 | **201 个，全部通过，0 跳过**（删除 11 个同步导出相关测试） |
+| 回归 | 删除过程中脚本误删了 `/admin/v1/pos/reports/daily`，被 `PostgresPosFlowTest` 立即抓到并已恢复 |
+

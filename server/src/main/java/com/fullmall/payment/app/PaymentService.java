@@ -26,6 +26,7 @@ public class PaymentService {
     private final com.fullmall.distribution.app.CommissionLedgerService commissionLedger;
     private final com.fullmall.distribution.app.ReferralService referralService;
     private final com.fullmall.member.app.MemberRewardService memberRewards;
+    private final com.fullmall.member.app.MemberPointsService memberPoints;
 
     public PaymentService(PaymentRepository paymentRepository,
                           OrderService orderService,
@@ -34,7 +35,8 @@ public class PaymentService {
                           @Value("${app.payment.provider:mock}") String configuredProvider,
                           com.fullmall.distribution.app.CommissionLedgerService commissionLedger,
                           com.fullmall.distribution.app.ReferralService referralService,
-                          com.fullmall.member.app.MemberRewardService memberRewards) {
+                          com.fullmall.member.app.MemberRewardService memberRewards,
+                          com.fullmall.member.app.MemberPointsService memberPoints) {
         this.paymentRepository = paymentRepository;
         this.orderService = orderService;
         this.mockPaymentConnector = mockPaymentConnector;
@@ -43,6 +45,7 @@ public class PaymentService {
         this.commissionLedger = commissionLedger;
         this.referralService = referralService;
         this.memberRewards = memberRewards;
+        this.memberPoints = memberPoints;
     }
 
     /**
@@ -54,6 +57,10 @@ public class PaymentService {
         long orderTotal = order.total().amount();
         if (refundedAmount >= orderTotal) {
             commissionLedger.reverseByOrder(orderId, "订单整单退款");
+            // 会员侧：退回抵扣的积分 + 回退本单赚取的积分/成长值（均幂等）
+            var orderForMember = orderService.getOrder(orderId);
+            memberPoints.rollbackForOrder(orderId, orderForMember.contactPhone());
+            memberRewards.rollback(orderId, orderForMember.contactPhone());
         } else {
             commissionLedger.extendFreezeByOrder(orderId, java.time.Duration.ofDays(7), "部分退款，延长冻结");
         }

@@ -73,6 +73,72 @@ public class MemberRewardService {
         return new Reward(points, growth, newTier == null ? member.tier() : newTier);
     }
 
+    /**
+     * 退款/取消：回退该订单赚取的积分与成长值（幂等）。
+     *
+     * <p>只回退**当前仍持有**的部分（余额不足时不产生负数），并写 REVERSE 流水，
+     * 便于事后查"本该退多少、实际退了多少"。
+     */
+    @Transactional
+    public Reward rollback(UUID orderId, String phone) {
+        if (phone == null || phone.isBlank()) {
+            return new Reward(0, 0, null);
+        }
+        List<MemberRow> members = jdbcTemplate.query("""
+                SELECT m.id, m.tier, m.points_balance, m.growth_value, l.points_multiplier
+                  FROM member m JOIN member_level l ON l.code = m.tier
+                 WHERE m.phone = ?
+                """, (rs, rowNum) -> new MemberRow(
+                rs.getObject("id", UUID.class), rs.getString("tier"),
+                rs.getLong("points_balance"), rs.getLong("growth_value"),
+                rs.getInt("points_multiplier")), phone.trim());
+        if (members.isEmpty()) {
+            return new Reward(0, 0, null);
+        }
+        MemberRow member = members.get(0);
+
+        long earnedPoints = earned("points_ledger", "points", orderId);
+        long earnedGrowth = earned("growth_ledger", "growth", orderId);
+        long reversePoints = Math.min(earnedPoints, member.points());
+        long reverseGrowth = Math.min(earnedGrowth, member.growth());
+
+        if (reversePoints > 0) {
+            int inserted = jdbcTemplate.update("""
+                    INSERT INTO points_ledger (id, member_id, sale_id, entry_type, points,
+                                               balance_after, reason, business_key)
+                    VALUES (?, ?, NULL, 'REVERSE', ?, ?, ?, ?)
+                    ON CONFLICT (business_key) DO NOTHING
+                    """, UUID.randomUUID(), member.id(), -reversePoints,
+                    member.points() - reversePoints, "订单退款回退积分", "order:" + orderId + ":points-rollback");
+            if (inserted == 1) {
+                jdbcTemplate.update("UPDATE member SET points_balance = points_balance - ? WHERE id = ?",
+                        reversePoints, member.id());
+            }
+        }
+        if (reverseGrowth > 0) {
+            int inserted = jdbcTemplate.update("""
+                    INSERT INTO growth_ledger (id, member_id, sale_id, entry_type, growth,
+                                               balance_after, reason, business_key)
+                    VALUES (?, ?, NULL, 'REVERSE', ?, ?, ?, ?)
+                    ON CONFLICT (business_key) DO NOTHING
+                    """, UUID.randomUUID(), member.id(), -reverseGrowth,
+                    member.growth() - reverseGrowth, "订单退款回退成长值",
+                    "order:" + orderId + ":growth-rollback");
+            if (inserted == 1) {
+                jdbcTemplate.update("UPDATE member SET growth_value = growth_value - ? WHERE id = ?",
+                        reverseGrowth, member.id());
+            }
+        }
+        return new Reward(reversePoints, reverseGrowth, member.tier());
+    }
+
+    private long earned(String table, String column, UUID orderId) {
+        List<Long> rows = jdbcTemplate.queryForList(
+                "SELECT " + column + " FROM " + table + " WHERE business_key = ?",
+                Long.class, "order:" + orderId + ":" + (table.startsWith("points") ? "points" : "growth"));
+        return rows.isEmpty() ? 0 : rows.get(0);
+    }
+
     private String upgradeIfEligible(UUID memberId) {
         List<String> tiers = jdbcTemplate.queryForList("""
                 SELECT l.code FROM member_level l

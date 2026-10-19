@@ -1531,3 +1531,20 @@ cd web && npx playwright test
 
 > 未做：退款流程调用 `rollbackForOrder`（服务已就绪，尚未接进退款）；积分抵扣除数不可配置上限。
 
+---
+
+## 2026-10-19：退款回退会员积分与成长值
+
+- `MemberRewardService.rollback(orderId, phone)`：按该订单 `business_key` 找到赚取的积分/成长值，
+  只回退**当前仍持有**的部分（**不产生负数余额**），写 `REVERSE` 流水，幂等。
+- `PaymentService` 整单退款时同时调用：`memberPoints.rollbackForOrder`（抵扣积分退回）
+  与 `memberRewards.rollback`（赚取积分/成长值回退）。
+
+| 验证 | 结果 |
+|---|---|
+| 后端测试 | **244 个，全部通过，0 跳过** |
+| 新增测试 | 2 个：退款回退 38 积分/19 成长值且二次调用为 0；积分已花光时不产生负数 |
+
+> 已知限制：整单退款才回退；**部分退款暂不回退**（与佣金一致，按比例回退需要按行分摊模型）。
+> 退款接口层调用尚未做 HTTP 级验证（服务层已覆盖）。
+

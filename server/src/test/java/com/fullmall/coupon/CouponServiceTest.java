@@ -117,6 +117,57 @@ class CouponServiceTest {
     }
 
     @Test
+    void eligibilityReportsReasonAndDiscountWithoutChangingState() {
+        UUID templateId = activeTemplate("CP-6", 10, 1);
+        coupons.claim(templateId, MEMBER);
+        UUID couponId = coupons.listMine(MEMBER, null, 10).get(0).id();
+
+        // 未达门槛
+        assertThat(coupons.checkUsable(couponId, MEMBER, 500).usable()).isFalse();
+        assertThat(coupons.checkUsable(couponId, MEMBER, 500).reason()).contains("门槛");
+        // 达到门槛（门槛 1000）：面额 500
+        assertThat(coupons.checkUsable(couponId, MEMBER, 1_200).discountAmount()).isEqualTo(500);
+        // 只读：券仍是 UNUSED
+        assertThat(jdbc.queryForObject(
+                "SELECT status FROM member_coupon WHERE id = ?", String.class, couponId)).isEqualTo("UNUSED");
+    }
+
+    @Test
+    void amountDiscountNeverExceedsOrderAmount() {
+        // 面额 2000、门槛 0，订单 1500 → 最多抵 1500
+        UUID templateId = coupons.createTemplate("CP-9", "大额券", "AMOUNT", 2_000, 0, 10, 1, 30,
+                Instant.now().minusSeconds(60), Instant.now().plusSeconds(86_400));
+        coupons.activate(templateId);
+        coupons.claim(templateId, MEMBER);
+        UUID couponId = coupons.listMine(MEMBER, null, 10).get(0).id();
+
+        assertThat(coupons.checkUsable(couponId, MEMBER, 1_500).discountAmount()).isEqualTo(1_500);
+    }
+
+    @Test
+    void percentCouponRoundsHalfUp() {
+        UUID templateId = coupons.createTemplate("CP-7", "九折券", "PERCENT", 90, 0, 10, 1, 30,
+                Instant.now().minusSeconds(60), Instant.now().plusSeconds(86_400));
+        coupons.activate(templateId);
+        coupons.claim(templateId, MEMBER);
+        UUID couponId = coupons.listMine(MEMBER, null, 10).get(0).id();
+
+        // 3333 × 10% = 333.3 → 333
+        assertThat(coupons.checkUsable(couponId, MEMBER, 3_333).discountAmount()).isEqualTo(333);
+    }
+
+    @Test
+    void otherMembersCouponIsRejected() {
+        UUID templateId = activeTemplate("CP-8", 10, 1);
+        coupons.claim(templateId, MEMBER);
+        UUID couponId = coupons.listMine(MEMBER, null, 10).get(0).id();
+
+        assertThatThrownBy(() -> coupons.checkUsable(couponId, MEMBER2, 5_000))
+                .isInstanceOf(com.fullmall.platform.error.ApiException.class)
+                .hasMessageContaining("不属于当前会员");
+    }
+
+    @Test
     void expiredCouponShowsAsExpiredEvenWithoutScheduler() {
         UUID templateId = activeTemplate("CP-5", 10, 1);
         coupons.claim(templateId, MEMBER);

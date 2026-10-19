@@ -122,6 +122,48 @@ public class CouponService {
         return id;
     }
 
+    public record Eligibility(boolean usable, String reason, long discountAmount) {
+    }
+
+    /**
+     * 券对某金额的可用性（**只读校验，不改订单金额、不改券状态**）。
+     */
+    public Eligibility checkUsable(UUID couponId, UUID memberId, long orderAmount) {
+        if (orderAmount < 0) {
+            throw ApiException.badRequest("INVALID_ORDER_AMOUNT", "订单金额不能为负");
+        }
+        List<EligibilityRow> rows = jdbcTemplate.query("""
+                SELECT c.status, c.expires_at, t.type, t.value, t.min_order_amount
+                  FROM member_coupon c JOIN coupon_template t ON t.id = c.template_id
+                 WHERE c.id = ? AND c.member_id = ?
+                """, (rs, rowNum) -> new EligibilityRow(
+                rs.getString("status"), rs.getTimestamp("expires_at").toInstant(),
+                rs.getString("type"), rs.getLong("value"), rs.getLong("min_order_amount")),
+                couponId, memberId);
+
+        if (rows.isEmpty()) {
+            throw ApiException.notFound("COUPON_NOT_FOUND", "券不存在或不属于当前会员: " + couponId);
+        }
+        EligibilityRow coupon = rows.get(0);
+        if (!"UNUSED".equals(coupon.status())) {
+            return new Eligibility(false, "券已使用或不可用: " + coupon.status(), 0);
+        }
+        if (!coupon.expiresAt().isAfter(Instant.now())) {
+            return new Eligibility(false, "券已过期", 0);
+        }
+        if (orderAmount < coupon.minOrderAmount()) {
+            return new Eligibility(false, "未达到使用门槛，需满 " + coupon.minOrderAmount() + " 分", 0);
+        }
+
+        long discount = "AMOUNT".equals(coupon.type())
+                ? Math.min(coupon.value(), orderAmount)
+                : java.math.BigDecimal.valueOf(orderAmount)
+                    .multiply(java.math.BigDecimal.valueOf(100 - coupon.value()))
+                    .divide(java.math.BigDecimal.valueOf(100), 0, java.math.RoundingMode.HALF_UP)
+                    .longValueExact();
+        return new Eligibility(true, "可用", discount);
+    }
+
     public List<Coupon> listMine(UUID memberId, String status, int limit) {
         if (limit <= 0 || limit > 100) {
             throw ApiException.badRequest("INVALID_LIMIT", "查询条数必须在 1..100，实际=" + limit);
@@ -172,6 +214,10 @@ public class CouponService {
             builder.append(CODE_ALPHABET.charAt(RANDOM.nextInt(CODE_ALPHABET.length())));
         }
         return builder.toString();
+    }
+
+    private record EligibilityRow(String status, Instant expiresAt, String type, long value,
+                                  long minOrderAmount) {
     }
 
     private record TemplateRow(UUID id, String type, long value, int totalQuantity, int issuedQuantity,

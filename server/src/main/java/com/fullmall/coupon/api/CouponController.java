@@ -55,6 +55,14 @@ public class CouponController {
         return Map.of("id", coupons.claim(templateId, member(authentication)));
     }
 
+    /** 校验券对某金额是否可用（只读，不改状态、不改金额）。 */
+    @GetMapping("/api/v1/coupons/{couponId}/eligibility")
+    public CouponService.Eligibility eligibility(@PathVariable UUID couponId,
+                                                 @RequestParam long orderAmount,
+                                                 org.springframework.security.core.Authentication authentication) {
+        return coupons.checkUsable(couponId, member(authentication), orderAmount);
+    }
+
     @GetMapping("/api/v1/coupons/mine")
     public List<CouponService.Coupon> mine(@RequestParam(required = false) String status,
                                            @RequestParam(defaultValue = "20") int limit,

@@ -2127,3 +2127,30 @@ SELECT channel FROM notification
 > 券的闭环至此完整：建模板 → 领券 → 校验 → 抵扣 → 核销 → **退款退券**。
 > 未做：部分退款退券（是否退、按比例退，需要业务口径）、券的适用商品范围。
 
+---
+
+## 2026-10-19：前端存在性核实 + 接口对齐检查脚本
+
+**更正之前的说法**：我此前多次称"前端未开始"，这不准确。
+仓库里已有 `web/`（Nuxt 3）：`storefront`（首页/商品/购物车/结算/订单/账户/促销/法务）、
+`admin`、`store-console`、`supplier-portal`、`support-console`、`mobile`，页面已在调用真实接口
+（`/api/v1/products`、`/api/v1/cart`、`/api/v1/checkout`、`/api/v1/orders/{id}`、`/api/v1/payments/mock/{id}/pay` 等）。
+
+### 新增 `scripts/check-api-alignment.py`
+
+检查"前端写死的调用路径"与"后端路由"是否对得上——这类不一致编译期与单测都发现不了，只会线上 404。
+
+```bash
+python3 scripts/check-api-alignment.py           # 摘要
+python3 scripts/check-api-alignment.py --verbose # 列出全部后端路由
+```
+
+当前结果：**后端 175 条路由、前端 16 条调用、未匹配 0 条**（退出码 0）。
+
+设计要点：路径变量与前端模板统一归一为 `{}`，并做**双向前缀匹配**
+（前端可能只写集合路径 `/orders`，后端是 `/orders/{id}`）。
+
+> 我前两次审计都用 grep 逐行匹配注解，把"类级路由 + 方法级路由"拆开而误判为 0 条——
+> 那是方法错误，不是代码问题。已改为脚本化检查并写入仓库。
+> 说明：本脚本是静态文本分析，不是运行时验证；前端 Node 依赖未安装，因此**没有跑前端构建**。
+

@@ -671,3 +671,25 @@ cd web && npx playwright test
 | 后端测试 | **69 个，全部通过，0 跳过** |
 | 授权负向测试 | 无认证调用 `AssetController.list` → `AuthenticationException` |
 
+---
+
+## 2026-10-19（A2）：导出脱敏基础（SEC-002）
+
+- `platform/export/FieldMasker`：手机号/邮箱/身份证/姓名掩码，**长度不足时全掩码**，null 保持 null。
+  明确边界：掩码只是字符串处理，**哪些字段能导出由按角色的 DTO 投影决定**（CR-020/CR-032），
+  不用掩码冒充字段权限。
+- `platform/export/ExportAuditRepository` + V26 `export_task`：追加写、无更新/删除方法（SEC-005）。
+- `member/export/MemberExportService`：三层裁剪落地——
+  1. 范围：仅平台运营（`Scope.ALL`），供应商/门店范围直接 403 `EXPORT_SCOPE_DENIED`；
+  2. 字段：输出列固定声明（`memberNo/nameMasked/phoneMasked/tier/points/storedValue/currency`），不含身份证等未声明字段；
+  3. 脱敏：姓名、手机号经 `FieldMasker`。
+  CSV 用 Apache Commons CSV 1.14.1 生成，不手写转义。
+- 导出条数上限 5000，越界 400；操作人缺失 400；每次导出写审计（resource/scope/actor/rowCount/columns/requestId）。
+
+| 验证 | 结果 |
+|---|---|
+| 后端测试 | **80 个，全部通过，0 跳过** |
+| 掩码单测 | 手机/邮箱/身份证/姓名 + 异常输入全掩码，6 个用例 |
+| 导出单测 | 脱敏生效、审计字段正确、越权与越界被拒，5 个用例 |
+| 迁移 | V26 在真实 PostgreSQL 冒烟通过 |
+

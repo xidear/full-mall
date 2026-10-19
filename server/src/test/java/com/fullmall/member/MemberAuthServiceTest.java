@@ -91,6 +91,20 @@ class MemberAuthServiceTest {
     }
 
     @Test
+    void otpRequestsAreRateLimitedPerPhone() {
+        for (int i = 0; i < 5; i++) {
+            auth.requestOtp("13900000004");
+        }
+
+        assertThatThrownBy(() -> auth.requestOtp("13900000004"))
+                .isInstanceOf(com.fullmall.platform.error.ApiException.class)
+                .hasMessageContaining("频繁");
+
+        // 其他号码不受影响
+        assertThat(auth.requestOtp("13900000005").code()).isNotBlank();
+    }
+
+    @Test
     void invalidPhoneIsRejected() {
         assertThatThrownBy(() -> auth.requestOtp("abc"))
                 .isInstanceOf(com.fullmall.platform.error.ApiException.class)

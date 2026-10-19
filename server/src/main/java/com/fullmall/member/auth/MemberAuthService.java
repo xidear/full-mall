@@ -53,9 +53,26 @@ public class MemberAuthService {
     public record SessionIssued(String token, UUID memberId, String memberNo) {
     }
 
+    /** 同一手机号 10 分钟内最多请求 5 次验证码（防短信轰炸与刷码）。 */
+    private static final int MAX_OTP_PER_WINDOW = 5;
+    private static final Duration OTP_WINDOW = Duration.ofMinutes(10);
+
     @Transactional
     public OtpIssued requestOtp(String phone) {
         String normalized = normalizePhone(phone);
+
+        Long recent = jdbcTemplate.queryForObject("""
+                SELECT COUNT(*) FROM member_otp
+                 WHERE phone = ? AND created_at > now() - make_interval(secs => ?)
+                """, Long.class, normalized, OTP_WINDOW.toSeconds());
+        if (recent == null) {
+            throw new IllegalStateException("验证码请求次数查询返回 null: " + normalized);
+        }
+        if (recent >= MAX_OTP_PER_WINDOW) {
+            throw ApiException.conflict("OTP_REQUEST_TOO_FREQUENT",
+                    "验证码请求过于频繁，请 10 分钟后再试");
+        }
+
         String code = String.format("%06d", RANDOM.nextInt(1_000_000));
         Instant expiresAt = Instant.now().plus(OTP_TTL);
         jdbcTemplate.update("""

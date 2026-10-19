@@ -321,6 +321,41 @@ class CartAndAddressHttpTest {
     }
 
     @Test
+    void checkoutIgnoresRuleScopedToOtherSkuJustLikePreview() {
+        UUID otherSku = UUID.fromString("cccccccc-dddd-eeee-ffff-000000000001");
+        jdbc.update("DELETE FROM promotion WHERE code = 'HTTP-SCOPED'");
+        jdbc.update("""
+                INSERT INTO promotion (id, code, type, title, status, starts_at, ends_at, rules, priority)
+                VALUES (?, 'HTTP-SCOPED', 'FULL_REDUCTION', '指定 SKU 满减', 'ACTIVE',
+                        now() - interval '1 hour', now() + interval '1 day',
+                        ?::jsonb, 10)
+                """, UUID.randomUUID(),
+                "{\"thresholdAmount\":1000,\"value\":900,\"scopeIds\":[\"" + otherSku + "\"]}");
+
+        var preview = http.exchange("/api/v1/promotions/preview", HttpMethod.POST,
+                new HttpEntity<>(Map.of("items", java.util.List.of(
+                        Map.of("skuId", SKU.toString(), "quantity", 2))), guestHeaders()), String.class);
+        assertThat(preview.getBody()).doesNotContain("HTTP-SCOPED");
+
+        http.exchange("/api/v1/cart/items", HttpMethod.POST,
+                new HttpEntity<>(Map.of("skuId", SKU.toString(), "quantity", 2), guestHeaders()), String.class);
+        var address = http.exchange("/api/v1/addresses", HttpMethod.POST,
+                new HttpEntity<>(Map.of("recipient", "范围用户", "phone", "13800000088",
+                        "province", "上海", "city", "上海", "district", "静安",
+                        "detail", "南京西路 3 号"), guestHeaders()), String.class);
+        String addressId = com.jayway.jsonpath.JsonPath.read(address.getBody(), "$[0].id");
+        var checkout = http.exchange("/api/v1/cart/checkout", HttpMethod.POST,
+                new HttpEntity<>(Map.of("addressId", addressId), guestHeaders()), String.class);
+        assertThat(checkout.getStatusCode().value()).isEqualTo(200);
+
+        String orderId = com.jayway.jsonpath.JsonPath.read(checkout.getBody(), "$.id");
+        assertThat(jdbc.queryForObject(
+                "SELECT discount_amount FROM orders WHERE id = ?::uuid", Long.class, orderId)).isZero();
+
+        jdbc.update("DELETE FROM promotion WHERE code = 'HTTP-SCOPED'");
+    }
+
+    @Test
     void promotionPreviewAppliesActiveFullReduction() {
         jdbc.update("DELETE FROM promotion WHERE code = 'HTTP-FULL-20'");
         jdbc.update("""

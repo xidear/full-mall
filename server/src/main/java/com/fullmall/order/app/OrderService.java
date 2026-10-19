@@ -204,8 +204,13 @@ public class OrderService {
         }
         // 满减/满折（PRO-001）：与秒杀/买赠**互斥**——已有促销优惠时不再叠加，避免重复优惠
         if (discount.amount() == 0) {
-            var engineResult = com.fullmall.promotion.app.PromotionEngine.choose(
-                    promotionPreviews.loadActiveRules("ONLINE"), subtotal.amount());
+            java.util.Map<UUID, Long> subtotalsBySku = new java.util.LinkedHashMap<>();
+            for (ResolvedItem item : resolved) {
+                subtotalsBySku.merge(item.sku().id(),
+                        item.sku().price().amount() * item.quantity(), Long::sum);
+            }
+            var engineResult = com.fullmall.promotion.app.PromotionEngine.chooseScoped(
+                    promotionPreviews.scopedRules("ONLINE", subtotalsBySku));
             if (engineResult.applied()) {
                 discount = new Money(engineResult.discountAmount(), currency);
             }

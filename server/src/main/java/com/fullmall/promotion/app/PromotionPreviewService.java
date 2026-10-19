@@ -61,13 +61,38 @@ public class PromotionPreviewService {
             subtotal = Math.addExact(subtotal, sku.price().amount() * item.quantity());
         }
 
-        List<PromotionEngine.ScopedRule> scoped = loadActiveRules(channel).stream()
-                .map(rule -> new PromotionEngine.ScopedRule(rule,
-                        eligibleSubtotal(rule, items)))
-                .toList();
-        var result = PromotionEngine.chooseScoped(scoped);
+        java.util.Map<UUID, Long> subtotalsBySku = new java.util.LinkedHashMap<>();
+        for (Item item : items) {
+            long line = catalogService.getSku(item.skuId()).price().amount() * item.quantity();
+            subtotalsBySku.merge(item.skuId(), line, Long::sum);
+        }
+        var result = PromotionEngine.chooseScoped(scopedRules(channel, subtotalsBySku));
         return new Preview(subtotal, result.discountAmount(),
                 subtotal - result.discountAmount(), result.appliedRuleCode(), resolvedLocale);
+    }
+
+    /**
+     * 统一口径入口：试算与结算共用。
+     *
+     * @param subtotalsBySku 每个 SKU 的小计（分）
+     */
+    public List<PromotionEngine.ScopedRule> scopedRules(String channel,
+                                                        java.util.Map<UUID, Long> subtotalsBySku) {
+        if (subtotalsBySku == null || subtotalsBySku.isEmpty()) {
+            return List.of();
+        }
+        long total = subtotalsBySku.values().stream().mapToLong(Long::longValue).sum();
+        List<PromotionEngine.ScopedRule> result = new ArrayList<>();
+        for (PromotionEngine.Rule rule : loadActiveRules(channel)) {
+            java.util.Set<String> scopeIds = scopeIds(rule.code());
+            long base = scopeIds.isEmpty() ? total
+                    : subtotalsBySku.entrySet().stream()
+                        .filter(entry -> scopeIds.contains(entry.getKey().toString()))
+                        .mapToLong(java.util.Map.Entry::getValue)
+                        .sum();
+            result.add(new PromotionEngine.ScopedRule(rule, base));
+        }
+        return result;
     }
 
     /**

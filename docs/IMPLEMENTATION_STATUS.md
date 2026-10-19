@@ -1689,3 +1689,19 @@ cd web && npx playwright test
 
 > 未做：类目/品牌维度（需要商品分类与品牌字段联动）、后台范围选择器、结算侧也需使用同一 `chooseScoped`。
 
+---
+
+## 2026-10-19：试算与结算口径统一（范围限定规则）
+
+- `PromotionPreviewService.scopedRules(channel, subtotalsBySku)` 成为**唯一口径入口**：
+  试算与结算都通过它计算各规则基数，杜绝"试算说减、下单没减"。
+- `OrderService` 改为 `chooseScoped(scopedRules("ONLINE", ...))`。
+
+| 验证 | 结果 |
+|---|---|
+| 后端测试 | **257 个，全部通过，0 跳过** |
+| 一致性用例 | 规则限定在**其它 SKU** 上 → 试算不命中，下单 `discount_amount = 0`（两边一致） |
+
+> 未做：类目/品牌维度范围、后台范围选择器。
+> 已知性能点：`scopeIds` 每条规则一次查询，规则数量大时应改为一次批量查询。
+

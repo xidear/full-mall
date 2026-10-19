@@ -172,6 +172,21 @@ public class WithdrawalService {
         return available - pending;
     }
 
+    public List<Withdrawal> list(String status, int limit) {
+        if (limit <= 0 || limit > 200) {
+            throw ApiException.badRequest("INVALID_LIMIT", "查询条数必须在 1..200，实际=" + limit);
+        }
+        String filter = status == null || status.isBlank() ? null : status.trim().toUpperCase();
+        return jdbcTemplate.query("""
+                SELECT id, promoter_id, amount_amount, currency, status FROM withdrawal
+                 WHERE (?::text IS NULL OR status = ?::text)
+                 ORDER BY requested_at DESC LIMIT ?
+                """, (rs, rowNum) -> new Withdrawal(
+                rs.getObject("id", UUID.class), rs.getObject("promoter_id", UUID.class),
+                rs.getLong("amount_amount"), rs.getString("currency"), rs.getString("status")),
+                filter, filter, limit);
+    }
+
     public Withdrawal find(UUID id) {
         return jdbcTemplate.query("""
                 SELECT id, promoter_id, amount_amount, currency, status FROM withdrawal WHERE id = ?

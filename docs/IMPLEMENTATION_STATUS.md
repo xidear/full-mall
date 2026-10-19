@@ -1407,3 +1407,18 @@ cd web && npx playwright test
 > 未做：后台/前台提现接口、打款失败回滚（FAILED 状态）、提现通知。
 > 佣金不可拆分：金额大于单条佣金时会跳过该条继续匹配更小的佣金；若凑不齐则整笔失败并要求人工核对。
 
+### 提现接口层
+
+- `AdminDistributionController` 增加：`GET /admin/v1/distribution/withdrawals`、
+  `POST .../withdrawals`（代发起）、`.../{id}/approve`、`.../{id}/reject`、`.../{id}/pay`；
+  整个控制器加 `@PreAuthorize("hasRole('ADMIN')")`。
+- `WithdrawalService.list(status, limit)`：按状态过滤，条数 1..200。
+
+| 验证 | 结果 |
+|---|---|
+| 后端测试 | **226 个，全部通过，0 跳过** |
+| 说明 | 本轮只做接口接线，服务层行为已由上轮 4 个集成测试覆盖 |
+
+> 已知限制：**推广员登录体系未落地**，因此"发起提现"暂由后台代操作（请求体带 promoterId）；
+> 推广员自助接口待 MEM-001 会员/推广员登录完成后补，且必须改为从认证身份取 promoterId，不能再信任请求体。
+

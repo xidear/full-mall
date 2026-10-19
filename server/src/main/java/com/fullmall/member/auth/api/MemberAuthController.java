@@ -33,6 +33,15 @@ public class MemberAuthController {
         return auth.profile(java.util.UUID.fromString(authentication.getName()));
     }
 
+    /** 登出：吊销当前 Bearer token。 */
+    @PostMapping("/logout")
+    public Map<String, Boolean> logout(@RequestHeader(value = "Authorization", required = false) String authorization) {
+        if (authorization == null || !authorization.startsWith("Bearer ")) {
+            return Map.of("revoked", false);
+        }
+        return Map.of("revoked", auth.logout(authorization.substring("Bearer ".length())));
+    }
+
     @PostMapping("/otp")
     public Map<String, Object> requestOtp(@RequestBody RequestOtp body) {
         var issued = auth.requestOtp(body.phone());

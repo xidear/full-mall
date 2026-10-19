@@ -265,6 +265,16 @@ class CartAndAddressHttpTest {
         assertThat(me.getStatusCode().value()).isEqualTo(200);
         assertThat(me.getBody()).contains("139****0123").doesNotContain("13900000123");
 
+        // 登出后 token 立即失效
+        var logout = http.exchange("/api/v1/member/auth/logout", HttpMethod.POST,
+                new HttpEntity<>(memberHeaders), String.class);
+        assertThat(logout.getStatusCode().value()).isEqualTo(200);
+        assertThat(logout.getBody()).contains("true");
+
+        var afterLogout = http.exchange("/api/v1/member/auth/me", HttpMethod.GET,
+                new HttpEntity<>(memberHeaders), String.class);
+        assertThat(afterLogout.getStatusCode().value()).isEqualTo(401);
+
         // 无效 token 直接 401，不降级为游客
         HttpHeaders bad = new HttpHeaders();
         bad.set("Authorization", "Bearer not-a-real-token");

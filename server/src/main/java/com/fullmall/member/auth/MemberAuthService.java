@@ -148,6 +148,20 @@ public class MemberAuthService {
                 .orElseThrow(() -> ApiException.notFound("MEMBER_NOT_FOUND", "会员不存在: " + memberId));
     }
 
+    /**
+     * 登出：删除该 token 的会话（立即失效）。
+     *
+     * @return 是否确实删除了会话（重复登出返回 false，不报错）
+     */
+    @Transactional
+    public boolean logout(String token) {
+        if (token == null || token.isBlank()) {
+            return false;
+        }
+        return jdbcTemplate.update(
+                "DELETE FROM member_session WHERE token_hash = ?", sha256Hex(token.trim())) == 1;
+    }
+
     /** 会员手机号（内部使用，不对外输出；用于按手机号关联订单等）。 */
     public String phoneOf(UUID memberId) {
         List<String> rows = jdbcTemplate.queryForList(

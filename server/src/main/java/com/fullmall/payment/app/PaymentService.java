@@ -24,19 +24,22 @@ public class PaymentService {
     private final AnalyticsService analyticsService;
     private final String configuredProvider;
     private final com.fullmall.distribution.app.CommissionLedgerService commissionLedger;
+    private final com.fullmall.distribution.app.ReferralService referralService;
 
     public PaymentService(PaymentRepository paymentRepository,
                           OrderService orderService,
                           PaymentConnector mockPaymentConnector,
                           AnalyticsService analyticsService,
                           @Value("${app.payment.provider:mock}") String configuredProvider,
-                          com.fullmall.distribution.app.CommissionLedgerService commissionLedger) {
+                          com.fullmall.distribution.app.CommissionLedgerService commissionLedger,
+                          com.fullmall.distribution.app.ReferralService referralService) {
         this.paymentRepository = paymentRepository;
         this.orderService = orderService;
         this.mockPaymentConnector = mockPaymentConnector;
         this.analyticsService = analyticsService;
         this.configuredProvider = configuredProvider;
         this.commissionLedger = commissionLedger;
+        this.referralService = referralService;
     }
 
     /**
@@ -100,6 +103,8 @@ public class PaymentService {
         paymentRepository.update(paid);
         paymentRepository.insertEvent(paid.id(), "PAYMENT_PAID", "{\"provider\":\"MOCK\"}");
         orderService.markPaid(orderId);
+        // 佣金：支付成功后按实付生成（写入即为 FROZEN，冻结期满才可提现）
+        referralService.settleOrder(orderId, paid.amount().amount(), paid.amount().currency());
         analyticsService.record("payment_succeeded", orderId, null, Map.of(
                 "provider", paid.provider(),
                 "amount", paid.amount().amount(),

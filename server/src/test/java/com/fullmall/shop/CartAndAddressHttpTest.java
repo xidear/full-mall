@@ -141,6 +141,11 @@ class CartAndAddressHttpTest {
                         "detail", "南京西路 1 号"), guestHeaders()), String.class);
         String addressId = com.jayway.jsonpath.JsonPath.read(addressResponse.getBody(), "$[0].id");
 
+        jdbc.update("""
+                INSERT INTO referral_binding (id, customer_phone, promoter_staff_id, mode, active)
+                VALUES (?, '13800000011', ?, 'ORDER', TRUE)
+                """, UUID.randomUUID(), UUID.randomUUID());
+
         var checkout = http.exchange("/api/v1/cart/checkout", HttpMethod.POST,
                 new HttpEntity<>(Map.of("addressId", addressId, "fulfillmentMode", "SHIP"), guestHeaders()),
                 String.class);
@@ -151,6 +156,19 @@ class CartAndAddressHttpTest {
         var cart = http.exchange("/api/v1/cart", HttpMethod.GET,
                 new HttpEntity<>(guestHeaders()), String.class);
         assertThat(cart.getBody()).isEqualTo("[]");
+
+        // 支付 → 佣金应自动生成并处于冻结状态（绑定在下单前建立，下单时会挂上级）
+        String orderId = com.jayway.jsonpath.JsonPath.read(checkout.getBody(), "$.id");
+        var pay = http.exchange("/api/v1/payments/mock/" + orderId + "/pay", HttpMethod.POST,
+                new HttpEntity<>(guestHeaders()), String.class);
+        assertThat(pay.getStatusCode().value()).isEqualTo(200);
+
+        Integer commissionRows = jdbc.queryForObject(
+                "SELECT COUNT(*) FROM distribution_commission WHERE order_id = ?::uuid", Integer.class, orderId);
+        assertThat(commissionRows).isEqualTo(1);
+        assertThat(jdbc.queryForObject(
+                "SELECT status FROM distribution_commission WHERE order_id = ?::uuid", String.class, orderId))
+                .isEqualTo("FROZEN");
     }
 
     @Test

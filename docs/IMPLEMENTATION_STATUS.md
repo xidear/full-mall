@@ -1422,3 +1422,22 @@ cd web && npx playwright test
 > 已知限制：**推广员登录体系未落地**，因此"发起提现"暂由后台代操作（请求体带 promoterId）；
 > 推广员自助接口待 MEM-001 会员/推广员登录完成后补，且必须改为从认证身份取 promoterId，不能再信任请求体。
 
+---
+
+## 2026-10-19（MEM-001 起步）：会员手机 OTP 登录
+
+- V44：`member_otp`（BCrypt 存验证码、5 分钟过期、最多 5 次）+ `member_session`（只存 token 的 SHA-256）。
+- `MemberAuthService`：请求验证码（**生产不回传码**，仅 `app.member.otp.return-code=true` 的演示环境回传）、
+  校验（过期/次数/BCrypt 比对/用后即失效）、首次登录自动建会员与 30 天会话。
+- 接口：`POST /api/v1/member/auth/otp`、`POST /api/v1/member/auth/verify`。
+
+| 验证 | 结果 |
+|---|---|
+| 后端测试 | **230 个，全部通过，0 跳过** |
+| 新增测试 | 4 个：首次登录建会员+会话、错码计次、验证码不可复用、手机号非法 |
+
+> **测试抓到真实安全缺陷**：失败次数更新原本与校验在同一事务，抛异常后**回滚**，
+> 等于允许无限次暴力猜码。已改为独立事务（`OtpAttemptRecorder`，`REQUIRES_NEW`）提交。
+>
+> 未做：短信通道（当前只回传/丢弃）、会员登录后的接口鉴权接入（`member_session` 尚未被过滤器使用）。
+

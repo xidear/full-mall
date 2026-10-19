@@ -41,17 +41,18 @@ Full Mall 是一个**源码开放（source-available，非 OSI 开源）**的跨
 
 | 远端 | 地址 | 用途 |
 |---|---|---|
-| GitHub | `https://github.com/xidear/full-mall.git` | **唯一公开主仓库**，开发提交推这里 |
-| Gitea | `https://company.binnarui.com:8148/xidear/full-mall.git` | 私有仓库，直接推送 |
-| Gitee | `https://gitee.com/xidear/full-mall.git` | 公开镜像，仅由 GitHub Actions 强制同步，**不要手动推送** |
+| Gitea（默认） | `https://company.binnarui.com:8148/xidear/full-mall.git` | **内部完整仓库，唯一开发源**；单分支 `main`，`.env` 入库 |
+| GitHub | `https://github.com/xidear/full-mall.git` | 对外公开源码分叉，独立提交，无凭据 |
+| Gitee | `https://gitee.com/xidear/full-mall.git` | 对外公开源码分叉，独立提交，无凭据 |
 
-- **默认推送只推 Gitea**；用户没有明确说 GitHub/Gitee/三端时，不得推公开端。详细规则见 `AGENTS.md` 第 6 节和 `docs/GIT_AND_ENVIRONMENTS.md`。
-- Gitea 私有完整仓库使用 `main` + `gitea-dev`：`gitea-dev` 包含可直接运行的 `.env`，永远不要推 GitHub/Gitee。
-- 本地 `main` 跟踪 `github/main`；推送 GitHub 使用 `git -c http.version=HTTP/1.1 push github main`（HTTP/2 会间歇超时），直连失败时用代理 `192.168.1.2:7893`。
-- Gitee 由 `.github/workflows/mirror-gitee.yml` 在推送 `main`/tag 后同步，依赖 Actions secret `GITEE_TOKEN`；GitHub CI 失败不会阻止镜像复制，但应在 GitHub 修。
+- **默认推送只推 Gitea**；用户没有明确说 GitHub/Gitee 时，不得推公开端。详细规则见 `AGENTS.md` 第 6 节和 `docs/GIT_AND_ENVIRONMENTS.md`。
+- **Gitea 只有一个分支 `main`**，`.env` 已入库，内部同事 `git clone` 后直接 `docker compose up`，无需配置凭据；**不存在 `gitea-dev` 分支**（已于 2026-10-19 合并进 `main` 并删除）。
+- **GitHub 与 Gitee 是各自独立的公开分叉**，不是从 Gitea 派生的分支，也不整仓镜像；两者只有 `.env.example`，使用者自行配置自己的凭据。
+- remote URL 不含用户名密码；认证走本机凭据库（`credential.helper=store`，值在 `~/.git-credentials`，0600）。
+- 推送 GitHub 使用 `git -c http.version=HTTP/1.1 push github main`（HTTP/2 会间歇超时），直连失败时用代理 `192.168.1.2:7893`。
 - 当前环境没有 `gh` CLI，无法直接查 Actions 运行状态。
 - 许可证：PolyForm Noncommercial 1.0.0 + `Required Notice: Copyright (c) 2026 xidear and Full Mall contributors.` GitHub 会显示 SPDX `NOASSERTION`，这是正常的。
-- 不要把 `.env`、真实商户号、证书、私钥、token 写入仓库或 `.git/config`。
+- 不要把 `.env`（Gitea 之外）、真实商户号、证书、私钥、token 写入公开仓库或 `.git/config`。
 
 ## 4. 技术栈与架构
 
@@ -385,14 +386,14 @@ MSYS_NO_PATHCONV=1 wsl bash -lc "cd /mnt/d/works/full-mall && docker compose con
 
 ## 13. 新机器 / 新会话上手清单
 
-1. 克隆 GitHub 主仓库，切到 `main`，确认 `git log` 有 `666ca5b` / `35a0b68` 之后的提交。
-2. 安装 Docker（或 WSL Docker）、Node 22、Python 3.11、Edge；Java 21 可通过 Maven 容器，不必装宿主机 JDK 21。
-3. `cp .env.example .env`，按需改本地密码；不要提交 `.env`。
+1. 克隆 Gitea 内部仓库（`main` 已含 `.env`），确认 `git log` 有 `666ca5b` / `35a0b68` 之后的提交。
+2. 安装 Docker（或 WSL Docker）、Node 22、Python 3.11；Java 21 + Maven 装在用户态即可（本机已验证：`~/.local/opt` + `~/.dsh-java-env`）。
+3. Gitea 克隆已带 `.env`，无需创建；公开分叉才需要 `cp .env.example .env` 并填自己的凭据。不要提交 `.env` 到公开端。
 4. 启动核心依赖（Postgres/Valkey/RabbitMQ 等），或按本文的 `fullmall-postgres-test` + API 容器方式最小启动。
 5. 后端：`mvn -B -U test`（在线，不加 `-o`）；打包后先 stop API 容器再启动。
 6. 前端：`cd web && npm install`，分别启动 3000/5273/5274/5275/5276。
 7. 跑 `npx playwright test`，当前基线 10/10。
-8. 推送：`git -c http.version=HTTP/1.1 push github main` + `git push gitea main`；Gitee 等 Actions。
+8. 推送：默认只推 `git push gitea main`；GitHub/Gitee 仅在用户明确要求时单独推，且不得带 `.env` 与凭据。
 9. 修改前先读 `AGENTS.md`、`docs/PROMOTIONS_AND_DATA_SCOPE.md`、`docs/IMPLEMENTATION_STATUS.md`、`docs/MARKET_PARITY.md`。
 
 ## 14. Agent 技能（本机全局，非仓库内容）

@@ -1,106 +1,92 @@
-# Git 下游、密钥与开发环境
+# Git 仓库、凭据与开发环境
 
-> 版本：2.0
+> 版本：3.0
 > 日期：2026-10-19
 > 适用：Full Mall 全部开发者与 AI Agent
-> 注意：本文进入 Gitea；GitHub 公开仓库只保留不含密钥的版本。
+> 变更：取消 `gitea-dev` 分支；Gitea 改为单分支 `main` 并入库 `.env`；GitHub/Gitee 定位为独立公开分叉。
 
-## 1. 三个 Git 下游
+## 1. 三个仓库（两个模型，不是分支关系）
 
-| 下游 | 地址 | 角色 | 推送策略 |
-|---|---|---|---|
-| Gitea（默认） | `https://company.binnarui.com:8148/xidear/full-mall.git` | 私有主开发仓库，包含完整开发信息 | **默认推送目标**；`main` + `gitea-dev` |
-| GitHub | `https://github.com/xidear/full-mall.git` | 公开源码仓库 | 仅在用户明确说“推 GitHub”或“三端都推”时推送；不得包含 `.env`/密钥 |
-| Gitee | `https://gitee.com/xidear/full-mall.git` | 公开镜像 | 不手动推送；由 GitHub Actions `mirror-gitee.yml` 在 GitHub `main`/tag 更新后强制同步 |
+| 仓库 | 地址 | 定位 | 是否含凭据 | 推送策略 |
+|---|---|---|---|---|
+| Gitea（默认） | `https://company.binnarui.com:8148/xidear/full-mall.git` | 公司内部完整仓库，**唯一开发源** | 含：`.env` 入库 | **默认唯一推送目标** |
+| GitHub | `https://github.com/xidear/full-mall.git` | 对外公开源码分叉 | 不含 | 仅用户明确说“推 GitHub”时 |
+| Gitee | `https://gitee.com/xidear/full-mall.git` | 对外公开源码分叉 | 不含 | 仅用户明确说“推 Gitee”时 |
 
-本地 remote：
+核心区别：
+
+1. **Gitea 只有一个分支 `main`**，其中包含可直接运行的 `.env`。内部同事 `git clone` 后即可 `docker compose up`，无需配置任何凭据。
+2. **GitHub 与 Gitee 是独立分叉**，各自拥有自己的提交历史与发布节奏，**不是**从 Gitea 派生的分支，也**不是** Gitea 分支的镜像。
+3. 因此不存在“把某个 Gitea 分支推到公开端”的动作。公开端的代码由公开侧独立维护/提交，且任何凭据都不得出现。
+
+本地 remote（克隆 Gitea 后建议命名为 `gitea`）：
 
 ```bash
 git remote -v
 # gitea  https://company.binnarui.com:8148/xidear/full-mall.git
-# github https://github.com/xidear/full-mall.git
 ```
+
+> remote URL **不得**包含用户名密码。认证交给本机凭据库：`git config credential.helper store`（值存 `~/.git-credentials`，权限 0600）。
 
 ## 2. 推送规则（强制）
 
 1. **用户说“git 推送”且没有特别说明时，只推 Gitea。**
-2. 只有用户明确说“推 GitHub”“推 Gitee”“三个端都推”时，才推对应远端。
-3. Gitea 包含完整开发信息（含 `gitea-dev` 分支的 `.env`）；GitHub 只能有公开安全内容。
-4. `gitea-dev` 分支**永远不要**推到 GitHub/Gitee。
-5. 推送前必须：
+2. 只有用户明确说“推 GitHub”“推 Gitee”时，才推对应公开端。
+3. 推送前必须：
    - `git status` 确认目标分支和工作区；
-   - 扫描密钥/令牌/证书；
-   - 确认没有把 `gitea-dev` 推到公开远端；
+   - `git diff --cached` 扫描密钥/令牌/证书/私钥；
+   - 确认目标远端正确（Gitea 之外的任何远端都算公开端）；
    - GitHub 推送使用 `git -c http.version=HTTP/1.1`（HTTP/2 会间歇超时）；
    - GitHub 直连失败时可使用代理 `192.168.1.2:7893`。
-6. 不强制推送公共 `main`；不改写已推送历史，除非用户明确要求并确认影响。
+4. 不强制推送 `main`；不改写已推送历史，除非用户明确要求并确认影响。
+5. 公开端**永不**包含 `.env`、真实密钥、证书、私钥、token、`docs/GITEA_PRIVATE_CREDENTIALS.md`。
 
-## 3. Gitea 分支策略
+## 3. 分支策略
 
-### 3.1 `main`
+### 3.1 Gitea：单分支 `main`
 
-- 公开安全内容：代码、迁移、文档、测试、`.env.example`。
-- 不含 `.env`、真实密钥、证书、私钥、生产 token。
-- 可随时推 GitHub/Gitee。
-
-### 3.2 `gitea-dev`
-
-- 从 `main` 派生，额外包含 **`.env`**（本地可直接运行）和 Gitea 专用开发配置。
-- 新机器可直接：
+- 内容：全部代码、迁移、文档、测试、`.env.example`，以及**入库的 `.env`**。
+- 目的是“内部共享方案，无需配置，clone 就能构建”。
+- 新机器：
 
 ```bash
-git clone -b gitea-dev https://company.binnarui.com:8148/xidear/full-mall.git full-mall
+git clone https://company.binnarui.com:8148/xidear/full-mall.git full-mall
 cd full-mall
 docker compose --profile core --profile app up -d
 ```
 
-无需再创建 `.env`。
+- `.env` 是**已跟踪文件**，`.gitignore` 对已跟踪文件无效，不要为了“看起来干净”把它删掉或用 `git rm --cached` 移除。
+- 日常改动直接提交到 `main`。
 
-- 更新流程：
+### 3.2 GitHub / Gitee：独立公开分叉
 
-```bash
-git checkout main
-git pull gitea main
-git checkout gitea-dev
-git merge main
-# 解决 .env 冲突（保留本地/开发值）
-git push gitea gitea-dev
-```
-
-- 禁止：
-
-```bash
-git push github gitea-dev      # 禁止
-git push gitee gitea-dev       # 禁止
-```
+- 各自仓库内可自由使用自己的分支模型，与 Gitea 无关。
+- 内容：代码、迁移、文档、测试、`.env.example`；**无** `.env`、无凭据。
+- 使用者自行 `cp .env.example .env` 并填写**自己的**凭据与应用密钥。
+- 本仓库不对公开端做镜像推送；如需同步代码，由维护者在公开侧仓库单独提交。
 
 ### 3.3 `.gitignore` 策略
 
-- `main` 继续忽略 `.env`、`.env.*`、`*.pem`、`*.key`、`secrets/`，防止公开泄漏。
-- `gitea-dev` 上的 `.env` 是**已跟踪文件**，`.gitignore` 不影响已跟踪文件；用 `git add -f .env` 首次加入。
+- `.gitignore` 继续忽略 `.env` 与 `.env.*`：这防止在公开侧或误操作中新增环境文件。
+- Gitea 的 `.env` 是已跟踪文件，因此不受上述忽略影响；首次加入需 `git add -f .env`。
 - 不随意忽略业务源码、迁移、文档、测试、素材清单、接口契约。
 - 运行产物继续忽略：`target/`、`node_modules/`、`.nuxt/`、`.output/`、`dist/`、日志、Playwright 报告。
 - `docker-data/` 属于运行数据，不入库；需要备份时走数据库/对象存储备份流程。
-- `.zcode/` 为 Agent 本地配置，不入公开仓库；需要交接的内容写入 `docs/PROJECT_MEMORY.md`。
+- `.zcode/` 为 Agent 本地配置，不入仓库；需要交接的内容写入 `docs/PROJECT_MEMORY.md`。
 
-## 4. 密钥清单（Key Inventory）
+## 4. 凭据清单（Key Inventory）
 
-> 原则：仓库不伪造真实密钥。以下列出**键名、用途、当前状态、放置位置**。真实生产密钥只放 Gitea `gitea-dev` 的 `.env` 或部署环境/密钥管理系统，绝不进 GitHub。
+> 原则：**文档不记录明文凭据值**。位置与键名记录在此；实际开发值只存在于 Gitea 入库的 `.env`；生产值只存在于部署环境或密钥管理系统。
+> 公开仓库只有 `.env.example`，其中的值必须是无害占位。
 
 ### 4.1 Git / CI
 
-> **实际凭据值只存在于 Gitea 私有分支 `gitea-dev`：**
-> `docs/GITEA_PRIVATE_CREDENTIALS.md` 与 `.env`。
-> 公开 `main`/GitHub 永不包含实际 token。`gitea-dev` 永不推 GitHub/Gitee。
-
-| Key | 用途 | 当前状态 | 放置位置 |
-|---|---|---|---|
-| `GITHUB_TOKEN` | 推送 GitHub / GitHub API | 已提供临时值 | `gitea-dev` 私有凭据文件与 `.env` |
-| `GITEE_TOKEN` | GitHub Actions 同步 Gitee / Gitee API | 已提供临时值 | `gitea-dev` 私有凭据文件与 `.env`；Actions 中另设同名 secret |
-| `GITEA_USERNAME` | Gitea 登录/API | `xidear` | `gitea-dev` 私有凭据文件与 `.env` |
-| `GITEA_PASSWORD` | Gitea 登录/API | 已提供临时值 | `gitea-dev` 私有凭据文件与 `.env` |
-| GitHub PAT / credential | 推送 GitHub | 由 Windows 凭据管理器/HTTPS 凭据提供 | 本机凭据管理器；实际值见 gitea-dev |
-| Gitea token / credential | 推送 Gitea | 由本机凭据管理器提供 | 本机凭据管理器；实际值见 gitea-dev |
+| Key | 用途 | 放置位置 |
+|---|---|---|
+| Gitea 凭据（用户名/密码） | clone/push Gitea | 本机凭据库 `~/.git-credentials`；**不写 remote URL、不写 `.git/config`** |
+| `GITEA_URL` / `GITEA_USERNAME` / `GITEA_PASSWORD` | Gitea API 与脚本 | Gitea `.env`（仅内部仓库） |
+| `GITHUB_USERNAME` / `GITHUB_TOKEN` | 推送 GitHub | 本机凭据库或凭据管理器；公开侧 CI 用 secret |
+| `GITEE_USERNAME` / `GITEE_TOKEN` | 推送 Gitee | 本机凭据库或凭据管理器；公开侧 CI 用 secret |
 
 ### 4.2 本地基础设施（demo/local only）
 
@@ -118,7 +104,7 @@ git push gitee gitea-dev       # 禁止
 
 | Key | 用途 | 当前状态 | 生产要求 |
 |---|---|---|---|
-| `SUPPLIER_CREDENTIAL_KEY` | 供应商 secret AES-GCM 加密 | 空；dev 使用派生 key 并告警 | 必须配置 Base64 32 字节；缺失启动失败 |
+| `SUPPLIER_CREDENTIAL_KEY` | 供应商 secret AES-GCM 加密 | dev 使用派生 key 并告警 | 必须配置 Base64 32 字节；缺失启动失败 |
 | `STORE_AUTH_REQUIRED` | 门店接口鉴权 | dev false / prod true | prod 必须 true |
 | `SUPPORT_AUTH_REQUIRED` | 客服接口鉴权 | dev false / prod true | prod 必须 true |
 | `POS_REQUIRE_MANAGER_APPROVAL` | 退款店长授权 | dev false / prod true | prod 必须 true |
@@ -193,15 +179,15 @@ openssl rand -base64 32
 
 ## 5. 新机器启动
 
-### 5.1 Gitea 快速开发（推荐）
+### 5.1 Gitea 内部开发（推荐）
 
 ```bash
-git clone -b gitea-dev https://company.binnarui.com:8148/xidear/full-mall.git full-mall
+git clone https://company.binnarui.com:8148/xidear/full-mall.git full-mall
 cd full-mall
 docker compose --profile core --profile app --profile tools up -d
 ```
 
-浏览器：
+`.env` 已随仓库提供，无需创建。浏览器：
 
 - 商城 http://localhost:3000
 - 后台 http://localhost:5173
@@ -210,25 +196,24 @@ docker compose --profile core --profile app --profile tools up -d
 - 客服 http://localhost:5176
 - API http://localhost:8080
 
-### 5.2 GitHub 公开仓库
+### 5.2 公开分叉（GitHub / Gitee）
 
 ```bash
 git clone https://github.com/xidear/full-mall.git full-mall
 cd full-mall
 cp .env.example .env
-# 按需填写；生产密钥不要提交
+# 填写你自己的凭据与应用密钥；不要使用他人密钥，不要把 .env 提交
 ```
 
 ### 5.3 本机无 Docker 时的最小运行
 
-见 `docs/PROJECT_MEMORY.md` 第 8 节：WSL Docker + Maven 容器 + `fullmall-postgres-test` + `fullmall-api-pos`。
+见 `docs/PROJECT_MEMORY.md` 第 8 节。
 
 ## 6. 推送检查清单
 
-- [ ] 目标远端是 Gitea（默认）还是用户明确指定的 GitHub/Gitee？
-- [ ] 当前分支是否正确？`gitea-dev` 绝不推公开端。
-- [ ] `git status` 无意外文件。
-- [ ] `git diff --cached` 无真实密钥/证书/token。
-- [ ] GitHub 推送使用 HTTP/1.1；失败时用代理。
-- [ ] 推送后核对 `git ls-remote` 的 commit 与本地一致。
-- [ ] Gitee 只等 Actions 镜像，不手动推。
+- [ ] 目标远端是 Gitea（默认）还是用户明确指定的公开端？
+- [ ] 当前分支是 `main`，且 `git status` 无意外文件？
+- [ ] `git diff --cached` 无真实密钥/证书/token（Gitea 的 `.env` 除外，它只允许进 Gitea）？
+- [ ] 若目标是公开端：确认 `.env`、`docs/GITEA_PRIVATE_CREDENTIALS.md` 不在本次提交中？
+- [ ] GitHub 推送使用 HTTP/1.1；失败时用代理？
+- [ ] 推送后核对 `git ls-remote` 的 commit 与本地一致？

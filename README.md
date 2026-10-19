@@ -161,12 +161,15 @@ cd web && npx playwright test
 - 业务数据变更必须可审计；库存流水不可变；金额禁止浮点。
 - 参考项目只做 clean-room 借鉴，不复制代码/UI/文案。
 
-## 仓库与镜像
+## 仓库与分叉
 
-- GitHub 主仓库：https://github.com/xidear/full-mall
-- Gitee 自动镜像：https://gitee.com/xidear/full-mall
+三个仓库同名 `full-mall`，但**不是分支关系**：
 
-开发提交只推送到 GitHub `main`；GitHub Actions（`.github/workflows/mirror-gitee.yml`）会在每次推送后自动同步到 Gitee。不要直接在 Gitee 上提交，镜像同步会覆盖。
+- 内部完整仓库（Gitea，唯一开发源）：https://company.binnarui.com:8148/xidear/full-mall —— 单分支 `main`，`.env` 已入库，内部同事 clone 后即可 `docker compose up`，无需配置凭据。
+- GitHub 公开分叉：https://github.com/xidear/full-mall —— 独立提交，只有 `.env.example`。
+- Gitee 公开分叉：https://gitee.com/xidear/full-mall —— 独立提交，只有 `.env.example`。
+
+公开分叉的使用者请 `cp .env.example .env` 并填写**自己的**凭据与应用密钥；仓库不提供任何可用凭据，也不做整仓镜像覆盖。详见 [`docs/GIT_AND_ENVIRONMENTS.md`](docs/GIT_AND_ENVIRONMENTS.md)。
 
 ## 许可证
 

@@ -40,7 +40,7 @@
 
 - **技术选型 spike + ADR**：Spring Security、JPA/Hibernate、OPA/Casbin、Drools/Easy Rules、Unleash/FF4j、Flowable、Spring AI/LangChain4j、Tolgee；结论写入 `TECHNOLOGY_DECISIONS_V2.md`。
 - `AGENTS.md` 推送策略：默认只推 Gitea；GitHub/Gitee/三端必须明确指定。
-- `gitea-dev` 分支：包含 `.env`、本地开发配置；GitHub `main` 不含任何私密配置。
+- Gitea 单分支 `main`：`.env` 入库，内部 clone 即构建；GitHub/Gitee 是独立公开分叉，只含 `.env.example`。
 - 功能开关采用成熟组件（Unleash 或 FF4j）或在其上的薄封装；供应商、POS 卖货、POS 自提、站点状态。
 - `BaseEntity/BaseScopedService/BaseCrudController/ScopeResolver`；行级范围用 JPA Specification/Hibernate Filter，不建字段权限框架。
 - 审计采用 JaVers；导出脱敏基础；Spring Security 方法授权。
@@ -52,7 +52,7 @@
 - 供应商 A 无法读写供应商 B 的任何数据。
 - 越权操作/行返回 403/404；若启用 ERP 字段策略，越权字段返回 400/403，不静默丢弃。
 - 关闭供应商开关后 API/Web/登录 403/503；站点关闭后前台不可用但支付回调可用。
-- `gitea-dev` 可直接启动；`main` 不含 `.env`/密钥。
+- Gitea `main` 可直接启动（含 `.env`）；两个公开分叉不含 `.env`/密钥。
 - 选型文档包含候选、许可证、放弃理由，未记录的“自研”不得进入开发。
 
 ## 3. P1：供应商 API、门户与待办（3–4 周）
@@ -243,11 +243,11 @@
 7. **云存储切换断链**：必须迁移/双读/回滚，不做“直接改 base URL”。
 8. **软删除被绕过**：引用检查 + 权限 + 审计。
 9. **站点关闭误伤支付回调**：白名单放行回调/健康检查/内部任务。
-10. **Gitea 私密配置误推 GitHub**：gitea-dev 分支隔离 + AGENTS 规则 + CI secret scan。
+10. **Gitea 私密配置误推公开分叉**：`.env` 只允许进 Gitea + AGENTS 规则 + CI secret scan。
 
 ## 14. 第一批可执行任务（P0 前两周）
 
-1. 写 `AGENTS.md` 推送策略；建 `gitea-dev` 分支与 `.env`。
+1. 写 `AGENTS.md` 推送策略；Gitea `main` 入库 `.env`，公开分叉只保留 `.env.example`。
 2. 完成技术选型 spike（Spring Security、JPA、OPA vs Casbin、Drools vs Easy Rules、Unleash vs FF4j、Spring AI/LangChain4j），写 ADR。
 3. 接入成熟功能开关（Unleash/FF4j）并加供应商/POS/站点执行点。
 4. 建 `BaseEntity/ScopeResolver/BaseCrudController` 骨架、Spring Security 方法授权、JaVers 审计与单测。

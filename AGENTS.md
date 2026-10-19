@@ -146,15 +146,15 @@ cp -r "$SRC"/* "$DST"
 ## 6. Git 推送规则（强制）
 
 - **默认只推 Gitea**：`gitea` remote（`https://company.binnarui.com:8148/xidear/full-mall.git`）。
-- 用户说“git 推送”“推送一下”且没有特别说明时，**只推 Gitea**，不得推 GitHub、Gitee 或三个端。
-- 只有用户明确说“推 GitHub”“推 Gitee”“三个端都推”时，才推对应远端。
-- Gitea 是私有完整仓库，可包含 `gitea-dev` 分支的 `.env` 和开发配置；GitHub 是公开仓库，禁止包含 `.env`、真实密钥、证书、私钥、token。
-- **`gitea-dev` 分支永远不要推到 GitHub/Gitee。**
-- 推送前必须：确认远端与分支、`git status`、密钥扫描、确认没有把私密分支推公开端。
+- 用户说“git 推送”“推送一下”且没有特别说明时，**只推 Gitea**，不得推 GitHub 或 Gitee。
+- 只有用户明确说“推 GitHub”“推 Gitee”时，才推对应公开端。
+- **仓库模型**：Gitea 是公司内部完整仓库，**只有一个分支 `main`**，其中 `.env` 已入库，内部同事 clone 即可构建；**不存在 `gitea-dev` 分支**。
+- **GitHub 与 Gitee 是各自独立的公开分叉**，不是从 Gitea 派生的分支，也不做整仓镜像推送；两者都禁止包含 `.env`、真实密钥、证书、私钥、token 和 `docs/GITEA_PRIVATE_CREDENTIALS.md`。
+- 推送前必须：确认远端与分支、`git status`、`git diff --cached` 密钥扫描、确认目标远端；Gitea 的 `.env` 只允许推 Gitea。
+- remote URL 不得包含用户名密码；认证使用本机凭据库（`credential.helper=store`）。
 - GitHub 推送使用 `git -c http.version=HTTP/1.1`；直连失败时可使用代理 `192.168.1.2:7893`。
-- Gitee 由 GitHub Actions 自动镜像，不手动推送。
 - 不强制推送公共 `main`；不改写已推送历史，除非用户明确要求并确认影响。
-- 详细环境、密钥清单和分支操作见 `docs/GIT_AND_ENVIRONMENTS.md`。
+- 详细仓库模型、凭据位置和启动方式见 `docs/GIT_AND_ENVIRONMENTS.md`。
 
 ## 7. 成熟方案优先（所有需求）
 

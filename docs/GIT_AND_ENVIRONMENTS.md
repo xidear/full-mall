@@ -89,11 +89,18 @@ git push gitee gitea-dev       # 禁止
 
 ### 4.1 Git / CI
 
+> **实际凭据值只存在于 Gitea 私有分支 `gitea-dev`：**
+> `docs/GITEA_PRIVATE_CREDENTIALS.md` 与 `.env`。
+> 公开 `main`/GitHub 永不包含实际 token。`gitea-dev` 永不推 GitHub/Gitee。
+
 | Key | 用途 | 当前状态 | 放置位置 |
 |---|---|---|---|
-| `GITEE_TOKEN` | GitHub Actions 同步 Gitee | 只以 secret 名出现，工作区无值 | GitHub 仓库 Settings → Secrets → Actions |
-| GitHub PAT / credential | 推送 GitHub | 由 Windows 凭据管理器/HTTPS 凭据提供，未写入仓库 | 本机凭据管理器 |
-| Gitea token / credential | 推送 Gitea | 由本机凭据管理器提供，未写入仓库 | 本机凭据管理器 |
+| `GITHUB_TOKEN` | 推送 GitHub / GitHub API | 已提供临时值 | `gitea-dev` 私有凭据文件与 `.env` |
+| `GITEE_TOKEN` | GitHub Actions 同步 Gitee / Gitee API | 已提供临时值 | `gitea-dev` 私有凭据文件与 `.env`；Actions 中另设同名 secret |
+| `GITEA_USERNAME` | Gitea 登录/API | `xidear` | `gitea-dev` 私有凭据文件与 `.env` |
+| `GITEA_PASSWORD` | Gitea 登录/API | 已提供临时值 | `gitea-dev` 私有凭据文件与 `.env` |
+| GitHub PAT / credential | 推送 GitHub | 由 Windows 凭据管理器/HTTPS 凭据提供 | 本机凭据管理器；实际值见 gitea-dev |
+| Gitea token / credential | 推送 Gitea | 由本机凭据管理器提供 | 本机凭据管理器；实际值见 gitea-dev |
 
 ### 4.2 本地基础设施（demo/local only）
 

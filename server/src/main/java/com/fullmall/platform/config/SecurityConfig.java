@@ -33,7 +33,8 @@ public class SecurityConfig {
                 .authorizeHttpRequests(authorize -> authorize
                         .requestMatchers("/actuator/health", "/actuator/health/**", "/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll()
                         .requestMatchers("/admin/v1/auth/login", "/admin/v1/auth/captcha").permitAll()
-                        .requestMatchers("/admin/**", "/store/**", "/supplier/**", "/open/**").authenticated()
+                        .requestMatchers("/open/**").permitAll()
+                        .requestMatchers("/admin/**", "/store/**", "/support/**", "/supplier/**").authenticated()
                         .anyRequest().permitAll())
                 .build();
     }

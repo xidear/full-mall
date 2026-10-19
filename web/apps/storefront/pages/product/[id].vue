@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { Product } from '~/types'
+import type { Product, Promotion } from '~/types'
 
 const route = useRoute()
 const config = useRuntimeConfig()
@@ -7,6 +7,7 @@ const base = import.meta.server ? config.apiInternalBase : config.public.apiBase
 const { data: product, error } = await useFetch<Product>(`${base}/api/v1/products/${route.params.id}`, {
   query: { locale: 'zh-CN' }
 })
+const { data: promotions } = await useFetch<Promotion[]>(`${base}/api/v1/promotions`)
 
 if (error.value || !product.value) {
   throw createError({ statusCode: 404, statusMessage: '商品不存在' })
@@ -15,8 +16,22 @@ if (error.value || !product.value) {
 const selectedSkuId = ref(product.value.skus[0]?.id ?? '')
 const quantity = ref(1)
 const selectedSku = computed(() => product.value?.skus.find(sku => sku.id === selectedSkuId.value))
+const skuPromotions = computed(() =>
+  (promotions.value ?? []).filter(promotion => promotion.skuId === selectedSkuId.value && promotion.active)
+)
+const flashPromotion = computed(() => skuPromotions.value.find(promotion => promotion.type === 'FLASH_SALE'))
+const giftPromotion = computed(() => skuPromotions.value.find(promotion => promotion.type === 'BUY_GIFT'))
+const groupPromotion = computed(() => skuPromotions.value.find(promotion => promotion.type === 'GROUP_BUY'))
 const tone = computed(() => categoryTone(product.value?.categoryId))
 const { add } = useCart()
+
+onMounted(() => {
+  const referrer = typeof route.query.ref === 'string' ? route.query.ref : ''
+  if (referrer) {
+    const mode = typeof route.query.mode === 'string' ? route.query.mode : 'ORDER'
+    localStorage.setItem('fullmall.referral', JSON.stringify({ staffId: referrer, mode }))
+  }
+})
 const added = ref(false)
 
 function addToCart() {
@@ -57,10 +72,22 @@ async function buyNow() {
       <h1>{{ product.title }}</h1>
       <p class="product-description">{{ product.description }}</p>
       <div class="price-row">
-        <strong class="price-large">{{ formatMoney(selectedSku?.price) }}</strong>
-        <span v-if="selectedSku?.compareAtPrice" class="compare-price">
+        <strong class="price-large">{{ formatMoney(flashPromotion?.promoPrice ?? selectedSku?.price) }}</strong>
+        <span v-if="flashPromotion" class="compare-price">{{ formatMoney(selectedSku?.price) }}</span>
+        <span v-else-if="selectedSku?.compareAtPrice" class="compare-price">
           {{ formatMoney(selectedSku.compareAtPrice) }}
         </span>
+      </div>
+      <div v-if="skuPromotions.length" class="promotion-tags">
+        <span v-if="flashPromotion" class="promotion-tag flash">
+          秒杀 {{ formatMoney(flashPromotion.promoPrice) }} · 剩余 {{ flashPromotion.remainingStock ?? 0 }} 件
+        </span>
+        <span v-if="giftPromotion" class="promotion-tag gift">
+          买 {{ giftPromotion.buyQuantity }} 赠 {{ giftPromotion.giftQuantity }} {{ giftPromotion.giftTitle }}
+        </span>
+        <NuxtLink v-if="groupPromotion" to="/promotions" class="promotion-tag group">
+          {{ groupPromotion.groupSize }} 人拼团价 {{ formatMoney(groupPromotion.promoPrice) }}
+        </NuxtLink>
       </div>
       <div class="service-row">
         <span>正品保障</span>
@@ -98,6 +125,7 @@ async function buyNow() {
         <button type="button" class="button button-secondary" @click="buyNow">立即购买</button>
       </div>
       <p v-if="added" class="success-text">已加入购物车</p>
+      <p v-if="flashPromotion" class="notice">秒杀价在结算时由服务端校验活动库存与限购。</p>
 
       <div class="product-extra">
         <div>
@@ -117,3 +145,35 @@ async function buyNow() {
     </div>
   </div>
 </template>
+
+<style scoped>
+.promotion-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 4px 0 12px;
+}
+
+.promotion-tag {
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.promotion-tag.flash {
+  background: #fdecea;
+  color: #a93226;
+}
+
+.promotion-tag.gift {
+  background: #eaf5ee;
+  color: #276749;
+}
+
+.promotion-tag.group {
+  background: #fff5e0;
+  color: #9c650d;
+}
+</style>

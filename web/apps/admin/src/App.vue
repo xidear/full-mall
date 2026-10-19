@@ -25,11 +25,18 @@ const allMenus = [
   { path: '/', label: '经营总览', roles: ['ADMIN', 'OPERATOR'] },
   { path: '/products', label: '商品管理', roles: ['ADMIN', 'OPERATOR'] },
   { path: '/orders', label: '订单管理', roles: ['ADMIN', 'OPERATOR'] },
+  { path: '/after-sales', label: '售后处理', roles: ['ADMIN', 'OPERATOR'] },
+  { path: '/promotions', label: '促销管理', roles: ['ADMIN', 'OPERATOR'] },
+  { path: '/pos', label: '门店收银', roles: ['ADMIN', 'OPERATOR'] },
+  { path: '/pos-members', label: '会员与优惠券', roles: ['ADMIN', 'OPERATOR'] },
+  { path: '/suppliers', label: '供应商', roles: ['ADMIN', 'OPERATOR'] },
+  { path: '/warehouse', label: '仓储作业', roles: ['ADMIN', 'OPERATOR'] },
   { path: '/customers', label: '客户管理', roles: ['ADMIN', 'OPERATOR'] },
   { path: '/inventory', label: '库存与批次', roles: ['ADMIN', 'OPERATOR'] },
   { path: '/notifications', label: '通知中心', roles: ['ADMIN', 'OPERATOR'] },
   { path: '/themes', label: '主题配置', roles: ['ADMIN', 'OPERATOR'] },
   { path: '/staff', label: '员工与权限', roles: ['ADMIN'] },
+  { path: '/permissions', label: '权限矩阵', roles: ['ADMIN'] },
   { path: '/settings', label: '系统设置', roles: ['ADMIN'] }
 ]
 const menus = computed(() => allMenus.filter(menu => !auth.user || menu.roles.includes(auth.user.role)))

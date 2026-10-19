@@ -96,6 +96,39 @@ public class StaffAuthRepository {
         jdbcTemplate.update("DELETE FROM staff_session WHERE staff_id = ?", staffId);
     }
 
+    public void updatePin(UUID staffId, String pinHash) {
+        int updated = jdbcTemplate.update("""
+                UPDATE staff_user SET pin_hash = ? WHERE id = ?
+                """, pinHash, staffId);
+        if (updated != 1) {
+            throw new IllegalStateException("Staff user not found: " + staffId);
+        }
+    }
+
+    public String findPinHash(UUID staffId) {
+        List<String> hashes = jdbcTemplate.query("""
+                SELECT pin_hash FROM staff_user WHERE id = ?
+                """, (rs, rowNum) -> rs.getString("pin_hash"), staffId);
+        return hashes.isEmpty() ? null : hashes.get(0);
+    }
+
+    public void bindStore(UUID staffId, UUID storeId) {
+        jdbcTemplate.update("""
+                INSERT INTO staff_store (staff_id, store_id) VALUES (?, ?)
+                ON CONFLICT (staff_id, store_id) DO NOTHING
+                """, staffId, storeId);
+    }
+
+    public void unbindStore(UUID staffId, UUID storeId) {
+        jdbcTemplate.update("DELETE FROM staff_store WHERE staff_id = ? AND store_id = ?", staffId, storeId);
+    }
+
+    public List<UUID> findStoreIds(UUID staffId) {
+        return jdbcTemplate.query("""
+                SELECT store_id FROM staff_store WHERE staff_id = ? ORDER BY assigned_at
+                """, (rs, rowNum) -> rs.getObject("store_id", UUID.class), staffId);
+    }
+
     public void updatePassword(UUID staffId, String passwordHash) {
         int updated = jdbcTemplate.update("""
                 UPDATE staff_user SET password_hash = ? WHERE id = ?

@@ -69,6 +69,8 @@ export interface Order {
   total: Money
   fulfillmentMode: 'SHIP' | 'PICKUP'
   storeId?: string
+  contactName: string
+  contactPhone: string
   createdAt: string
   lines: OrderLine[]
 }
@@ -106,4 +108,87 @@ export interface LegalDocument {
   content: string
   contentHash: string
   effectiveFrom: string
+}
+
+export interface AfterSaleLine {
+  id: string
+  orderLineId: string
+  skuId: string
+  title: string
+  skuCode: string
+  quantity: number
+}
+
+export interface AfterSale {
+  id: string
+  afterSaleNo: string
+  orderId: string
+  orderNo: string
+  type: 'RETURN' | 'EXCHANGE'
+  status: string
+  reason: string
+  description?: string
+  contactPhone: string
+  refundAmount: Money
+  adminNote?: string
+  createdAt: string
+  lines: AfterSaleLine[]
+}
+
+
+export type PromotionType = 'FLASH_SALE' | 'BUY_GIFT' | 'GROUP_BUY'
+
+export interface Promotion {
+  id: string
+  code: string
+  type: PromotionType
+  title: string
+  description?: string
+  status: string
+  startsAt: string
+  endsAt: string
+  active: boolean
+  soldOut: boolean
+  skuId: string
+  skuCode: string
+  productId: string
+  productTitle: string
+  originalPrice: Money
+  promoPrice?: Money
+  giftSkuId?: string
+  giftSkuCode?: string
+  giftTitle?: string
+  buyQuantity?: number
+  giftQuantity?: number
+  maxGiftPerOrder?: number
+  stockLimit?: number
+  soldQuantity: number
+  remainingStock?: number
+  perUserLimit?: number
+  groupSize?: number
+  groupDurationHours?: number
+}
+
+export interface GroupBuyMember {
+  maskedPhone: string
+  role: 'CREATOR' | 'MEMBER'
+  paid: boolean
+  joinedAt: string
+}
+
+export interface GroupBuy {
+  id: string
+  code: string
+  promotionId: string
+  skuId: string
+  skuCode: string
+  productTitle: string
+  price: Money
+  groupSize: number
+  joinedCount: number
+  paidCount: number
+  remainingSlots: number
+  status: 'FORMING' | 'SUCCESS' | 'FAILED'
+  expiresAt: string
+  members: GroupBuyMember[]
 }

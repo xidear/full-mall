@@ -92,6 +92,51 @@ public class InventoryRepository {
         return updated == 1;
     }
 
+    public UUID findSupplierBatchId(UUID skuId, UUID supplierId) {
+        List<UUID> rows = jdbcTemplate.query("""
+                SELECT id FROM inventory_batch
+                WHERE sku_id = ? AND location_type = 'SUPPLIER' AND location_id = ? AND batch_no = 'SUPPLIER-FEED'
+                """, (rs, rowNum) -> rs.getObject("id", UUID.class), skuId, supplierId);
+        return rows.isEmpty() ? null : rows.get(0);
+    }
+
+    public int findSupplierBatchQuantity(UUID skuId, UUID supplierId) {
+        List<Integer> rows = jdbcTemplate.query("""
+                SELECT quantity FROM inventory_batch
+                WHERE sku_id = ? AND location_type = 'SUPPLIER' AND location_id = ? AND batch_no = 'SUPPLIER-FEED'
+                """, (rs, rowNum) -> rs.getInt("quantity"), skuId, supplierId);
+        return rows.isEmpty() ? 0 : rows.get(0);
+    }
+
+    public boolean upsertSupplierBatch(UUID skuId, UUID supplierId, int quantity) {
+        int updated = jdbcTemplate.update("""
+                UPDATE inventory_batch
+                SET quantity = ?
+                WHERE sku_id = ? AND location_type = 'SUPPLIER' AND location_id = ?
+                  AND batch_no = 'SUPPLIER-FEED' AND reserved_quantity <= ?
+                """, quantity, skuId, supplierId, quantity);
+        if (updated == 1) {
+            return true;
+        }
+        int inserted = jdbcTemplate.update("""
+                INSERT INTO inventory_batch (id, sku_id, location_type, location_id, batch_no,
+                                             quantity, reserved_quantity, status, received_at, created_at)
+                VALUES (?, ?, 'SUPPLIER', ?, 'SUPPLIER-FEED', ?, 0, 'AVAILABLE', now(), now())
+                ON CONFLICT (sku_id, location_type, location_id, batch_no) DO NOTHING
+                """, UUID.randomUUID(), skuId, supplierId, quantity);
+        return inserted == 1;
+    }
+
+    public boolean restore(UUID batchId, int quantity) {
+        int updated = jdbcTemplate.update("""
+                UPDATE inventory_batch
+                SET quantity = quantity + ?
+                WHERE id = ?
+                  AND status IN ('AVAILABLE', 'NEAR_EXPIRY')
+                """, quantity, batchId);
+        return updated == 1;
+    }
+
     public void insertReservation(Reservation reservation) {
         jdbcTemplate.update("""
                 INSERT INTO reservation (id, order_id, order_line_id, batch_id, quantity, status, expires_at, created_at)
@@ -134,6 +179,30 @@ public class InventoryRepository {
                 SELECT id, order_id, order_line_id, batch_id, quantity, status, expires_at
                 FROM reservation
                 WHERE order_id = ? AND order_line_id IN (%s) AND status = 'CONFIRMED'
+                ORDER BY created_at
+                """.formatted(placeholders);
+        return jdbcTemplate.query(sql, (rs, rowNum) -> new Reservation(
+                rs.getObject("id", UUID.class),
+                rs.getObject("order_id", UUID.class),
+                rs.getObject("order_line_id", UUID.class),
+                rs.getObject("batch_id", UUID.class),
+                rs.getInt("quantity"),
+                ReservationStatus.valueOf(rs.getString("status")),
+                rs.getTimestamp("expires_at") == null ? null : rs.getTimestamp("expires_at").toInstant()), args.toArray());
+    }
+
+    public List<Reservation> findReleasableReservationsByOrderLines(UUID orderId, List<UUID> orderLineIds) {
+        if (orderLineIds.isEmpty()) {
+            return List.of();
+        }
+        String placeholders = String.join(",", java.util.Collections.nCopies(orderLineIds.size(), "?"));
+        List<Object> args = new ArrayList<>();
+        args.add(orderId);
+        args.addAll(orderLineIds);
+        String sql = """
+                SELECT id, order_id, order_line_id, batch_id, quantity, status, expires_at
+                FROM reservation
+                WHERE order_id = ? AND order_line_id IN (%s) AND status IN ('RESERVED', 'CONFIRMED')
                 ORDER BY created_at
                 """.formatted(placeholders);
         return jdbcTemplate.query(sql, (rs, rowNum) -> new Reservation(

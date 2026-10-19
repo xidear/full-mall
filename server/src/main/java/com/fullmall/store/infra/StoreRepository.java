@@ -44,6 +44,15 @@ public class StoreRepository {
                 """, (rs, rowNum) -> map(rs), skuId, minimumExpiry);
     }
 
+    public List<Store> findAll() {
+        return jdbcTemplate.query("""
+                SELECT id, name, address, latitude, longitude, pickup_enabled, phone, opening_hours
+                FROM store
+                WHERE active = true
+                ORDER BY name
+                """, (rs, rowNum) -> map(rs));
+    }
+
     public Store findById(UUID storeId) {
         List<Store> stores = jdbcTemplate.query("""
                 SELECT id, name, address, latitude, longitude, pickup_enabled, phone, opening_hours

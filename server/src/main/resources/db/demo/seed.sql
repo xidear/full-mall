@@ -195,3 +195,18 @@ VALUES
  '22222222-2222-2222-2222-222222222222', 'MILK-SH-BULK', CURRENT_DATE, CURRENT_DATE + 60,
  1000, 0, 'AVAILABLE', 1200, 'CNY', now())
 ON CONFLICT (id) DO NOTHING;
+INSERT INTO promotion (id, code, type, title, description, status, starts_at, ends_at, sku_id,
+                       promo_price_amount, gift_sku_id, buy_quantity, gift_quantity, max_gift_per_order,
+                       stock_limit, sold_quantity, per_user_limit, group_size, group_duration_hours, priority)
+VALUES
+('91000000-0000-0000-0000-000000000001', 'DEMO-FLASH-MUG', 'FLASH_SALE', '马克杯限时秒杀',
+ '手工陶瓷马克杯限时 2990 分，每单最多 5 件。', 'ACTIVE', now() - interval '1 hour', now() + interval '30 days',
+ 'dddddddd-dddd-dddd-dddd-dddddddddddd', 2990, NULL, NULL, NULL, NULL, 30, 0, 5, NULL, NULL, 30),
+('91000000-0000-0000-0000-000000000002', 'DEMO-GIFT-MILK', 'BUY_GIFT', '鲜奶买二赠一',
+ '购买 2 件 1L 鲜奶赠送 1 件同款，每单最多赠 2 件。', 'ACTIVE', now() - interval '1 hour', now() + interval '30 days',
+ 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb', NULL, 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb', 2, 1, 2,
+ 20, 0, NULL, NULL, NULL, 20),
+('91000000-0000-0000-0000-000000000003', 'DEMO-GROUP-MUG', 'GROUP_BUY', '马克杯 2 人拼团',
+ '2 人成团，每人 2490 分，24 小时内未成团自动退款。', 'ACTIVE', now() - interval '1 hour', now() + interval '30 days',
+ 'dddddddd-dddd-dddd-dddd-dddddddddddd', 2490, NULL, NULL, NULL, NULL, NULL, 0, 1, 2, 24, 10)
+ON CONFLICT (id) DO NOTHING;

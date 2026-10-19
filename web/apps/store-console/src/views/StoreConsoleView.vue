@@ -9,9 +9,8 @@ import {
   type PickupDetail,
   type Store
 } from '@fullmall/api-client'
-import { ApiClient } from '@fullmall/api-client'
+import { api } from '../api'
 
-const api = new ApiClient(import.meta.env.VITE_API_BASE || 'http://localhost:8080')
 const appMode = import.meta.env.VITE_APP_MODE || 'dev'
 const wsBase = import.meta.env.VITE_WS_BASE || 'ws://localhost:8080'
 const stores = ref<Store[]>([])
@@ -76,7 +75,7 @@ function connectSocket() {
 
 async function loadStores() {
   try {
-    stores.value = await api.get<Store[]>('/api/v1/stores')
+    stores.value = await api.get<Store[]>('/store/v1/my-stores')
     storeId.value = stores.value[0]?.id ?? ''
   } catch (cause) {
     error.value = cause instanceof Error ? cause.message : '门店加载失败'

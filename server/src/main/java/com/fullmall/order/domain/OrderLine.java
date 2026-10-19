@@ -12,7 +12,9 @@ public record OrderLine(
         String skuCode,
         int quantity,
         Money unitPrice,
-        FulfillmentType fulfillmentType
+        FulfillmentType fulfillmentType,
+        UUID promotionId,
+        String lineType
 ) {
     public Money subtotal() {
         return unitPrice.multiply(quantity);

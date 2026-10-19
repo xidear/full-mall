@@ -4,6 +4,12 @@ app:
     hsts-enabled: true
   demo:
     read-only: false
+  pos:
+    require-manager-approval: true
+  store:
+    auth-required: true
+  support:
+    auth-required: true
   payment:
     provider: ${PAYMENT_PROVIDER}
   logistics:

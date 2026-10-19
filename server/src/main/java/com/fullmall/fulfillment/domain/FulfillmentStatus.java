@@ -3,6 +3,7 @@ package com.fullmall.fulfillment.domain;
 public enum FulfillmentStatus {
     PENDING,
     ALLOCATED,
+    ACCEPTED,
     PICKING,
     PACKED,
     SHIPPED,

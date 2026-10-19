@@ -102,6 +102,35 @@ const role: Record<string, string> = {
   SUPPLIER: '供应商'
 }
 
+const posSaleStatus: Record<string, string> = {
+  DRAFT: '收银中',
+  COMPLETED: '已完成',
+  VOIDED: '已作废',
+  PARTIALLY_REFUNDED: '部分退款',
+  REFUNDED: '已退款'
+}
+
+const posShiftStatus: Record<string, string> = {
+  OPEN: '营业中',
+  CLOSED: '已关班',
+  APPROVED: '已审核'
+}
+
+const posTenderType: Record<string, string> = {
+  CASH: '现金',
+  WECHAT: '微信扫码',
+  ALIPAY: '支付宝',
+  CARD: '银行卡',
+  STORED_VALUE: '会员储值',
+  OTHER: '其他收款'
+}
+
+const posTenderStatus: Record<string, string> = {
+  SUCCESS: '收款成功',
+  FAILED: '收款失败',
+  REVERSED: '已撤销'
+}
+
 function translate(map: Record<string, string>, key: string | undefined | null): string {
   if (!key) return '-'
   return map[key] ?? key
@@ -121,3 +150,7 @@ export const pickingStrategyLabel = (key?: string | null) => translate(pickingSt
 export const nearExpiryActionLabel = (key?: string | null) => translate(nearExpiryAction, key)
 export const fulfillmentModeLabel = (key?: string | null) => translate(fulfillmentMode, key)
 export const roleLabel = (key?: string | null) => translate(role, key)
+export const posSaleStatusLabel = (key?: string | null) => translate(posSaleStatus, key)
+export const posShiftStatusLabel = (key?: string | null) => translate(posShiftStatus, key)
+export const posTenderTypeLabel = (key?: string | null) => translate(posTenderType, key)
+export const posTenderStatusLabel = (key?: string | null) => translate(posTenderStatus, key)

@@ -87,6 +87,8 @@ export interface OrderLine {
   quantity: number
   unitPrice: Money
   fulfillmentType: string
+  promotionId?: string
+  lineType?: 'NORMAL' | 'PROMOTION' | 'GIFT'
 }
 
 export interface Order {
@@ -177,6 +179,192 @@ export interface PickupDetail {
   items: Array<{ title: string; quantity: number }>
 }
 
+export interface PosShift {
+  id: string
+  storeId: string
+  cashierName: string
+  status: 'OPEN' | 'CLOSED' | 'APPROVED'
+  openingFloat: Money
+  expectedCash?: Money
+  actualCash?: Money
+  variance?: Money
+  varianceReason?: string
+  openedAt: string
+  closedAt?: string
+}
+
+export interface PosShiftView {
+  shift: PosShift
+  cashSales: Money
+  cashRefunds: Money
+  cashIn: Money
+  cashOut: Money
+  expectedCash: Money
+  saleCount: number
+}
+
+export interface PosSaleLine {
+  id: string
+  skuId: string
+  title: string
+  skuCode: string
+  quantity: number
+  unitPrice: Money
+  lineTotal: Money
+  refundedQuantity: number
+  refundedAmount: Money
+  batchSummary?: string
+}
+
+export interface PosTender {
+  id: string
+  type: 'CASH' | 'WECHAT' | 'ALIPAY' | 'CARD' | 'STORED_VALUE' | 'OTHER'
+  amount: Money
+  provider: string
+  providerTradeNo?: string
+  status: 'SUCCESS' | 'FAILED' | 'REVERSED'
+  cashTendered?: Money
+  change?: Money
+  refundedAmount?: Money
+  reversalStatus?: string
+  paidAt?: string
+}
+
+export interface PosSale {
+  id: string
+  saleNo: string
+  storeId: string
+  shiftId: string
+  memberId?: string
+  currency: string
+  subtotal: Money
+  promotionDiscount: Money
+  couponDiscount: Money
+  memberDiscount: Money
+  pointsDiscount: Money
+  payable: Money
+  cashTendered: Money
+  change: Money
+  status: 'DRAFT' | 'COMPLETED' | 'VOIDED' | 'PARTIALLY_REFUNDED' | 'REFUNDED'
+  couponId?: string
+  couponCode?: string
+  pointsRedeemed: number
+  pointsEarned: number
+  pointsReversed: number
+  refunded: Money
+  operatorName: string
+  createdAt: string
+  paidAt?: string
+  lines: PosSaleLine[]
+  tenders: PosTender[]
+}
+
+export interface PosMember {
+  id: string
+  memberNo: string
+  name: string
+  phone: string
+  tier: string
+  birthday?: string
+  growthValue: number
+  birthdayGiftYear?: number
+  points: number
+  storedValue: Money
+}
+
+export interface PosCoupon {
+  id: string
+  code: string
+  name: string
+  discountType: 'FIXED' | 'PERCENT'
+  discountValue: number
+  minSpend: Money
+  maxDiscount?: Money
+  currency: string
+  status: 'ISSUED' | 'LOCKED' | 'USED' | 'EXPIRED'
+  memberId?: string
+  validFrom: string
+  validTo: string
+}
+
+export interface MemberAdminView {
+  member: PosMember
+  saleCount: number
+  totalSpent: Money
+  createdAt: string
+}
+
+export interface PosMemberView {
+  member: PosMember
+  coupons: PosCoupon[]
+}
+
+export interface PosSaleView {
+  sale: PosSale
+  paidAmount: Money
+  remainingAmount: Money
+  member?: PosMember
+  coupon?: PosCoupon
+  storeName: string
+}
+
+export interface PosProductView {
+  skuId: string
+  skuCode: string
+  barcode?: string
+  title: string
+  price: Money
+  availableQuantity: number
+  imageUrl?: string
+}
+
+export interface PosProviderView {
+  code: string
+  label: string
+  requiresMember: boolean
+  mock: boolean
+}
+
+export interface PosTenderTotal {
+  tenderType: string
+  amount: Money
+}
+
+export interface PosDailyReport {
+  businessDate: string
+  storeId: string
+  storeName: string
+  salesCount: number
+  refundCount: number
+  grossSales: Money
+  discountTotal: Money
+  netSales: Money
+  refundTotal: Money
+  cashTotal: Money
+  pointsDiscount: Money
+  couponDiscount: Money
+  pointsRedeemed: number
+  pointsEarned: number
+  couponsUsed: number
+  cashVariance: Money
+  shiftCount: number
+  tenderMix: PosTenderTotal[]
+  shifts: PosShiftView[]
+}
+
+export interface PosReconciliationReport {
+  businessDate: string
+  storeId: string
+  storeName: string
+  rows: Array<{
+    tenderType: string
+    expectedAmount: Money
+    actualAmount: Money
+    variance: Money
+    status: string
+  }>
+}
+
 export interface AnalyticsOverview {
   gmv: Money
   orders: number
@@ -252,16 +440,18 @@ export class ApiClient {
     return this.request<T>(url.toString())
   }
 
-  post<T>(path: string, body?: unknown): Promise<T> {
+  post<T>(path: string, body?: unknown, headers?: Record<string, string>): Promise<T> {
     return this.request<T>(new URL(path, this.baseUrl).toString(), {
       method: 'POST',
+      headers,
       body: body === undefined ? undefined : JSON.stringify(body)
     })
   }
 
-  patch<T>(path: string, body?: unknown): Promise<T> {
+  patch<T>(path: string, body?: unknown, headers?: Record<string, string>): Promise<T> {
     return this.request<T>(new URL(path, this.baseUrl).toString(), {
       method: 'PATCH',
+      headers,
       body: body === undefined ? undefined : JSON.stringify(body)
     })
   }
@@ -299,4 +489,170 @@ export class ApiClient {
     }
     return response.json() as Promise<T>
   }
+}
+
+export interface SupplierCredentialView {
+  supplierId: string
+  code: string
+  name: string
+  active: boolean
+  accessKey?: string
+  hasCredential: boolean
+  rotatedAt?: string
+}
+
+
+export interface PermissionView {
+  code: string
+  label: string
+  group: string
+  sortOrder: number
+}
+
+export interface RolePermissionView {
+  role: string
+  permissions: string[]
+}
+
+export interface PermissionMatrixView {
+  permissions: PermissionView[]
+  roles: RolePermissionView[]
+}
+
+
+export interface AfterSaleLine {
+  id: string
+  orderLineId: string
+  skuId: string
+  title: string
+  skuCode: string
+  quantity: number
+}
+
+export interface AfterSaleEvent {
+  id: string
+  eventType: string
+  note?: string
+  operatorName?: string
+  createdAt: string
+}
+
+export interface AfterSaleView {
+  id: string
+  afterSaleNo: string
+  orderId: string
+  orderNo: string
+  type: 'RETURN' | 'EXCHANGE'
+  status: 'REQUESTED' | 'APPROVED' | 'REJECTED' | 'RECEIVED' | 'REFUNDED' | 'CANCELLED'
+  reason: string
+  description?: string
+  contactPhone: string
+  refundAmount: Money
+  adminNote?: string
+  createdAt: string
+  approvedAt?: string
+  receivedAt?: string
+  refundedAt?: string
+  rejectedAt?: string
+  lines: AfterSaleLine[]
+  events: AfterSaleEvent[]
+}
+
+
+export interface MemberLevel {
+  code: string
+  name: string
+  discountRate: number
+  pointsMultiplier: number
+  freeShipping: boolean
+  birthdayPoints: number
+  minGrowth: number
+  sortOrder: number
+}
+
+
+export type PromotionType = 'FLASH_SALE' | 'BUY_GIFT' | 'GROUP_BUY'
+export type PromotionStatus = 'DRAFT' | 'ACTIVE' | 'ENDED'
+
+export interface PromotionView {
+  id: string
+  code: string
+  type: PromotionType
+  title: string
+  description?: string
+  status: PromotionStatus
+  startsAt: string
+  endsAt: string
+  active: boolean
+  soldOut: boolean
+  skuId: string
+  skuCode: string
+  productId: string
+  productTitle: string
+  originalPrice: Money
+  promoPrice?: Money
+  giftSkuId?: string
+  giftSkuCode?: string
+  giftTitle?: string
+  buyQuantity?: number
+  giftQuantity?: number
+  maxGiftPerOrder?: number
+  stockLimit?: number
+  soldQuantity: number
+  remainingStock?: number
+  perUserLimit?: number
+  groupSize?: number
+  groupDurationHours?: number
+  priority: number
+}
+
+export interface CreatePromotionInput {
+  code: string
+  type: PromotionType
+  title: string
+  description?: string
+  startsAt: string
+  endsAt: string
+  skuId: string
+  promoPriceAmount?: number
+  giftSkuId?: string
+  buyQuantity?: number
+  giftQuantity?: number
+  maxGiftPerOrder?: number
+  stockLimit?: number
+  perUserLimit?: number
+  groupSize?: number
+  groupDurationHours?: number
+  priority?: number
+}
+
+export interface GroupBuyMemberView {
+  maskedPhone: string
+  role: 'CREATOR' | 'MEMBER'
+  paid: boolean
+  joinedAt: string
+}
+
+export interface GroupBuyView {
+  id: string
+  code: string
+  promotionId: string
+  skuId: string
+  skuCode: string
+  productTitle: string
+  price: Money
+  groupSize: number
+  joinedCount: number
+  paidCount: number
+  remainingSlots: number
+  status: 'FORMING' | 'SUCCESS' | 'FAILED'
+  expiresAt: string
+  createdAt: string
+  completedAt?: string
+  members: GroupBuyMemberView[]
+}
+
+export interface CreateGroupBuyInput {
+  promotionId: string
+  phone: string
 }

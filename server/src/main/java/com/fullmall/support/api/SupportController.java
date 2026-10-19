@@ -1,7 +1,7 @@
 package com.fullmall.support.api;
 
+import com.fullmall.support.api.SupportDtos.ConversationView;
 import com.fullmall.support.app.SupportService;
-import com.fullmall.support.domain.SupportConversation;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import org.springframework.http.HttpStatus;
@@ -25,14 +25,17 @@ public class SupportController {
 
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
-    public SupportConversation create(@Valid @RequestBody CreateConversationRequest request) {
-        return supportService.create(request.orderId(), request.locale());
+    public ConversationView create(@Valid @RequestBody CreateConversationRequest request) {
+        return supportService.create(request.orderId(), request.locale(),
+                request.subject(), request.customerName(), request.customerPhone());
     }
 
     public record CreateConversationRequest(
             @NotBlank String subject,
             UUID orderId,
-            String locale
+            String locale,
+            String customerName,
+            String customerPhone
     ) {
     }
 }

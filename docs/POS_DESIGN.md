@@ -222,3 +222,46 @@ public interface PosPaymentProvider {
 - 碰一碰/扫码适配器可替换，业务代码零修改。
 - 离线队列不产生“假成功”，补传幂等。
 - 操作有审计，收银员/店长权限分离。
+
+## 16. P0 实现对照（2026-10-18）
+
+### 已落地
+| 设计项 | 实现 |
+|---|---|
+| 班次 | `pos_shift`；开班、按收银员查未关班次、关班、备用金、现金收/付、差异原因 |
+| 销售单 | `pos_sale` + `pos_sale_line` + `pos_sale_allocation`；草稿、完成、作废、整单退款 |
+| 组合支付 | `pos_tender`；CASH/WECHAT/ALIPAY/CARD/STORED_VALUE/OTHER；现金实收/找零 |
+| 现金 | `pos_cash_movement`；OPENING_FLOAT/SALE/REFUND/CASH_IN/CASH_OUT |
+| 积分 | `member.points_balance` 投影 + `points_ledger`；REDEEM/EARN/REFUND，业务键幂等 |
+| 储值 | `member.stored_value_balance` + `member_card_ledger`；消费/退款 |
+| 优惠券 | `coupon` + `coupon_redemption`；ISSUED→LOCKED→USED，退款回滚，行锁防并发 |
+| 退款 | `pos_refund` + `pos_refund_line` + `pos_refund_allocation` + `pos_refund_tender`；整单/按行部分退款、原路分摊、积分比例扣回、券回滚、批次库存回补 |
+| 对账 | `pos_reconciliation` 表；当前报表按 tender + 退款计算，真实渠道接入后写入实收 |
+| Provider SPI | `PosPaymentProvider` + `MockPosPaymentProvider`；业务层不依赖厂商 DTO |
+| API | `/store/v1/pos/**`、`/admin/v1/pos/**`、`/mock/pos/**` |
+| UI | 门店工作台「收银台」；运营后台「门店收银」 |
+
+### 关键实现规则
+- 销售单创建即按门店 FEFO 预占批次；完成销售 `CONFIRMED → SHIPPED`；作废/退款释放或回补。
+- 退款只在原班次仍为 OPEN 时允许，避免已关班现金被事后修改；跨班次退款需门店财务流程。
+- 现金找零只允许在最后一笔收款；退款/作废均写负向现金流水。
+- 退款回补批次仅允许 `AVAILABLE/NEAR_EXPIRY`；过期/隔离/冻结批次明确报错，转人工报损流程。
+- `Idempotency-Key` 使用 PostgreSQL advisory lock；tender 还有独立幂等键。
+- 金额单位全部为分；积分按 1 积分 = 1 分钱；每 1 元实付发 1 积分。
+
+### 仍待实现
+- 真实微信/支付宝/银联/聚合收单适配器、webhook 验签、查询/撤销/对账文件。
+- 支付宝碰一碰终端认证与设备绑定。
+- 退货入库质检、退款审批工作流。
+- 储值赠送、会员等级折扣、优惠券批量发放与核销统计。
+- 收银员锁屏、店长授权改价/退款、门店-员工绑定、班次审核。
+- 离线队列与设备签名。
+
+
+## 17. 部分退款实现补充
+
+- `POST /store/v1/pos/sales/{id}/refund-lines`，请求体包含 `items[{saleLineId, quantity}]`、`reason`、`operatorName`。
+- 退款金额按整单 `payable/subtotal` 比例分摊到商品行，使用最大余数法保证合计等于应收；再按累计退款数量比例计算本次金额，最后一笔精确收口。
+- 原 tender 按金额比例分摊退款；现金写负向 `pos_cash_movement`，储值写退款 ledger，外部渠道调用原 provider 的 `refund`。
+- 批次回补按 `pos_sale_allocation` 逐批记录到 `pos_refund_allocation`；过期/隔离/冻结批次明确失败，转人工报损。
+- 销售单状态 `COMPLETED → PARTIALLY_REFUNDED → REFUNDED`；积分按退款比例扣回，全部退完时退回抵扣积分并恢复优惠券。

@@ -17,11 +17,25 @@ const submitting = ref(false)
 const errorMessage = ref('')
 const demoResult = ref<Record<string, unknown> | null>(null)
 const idempotencyKey = ref('')
+const referral = ref<{ staffId: string; mode: string } | null>(null)
 const coords = ref<{ latitude: number; longitude: number } | null>(null)
 const locationStatus = ref('正在获取位置…')
+const groupBuyId = ref('')
+const groupBuyCode = ref('')
 
 onMounted(async () => {
   idempotencyKey.value = crypto.randomUUID()
+  groupBuyId.value = localStorage.getItem('fullmall.groupBuyId') ?? ''
+  groupBuyCode.value = localStorage.getItem('fullmall.groupBuyCode') ?? ''
+  const rawReferral = localStorage.getItem('fullmall.referral')
+  if (rawReferral) {
+    try {
+      referral.value = JSON.parse(rawReferral) as { staffId: string; mode: string }
+    } catch {
+      localStorage.removeItem('fullmall.referral')
+      throw new Error('推广绑定数据损坏，已清除本地推广信息')
+    }
+  }
   await loadStores()
   legal.value = await $fetch<LegalDocument>(`${config.public.apiBase}/api/v1/legal/documents`, {
     query: { type: 'TERMS', locale: 'zh-CN', market: 'CN' }
@@ -78,6 +92,10 @@ async function submit() {
     errorMessage.value = '请选择自提门店'
     return
   }
+  if (groupBuyId.value && (cart.value.length !== 1 || cart.value[0]?.quantity !== 1)) {
+    errorMessage.value = '拼团订单只能包含 1 件拼团商品，请清空购物车后重新从拼团页进入'
+    return
+  }
   submitting.value = true
   try {
     if (config.public.appMode === 'demo') {
@@ -104,12 +122,17 @@ async function submit() {
         storeId: mode.value === 'PICKUP' ? selectedStoreId.value : undefined,
         contact: { name: contactName.value, phone: contactPhone.value },
         address: mode.value === 'SHIP' ? { detail: addressDetail.value } : undefined,
-        legalAcceptanceIds: [acceptance.id]
+        legalAcceptanceIds: [acceptance.id],
+        referrerId: referral.value?.staffId,
+        referralMode: referral.value?.mode,
+        groupBuyId: groupBuyId.value || undefined
       }
     })
     await $fetch(`${config.public.apiBase}/api/v1/payments/mock/${order.id}/pay`, { method: 'POST' })
     remember(order.id)
     clear()
+    localStorage.removeItem('fullmall.groupBuyId')
+    localStorage.removeItem('fullmall.groupBuyCode')
     await navigateTo(`/orders/${order.id}`)
   } catch (error) {
     errorMessage.value = error instanceof Error ? error.message : '下单失败'
@@ -167,6 +190,11 @@ async function submit() {
             <strong>{{ formatMoney({ amount: line.price.amount * line.quantity, currency: line.price.currency }) }}</strong>
           </li>
         </ul>
+        <div v-if="groupBuyId" class="group-buy-note">
+          <strong>拼团订单</strong>
+          <span>团号 {{ groupBuyCode || groupBuyId }}，成团前请邀请好友参团；未成团将自动退款。</span>
+        </div>
+        <p class="summary-hint">秒杀、买赠与拼团价格由服务端结算时校验，最终应付以订单为准。</p>
         <div class="summary-total">
           <span>合计</span>
           <strong>{{ formatMoney(total) }}</strong>
@@ -195,3 +223,22 @@ async function submit() {
     </div>
   </section>
 </template>
+
+<style scoped>
+.group-buy-note {
+  display: grid;
+  gap: 4px;
+  margin: 12px 0;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: #fff5e0;
+  color: #7a5209;
+  font-size: 13px;
+}
+
+.summary-hint {
+  margin: 8px 0 0;
+  color: #7b857d;
+  font-size: 12px;
+}
+</style>

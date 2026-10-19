@@ -125,6 +125,64 @@ public class FulfillmentService {
         return repository.findById(fulfillmentOrderId);
     }
 
+    @Transactional
+    public FulfillmentOrder acceptSupplierOrder(UUID fulfillmentOrderId, UUID supplierId, String note) {
+        FulfillmentOrder fulfillment = requireSupplierFulfillment(fulfillmentOrderId, supplierId);
+        if (fulfillment.status() != FulfillmentStatus.ALLOCATED) {
+            throw ApiException.conflict("SUPPLIER_ORDER_NOT_ACCEPTABLE",
+                    "供应商订单当前状态为 " + fulfillment.status() + "，不能接单");
+        }
+        repository.updateSupplierAcceptance(fulfillmentOrderId, note, Instant.now());
+        repository.updateStatus(fulfillmentOrderId, FulfillmentStatus.ACCEPTED);
+        notificationService.notifyOrderEvent(fulfillment.orderId(), "SUPPLIER_ACCEPTED", "供应商已接单",
+                "您的订单已由供应商接单，将尽快发货。", List.of("IN_APP"));
+        return requireFulfillment(fulfillmentOrderId);
+    }
+
+    @Transactional
+    public FulfillmentOrder shipSupplierOrder(UUID fulfillmentOrderId, UUID supplierId,
+                                              String carrierCode, String trackingNo) {
+        FulfillmentOrder fulfillment = requireSupplierFulfillment(fulfillmentOrderId, supplierId);
+        if (fulfillment.status() != FulfillmentStatus.ACCEPTED) {
+            throw ApiException.conflict("SUPPLIER_ORDER_NOT_SHIPPABLE",
+                    "供应商订单当前状态为 " + fulfillment.status() + "，需先接单再发货");
+        }
+        repository.updateShipment(fulfillmentOrderId, carrierCode, trackingNo);
+        repository.updateStatus(fulfillmentOrderId, FulfillmentStatus.SHIPPED);
+        inventoryService.shipReservationsForLines(fulfillment.orderId(), orderLineIds(fulfillment));
+        notificationService.notifyOrderEvent(fulfillment.orderId(), "ORDER_SHIPPED", "供应商已发货",
+                "您的订单已由供应商发货，运单号：" + trackingNo, List.of("IN_APP", "SMS"));
+        eventPublisher.publishEvent(new FulfillmentCompletedEvent(fulfillment.orderId()));
+        return requireFulfillment(fulfillmentOrderId);
+    }
+
+    @Transactional
+    public FulfillmentOrder rejectSupplierOrder(UUID fulfillmentOrderId, UUID supplierId, String reason) {
+        FulfillmentOrder fulfillment = requireSupplierFulfillment(fulfillmentOrderId, supplierId);
+        if (fulfillment.status() != FulfillmentStatus.ALLOCATED
+                && fulfillment.status() != FulfillmentStatus.ACCEPTED) {
+            throw ApiException.conflict("SUPPLIER_ORDER_NOT_REJECTABLE",
+                    "供应商订单当前状态为 " + fulfillment.status() + "，不能拒单");
+        }
+        repository.updateSupplierNote(fulfillmentOrderId, reason);
+        repository.updateStatus(fulfillmentOrderId, FulfillmentStatus.CANCELLED);
+        inventoryService.releaseOrderLines(fulfillment.orderId(), orderLineIds(fulfillment));
+        notificationService.notifyOrderEvent(fulfillment.orderId(), "SUPPLIER_REJECTED", "供应商无法履约",
+                "供应商因以下原因无法履约：" + reason + "，客服将尽快处理。", List.of("IN_APP"));
+        return requireFulfillment(fulfillmentOrderId);
+    }
+
+    private FulfillmentOrder requireSupplierFulfillment(UUID fulfillmentOrderId, UUID supplierId) {
+        FulfillmentOrder fulfillment = requireFulfillment(fulfillmentOrderId);
+        if (fulfillment.type() != FulfillmentType.SUPPLIER_DROPSHIP
+                || fulfillment.sourceId() == null
+                || !fulfillment.sourceId().equals(supplierId)) {
+            throw ApiException.notFound("SUPPLIER_ORDER_NOT_FOUND",
+                    "供应商订单不存在：" + fulfillmentOrderId);
+        }
+        return fulfillment;
+    }
+
     public List<FulfillmentOrder> findFulfillments(UUID orderId) {
         return repository.findByOrderId(orderId);
     }
@@ -191,6 +249,14 @@ public class FulfillmentService {
             }
         }
         return repository.findPickTask(taskId);
+    }
+
+    public PickTask getPickTask(UUID taskId) {
+        PickTask task = repository.findPickTask(taskId);
+        if (task == null) {
+            throw ApiException.notFound("PICK_TASK_NOT_FOUND", "Pick task not found: " + taskId);
+        }
+        return task;
     }
 
     @Transactional

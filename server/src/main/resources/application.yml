@@ -72,6 +72,19 @@ app:
     near-expiry-days: ${NEAR_EXPIRY_DAYS:7}
   demo:
     read-only: ${DEMO_READ_ONLY:false}
+  pos:
+    require-manager-approval: ${POS_REQUIRE_MANAGER_APPROVAL:false}
+  store:
+    auth-required: ${STORE_AUTH_REQUIRED:false}
+  support:
+    auth-required: ${SUPPORT_AUTH_REQUIRED:false}
+  warehouse:
+    replenishment-target: ${WAREHOUSE_REPLENISHMENT_TARGET:30}
+  distribution:
+    commission-rate: ${DISTRIBUTION_COMMISSION_RATE:5}
+  supplier:
+    credential-key: ${SUPPLIER_CREDENTIAL_KEY:}
+    timestamp-skew-seconds: ${SUPPLIER_TIMESTAMP_SKEW_SECONDS:300}
 
 logging:
   level:

@@ -19,6 +19,7 @@ import java.time.Instant;
 import java.util.Base64;
 import java.util.HexFormat;
 import java.util.Map;
+import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -93,6 +94,51 @@ public class StaffAuthService {
         if (rawToken != null && !rawToken.isBlank()) {
             repository.deleteSession(tokenHash(rawToken));
         }
+    }
+
+    @Transactional
+    public StaffUser setPin(UUID staffId, String pin) {
+        if (pin == null || pin.trim().length() < 4) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "PIN_TOO_SHORT", "PIN 至少 4 位");
+        }
+        StaffAccount account = repository.findAccountById(staffId);
+        if (account == null) {
+            throw new ApiException(HttpStatus.NOT_FOUND, "STAFF_NOT_FOUND", "员工不存在");
+        }
+        repository.updatePin(staffId, passwordHasher.hash(pin.trim()));
+        return account.user();
+    }
+
+    public StaffUser verifyPin(String username, String pin) {
+        StaffAccount account = repository.findAccountByUsername(username);
+        if (account == null || !"ACTIVE".equals(account.user().status())) {
+            return null;
+        }
+        String hash = repository.findPinHash(account.user().id());
+        if (hash == null || pin == null || !passwordHasher.verify(pin.trim(), hash)) {
+            return null;
+        }
+        return account.user();
+    }
+
+    @Transactional
+    public void bindStore(UUID staffId, UUID storeId) {
+        if (repository.findAccountById(staffId) == null) {
+            throw new ApiException(HttpStatus.NOT_FOUND, "STAFF_NOT_FOUND", "员工不存在");
+        }
+        repository.bindStore(staffId, storeId);
+    }
+
+    @Transactional
+    public void unbindStore(UUID staffId, UUID storeId) {
+        if (repository.findAccountById(staffId) == null) {
+            throw new ApiException(HttpStatus.NOT_FOUND, "STAFF_NOT_FOUND", "员工不存在");
+        }
+        repository.unbindStore(staffId, storeId);
+    }
+
+    public List<UUID> storeIds(UUID staffId) {
+        return repository.findStoreIds(staffId);
     }
 
     @Transactional

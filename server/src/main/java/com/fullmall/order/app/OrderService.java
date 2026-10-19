@@ -4,6 +4,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fullmall.analytics.app.AnalyticsService;
 import com.fullmall.catalog.app.CatalogService;
+import com.fullmall.distribution.app.ReferralService;
 import com.fullmall.catalog.domain.Product;
 import com.fullmall.catalog.domain.ProductStatus;
 import com.fullmall.catalog.domain.Sku;
@@ -29,6 +30,8 @@ import com.fullmall.platform.domain.FulfillmentType;
 import com.fullmall.platform.error.ApiException;
 import com.fullmall.platform.money.Money;
 import com.fullmall.platform.util.Ids;
+import com.fullmall.promotion.app.PromotionPricing;
+import com.fullmall.promotion.app.PromotionService;
 import com.fullmall.store.app.StoreService;
 import org.springframework.context.event.EventListener;
 import org.springframework.stereotype.Service;
@@ -59,6 +62,8 @@ public class OrderService {
     private final AnalyticsService analyticsService;
     private final IdempotencyRepository idempotencyRepository;
     private final NotificationService notificationService;
+    private final ReferralService referralService;
+    private final PromotionService promotionService;
     private final ObjectMapper objectMapper;
 
     public OrderService(OrderRepository orderRepository,
@@ -69,6 +74,8 @@ public class OrderService {
                         AnalyticsService analyticsService,
                         IdempotencyRepository idempotencyRepository,
                         NotificationService notificationService,
+                        ReferralService referralService,
+                        PromotionService promotionService,
                         ObjectMapper objectMapper) {
         this.orderRepository = orderRepository;
         this.catalogService = catalogService;
@@ -78,6 +85,8 @@ public class OrderService {
         this.analyticsService = analyticsService;
         this.idempotencyRepository = idempotencyRepository;
         this.notificationService = notificationService;
+        this.referralService = referralService;
+        this.promotionService = promotionService;
         this.objectMapper = objectMapper;
     }
 
@@ -114,22 +123,60 @@ public class OrderService {
             quantities.merge(item.skuId(), item.quantity(), Math::addExact);
         }
 
+        PromotionPricing promotionPricing = promotionService.prepare(
+                quantities, request.contact().phone(), request.groupBuyId());
+
         List<ResolvedItem> resolved = new ArrayList<>();
         String currency = null;
+        Money promoSubtotal = null;
         for (Map.Entry<UUID, Integer> entry : quantities.entrySet()) {
             Sku sku = catalogService.getSku(entry.getKey());
+            Money unitPrice = promotionPricing.priceOverrides().getOrDefault(sku.id(), sku.price());
             if (currency == null) {
                 currency = sku.price().currency();
+                promoSubtotal = Money.zero(currency);
             } else if (!currency.equals(sku.price().currency())) {
                 throw ApiException.badRequest("CURRENCY_MISMATCH",
                         "All items in one order must use the same currency");
+            }
+            if (!currency.equals(unitPrice.currency())) {
+                throw new IllegalStateException("Promotion price currency mismatch for sku " + sku.id());
             }
             Product product = catalogService.getProduct(sku.productId(), "zh-CN");
             if (product.status() != ProductStatus.ACTIVE) {
                 throw ApiException.conflict("PRODUCT_NOT_ACTIVE", "Product is not active: " + product.id());
             }
-            resolved.add(new ResolvedItem(sku, entry.getValue(), product.title()));
+            PromotionPricing.AppliedPromotion applied = promotionPricing.promotionForSku(sku.id()).orElse(null);
+            resolved.add(new ResolvedItem(
+                    sku,
+                    entry.getValue(),
+                    product.title(),
+                    unitPrice,
+                    applied == null ? null : applied.promotionId(),
+                    promotionPricing.priceOverrides().containsKey(sku.id()) ? "PROMOTION" : "NORMAL"));
+            promoSubtotal = promoSubtotal.plus(unitPrice.multiply(entry.getValue()));
         }
+        if (currency == null || promoSubtotal == null) {
+            throw ApiException.badRequest("EMPTY_CART", "Cart must contain at least one item");
+        }
+
+        List<ResolvedItem> giftLines = new ArrayList<>();
+        for (PromotionPricing.GiftLine gift : promotionPricing.gifts()) {
+            Sku giftSku = catalogService.getSku(gift.skuId());
+            Product giftProduct = catalogService.getProduct(giftSku.productId(), "zh-CN");
+            if (!currency.equals(giftSku.price().currency())) {
+                throw ApiException.badRequest("CURRENCY_MISMATCH", "Gift currency does not match order currency");
+            }
+            giftLines.add(new ResolvedItem(
+                    giftSku,
+                    gift.quantity(),
+                    "赠品：" + giftProduct.title(),
+                    Money.zero(currency),
+                    gift.promotionId(),
+                    "GIFT"));
+        }
+        List<ResolvedItem> orderItems = new ArrayList<>(resolved);
+        orderItems.addAll(giftLines);
 
         Money subtotal = Money.zero(currency);
         for (ResolvedItem item : resolved) {
@@ -138,7 +185,10 @@ public class OrderService {
         Money shippingFee = request.fulfillmentMode() == FulfillmentMode.PICKUP
                 ? Money.zero(currency)
                 : new Money(FLAT_SHIPPING_FEE, currency);
-        Money discount = Money.zero(currency);
+        Money discount = subtotal.minus(promoSubtotal);
+        if (discount.amount() < 0) {
+            throw new IllegalStateException("Promotion subtotal exceeds catalog subtotal for checkout");
+        }
         Money total = subtotal.plus(shippingFee).minus(discount);
 
         UUID orderId = Ids.newId();
@@ -160,9 +210,11 @@ public class OrderService {
                 Instant.now(),
                 List.of());
         orderRepository.insertOrder(order);
+        promotionService.recordCheckout(promotionPricing, orderId, request.contact().phone());
+        referralService.attachCheckout(orderId, request.contact().phone(), request.referrerId(), request.referralMode());
 
         Map<FulfillmentKey, List<LineAllocation>> groups = new LinkedHashMap<>();
-        for (ResolvedItem item : resolved) {
+        for (ResolvedItem item : orderItems) {
             Sku sku = item.sku();
             List<LocationAvailability> locations = inventoryService.findAvailableLocations(sku.id(), sku.shelfLifePolicy());
             LocationAvailability location = FulfillmentPlanner.choose(
@@ -176,8 +228,10 @@ public class OrderService {
                     item.productTitle(),
                     sku.skuCode(),
                     item.quantity(),
-                    sku.price(),
-                    fulfillmentType);
+                    item.unitPrice(),
+                    fulfillmentType,
+                    item.promotionId(),
+                    item.lineType());
             orderRepository.insertOrderLine(orderId, line);
 
             List<ReservationAllocation> allocations = inventoryService.reserveForOrderLine(
@@ -205,7 +259,9 @@ public class OrderService {
                 "total", total.amount(),
                 "currency", currency,
                 "fulfillmentMode", request.fulfillmentMode().name(),
-                "itemCount", resolved.size()));
+                "itemCount", orderItems.size(),
+                "promotionDiscount", discount.amount(),
+                "groupBuy", promotionPricing.groupBuyId() != null));
 
         if (idemKey != null && !idemKey.isEmpty()) {
             idempotencyRepository.insert("checkout", idemKey, requestHash, orderId);
@@ -220,6 +276,26 @@ public class OrderService {
             throw ApiException.notFound("ORDER_NOT_FOUND", "Order not found: " + orderId);
         }
         return order;
+    }
+
+    public void markAfterSaleRefunded(UUID orderId, boolean fullyRefunded) {
+        orderRepository.updateStatus(orderId, fullyRefunded
+                ? OrderStatus.REFUNDED
+                : OrderStatus.PARTIALLY_REFUNDED);
+    }
+
+    public List<UUID> findStalePendingOrderIds(Instant cutoff, int limit) {
+        return orderRepository.findStalePendingOrderIds(cutoff, limit);
+    }
+
+    @Transactional
+    public boolean cancelUnpaidOrder(UUID orderId) {
+        if (!orderRepository.cancelIfPending(orderId)) {
+            return false;
+        }
+        inventoryService.releaseOrder(orderId);
+        promotionService.releaseOrder(orderId);
+        return true;
     }
 
     public java.util.Map<String, Object> listOrders(String status, int page, int size) {
@@ -244,8 +320,17 @@ public class OrderService {
         if (order.status() != OrderStatus.PENDING_PAYMENT) {
             throw ApiException.conflict("ORDER_NOT_PAYABLE", "Order is not payable in status " + order.status());
         }
-        orderRepository.updateStatus(orderId, OrderStatus.PAID);
+        if (!orderRepository.markPaidIfPending(orderId)) {
+            Order current = getOrder(orderId);
+            if (current.status() == OrderStatus.PAID) {
+                return;
+            }
+            throw ApiException.conflict("ORDER_NOT_PAYABLE",
+                    "订单已取消或状态已变化，不能继续支付：" + current.status());
+        }
+        promotionService.orderPaid(orderId);
         inventoryService.confirmOrderReservations(orderId);
+        referralService.settleOrder(orderId, order.total().amount(), order.currency());
         notificationService.notifyOrderEvent(orderId, "ORDER_PAID", "支付成功",
                 "您的订单已支付，我们会尽快为您备货。", List.of("IN_APP", "SMS"));
     }
@@ -303,7 +388,14 @@ public class OrderService {
         }
     }
 
-    private record ResolvedItem(Sku sku, int quantity, String productTitle) {
+    private record ResolvedItem(
+            Sku sku,
+            int quantity,
+            String productTitle,
+            Money unitPrice,
+            UUID promotionId,
+            String lineType
+    ) {
     }
 
     private record FulfillmentKey(FulfillmentType type, UUID sourceId) {

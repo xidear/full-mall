@@ -1,5 +1,12 @@
 import { expect, test } from '@playwright/test'
 
+async function waitForNuxtHydration(page: import('@playwright/test').Page) {
+  await page.waitForFunction(() => {
+    const root = document.querySelector('#__nuxt') as (HTMLElement & { __vue_app__?: unknown }) | null
+    return Boolean(root?.__vue_app__)
+  })
+}
+
 test('storefront supports configured theme preview', async ({ page }) => {
   await page.goto('/?theme=industrial')
   await expect(page.locator('.app-shell')).toHaveAttribute('data-theme', 'industrial')
@@ -16,6 +23,7 @@ test('storefront can browse and create a pickup order', async ({ page }) => {
   await milkCard.getByRole('link', { name: '查看详情' }).click()
 
   await expect(page.getByRole('heading', { name: '有机鲜牛奶' })).toBeVisible()
+  await waitForNuxtHydration(page)
   await page.getByRole('button', { name: '加入购物车' }).click()
   await expect(page.getByText('已加入购物车')).toBeVisible()
   await page.locator('.cart-link').click()
@@ -35,8 +43,10 @@ test('storefront can browse and create a pickup order', async ({ page }) => {
 
 test('cart page can change quantity and remove item', async ({ page }) => {
   await page.goto('/product/aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa')
+  await waitForNuxtHydration(page)
   await page.getByRole('button', { name: '加入购物车' }).click()
-  await page.goto('/cart')
+  await expect(page.getByText('已加入购物车')).toBeVisible()
+  await page.locator('.cart-link').click()
   await expect(page.getByRole('heading', { name: '我的购物车' })).toBeVisible()
   await expect(page.getByText('有机鲜牛奶').first()).toBeVisible()
   await page.getByRole('button', { name: '＋' }).click()

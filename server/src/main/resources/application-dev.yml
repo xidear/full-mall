@@ -7,6 +7,12 @@ app:
   logistics:
     provider: mock
 
+management:
+  health:
+    rabbit:
+      # Local dev runs without a broker; prod keeps this health indicator enabled.
+      enabled: false
+
 logging:
   level:
     com.fullmall: DEBUG

@@ -91,6 +91,7 @@ async function search() {
         >
           {{ category.name }}
         </NuxtLink>
+        <NuxtLink to="/promotions">促销活动</NuxtLink>
         <NuxtLink to="/legal/PICKUP">门店自提</NuxtLink>
       </nav>
     </header>

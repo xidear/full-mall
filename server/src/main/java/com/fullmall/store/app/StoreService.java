@@ -37,6 +37,10 @@ public class StoreService {
                 .toList();
     }
 
+    public List<Store> listAll() {
+        return repository.findAll();
+    }
+
     public Store getStore(UUID storeId) {
         Store store = repository.findById(storeId);
         if (store == null) {

@@ -22,6 +22,7 @@ tags:
   - name: Analytics
   - name: Supplier
   - name: Demo
+  - name: POS
 paths:
   /api/v1/products:
     get:
@@ -455,6 +456,1263 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/DemoCheckoutResult"
+  /store/v1/pos/providers:
+    get:
+      tags: [POS]
+      summary: 门店可用收款方式
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/PosProvider" }
+  /store/v1/pos/products:
+    get:
+      tags: [POS]
+      summary: 收银商品搜索（含门店可售库存）
+      parameters:
+        - { in: query, name: storeId, required: true, schema: { type: string, format: uuid } }
+        - { in: query, name: keyword, schema: { type: string } }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/PosProduct" }
+  /store/v1/pos/members:
+    get:
+      tags: [POS]
+      summary: 按手机号或会员编号识别会员
+      parameters:
+        - { in: query, name: query, required: true, schema: { type: string } }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PosMemberView" }
+  /store/v1/pos/shifts:
+    post:
+      tags: [POS]
+      summary: 开班并登记备用金
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [storeId, cashierName, openingFloat]
+              properties:
+                storeId: { type: string, format: uuid }
+                cashierName: { type: string }
+                openingFloat: { type: integer, format: int64, minimum: 0 }
+                currency: { type: string, default: CNY }
+      responses:
+        "200":
+          description: 开班成功
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PosShiftView" }
+  /store/v1/pos/shifts/open:
+    get:
+      tags: [POS]
+      summary: 查询收银员当前未关闭班次
+      parameters:
+        - { in: query, name: storeId, required: true, schema: { type: string, format: uuid } }
+        - { in: query, name: cashierName, required: true, schema: { type: string } }
+      responses:
+        "200":
+          description: 存在未关闭班次
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PosShiftView" }
+        "204":
+          description: 没有未关闭班次
+  /store/v1/pos/shifts/{shiftId}/close:
+    post:
+      tags: [POS]
+      summary: 关班与现金小结
+      parameters:
+        - { in: path, name: shiftId, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [actualCash]
+              properties:
+                actualCash: { type: integer, format: int64, minimum: 0 }
+                reason: { type: string, description: 现金差异不为 0 时必填 }
+      responses:
+        "200":
+          description: 关班完成
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PosShiftView" }
+  /store/v1/pos/shifts/{shiftId}/cash-movements:
+    post:
+      tags: [POS]
+      summary: 现金收入/支出登记
+      parameters:
+        - { in: path, name: shiftId, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [type, amount, reason]
+              properties:
+                type: { type: string, enum: [CASH_IN, CASH_OUT] }
+                amount: { type: integer, format: int64, minimum: 1 }
+                reason: { type: string }
+                operatorName: { type: string }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PosShiftView" }
+  /store/v1/pos/shifts/{shiftId}/sales:
+    get:
+      tags: [POS]
+      summary: 本班次最近销售单
+      parameters:
+        - { in: path, name: shiftId, required: true, schema: { type: string, format: uuid } }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/PosSaleView" }
+  /store/v1/pos/sales:
+    post:
+      tags: [POS]
+      summary: 创建草稿销售单并预占门店批次库存
+      parameters:
+        - { in: header, name: Idempotency-Key, schema: { type: string, maxLength: 128 } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [storeId, shiftId, items]
+              properties:
+                storeId: { type: string, format: uuid }
+                shiftId: { type: string, format: uuid }
+                cashierName: { type: string }
+                memberId: { type: string, format: uuid }
+                items:
+                  type: array
+                  items:
+                    type: object
+                    required: [skuId, quantity]
+                    properties:
+                      skuId: { type: string, format: uuid }
+                      quantity: { type: integer, minimum: 1 }
+      responses:
+        "200":
+          description: 销售单
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PosSaleView" }
+    get:
+      tags: [POS]
+      summary: 门店当日销售单
+      parameters:
+        - { in: query, name: storeId, required: true, schema: { type: string, format: uuid } }
+        - { in: query, name: date, schema: { type: string, format: date } }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/PosSaleView" }
+  /store/v1/pos/sales/{saleId}:
+    get:
+      tags: [POS]
+      summary: 销售单详情
+      parameters:
+        - { in: path, name: saleId, required: true, schema: { type: string, format: uuid } }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PosSaleView" }
+  /store/v1/pos/sales/{saleId}/member:
+    post:
+      tags: [POS]
+      summary: 绑定会员
+      parameters:
+        - { in: path, name: saleId, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [memberId]
+              properties:
+                memberId: { type: string, format: uuid }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PosSaleView" }
+  /store/v1/pos/sales/{saleId}/coupon:
+    post:
+      tags: [POS]
+      summary: 锁定并核销优惠券
+      parameters:
+        - { in: path, name: saleId, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [code]
+              properties:
+                code: { type: string }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PosSaleView" }
+  /store/v1/pos/sales/{saleId}/points:
+    post:
+      tags: [POS]
+      summary: 积分抵扣（1 积分 = 1 分钱）
+      parameters:
+        - { in: path, name: saleId, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [points]
+              properties:
+                points: { type: integer, format: int64, minimum: 1 }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PosSaleView" }
+  /store/v1/pos/sales/{saleId}/tenders:
+    post:
+      tags: [POS]
+      summary: 添加组合支付方式
+      parameters:
+        - { in: path, name: saleId, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [type, amount]
+              properties:
+                type: { type: string, enum: [CASH, WECHAT, ALIPAY, CARD, STORED_VALUE, OTHER] }
+                amount: { type: integer, format: int64, minimum: 1 }
+                cashTendered: { type: integer, format: int64, description: 现金实收，仅 CASH }
+                provider: { type: string, default: mock }
+                idempotencyKey: { type: string }
+                operatorName: { type: string }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PosSaleView" }
+  /store/v1/pos/sales/{saleId}/complete:
+    post:
+      tags: [POS]
+      summary: 完成销售：扣减批次库存、核销券/积分、发放积分
+      parameters:
+        - { in: path, name: saleId, required: true, schema: { type: string, format: uuid } }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PosSaleView" }
+  /store/v1/pos/sales/{saleId}/void:
+    post:
+      tags: [POS]
+      summary: 作废草稿销售单并释放库存/撤销收款
+      parameters:
+        - { in: path, name: saleId, required: true, schema: { type: string, format: uuid } }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PosSaleView" }
+  /store/v1/pos/sales/{saleId}/refund:
+    post:
+      tags: [POS]
+      summary: 整单原路退款并回补批次库存
+      parameters:
+        - { in: path, name: saleId, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [reason]
+              properties:
+                reason: { type: string }
+                operatorName: { type: string }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PosSaleView" }
+  /store/v1/pos/sales/{saleId}/refund-lines:
+    post:
+      tags: [POS]
+      summary: 按商品行部分退款（原路退款、批次回补、积分比例扣回）
+      parameters:
+        - { in: path, name: saleId, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [items, reason]
+              properties:
+                items:
+                  type: array
+                  items:
+                    type: object
+                    required: [saleLineId, quantity]
+                    properties:
+                      saleLineId: { type: string, format: uuid }
+                      quantity: { type: integer, minimum: 1 }
+                reason: { type: string }
+                operatorName: { type: string }
+      responses:
+        "200":
+          description: 退款完成或部分退款完成
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PosSaleView" }
+  /admin/v1/pos/members:
+    get:
+      tags: [POS]
+      summary: 会员列表
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { in: query, name: query, schema: { type: string } }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/MemberAdminView" }
+    post:
+      tags: [POS]
+      summary: 新建会员
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, phone]
+              properties:
+                name: { type: string }
+                phone: { type: string }
+                tier: { type: string, enum: [STANDARD, SILVER, GOLD, PLATINUM] }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PosMember" }
+  /admin/v1/pos/members/{memberId}/points:
+    post:
+      tags: [POS]
+      summary: 调整会员积分（正数增加、负数扣减）
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { in: path, name: memberId, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [points, reason]
+              properties:
+                points: { type: integer, format: int64 }
+                reason: { type: string }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PosMember" }
+  /admin/v1/pos/members/{memberId}/stored-value:
+    post:
+      tags: [POS]
+      summary: 会员储值充值
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { in: path, name: memberId, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [amount, reason]
+              properties:
+                amount: { type: integer, format: int64, minimum: 1 }
+                reason: { type: string }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PosMember" }
+  /admin/v1/pos/coupons:
+    get:
+      tags: [POS]
+      summary: 优惠券列表
+      security: [{ bearerAuth: [] }]
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/PosCoupon" }
+    post:
+      tags: [POS]
+      summary: 新建优惠券
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [code, name, discountType, discountValue, validFrom, validTo]
+              properties:
+                code: { type: string }
+                name: { type: string }
+                discountType: { type: string, enum: [FIXED, PERCENT] }
+                discountValue: { type: integer, format: int64, description: FIXED 为分，PERCENT 为百分比 }
+                minSpendAmount: { type: integer, format: int64, minimum: 0 }
+                maxDiscountAmount: { type: integer, format: int64 }
+                memberId: { type: string, format: uuid }
+                validFrom: { type: string, format: date-time }
+                validTo: { type: string, format: date-time }
+                currency: { type: string, default: CNY }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PosCoupon" }
+  /admin/v1/pos/reports/daily:
+    get:
+      tags: [POS]
+      summary: 门店收银日结
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { in: query, name: storeId, required: true, schema: { type: string, format: uuid } }
+        - { in: query, name: date, schema: { type: string, format: date } }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PosDailyReport" }
+  /admin/v1/pos/reports/cash:
+    get:
+      tags: [POS]
+      summary: 现金小结（含班次应有/实盘/差异）
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { in: query, name: storeId, required: true, schema: { type: string, format: uuid } }
+        - { in: query, name: date, schema: { type: string, format: date } }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PosDailyReport" }
+  /admin/v1/pos/reconciliation:
+    get:
+      tags: [POS]
+      summary: 支付方式对账
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { in: query, name: storeId, required: true, schema: { type: string, format: uuid } }
+        - { in: query, name: date, schema: { type: string, format: date } }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PosReconciliationReport" }
+  /admin/v1/pos/sales:
+    get:
+      tags: [POS]
+      summary: 门店当日销售单
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { in: query, name: storeId, required: true, schema: { type: string, format: uuid } }
+        - { in: query, name: date, schema: { type: string, format: date } }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/PosSaleView" }
+  /mock/pos/shift:
+    get:
+      tags: [POS, Demo]
+      summary: 演示班次（只读）
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PosShiftView" }
+  /mock/pos/sale:
+    get:
+      tags: [POS, Demo]
+      summary: 演示销售单与小票（只读）
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PosSaleView" }
+  /open/v1/ping:
+    get:
+      tags: [Supplier]
+      summary: 供应商签名连通性测试
+      parameters:
+        - { in: header, name: X-Supplier-Key, required: true, schema: { type: string } }
+        - { in: header, name: X-Supplier-Timestamp, required: true, schema: { type: string } }
+        - { in: header, name: X-Supplier-Nonce, required: true, schema: { type: string } }
+        - { in: header, name: X-Supplier-Signature, required: true, schema: { type: string } }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SupplierPing" }
+        "401":
+          description: 签名或凭证无效
+  /open/v1/orders:
+    get:
+      tags: [Supplier]
+      summary: 拉取代发订单
+      parameters:
+        - { in: query, name: status, schema: { type: string, enum: [ALLOCATED, ACCEPTED, SHIPPED, CANCELLED, COMPLETED] } }
+        - { in: header, name: X-Supplier-Key, required: true, schema: { type: string } }
+        - { in: header, name: X-Supplier-Timestamp, required: true, schema: { type: string } }
+        - { in: header, name: X-Supplier-Nonce, required: true, schema: { type: string } }
+        - { in: header, name: X-Supplier-Signature, required: true, schema: { type: string } }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/SupplierOrder" }
+  /open/v1/orders/{fulfillmentId}/accept:
+    post:
+      tags: [Supplier]
+      summary: 接单
+      parameters:
+        - { in: path, name: fulfillmentId, required: true, schema: { type: string, format: uuid } }
+        - { in: header, name: X-Supplier-Key, required: true, schema: { type: string } }
+        - { in: header, name: X-Supplier-Timestamp, required: true, schema: { type: string } }
+        - { in: header, name: X-Supplier-Nonce, required: true, schema: { type: string } }
+        - { in: header, name: X-Supplier-Signature, required: true, schema: { type: string } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                note: { type: string }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SupplierOrder" }
+  /open/v1/orders/{fulfillmentId}/ship:
+    post:
+      tags: [Supplier]
+      summary: 发货并回传运单号
+      parameters:
+        - { in: path, name: fulfillmentId, required: true, schema: { type: string, format: uuid } }
+        - { in: header, name: X-Supplier-Key, required: true, schema: { type: string } }
+        - { in: header, name: X-Supplier-Timestamp, required: true, schema: { type: string } }
+        - { in: header, name: X-Supplier-Nonce, required: true, schema: { type: string } }
+        - { in: header, name: X-Supplier-Signature, required: true, schema: { type: string } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [carrierCode, trackingNo]
+              properties:
+                carrierCode: { type: string }
+                trackingNo: { type: string }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SupplierOrder" }
+  /open/v1/orders/{fulfillmentId}/reject:
+    post:
+      tags: [Supplier]
+      summary: 拒单并释放预占库存
+      parameters:
+        - { in: path, name: fulfillmentId, required: true, schema: { type: string, format: uuid } }
+        - { in: header, name: X-Supplier-Key, required: true, schema: { type: string } }
+        - { in: header, name: X-Supplier-Timestamp, required: true, schema: { type: string } }
+        - { in: header, name: X-Supplier-Nonce, required: true, schema: { type: string } }
+        - { in: header, name: X-Supplier-Signature, required: true, schema: { type: string } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [reason]
+              properties:
+                reason: { type: string }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SupplierOrder" }
+  /open/v1/inventory/feed:
+    post:
+      tags: [Supplier]
+      summary: 供应商库存与供货价同步
+      parameters:
+        - { in: header, name: X-Supplier-Key, required: true, schema: { type: string } }
+        - { in: header, name: X-Supplier-Timestamp, required: true, schema: { type: string } }
+        - { in: header, name: X-Supplier-Nonce, required: true, schema: { type: string } }
+        - { in: header, name: X-Supplier-Signature, required: true, schema: { type: string } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [items]
+              properties:
+                items:
+                  type: array
+                  items:
+                    type: object
+                    required: [supplierSkuCode, availableQuantity]
+                    properties:
+                      supplierSkuCode: { type: string }
+                      availableQuantity: { type: integer, minimum: 0 }
+                      priceAmount: { type: integer, format: int64 }
+                      priceCurrency: { type: string, default: CNY }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  updated: { type: integer }
+                  rejected: { type: integer }
+  /admin/v1/suppliers:
+    get:
+      tags: [Supplier]
+      summary: 供应商与凭证状态
+      security: [{ bearerAuth: [] }]
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/SupplierCredential" }
+  /admin/v1/suppliers/{supplierId}/credentials:
+    post:
+      tags: [Supplier]
+      summary: 生成或轮换供应商 API 凭证
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { in: path, name: supplierId, required: true, schema: { type: string, format: uuid } }
+      responses:
+        "200":
+          description: 新凭证（Secret 只显示一次）
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SupplierCredentialCreated" }
+  /admin/v1/warehouse/locations:
+    get:
+      tags: [Inventory]
+      summary: 仓库/门店地点列表
+      security: [{ bearerAuth: [] }]
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/WarehouseLocation" }
+  /admin/v1/warehouse/receipts:
+    get:
+      tags: [Inventory]
+      summary: 收货单列表
+      security: [{ bearerAuth: [] }]
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/GoodsReceipt" }
+    post:
+      tags: [Inventory]
+      summary: 创建收货单（草稿）
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [locationType, locationId, lines]
+              properties:
+                locationType: { type: string, enum: [WAREHOUSE, STORE, SUPPLIER] }
+                locationId: { type: string, format: uuid }
+                supplierId: { type: string, format: uuid }
+                note: { type: string }
+                lines:
+                  type: array
+                  items:
+                    type: object
+                    required: [skuId, batchNo, quantity]
+                    properties:
+                      skuId: { type: string, format: uuid }
+                      batchNo: { type: string }
+                      productionDate: { type: string, format: date }
+                      expiryDate: { type: string, format: date }
+                      quantity: { type: integer, minimum: 1 }
+                      unitCostAmount: { type: integer, format: int64 }
+                      currency: { type: string, default: CNY }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/GoodsReceipt" }
+  /admin/v1/warehouse/receipts/{receiptId}/confirm:
+    post:
+      tags: [Inventory]
+      summary: 确认收货入库
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { in: path, name: receiptId, required: true, schema: { type: string, format: uuid } }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/GoodsReceipt" }
+  /admin/v1/warehouse/stocktakes:
+    get:
+      tags: [Inventory]
+      summary: 盘点单列表
+      security: [{ bearerAuth: [] }]
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/Stocktake" }
+    post:
+      tags: [Inventory]
+      summary: 生成批次盘点单
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [locationType, locationId]
+              properties:
+                locationType: { type: string, enum: [WAREHOUSE, STORE, SUPPLIER] }
+                locationId: { type: string, format: uuid }
+                note: { type: string }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Stocktake" }
+  /admin/v1/warehouse/stocktakes/{stocktakeId}/confirm:
+    post:
+      tags: [Inventory]
+      summary: 确认盘点并调整批次
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { in: path, name: stocktakeId, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [lines]
+              properties:
+                lines:
+                  type: array
+                  items:
+                    type: object
+                    required: [lineId, countedQuantity]
+                    properties:
+                      lineId: { type: string, format: uuid }
+                      countedQuantity: { type: integer, minimum: 0 }
+                      reason: { type: string }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Stocktake" }
+  /admin/v1/warehouse/transfers:
+    get:
+      tags: [Inventory]
+      summary: 调拨单列表
+      security: [{ bearerAuth: [] }]
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/StockTransfer" }
+    post:
+      tags: [Inventory]
+      summary: 创建调拨单
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [fromType, fromId, toType, toId, lines]
+              properties:
+                fromType: { type: string, enum: [WAREHOUSE, STORE, SUPPLIER] }
+                fromId: { type: string, format: uuid }
+                toType: { type: string, enum: [WAREHOUSE, STORE, SUPPLIER] }
+                toId: { type: string, format: uuid }
+                note: { type: string }
+                lines:
+                  type: array
+                  items:
+                    type: object
+                    required: [skuId, quantity]
+                    properties:
+                      skuId: { type: string, format: uuid }
+                      quantity: { type: integer, minimum: 1 }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/StockTransfer" }
+  /admin/v1/warehouse/transfers/{transferId}/ship:
+    post:
+      tags: [Inventory]
+      summary: 调拨出库（FEFO 分配源批次）
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { in: path, name: transferId, required: true, schema: { type: string, format: uuid } }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/StockTransfer" }
+  /admin/v1/warehouse/transfers/{transferId}/receive:
+    post:
+      tags: [Inventory]
+      summary: 调拨收货（按原批次写入目标地点）
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { in: path, name: transferId, required: true, schema: { type: string, format: uuid } }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/StockTransfer" }
+  /admin/v1/warehouse/replenishment:
+    get:
+      tags: [Inventory]
+      summary: 补货建议
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { in: query, name: locationType, required: true, schema: { type: string } }
+        - { in: query, name: locationId, required: true, schema: { type: string, format: uuid } }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/ReplenishmentSuggestion" }
+  /admin/v1/permissions:
+    get:
+      tags: [POS]
+      summary: 角色权限矩阵
+      security: [{ bearerAuth: [] }]
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PermissionMatrix" }
+  /admin/v1/permissions/roles/{role}:
+    put:
+      tags: [POS]
+      summary: 保存角色权限
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { in: path, name: role, required: true, schema: { type: string } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [codes]
+              properties:
+                codes:
+                  type: array
+                  items: { type: string }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/RolePermission" }
+
+  /api/v1/orders/{orderId}/after-sales:
+    get:
+      tags: [Orders]
+      summary: 顾客查询售后记录
+      parameters:
+        - { in: path, name: orderId, required: true, schema: { type: string, format: uuid } }
+        - { in: query, name: phone, required: true, schema: { type: string } }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/AfterSale" }
+    post:
+      tags: [Orders]
+      summary: 顾客申请退货/换货
+      parameters:
+        - { in: path, name: orderId, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [type, reason, contactPhone, items]
+              properties:
+                type: { type: string, enum: [RETURN, EXCHANGE] }
+                reason: { type: string }
+                description: { type: string }
+                contactPhone: { type: string }
+                items:
+                  type: array
+                  items:
+                    type: object
+                    required: [orderLineId, quantity]
+                    properties:
+                      orderLineId: { type: string, format: uuid }
+                      quantity: { type: integer, minimum: 1 }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AfterSale" }
+  /admin/v1/after-sales:
+    get:
+      tags: [Orders]
+      summary: 售后单列表
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { in: query, name: status, schema: { type: string } }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/AfterSale" }
+  /admin/v1/after-sales/{afterSaleId}/approve:
+    post:
+      tags: [Orders]
+      summary: 同意售后
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { in: path, name: afterSaleId, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                adminNote: { type: string }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AfterSale" }
+  /admin/v1/after-sales/{afterSaleId}/reject:
+    post:
+      tags: [Orders]
+      summary: 拒绝售后
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { in: path, name: afterSaleId, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [reason]
+              properties:
+                reason: { type: string }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AfterSale" }
+  /admin/v1/after-sales/{afterSaleId}/receive:
+    post:
+      tags: [Orders]
+      summary: 退货入库（隔离批次）
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { in: path, name: afterSaleId, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [locationType, locationId]
+              properties:
+                locationType: { type: string, enum: [WAREHOUSE, STORE] }
+                locationId: { type: string, format: uuid }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AfterSale" }
+  /admin/v1/after-sales/{afterSaleId}/refund:
+    post:
+      tags: [Orders]
+      summary: 售后退款（Mock/真实支付适配器）
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { in: path, name: afterSaleId, required: true, schema: { type: string, format: uuid } }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AfterSale" }
+
+  /api/v1/promotions:
+    get:
+      tags: [Promotions]
+      summary: 当前进行中的秒杀、买赠、拼团活动
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/PromotionView" }
+  /api/v1/group-buys:
+    post:
+      tags: [Promotions]
+      summary: 发起拼团
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CreateGroupBuyRequest" }
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/GroupBuyView" }
+  /api/v1/group-buys/{code}:
+    get:
+      tags: [Promotions]
+      summary: 按团号查询拼团进度
+      parameters:
+        - { in: path, name: code, required: true, schema: { type: string } }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/GroupBuyView" }
+  /admin/v1/promotions:
+    get:
+      tags: [Promotions]
+      summary: 促销活动列表
+      security: [{ bearerAuth: [] }]
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/PromotionView" }
+    post:
+      tags: [Promotions]
+      summary: 创建并启用促销
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CreatePromotionRequest" }
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PromotionView" }
+  /admin/v1/promotions/{promotionId}/status:
+    post:
+      tags: [Promotions]
+      summary: 启用或结束促销
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { in: path, name: promotionId, required: true, schema: { type: string, format: uuid } }
+        - { in: query, name: status, required: true, schema: { type: string, enum: [ACTIVE, ENDED] } }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PromotionView" }
+  /admin/v1/promotions/group-buys:
+    get:
+      tags: [Promotions]
+      summary: 拼团记录
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { in: query, name: promotionId, schema: { type: string, format: uuid } }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/GroupBuyView" }
+  /admin/v1/stores:
+    get:
+      tags: [Stores]
+      summary: 全部门店（员工绑定数据范围使用）
+      security: [{ bearerAuth: [] }]
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/Store" }
+  /store/v1/my-stores:
+    get:
+      tags: [Stores]
+      summary: 当前员工可访问的门店（门店角色按绑定过滤）
+      security: [{ bearerAuth: [] }]
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/Store" }
+
 components:
   securitySchemes:
     bearerAuth:
@@ -477,6 +1735,415 @@ components:
         currency:
           type: string
           example: CNY
+
+    MemberAdminView:
+      type: object
+      properties:
+        member: { $ref: "#/components/schemas/PosMember" }
+        saleCount: { type: integer }
+        totalSpent: { $ref: "#/components/schemas/Money" }
+        createdAt: { type: string, format: date-time }
+    SupplierPing:
+      type: object
+      properties:
+        supplierId: { type: string, format: uuid }
+        supplierName: { type: string }
+        serverTime: { type: string, format: date-time }
+    SupplierOrderLine:
+      type: object
+      properties:
+        skuId: { type: string, format: uuid }
+        title: { type: string }
+        skuCode: { type: string }
+        supplierSkuCode: { type: string }
+        quantity: { type: integer }
+        unitPrice: { $ref: "#/components/schemas/Money" }
+    SupplierOrder:
+      type: object
+      properties:
+        fulfillmentId: { type: string, format: uuid }
+        orderId: { type: string, format: uuid }
+        orderNo: { type: string }
+        status: { type: string, enum: [ALLOCATED, ACCEPTED, SHIPPED, CANCELLED, COMPLETED] }
+        createdAt: { type: string, format: date-time }
+        acceptedAt: { type: string, format: date-time }
+        carrierCode: { type: string }
+        trackingNo: { type: string }
+        contactName: { type: string }
+        contactPhone: { type: string }
+        addressJson: { type: string }
+        total: { $ref: "#/components/schemas/Money" }
+        note: { type: string }
+        lines:
+          type: array
+          items: { $ref: "#/components/schemas/SupplierOrderLine" }
+    SupplierCredential:
+      type: object
+      properties:
+        supplierId: { type: string, format: uuid }
+        code: { type: string }
+        name: { type: string }
+        active: { type: boolean }
+        accessKey: { type: string }
+        hasCredential: { type: boolean }
+        rotatedAt: { type: string, format: date-time }
+    SupplierCredentialCreated:
+      type: object
+      properties:
+        supplierId: { type: string, format: uuid }
+        accessKey: { type: string }
+        secret: { type: string, description: 仅返回一次 }
+        WarehouseLocation:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+        type: { type: string, enum: [WAREHOUSE, STORE, SUPPLIER] }
+    ReceiptLine:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        skuId: { type: string, format: uuid }
+        skuCode: { type: string }
+        title: { type: string }
+        batchNo: { type: string }
+        productionDate: { type: string, format: date }
+        expiryDate: { type: string, format: date }
+        quantity: { type: integer }
+        unitCost: { $ref: "#/components/schemas/Money" }
+    GoodsReceipt:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        receiptNo: { type: string }
+        locationType: { type: string }
+        locationId: { type: string, format: uuid }
+        status: { type: string, enum: [DRAFT, CONFIRMED] }
+        note: { type: string }
+        createdAt: { type: string, format: date-time }
+        confirmedAt: { type: string, format: date-time }
+        lines:
+          type: array
+          items: { $ref: "#/components/schemas/ReceiptLine" }
+    StocktakeLine:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        batchId: { type: string, format: uuid }
+        skuId: { type: string, format: uuid }
+        skuCode: { type: string }
+        title: { type: string }
+        batchNo: { type: string }
+        expiryDate: { type: string, format: date }
+        systemQuantity: { type: integer }
+        countedQuantity: { type: integer }
+        variance: { type: integer }
+        reason: { type: string }
+    Stocktake:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        stocktakeNo: { type: string }
+        locationType: { type: string }
+        locationId: { type: string, format: uuid }
+        status: { type: string, enum: [DRAFT, CONFIRMED] }
+        note: { type: string }
+        createdAt: { type: string, format: date-time }
+        confirmedAt: { type: string, format: date-time }
+        lines:
+          type: array
+          items: { $ref: "#/components/schemas/StocktakeLine" }
+    StockTransferLine:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        skuId: { type: string, format: uuid }
+        skuCode: { type: string }
+        title: { type: string }
+        quantity: { type: integer }
+    StockTransfer:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        transferNo: { type: string }
+        fromType: { type: string }
+        fromId: { type: string, format: uuid }
+        toType: { type: string }
+        toId: { type: string, format: uuid }
+        status: { type: string, enum: [DRAFT, IN_TRANSIT, RECEIVED, CANCELLED] }
+        note: { type: string }
+        createdAt: { type: string, format: date-time }
+        shippedAt: { type: string, format: date-time }
+        receivedAt: { type: string, format: date-time }
+        lines:
+          type: array
+          items: { $ref: "#/components/schemas/StockTransferLine" }
+    ReplenishmentSuggestion:
+      type: object
+      properties:
+        skuId: { type: string, format: uuid }
+        skuCode: { type: string }
+        title: { type: string }
+        locationType: { type: string }
+        locationId: { type: string, format: uuid }
+        availableQuantity: { type: integer }
+        targetQuantity: { type: integer }
+        suggestedQuantity: { type: integer }
+        nearestExpiry: { type: string, format: date }
+    PermissionView:
+      type: object
+      properties:
+        code: { type: string }
+        label: { type: string }
+        group: { type: string }
+        sortOrder: { type: integer }
+    RolePermission:
+      type: object
+      properties:
+        role: { type: string }
+        permissions:
+          type: array
+          items: { type: string }
+    PermissionMatrix:
+      type: object
+      properties:
+        permissions:
+          type: array
+          items: { $ref: "#/components/schemas/PermissionView" }
+        roles:
+          type: array
+          items: { $ref: "#/components/schemas/RolePermission" }
+
+    AfterSaleLine:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        orderLineId: { type: string, format: uuid }
+        skuId: { type: string, format: uuid }
+        title: { type: string }
+        skuCode: { type: string }
+        quantity: { type: integer }
+    AfterSaleEvent:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        eventType: { type: string }
+        note: { type: string }
+        operatorName: { type: string }
+        createdAt: { type: string, format: date-time }
+    AfterSale:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        afterSaleNo: { type: string }
+        orderId: { type: string, format: uuid }
+        orderNo: { type: string }
+        type: { type: string, enum: [RETURN, EXCHANGE] }
+        status: { type: string }
+        reason: { type: string }
+        description: { type: string }
+        contactPhone: { type: string }
+        refundAmount: { $ref: "#/components/schemas/Money" }
+        adminNote: { type: string }
+        createdAt: { type: string, format: date-time }
+        lines:
+          type: array
+          items: { $ref: "#/components/schemas/AfterSaleLine" }
+        events:
+          type: array
+          items: { $ref: "#/components/schemas/AfterSaleEvent" }
+
+    PosShift:
+      type: object
+      required: [id, storeId, cashierName, status, openingFloat, openedAt]
+      properties:
+        id: { type: string, format: uuid }
+        storeId: { type: string, format: uuid }
+        cashierName: { type: string }
+        status: { type: string, enum: [OPEN, CLOSED, APPROVED] }
+        openingFloat: { $ref: "#/components/schemas/Money" }
+        expectedCash: { $ref: "#/components/schemas/Money" }
+        actualCash: { $ref: "#/components/schemas/Money" }
+        variance: { $ref: "#/components/schemas/Money" }
+        varianceReason: { type: string }
+        openedAt: { type: string, format: date-time }
+        closedAt: { type: string, format: date-time }
+    PosShiftView:
+      type: object
+      properties:
+        shift: { $ref: "#/components/schemas/PosShift" }
+        cashSales: { $ref: "#/components/schemas/Money" }
+        cashRefunds: { $ref: "#/components/schemas/Money" }
+        cashIn: { $ref: "#/components/schemas/Money" }
+        cashOut: { $ref: "#/components/schemas/Money" }
+        expectedCash: { $ref: "#/components/schemas/Money" }
+        saleCount: { type: integer }
+    PosSaleLine:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        skuId: { type: string, format: uuid }
+        title: { type: string }
+        skuCode: { type: string }
+        quantity: { type: integer }
+        unitPrice: { $ref: "#/components/schemas/Money" }
+        lineTotal: { $ref: "#/components/schemas/Money" }
+        refundedQuantity: { type: integer }
+        refundedAmount: { $ref: "#/components/schemas/Money" }
+        batchSummary: { type: string, description: FEFO 出货批次号摘要 }
+    PosTender:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        type: { type: string, enum: [CASH, WECHAT, ALIPAY, CARD, STORED_VALUE, OTHER] }
+        amount: { $ref: "#/components/schemas/Money" }
+        provider: { type: string }
+        providerTradeNo: { type: string }
+        status: { type: string, enum: [SUCCESS, FAILED, REVERSED] }
+        cashTendered: { $ref: "#/components/schemas/Money" }
+        change: { $ref: "#/components/schemas/Money" }
+        refundedAmount: { $ref: "#/components/schemas/Money" }
+        paidAt: { type: string, format: date-time }
+    PosSale:
+      type: object
+      required: [id, saleNo, status, payable, lines, tenders]
+      properties:
+        id: { type: string, format: uuid }
+        saleNo: { type: string }
+        storeId: { type: string, format: uuid }
+        shiftId: { type: string, format: uuid }
+        memberId: { type: string, format: uuid }
+        currency: { type: string }
+        subtotal: { $ref: "#/components/schemas/Money" }
+        promotionDiscount: { $ref: "#/components/schemas/Money" }
+        couponDiscount: { $ref: "#/components/schemas/Money" }
+        memberDiscount: { $ref: "#/components/schemas/Money" }
+        pointsDiscount: { $ref: "#/components/schemas/Money" }
+        payable: { $ref: "#/components/schemas/Money" }
+        cashTendered: { $ref: "#/components/schemas/Money" }
+        change: { $ref: "#/components/schemas/Money" }
+        status: { type: string, enum: [DRAFT, COMPLETED, VOIDED, PARTIALLY_REFUNDED, REFUNDED] }
+        couponId: { type: string, format: uuid }
+        couponCode: { type: string }
+        pointsRedeemed: { type: integer, format: int64 }
+        pointsEarned: { type: integer, format: int64 }
+        pointsReversed: { type: integer, format: int64 }
+        refunded: { $ref: "#/components/schemas/Money" }
+        operatorName: { type: string }
+        createdAt: { type: string, format: date-time }
+        paidAt: { type: string, format: date-time }
+        lines:
+          type: array
+          items: { $ref: "#/components/schemas/PosSaleLine" }
+        tenders:
+          type: array
+          items: { $ref: "#/components/schemas/PosTender" }
+    PosMember:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        memberNo: { type: string }
+        name: { type: string }
+        phone: { type: string }
+        tier: { type: string }
+        points: { type: integer, format: int64 }
+        storedValue: { $ref: "#/components/schemas/Money" }
+    PosCoupon:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        code: { type: string }
+        name: { type: string }
+        discountType: { type: string, enum: [FIXED, PERCENT] }
+        discountValue: { type: integer, format: int64, description: FIXED 为分，PERCENT 为百分比 }
+        minSpend: { $ref: "#/components/schemas/Money" }
+        maxDiscount: { $ref: "#/components/schemas/Money" }
+        currency: { type: string }
+        status: { type: string, enum: [ISSUED, LOCKED, USED, EXPIRED] }
+        memberId: { type: string, format: uuid }
+        validFrom: { type: string, format: date-time }
+        validTo: { type: string, format: date-time }
+    PosMemberView:
+      type: object
+      properties:
+        member: { $ref: "#/components/schemas/PosMember" }
+        coupons:
+          type: array
+          items: { $ref: "#/components/schemas/PosCoupon" }
+    PosSaleView:
+      type: object
+      required: [sale, paidAmount, remainingAmount, storeName]
+      properties:
+        sale: { $ref: "#/components/schemas/PosSale" }
+        paidAmount: { $ref: "#/components/schemas/Money" }
+        remainingAmount: { $ref: "#/components/schemas/Money" }
+        member: { $ref: "#/components/schemas/PosMember" }
+        coupon: { $ref: "#/components/schemas/PosCoupon" }
+        storeName: { type: string }
+    PosProduct:
+      type: object
+      properties:
+        skuId: { type: string, format: uuid }
+        skuCode: { type: string }
+        barcode: { type: string }
+        title: { type: string }
+        price: { $ref: "#/components/schemas/Money" }
+        availableQuantity: { type: integer }
+        imageUrl: { type: string }
+    PosProvider:
+      type: object
+      properties:
+        code: { type: string }
+        label: { type: string }
+        requiresMember: { type: boolean }
+        mock: { type: boolean }
+    PosTenderTotal:
+      type: object
+      properties:
+        tenderType: { type: string }
+        amount: { $ref: "#/components/schemas/Money" }
+    PosDailyReport:
+      type: object
+      properties:
+        businessDate: { type: string, format: date }
+        storeId: { type: string, format: uuid }
+        storeName: { type: string }
+        salesCount: { type: integer }
+        refundCount: { type: integer }
+        grossSales: { $ref: "#/components/schemas/Money" }
+        discountTotal: { $ref: "#/components/schemas/Money" }
+        netSales: { $ref: "#/components/schemas/Money" }
+        refundTotal: { $ref: "#/components/schemas/Money" }
+        cashTotal: { $ref: "#/components/schemas/Money" }
+        pointsDiscount: { $ref: "#/components/schemas/Money" }
+        couponDiscount: { $ref: "#/components/schemas/Money" }
+        pointsRedeemed: { type: integer, format: int64 }
+        pointsEarned: { type: integer, format: int64 }
+        couponsUsed: { type: integer, format: int64 }
+        cashVariance: { $ref: "#/components/schemas/Money" }
+        shiftCount: { type: integer }
+        tenderMix:
+          type: array
+          items: { $ref: "#/components/schemas/PosTenderTotal" }
+        shifts:
+          type: array
+          items: { $ref: "#/components/schemas/PosShiftView" }
+    PosReconciliationReport:
+      type: object
+      properties:
+        businessDate: { type: string, format: date }
+        storeId: { type: string, format: uuid }
+        storeName: { type: string }
+        rows:
+          type: array
+          items:
+            type: object
+            properties:
+              tenderType: { type: string }
+              expectedAmount: { $ref: "#/components/schemas/Money" }
+              actualAmount: { $ref: "#/components/schemas/Money" }
+              variance: { $ref: "#/components/schemas/Money" }
+              status: { type: string }
     Product:
       type: object
       required: [id, title, status, skus]
@@ -752,6 +2419,83 @@ components:
         order:
           $ref: "#/components/schemas/Order"
         notice: { type: string }
+    PromotionView:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        code: { type: string }
+        type: { type: string, enum: [FLASH_SALE, BUY_GIFT, GROUP_BUY] }
+        title: { type: string }
+        status: { type: string, enum: [DRAFT, ACTIVE, ENDED] }
+        startsAt: { type: string, format: date-time }
+        endsAt: { type: string, format: date-time }
+        active: { type: boolean }
+        soldOut: { type: boolean }
+        skuId: { type: string, format: uuid }
+        productTitle: { type: string }
+        originalPrice: { $ref: "#/components/schemas/Money" }
+        promoPrice: { $ref: "#/components/schemas/Money" }
+        giftSkuId: { type: string, format: uuid }
+        giftTitle: { type: string }
+        buyQuantity: { type: integer }
+        giftQuantity: { type: integer }
+        maxGiftPerOrder: { type: integer }
+        stockLimit: { type: integer }
+        soldQuantity: { type: integer }
+        remainingStock: { type: integer }
+        perUserLimit: { type: integer }
+        groupSize: { type: integer }
+        groupDurationHours: { type: integer }
+    CreatePromotionRequest:
+      type: object
+      required: [code, type, title, startsAt, endsAt, skuId]
+      properties:
+        code: { type: string }
+        type: { type: string, enum: [FLASH_SALE, BUY_GIFT, GROUP_BUY] }
+        title: { type: string }
+        description: { type: string }
+        startsAt: { type: string, format: date-time }
+        endsAt: { type: string, format: date-time }
+        skuId: { type: string, format: uuid }
+        promoPriceAmount: { type: integer, description: "最小货币单位" }
+        giftSkuId: { type: string, format: uuid }
+        buyQuantity: { type: integer }
+        giftQuantity: { type: integer }
+        maxGiftPerOrder: { type: integer }
+        stockLimit: { type: integer }
+        perUserLimit: { type: integer }
+        groupSize: { type: integer }
+        groupDurationHours: { type: integer }
+        priority: { type: integer }
+    GroupBuyView:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        code: { type: string }
+        promotionId: { type: string, format: uuid }
+        skuId: { type: string, format: uuid }
+        price: { $ref: "#/components/schemas/Money" }
+        groupSize: { type: integer }
+        joinedCount: { type: integer }
+        paidCount: { type: integer }
+        remainingSlots: { type: integer }
+        status: { type: string, enum: [FORMING, SUCCESS, FAILED] }
+        expiresAt: { type: string, format: date-time }
+        members:
+          type: array
+          items:
+            type: object
+            properties:
+              maskedPhone: { type: string }
+              role: { type: string, enum: [CREATOR, MEMBER] }
+              paid: { type: boolean }
+              joinedAt: { type: string, format: date-time }
+    CreateGroupBuyRequest:
+      type: object
+      required: [promotionId, phone]
+      properties:
+        promotionId: { type: string, format: uuid }
+        phone: { type: string }
     Error:
       type: object
       required: [code, message, requestId]

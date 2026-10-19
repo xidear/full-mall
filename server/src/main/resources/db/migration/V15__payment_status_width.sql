@@ -1,0 +1,2 @@
+ALTER TABLE payment
+    ALTER COLUMN status TYPE VARCHAR(32);

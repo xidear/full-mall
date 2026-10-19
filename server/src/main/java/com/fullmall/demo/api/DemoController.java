@@ -9,11 +9,23 @@ import org.springframework.web.bind.annotation.RestController;
 import com.fullmall.fulfillment.dto.PickupDetail;
 import com.fullmall.platform.error.ApiException;
 import com.fullmall.platform.money.Money;
+import com.fullmall.pos.api.PosSaleView;
+import com.fullmall.pos.api.PosShiftView;
+import com.fullmall.pos.domain.PosMember;
+import com.fullmall.pos.domain.PosSale;
+import com.fullmall.pos.domain.PosSaleLine;
+import com.fullmall.pos.domain.PosSaleStatus;
+import com.fullmall.pos.domain.PosShift;
+import com.fullmall.pos.domain.PosShiftStatus;
+import com.fullmall.pos.domain.PosTender;
+import com.fullmall.pos.domain.TenderStatus;
+import com.fullmall.pos.domain.TenderType;
 
 import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 
 @RestController
 @RequestMapping("/mock")
@@ -65,5 +77,103 @@ public class DemoController {
                 List.of(
                         new PickupDetail.PickupItem("有机鲜牛奶", 1),
                         new PickupDetail.PickupItem("手工陶瓷马克杯", 1)));
+    }
+
+    @GetMapping("/pos/shift")
+    public PosShiftView posShift() {
+        PosShift shift = new PosShift(
+                UUID.fromString("f0000000-0000-0000-0000-000000000001"),
+                UUID.fromString("22222222-2222-2222-2222-222222222222"),
+                null,
+                "演示收银员",
+                PosShiftStatus.OPEN,
+                new Money(20000, "CNY"),
+                new Money(23980, "CNY"),
+                null,
+                null,
+                null,
+                Instant.now().minus(Duration.ofHours(2)),
+                null);
+        return new PosShiftView(
+                shift,
+                new Money(3980, "CNY"),
+                Money.zero("CNY"),
+                Money.zero("CNY"),
+                Money.zero("CNY"),
+                new Money(23980, "CNY"),
+                1);
+    }
+
+    @GetMapping("/pos/sale")
+    public PosSaleView posSale() {
+        Instant now = Instant.now().minus(Duration.ofMinutes(12));
+        PosSaleLine line = new PosSaleLine(
+                UUID.fromString("f1000000-0000-0000-0000-000000000001"),
+                UUID.fromString("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb"),
+                "有机鲜牛奶",
+                "MILK-1L",
+                2,
+                new Money(1990, "CNY"),
+                new Money(3980, "CNY"),
+                0,
+                Money.zero("CNY"),
+                "MILK-SH-BULK");
+        PosTender tender = new PosTender(
+                UUID.fromString("f2000000-0000-0000-0000-000000000001"),
+                TenderType.CASH,
+                new Money(3980, "CNY"),
+                "internal",
+                null,
+                TenderStatus.SUCCESS,
+                new Money(5000, "CNY"),
+                new Money(1020, "CNY"),
+                Money.zero("CNY"),
+                null,
+                now);
+        PosSale sale = new PosSale(
+                UUID.fromString("f3000000-0000-0000-0000-000000000001"),
+                "POS-DEMO-0001",
+                UUID.fromString("22222222-2222-2222-2222-222222222222"),
+                UUID.fromString("f0000000-0000-0000-0000-000000000001"),
+                UUID.fromString("a1000000-0000-0000-0000-000000000001"),
+                "CNY",
+                new Money(3980, "CNY"),
+                Money.zero("CNY"),
+                Money.zero("CNY"),
+                Money.zero("CNY"),
+                Money.zero("CNY"),
+                new Money(3980, "CNY"),
+                new Money(5000, "CNY"),
+                new Money(1020, "CNY"),
+                PosSaleStatus.COMPLETED,
+                null,
+                null,
+                0,
+                39,
+                0,
+                Money.zero("CNY"),
+                "演示收银员",
+                now,
+                now,
+                List.of(line),
+                List.of(tender));
+        PosMember member = new PosMember(
+                UUID.fromString("a1000000-0000-0000-0000-000000000001"),
+                "M0001",
+                "王小明",
+                "13800000001",
+                "GOLD",
+                null,
+                0,
+                null,
+                500,
+                new Money(10000, "CNY"));
+        return new PosSaleView(
+                sale,
+                new Money(3980, "CNY"),
+                Money.zero("CNY"),
+                member,
+                null,
+                "上海静安店");
     }
 }

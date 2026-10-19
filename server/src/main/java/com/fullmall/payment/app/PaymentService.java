@@ -37,6 +37,28 @@ public class PaymentService {
     }
 
     @Transactional
+    public Payment refund(UUID orderId, long amount) {
+        if (!"mock".equalsIgnoreCase(configuredProvider)) {
+            throw ApiException.badRequest("PAYMENT_PROVIDER_NOT_MOCK",
+                    "当前开源构建只支持 Mock 退款；真实适配器需在正式构建中配置");
+        }
+        Payment payment = paymentRepository.findByOrderIdAndProvider(orderId, "MOCK");
+        if (payment == null || (payment.status() != PaymentStatus.PAID
+                && payment.status() != PaymentStatus.PARTIALLY_REFUNDED)) {
+            throw ApiException.conflict("PAYMENT_NOT_REFUNDABLE", "订单没有可退款的支付记录");
+        }
+        Payment refunded = mockPaymentConnector.refund(payment, amount);
+        paymentRepository.update(refunded);
+        paymentRepository.insertEvent(payment.id(), "PAYMENT_REFUNDED",
+                "{\"amount\":" + amount + "}");
+        analyticsService.record("payment_refunded", orderId, null, Map.of(
+                "provider", refunded.provider(),
+                "amount", amount,
+                "currency", refunded.amount().currency()));
+        return refunded;
+    }
+
+    @Transactional
     public Payment payMock(UUID orderId) {
         if (!"mock".equalsIgnoreCase(configuredProvider)) {
             throw ApiException.badRequest("PAYMENT_PROVIDER_NOT_MOCK",

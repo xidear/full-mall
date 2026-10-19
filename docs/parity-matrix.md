@@ -36,6 +36,6 @@
 | 后台无 JSON/逗号输入 | 无统一参考 | 做 | 规则构建器增强 | 默认结构化控件 |
 | 多套 PC 模板 | CRMEB、Shopware | 做 mall/industrial/fresh/minimal 预设 | 页面级 DIY、按市场覆盖 | 主题 token + 配置选择 |
 | 小程序多风格/图形化配置 | CRMEB | 做预设 + 主题工作室 | 持久化、版本发布、页面级 DIY | 只学产品思路，不复制 UI/代码 |
-| 完整 POS | Odoo、Shopify POS | 不做 | 可选模块 | 需另加 3–4 周 |
+| POS 收银 | Odoo、Shopify POS | 做 P0：班次/组合支付/积分/券/现金/退款/日结 | 真实收单、部分退款、储值充值、锁屏 | Provider SPI + Mock |
 | Marketplace 分账 | Saleor、Medusa | 不做 | v2+ | 预留 vendor_id |
 | 完整总账/MRP | Odoo、ERPNext | 不做 | 集成/自研评估 | v1 只做履约 ERP |

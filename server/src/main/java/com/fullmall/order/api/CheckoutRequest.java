@@ -19,7 +19,10 @@ public record CheckoutRequest(
         UUID storeId,
         @Valid @NotNull Contact contact,
         @Valid Address address,
-        List<UUID> legalAcceptanceIds
+        List<UUID> legalAcceptanceIds,
+        UUID referrerId,
+        String referralMode,
+        UUID groupBuyId
 ) {
 
     public record Item(

@@ -109,6 +109,26 @@ public class FulfillmentRepository {
         }
     }
 
+    public void updateSupplierAcceptance(UUID fulfillmentOrderId, String note, java.time.Instant acceptedAt) {
+        int updated = jdbcTemplate.update("""
+                UPDATE fulfillment_order
+                SET supplier_accepted_at = ?, supplier_note = ?
+                WHERE id = ?
+                """, java.sql.Timestamp.from(acceptedAt), note, fulfillmentOrderId);
+        if (updated != 1) {
+            throw new IllegalStateException("Fulfillment order not found: " + fulfillmentOrderId);
+        }
+    }
+
+    public void updateSupplierNote(UUID fulfillmentOrderId, String note) {
+        int updated = jdbcTemplate.update("""
+                UPDATE fulfillment_order SET supplier_note = ? WHERE id = ?
+                """, note, fulfillmentOrderId);
+        if (updated != 1) {
+            throw new IllegalStateException("Fulfillment order not found: " + fulfillmentOrderId);
+        }
+    }
+
     public void insertPickTask(PickTask task) {
         jdbcTemplate.update("""
                 INSERT INTO pick_task (id, fulfillment_order_id, store_id, status, created_at)

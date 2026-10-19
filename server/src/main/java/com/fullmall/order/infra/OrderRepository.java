@@ -50,8 +50,9 @@ public class OrderRepository {
     public void insertOrderLine(UUID orderId, OrderLine line) {
         jdbcTemplate.update("""
                 INSERT INTO order_line (id, order_id, sku_id, title_snapshot, sku_code_snapshot,
-                                        quantity, unit_price_amount, currency, fulfillment_type)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                                        quantity, unit_price_amount, currency, fulfillment_type,
+                                        promotion_id, line_type)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 line.id(),
                 orderId,
@@ -61,7 +62,9 @@ public class OrderRepository {
                 line.quantity(),
                 line.unitPrice().amount(),
                 line.unitPrice().currency(),
-                line.fulfillmentType().name());
+                line.fulfillmentType().name(),
+                line.promotionId(),
+                line.lineType());
     }
 
     public Order findOrder(UUID orderId) {
@@ -78,7 +81,7 @@ public class OrderRepository {
     public List<OrderLine> findOrderLines(UUID orderId) {
         return jdbcTemplate.query("""
                 SELECT id, sku_id, title_snapshot, sku_code_snapshot, quantity, unit_price_amount,
-                       currency, fulfillment_type
+                       currency, fulfillment_type, promotion_id, line_type
                 FROM order_line
                 WHERE order_id = ?
                 ORDER BY title_snapshot
@@ -89,7 +92,31 @@ public class OrderRepository {
                 rs.getString("sku_code_snapshot"),
                 rs.getInt("quantity"),
                 new Money(rs.getLong("unit_price_amount"), rs.getString("currency")),
-                FulfillmentType.valueOf(rs.getString("fulfillment_type"))), orderId);
+                FulfillmentType.valueOf(rs.getString("fulfillment_type")),
+                rs.getObject("promotion_id", UUID.class),
+                rs.getString("line_type")), orderId);
+    }
+
+    public boolean markPaidIfPending(UUID orderId) {
+        return jdbcTemplate.update("""
+                UPDATE orders SET status = 'PAID' WHERE id = ? AND status = 'PENDING_PAYMENT'
+                """, orderId) == 1;
+    }
+
+    public boolean cancelIfPending(UUID orderId) {
+        return jdbcTemplate.update("""
+                UPDATE orders SET status = 'CANCELLED' WHERE id = ? AND status = 'PENDING_PAYMENT'
+                """, orderId) == 1;
+    }
+
+    public List<UUID> findStalePendingOrderIds(java.time.Instant cutoff, int limit) {
+        return jdbcTemplate.query("""
+                SELECT id FROM orders
+                WHERE status = 'PENDING_PAYMENT' AND created_at < ?
+                ORDER BY created_at
+                LIMIT ?
+                """, (rs, rowNum) -> rs.getObject("id", UUID.class),
+                java.sql.Timestamp.from(cutoff), limit);
     }
 
     public void updateStatus(UUID orderId, OrderStatus status) {

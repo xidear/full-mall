@@ -7,5 +7,6 @@ public enum OrderStatus {
     PARTIALLY_FULFILLED,
     FULFILLED,
     CANCELLED,
+    PARTIALLY_REFUNDED,
     REFUNDED
 }

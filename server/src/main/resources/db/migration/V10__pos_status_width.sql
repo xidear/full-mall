@@ -1,0 +1,2 @@
+ALTER TABLE pos_sale
+    ALTER COLUMN status TYPE VARCHAR(32);

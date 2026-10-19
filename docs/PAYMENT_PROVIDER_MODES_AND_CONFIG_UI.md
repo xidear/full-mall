@@ -40,14 +40,17 @@ payment_provider_config
 --   (channel, mode) 在任一时刻只有一条 ACTIVE；历史支付通过 payment.provider_config_id 指向当时使用的配置
 
 payment                      -- 已存在表增加一列（退款必须回到原服务商）
-  + provider_config_id UUID  -- 下单时使用的配置快照引用；退款按此路由，不能按"当前配置"
+  + config_version_id UUID   -- 指向**不可变版本**，不是可编辑的配置行
 
 约束：
 
 - 同一 `(channel, market_code)` 在任一时刻**只能有一条 ACTIVE 配置**（切换服务商 = 新配置置 ACTIVE、旧配置置 DISABLED）；
 - 服务商模式下 `sp_mch_id`（上游服务商）与我方 `sub_mch_id`（**整个商城这一个**）都必填，缺失时下单直接失败；
 - 直连模式下 `sp_*` 与 `sub_*` 字段必须为空；
-- **退款必须按 `payment.provider_config_id` 回到原配置/原服务商**：换服务商后旧订单的退款仍走旧通道，
+- **配置可编辑，引用必须指向不可变版本**：编辑凭证/商户号/回调地址会产生新的
+  `payment_provider_config_version`；`payment.config_version_id` 指向当时那一版，
+  **退款按版本路由**——换服务商或改密钥后，旧订单仍走旧通道，不会被拒或退错主体；
+- 版本表只追加不更新，可回答“这笔钱当时用哪套配置收的”。
   否则会被渠道拒绝或退款到错误主体；
 - 所有敏感字段加密存储（AES-GCM/KMS），API 返回**掩码**，轮换写审计。
 

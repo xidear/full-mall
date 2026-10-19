@@ -106,3 +106,34 @@ cost_ledger(id, sku_id, warehouse_id, occurred_at, qty_delta, unit_cost, value_d
 5. **A8 报表与索引治理**：物化视图 + 分区 + keyset 分页规范 + EXPLAIN 回归。
 
 > 每项完成需：迁移在真实 PostgreSQL 冒烟、金额用整数分、负向测试（无权限看不到成本）、文档同步。
+## 6. 商品快照与 PII（2026-10-19 补充）
+
+### 6.1 订单行必须存快照，不存关联键
+
+订单一旦创建，**商品信息冻结**（类似淘宝商品快照），后续改标题、改价、下架、删商品都不能影响历史订单：
+
+| 已冻结 | 新增冻结（V35） |
+|---|---|
+| `title_snapshot`、`sku_code_snapshot`、`unit_price_amount` | `image_snapshot`、`attributes_snapshot`、`brand_snapshot`、`category_snapshot`、`list_price_amount`、`cost_amount`（COGS）、`locale` |
+
+要点：
+
+- `sku_id` 仍保留，但**只作内部追溯**，展示与对账一律用快照字段；
+- `locale` 记录下单时的展示语言，法律/客服争议时能还原"用户当时看到什么"；
+- `cost_amount` 是**出库时点成本**，用于毛利，不能回查当前平均价。
+
+### 6.2 支付配置版本化（对应 V35）
+
+配置可编辑（换密钥、改回调、换服务商），因此支付记录引用 **不可变版本**（`payment_provider_config_version`），
+并冗余 `channel/mode/sp_mch_id/sub_mch_id`；退款按版本路由，改配置不影响历史订单。
+
+### 6.3 PII 与合规（中国大陆优先，预留其它地区）
+
+| 要求 | 落地 |
+|---|---|
+| 手机号/身份证脱敏 | 输出侧 `FieldMasker`（已有）；后台列表默认掩码，仅授权角色可见明文并记审计 |
+| 身份证号加密存储 | 需要时按字段级加密（AES-GCM/KMS），不落明文；`consent_ref` 记录授权来源 |
+| 日志禁止明文 PII | 统一日志脱敏过滤器；异常信息里不拼接手机号/证件号 |
+| 数据最小化与保留期 | 只存必要字段；订单/会话按法定期限保留，到期归档或删除（可配置） |
+| 用户权利（查询/删除） | 提供导出与删除流程，删除走软删 + 关联脱敏 |
+| 地区差异 | `pii_policy(region, field, action)` 配置化（MASK/ENCRYPT/DENY），大陆先落 MASK+ENCRYPT，其它地区按需扩展 |

@@ -35,12 +35,15 @@ public class StaffAuthService {
     private final StaffAuthRepository repository;
     private final PasswordHasher passwordHasher;
     private final CaptchaService captchaService;
+    private final com.fullmall.platform.audit.AuditEventService auditEvents;
 
     public StaffAuthService(StaffAuthRepository repository, PasswordHasher passwordHasher,
-                            CaptchaService captchaService) {
+                            CaptchaService captchaService,
+                            com.fullmall.platform.audit.AuditEventService auditEvents) {
         this.repository = repository;
         this.passwordHasher = passwordHasher;
         this.captchaService = captchaService;
+        this.auditEvents = auditEvents;
     }
 
     @Transactional
@@ -157,6 +160,10 @@ public class StaffAuthService {
     private LoginResponse issueSession(StaffUser user) {
         String token = newToken();
         repository.insertSession(tokenHash(token), user.id(), Instant.now().plus(SESSION_TTL));
+        // SEC-003：登录必须留痕（成功登录；失败由认证异常路径返回，不记录密码）
+        auditEvents.record(new com.fullmall.platform.audit.AuditEventService.AuditEvent(
+                "LOGIN_SUCCESS", user.username(), "staff_user", user.id().toString(),
+                "role=" + user.role(), null));
         return new LoginResponse(token, user);
     }
 

@@ -2,6 +2,7 @@ package com.fullmall.feature.app;
 
 import com.fullmall.feature.domain.FeatureFlag;
 import com.fullmall.feature.infra.FeatureFlagRepository;
+import com.fullmall.platform.audit.AuditEventService;
 import com.fullmall.platform.error.ApiException;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
@@ -28,14 +29,17 @@ public class FeatureFlagService {
     public static final Set<String> KNOWN_CODES = Set.of(SUPPLIER_ENABLED, POS_SALE_ENABLED, POS_PICKUP_ENABLED);
 
     private final FeatureFlagRepository repository;
+    private final AuditEventService auditEvents;
     private final Clock clock;
     private final Duration ttl;
     private volatile Snapshot snapshot;
 
     public FeatureFlagService(FeatureFlagRepository repository,
+                              AuditEventService auditEvents,
                               Clock clock,
                               @Value("${app.feature.cache-ttl-seconds:30}") long cacheTtlSeconds) {
         this.repository = repository;
+        this.auditEvents = auditEvents;
         this.clock = clock;
         if (cacheTtlSeconds <= 0) {
             throw new IllegalArgumentException(
@@ -83,6 +87,9 @@ public class FeatureFlagService {
                     "更新功能开关失败: code=" + code + "，影响行数=" + updated + "（期望 1）");
         }
         invalidate();
+        auditEvents.record(new AuditEventService.AuditEvent(
+                "FEATURE_FLAG_CHANGED", updatedBy, "feature_flag", code,
+                "enabled=" + enabled + ";reason=" + reason.trim(), null));
         return get(code);
     }
 

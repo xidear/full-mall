@@ -693,3 +693,23 @@ cd web && npx playwright test
 | 导出单测 | 脱敏生效、审计字段正确、越权与越界被拒，5 个用例 |
 | 迁移 | V26 在真实 PostgreSQL 冒烟通过 |
 
+---
+
+## 2026-10-19（A3 部分）：行为级操作日志
+
+- 新增 V27 `audit_event` + `platform/audit/AuditEventService`：只写入/查询，无更新删除（SEC-005）。
+  与 JaVers 分工：JaVers 记字段级旧值/新值；本表记行为级事件。
+- 已接入两处（有测试）：
+  - `FEATURE_FLAG_CHANGED`：`FeatureFlagService.update`，记录操作人、开关编码、enabled 与原因；
+  - `LOGIN_SUCCESS`：`StaffAuthService.issueSession`，记录用户名、员工 UUID、角色。
+- 失败语义：缺操作人/缺事件类型直接抛错；插入影响行数≠1 抛错，不静默。
+- detail 超 1024 字节截断并保留 `...`，不静默丢内容。
+
+| 验证 | 结果 |
+|---|---|
+| 后端测试 | **85 个，全部通过，0 跳过** |
+| 新增测试 | `AuditEventServiceTest` 5 个；`FeatureFlagServiceTest` 增审计断言 |
+| 迁移 | V27 在真实 PostgreSQL 冒烟通过 |
+
+**仍缺（下一步）**：退款、库存调整、权限变更三类事件尚未接入。
+

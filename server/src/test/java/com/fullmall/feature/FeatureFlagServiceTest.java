@@ -28,10 +28,12 @@ class FeatureFlagServiceTest {
     private static final Instant START = Instant.parse("2026-10-19T00:00:00Z");
 
     private final FeatureFlagRepository repository = mock(FeatureFlagRepository.class);
+    private final com.fullmall.platform.audit.AuditEventService auditEvents =
+            mock(com.fullmall.platform.audit.AuditEventService.class);
     private final MutableClock clock = new MutableClock(START);
 
     private FeatureFlagService newService(long ttlSeconds) {
-        return new FeatureFlagService(repository, clock, ttlSeconds);
+        return new FeatureFlagService(repository, auditEvents, clock, ttlSeconds);
     }
 
     private static FeatureFlag flag(String code, boolean enabled) {
@@ -104,6 +106,14 @@ class FeatureFlagServiceTest {
         verify(repository).update(eq(FeatureFlagService.SUPPLIER_ENABLED), eq(false), eq("admin"),
                 eq("供应商联调暂停"), eq(START));
         assertThat(service.isEnabled(FeatureFlagService.SUPPLIER_ENABLED)).isFalse();
+        // SEC-003：开关变更必须落审计事件
+        org.mockito.ArgumentCaptor<com.fullmall.platform.audit.AuditEventService.AuditEvent> captor =
+                org.mockito.ArgumentCaptor.forClass(com.fullmall.platform.audit.AuditEventService.AuditEvent.class);
+        verify(auditEvents).record(captor.capture());
+        assertThat(captor.getValue().eventType()).isEqualTo("FEATURE_FLAG_CHANGED");
+        assertThat(captor.getValue().actor()).isEqualTo("admin");
+        assertThat(captor.getValue().resourceId()).isEqualTo(FeatureFlagService.SUPPLIER_ENABLED);
+        assertThat(captor.getValue().detail()).contains("enabled=false");
     }
 
     @Test

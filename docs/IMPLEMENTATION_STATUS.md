@@ -655,3 +655,19 @@ cd web && npx playwright test
 | 审计 | 创建/修改均产生 JaVers 快照，author 为操作人，`changed` 含被改字段 |
 | schema 一致性 | `ddl-auto=validate` 在真实 PostgreSQL 上通过 |
 | 构建 | `-Pprod`、`-Pdemo` 打包均成功 |
+
+---
+
+## 2026-10-19（计划 v3 + A1）：统一开发计划与方法级授权
+
+- 新增 `docs/DEVELOPMENT_PLAN_V3.md`：把 359 行需求基线拆成 A–H 八组可执行任务，
+  每条含需求 ID、验收标准、依赖与「每轮 DoD」；盘点已有实现（功能开关/基座/审计/契约已完成）。
+- 完成 **A1 方法级授权**：`@EnableMethodSecurity` + 子类逐方法 `@PreAuthorize`。
+  实测结论：类级注解对基类继承的 MVC 方法无效，必须覆写；无认证抛 `AuthenticationException`。
+- 素材库接口权限：读/写要求 `ADMIN`/`OPERATOR`，删除仅 `ADMIN`；无认证调用被拒绝（有测试）。
+
+| 验证 | 结果 |
+|---|---|
+| 后端测试 | **69 个，全部通过，0 跳过** |
+| 授权负向测试 | 无认证调用 `AssetController.list` → `AuthenticationException` |
+

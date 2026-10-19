@@ -76,6 +76,15 @@ Modulith 规则：
 - `PaymentService` 调 `OrderService`，不能直接改订单仓储；退款监听器放在 payment 模块，避免 order→promotion→payment→order 的模块环。
 - 新增定时任务如果访问新表，必须加 `initialDelayString`，否则 H2/test 下可能在 Flyway 完成前触发。
 
+### 4.1.1 方法级授权陷阱（2026-10-19 实测）
+
+- `@EnableMethodSecurity` 已开启（`platform/config/MethodSecurityConfig`）。
+- **类级 `@PreAuthorize` 不会作用于基类继承的 MVC 处理方法**：把注解加在
+  `AssetController` 类上时，`list/get/create` 仍然放行；必须**在子类覆写映射方法并逐方法标注**。
+- 无认证时抛的是 `AuthenticationCredentialsNotFoundException`（`AuthenticationException` 子类），
+  不是 `AccessDeniedException`；有认证但角色不足才是 `AccessDeniedException`。测试要按两者断言。
+- 已在 `AssetController` 逐方法标注；新增后台控制器时照此实现。
+
 ### 4.2 Profile
 
 - `api`、`worker`（无 Web）、`ws`（8081）、`dev`、`demo`、`prod`、`test`。

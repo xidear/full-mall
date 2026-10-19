@@ -59,11 +59,24 @@ class AssetScopeAndAuditTest {
     @Autowired
     AssetRepository repository;
 
+    @Autowired
+    com.fullmall.asset.api.AssetController assetController;
+
     private static final UUID ADMIN_ACTOR = UUID.fromString("00000000-0000-0000-0000-0000000000aa");
 
     private AssetEntity createFor(String owner) {
         AssetEntity asset = new AssetEntity("素材-" + owner, "https://cdn.example.com/" + owner + ".png", "IMAGE", owner);
         return service.createAsset(Scope.owner(owner), asset, ADMIN_ACTOR, owner);
+    }
+
+    @Test
+    void controllerIsDeniedWhenMethodSecurityHasNoAuthentication() {
+        // 方法级授权必须生效：没有认证时不能靠“前端隐藏按钮”绕过
+        org.assertj.core.api.Assertions.assertThatThrownBy(() ->
+                        assetController.list(PageRequest.of(0, 10), null))
+                // 无认证 → AuthenticationException；有认证但角色不足 → AccessDeniedException
+                .isInstanceOfAny(org.springframework.security.core.AuthenticationException.class,
+                        org.springframework.security.access.AccessDeniedException.class);
     }
 
     @Test

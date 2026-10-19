@@ -6,7 +6,7 @@
 >
 > **换机器或新会话开发前，请先读 [`docs/PROJECT_MEMORY.md`](docs/PROJECT_MEMORY.md)**：环境、构建命令、模块边界、种子数据、并发规则和已知陷阱都在里面。
 >
-> v2 需求与计划：[产品需求](docs/requirements/PRODUCT_REQUIREMENTS_V2.md)、[技术架构](docs/requirements/TECHNICAL_ARCHITECTURE_V2.md)、[开发计划](docs/DEVELOPMENT_PLAN_V2.md)、[Git 与密钥](docs/GIT_AND_ENVIRONMENTS.md)。
+> v2 需求与 v3 执行计划：[产品需求](docs/requirements/PRODUCT_REQUIREMENTS_V2.md)、[技术架构](docs/requirements/TECHNICAL_ARCHITECTURE_V2.md)、[阶段计划 v2](docs/DEVELOPMENT_PLAN_V2.md)、**[可执行任务清单 v3](docs/DEVELOPMENT_PLAN_V3.md)**、[Git 与密钥](docs/GIT_AND_ENVIRONMENTS.md)。
 
 ## 技术栈
 

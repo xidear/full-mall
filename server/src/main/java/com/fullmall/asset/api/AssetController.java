@@ -8,6 +8,18 @@ import com.fullmall.platform.scope.Scope;
 import com.fullmall.platform.scope.ScopeResolver;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
+import jakarta.validation.Valid;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.http.HttpStatus;
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -81,5 +93,45 @@ public class AssetController extends BaseCrudController<AssetEntity, AssetContro
     @Override
     protected UUID actorId(Authentication authentication) {
         return super.actorId(authentication);
+    }
+
+    // 方法级授权必须写在具体映射方法上：类级 @PreAuthorize 不会作用于基类继承的 MVC 处理方法（已实测）。
+
+    @Override
+    @PreAuthorize("hasAnyRole('ADMIN','OPERATOR')")
+    @GetMapping
+    public Page<AssetDto> list(Pageable pageable, Authentication authentication) {
+        return super.list(pageable, authentication);
+    }
+
+    @Override
+    @PreAuthorize("hasAnyRole('ADMIN','OPERATOR')")
+    @GetMapping("/{id}")
+    public AssetDto get(@PathVariable UUID id, Authentication authentication) {
+        return super.get(id, authentication);
+    }
+
+    @Override
+    @PreAuthorize("hasAnyRole('ADMIN','OPERATOR')")
+    @PostMapping
+    @ResponseStatus(HttpStatus.CREATED)
+    public AssetDto create(@Valid @RequestBody CreateAssetRequest request, Authentication authentication) {
+        return super.create(request, authentication);
+    }
+
+    @Override
+    @PreAuthorize("hasAnyRole('ADMIN','OPERATOR')")
+    @PatchMapping("/{id}")
+    public AssetDto update(@PathVariable UUID id, @Valid @RequestBody UpdateAssetRequest request,
+                           Authentication authentication) {
+        return super.update(id, request, authentication);
+    }
+
+    @Override
+    @PreAuthorize("hasRole('ADMIN')")
+    @DeleteMapping("/{id}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void delete(@PathVariable UUID id, Authentication authentication) {
+        super.delete(id, authentication);
     }
 }

@@ -30,6 +30,7 @@ public class FeatureFlagController {
     }
 
     @PutMapping("/admin/v1/feature-flags/{code}")
+    @org.springframework.security.access.prepost.PreAuthorize("hasRole('ADMIN')")
     public FeatureFlag update(@PathVariable String code, @RequestBody UpdateFlagRequest request) {
         if (request == null || request.enabled() == null) {
             throw com.fullmall.platform.error.ApiException.badRequest(

@@ -241,6 +241,17 @@ Full Mall 的落地：
 - 异步导出：`export_job` + `FOR UPDATE SKIP LOCKED` 抢占 + 流式 CSV + 对象存储签名 URL。
 - 详见 `docs/ERP_COST_EXPORT_AND_PERFORMANCE_DESIGN.md`。
 
+## 3.4 待落地：多语言媒体与 AI 生成（2026-10-19）
+
+- 语言边界：Admin/供应商固定中文，前台多语言；回退链只处理"未翻译"，不掩盖"翻错"。
+- 文案：专业翻译 API（DeepL / Google Cloud Translation / Azure）+ 翻译记忆 + 术语表 + 人工审校状态机；
+  审校工作流用 Tolgee/Weblate，不自研翻译后台。
+- 媒体：`asset/asset_variant/product_media` 三层，按 locale 取图；**中文图不回退给外语用户**。
+- AI 生成：`MediaGenerationProvider` 抽象（图片/视频），生成无文字视觉图 + 本地化叠字渲染，
+  避免模型把外文文字画错；生成结果必须人工审核。
+- 用量：`ai_usage` 记录 provider/model/单位/单价快照/幂等键，月度与供应商账单对账。
+- 详见 `docs/I18N_MEDIA_AI_DESIGN.md`。
+
 ## 4. 禁止事项
 
 - 禁止自研字段-角色权限矩阵作为默认方案。

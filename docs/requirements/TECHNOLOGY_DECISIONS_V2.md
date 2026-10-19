@@ -241,6 +241,17 @@ Full Mall 的落地：
 - 异步导出：`export_job` + `FOR UPDATE SKIP LOCKED` 抢占 + 流式 CSV + 对象存储签名 URL。
 - 详见 `docs/ERP_COST_EXPORT_AND_PERFORMANCE_DESIGN.md`。
 
+## 3.5 已决策：框架版本、实时通道与审计连接（2026-10-19）
+
+- **Spring Boot 升级到 4.1.1（GA）**：系统未上线，不做兼容；原 3.4.5 是沿用仓库现状而非评估结论。
+  升级需同步 Spring Modulith、Spring Security 7、Hibernate 7，目标是可以直接用 `javers-spring-boot-starter-sql`。
+- **轮询 vs WS**：低频（>30s）用轮询（导出进度、报表）；交互式用 WS（客服、待办增量）且**必须断线补拉**。
+  异步导出定案为**轮询 + 指数退避**。
+- **JaVers 连接问题根因**：`ExternalTransactionState.close()` 显式忽略关闭（"unmanaged ExternalTransaction"），
+  `SqlRepositoryBuilder` 无 DataSource 入口 → 连接所有权在调用方，**不是版本 bug、不是配置错**；
+  彻底方案是 **outbox + 单消费者审计写入器**（连接数恒为 1，业务线程不再串行）。
+- 详见 `docs/SYNC_AND_TECH_STACK_DECISIONS.md`。
+
 ## 3.4 待落地：多语言媒体与 AI 生成（2026-10-19）
 
 - 语言边界：Admin/供应商固定中文，前台多语言；回退链只处理"未翻译"，不掩盖"翻错"。

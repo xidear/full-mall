@@ -987,3 +987,24 @@ cd web && npx playwright test
 
 > 仍为**同步导出**（上限 5000 行）；A6 异步任务与签名 URL 未开始。
 
+---
+
+## 2026-10-19（G6 起点）：翻译流水线
+
+- V34：`product_translation` 增加 `status/source_hash/reviewed_by/reviewed_at/updated_at`
+  （DB CHECK 限定 5 个状态）；新增 `translation_memory`（源文哈希+语言+术语表版本）与 `translation_glossary`。
+- `TranslationStatus` 状态机：DRAFT→MACHINE→REVIEWED→PUBLISHED，任意阶段可转 OUTDATED；
+  **只有 REVIEWED 可发布**，否则抛 409 `TRANSLATION_NOT_REVIEWED`。
+- `TranslationService`：**先查翻译记忆，命中直接返回（不再调用 Provider、不再计费）**；
+  未命中先应用术语表再调 Provider；结果写回记忆表。
+- `TranslationProvider` 抽象 + `MockTranslationProvider`（输出带 `[mock:locale]` 前缀，明确是假译）。
+
+| 验证 | 结果 |
+|---|---|
+| 后端测试 | **157 个，全部通过，0 跳过** |
+| 新增测试 | `TranslationServiceTest` 6 个（记忆命中不计费、未命中调用并写回、术语表优先、空参拒绝、发布门禁、非法流转） |
+| 迁移 | V34 空库冒烟通过 |
+
+> **未接线**：还没有 HTTP 接口与商品编辑流程；自动标记 `OUTDATED`（源文变更时）尚未实现；
+> 真实 Provider（DeepL/Google/Azure）与后台配置未接入。
+

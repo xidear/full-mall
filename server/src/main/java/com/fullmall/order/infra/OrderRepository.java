@@ -68,6 +68,21 @@ public class OrderRepository {
                 line.snapshot());
     }
 
+    public record OrderSummary(UUID id, String orderNo, String status, long totalAmount,
+                               String currency, java.time.Instant createdAt) {
+    }
+
+    public List<OrderSummary> findByContactPhone(String phone, int limit) {
+        return jdbcTemplate.query("""
+                SELECT id, order_no, status, total_amount, currency, created_at
+                  FROM orders WHERE contact_phone = ?
+                 ORDER BY created_at DESC LIMIT ?
+                """, (rs, rowNum) -> new OrderSummary(
+                rs.getObject("id", UUID.class), rs.getString("order_no"), rs.getString("status"),
+                rs.getLong("total_amount"), rs.getString("currency"),
+                rs.getTimestamp("created_at").toInstant()), phone, limit);
+    }
+
     public Order findOrder(UUID orderId) {
         List<Order> orders = jdbcTemplate.query("""
                 SELECT id, order_no, status, currency, subtotal_amount, shipping_fee_amount,

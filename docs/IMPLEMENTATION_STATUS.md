@@ -1548,3 +1548,19 @@ cd web && npx playwright test
 > 已知限制：整单退款才回退；**部分退款暂不回退**（与佣金一致，按比例回退需要按行分摊模型）。
 > 退款接口层调用尚未做 HTTP 级验证（服务层已覆盖）。
 
+---
+
+## 2026-10-19：我的订单
+
+- `GET /api/v1/orders/mine`：按登录会员手机号查询订单摘要（订单号/状态/金额/币种/时间），
+  未登录返回 400 `MEMBER_REQUIRED`（**不返回空列表**，避免"看起来查到了"）。
+- 仓储 `findByContactPhone(phone, limit)`，limit 1..100；`MemberAuthService.phoneOf` 供内部关联。
+
+| 验证 | 结果 |
+|---|---|
+| 后端测试 | **244 个，全部通过，0 跳过** |
+| HTTP 断言 | 会员查自己订单 200；游客 400 |
+
+> 说明：订单仍以 `contact_phone` 关联会员（尚无 `member_id` 外键）。手机号变更会导致历史订单失联，
+> 后续应迁移为 `orders.member_id` 并在下单时写入。
+

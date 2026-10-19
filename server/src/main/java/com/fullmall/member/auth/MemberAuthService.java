@@ -148,6 +148,16 @@ public class MemberAuthService {
                 .orElseThrow(() -> ApiException.notFound("MEMBER_NOT_FOUND", "会员不存在: " + memberId));
     }
 
+    /** 会员手机号（内部使用，不对外输出；用于按手机号关联订单等）。 */
+    public String phoneOf(UUID memberId) {
+        List<String> rows = jdbcTemplate.queryForList(
+                "SELECT phone FROM member WHERE id = ?", String.class, memberId);
+        if (rows.isEmpty()) {
+            throw ApiException.notFound("MEMBER_NOT_FOUND", "会员不存在: " + memberId);
+        }
+        return rows.get(0);
+    }
+
     /** 会话 token → 会员 ID；无效返回 empty（由调用方决定 401）。 */
     public java.util.Optional<UUID> resolveSession(String token) {
         if (token == null || token.isBlank()) {

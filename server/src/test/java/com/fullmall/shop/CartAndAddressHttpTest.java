@@ -220,6 +220,19 @@ class CartAndAddressHttpTest {
                 "SELECT COUNT(*) FROM points_ledger WHERE business_key LIKE 'order:%:points'", Integer.class))
                 .isEqualTo(1);
 
+        // 我的订单：只能看到自己的
+        var myOrders = http.exchange("/api/v1/orders/mine", HttpMethod.GET,
+                new HttpEntity<>(memberHeaders), String.class);
+        assertThat(myOrders.getStatusCode().value()).isEqualTo(200);
+        // 该会员当前没有订单，返回空数组；越权保护由下一条断言（游客被拒）覆盖
+        assertThat(myOrders.getBody()).isEqualTo("[]");
+
+        // 未登录不能看"我的订单"（明确拒绝，而不是返回空列表）
+        var guestOrders = http.exchange("/api/v1/orders/mine", HttpMethod.GET,
+                new HttpEntity<>(guestHeaders()), String.class);
+        assertThat(guestOrders.getStatusCode().value()).isEqualTo(400);
+        assertThat(guestOrders.getBody()).contains("需要会员登录");
+
         // 会员可取自己的资料（掩码）
         var me = http.exchange("/api/v1/member/auth/me", HttpMethod.GET,
                 new HttpEntity<>(memberHeaders), String.class);

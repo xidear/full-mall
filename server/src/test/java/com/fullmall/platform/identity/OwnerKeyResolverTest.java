@@ -1,4 +1,4 @@
-package com.fullmall.cart.app;
+package com.fullmall.platform.identity;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
@@ -8,9 +8,9 @@ import java.util.List;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-class CartOwnerResolverTest {
+class OwnerKeyResolverTest {
 
-    private final CartOwnerResolver resolver = new CartOwnerResolver();
+    private final OwnerKeyResolver resolver = new OwnerKeyResolver();
 
     private static UsernamePasswordAuthenticationToken loggedIn(String name) {
         return new UsernamePasswordAuthenticationToken(name, null, List.of());
@@ -25,7 +25,7 @@ class CartOwnerResolverTest {
     void guestRequiresToken() {
         assertThatThrownBy(() -> resolver.ownerKey(null, null))
                 .isInstanceOf(com.fullmall.platform.error.ApiException.class)
-                .hasMessageContaining("X-Cart-Token");
+                .hasMessageContaining("未登录");
         assertThatThrownBy(() -> resolver.ownerKey(null, "  "))
                 .isInstanceOf(com.fullmall.platform.error.ApiException.class);
     }

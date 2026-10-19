@@ -1,6 +1,6 @@
 package com.fullmall.cart.api;
 
-import com.fullmall.cart.app.CartOwnerResolver;
+import com.fullmall.platform.identity.OwnerKeyResolver;
 import com.fullmall.cart.app.CartService;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Min;
@@ -18,9 +18,9 @@ import java.util.UUID;
 public class CartController {
 
     private final CartService carts;
-    private final CartOwnerResolver owners;
+    private final OwnerKeyResolver owners;
 
-    public CartController(CartService carts, CartOwnerResolver owners) {
+    public CartController(CartService carts, OwnerKeyResolver owners) {
         this.carts = carts;
         this.owners = owners;
     }
@@ -34,7 +34,7 @@ public class CartController {
     @PostMapping("/items")
     public List<CartService.CartItem> add(@Valid @RequestBody AddItem body,
                                           Authentication authentication,
-                                          @RequestHeader(value = CartOwnerResolver.GUEST_TOKEN_HEADER, required = false)
+                                          @RequestHeader(value = OwnerKeyResolver.GUEST_TOKEN_HEADER, required = false)
                                           String guestToken) {
         carts.addItem(owners.ownerKey(authentication, guestToken), body.skuId(), body.quantity());
         return carts.items(owners.ownerKey(authentication, guestToken));
@@ -43,7 +43,7 @@ public class CartController {
     @PutMapping("/items/{skuId}")
     public List<CartService.CartItem> update(@PathVariable UUID skuId, @Valid @RequestBody UpdateItem body,
                                              Authentication authentication,
-                                             @RequestHeader(value = CartOwnerResolver.GUEST_TOKEN_HEADER, required = false)
+                                             @RequestHeader(value = OwnerKeyResolver.GUEST_TOKEN_HEADER, required = false)
                                              String guestToken) {
         String owner = owners.ownerKey(authentication, guestToken);
         carts.updateQuantity(owner, skuId, body.quantity());
@@ -52,7 +52,7 @@ public class CartController {
 
     @DeleteMapping("/items/{skuId}")
     public List<CartService.CartItem> remove(@PathVariable UUID skuId, Authentication authentication,
-                                             @RequestHeader(value = CartOwnerResolver.GUEST_TOKEN_HEADER, required = false)
+                                             @RequestHeader(value = OwnerKeyResolver.GUEST_TOKEN_HEADER, required = false)
                                              String guestToken) {
         String owner = owners.ownerKey(authentication, guestToken);
         carts.remove(owner, skuId);
@@ -61,7 +61,7 @@ public class CartController {
 
     @GetMapping
     public List<CartService.CartItem> items(Authentication authentication,
-                                            @RequestHeader(value = CartOwnerResolver.GUEST_TOKEN_HEADER, required = false)
+                                            @RequestHeader(value = OwnerKeyResolver.GUEST_TOKEN_HEADER, required = false)
                                             String guestToken) {
         return carts.items(owners.ownerKey(authentication, guestToken));
     }
@@ -69,7 +69,7 @@ public class CartController {
     /** 登录后合并游客车：需要登录身份 + 游客 token。 */
     @PostMapping("/merge")
     public Map<String, Integer> merge(Authentication authentication,
-                                      @RequestHeader(value = CartOwnerResolver.GUEST_TOKEN_HEADER, required = false)
+                                      @RequestHeader(value = OwnerKeyResolver.GUEST_TOKEN_HEADER, required = false)
                                       String guestToken) {
         String member = owners.memberKey(authentication);
         String guest = owners.guestKey(guestToken);

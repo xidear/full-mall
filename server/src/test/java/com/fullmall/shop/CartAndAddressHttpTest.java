@@ -112,6 +112,27 @@ class CartAndAddressHttpTest {
     }
 
     @Test
+    void checkoutWithEmptyCartIsRejected() {
+        var response = http.exchange("/api/v1/cart/checkout", HttpMethod.POST,
+                new HttpEntity<>(Map.of(), guestHeaders()), String.class);
+
+        assertThat(response.getStatusCode().value()).isEqualTo(400);
+        assertThat(response.getBody()).contains("购物车为空");
+    }
+
+    @Test
+    void checkoutWithoutAddressIsRejected() {
+        http.exchange("/api/v1/cart/items", HttpMethod.POST,
+                new HttpEntity<>(Map.of("skuId", SKU.toString(), "quantity", 1), guestHeaders()), String.class);
+
+        var response = http.exchange("/api/v1/cart/checkout", HttpMethod.POST,
+                new HttpEntity<>(Map.of(), guestHeaders()), String.class);
+
+        assertThat(response.getStatusCode().value()).isEqualTo(400);
+        assertThat(response.getBody()).contains("必须选择收货地址");
+    }
+
+    @Test
     void missingGuestTokenIsRejected() {
         HttpHeaders headers = new HttpHeaders();
         headers.set("Content-Type", "application/json");

@@ -1327,3 +1327,22 @@ cd web && npx playwright test
 
 > 主链路（加购 → 地址）已用真实请求验证；**结算衔接（购物车 → 下单）尚未实现**。
 
+---
+
+## 2026-10-19：购物车结算衔接
+
+- `POST /api/v1/cart/checkout`：购物车 → 下单；地址**按归属人校验后**取用（收货人/电话/省市/详细地址），
+  下单成功清空购物车，失败不动购物车（避免用户丢商品）。
+- 空购物车、缺地址分别返回 400，不产生 0 行订单。
+- **模块边界修复**：`ModulithStructureTest` 报出 `cart ↔ address` 循环依赖，
+  把归属解析上移到 `platform/identity/OwnerKeyResolver`（cart 与 address 共用），
+  并给 `address.app`、`order.api` 加命名接口，环解开。
+
+| 验证 | 结果 |
+|---|---|
+| 后端测试 | **220 个，全部通过，0 跳过** |
+| 新增 HTTP 用例 | 空购物车拒绝、缺地址拒绝（真实 HTTP + 真实 PG） |
+
+> **未验证**：完整"加购 → 下单成功 → 购物车清空"路径未做 HTTP 端到端
+> （需要预置库存批次；下单逻辑本身已由 `PostgresPickupFlowTest` 覆盖）。
+

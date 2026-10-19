@@ -1,7 +1,7 @@
 package com.fullmall.address.api;
 
 import com.fullmall.address.app.AddressService;
-import com.fullmall.cart.app.CartOwnerResolver;
+import com.fullmall.platform.identity.OwnerKeyResolver;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import org.springframework.http.HttpStatus;
@@ -23,9 +23,9 @@ import java.util.UUID;
 public class AddressController {
 
     private final AddressService addresses;
-    private final CartOwnerResolver owners;
+    private final OwnerKeyResolver owners;
 
-    public AddressController(AddressService addresses, CartOwnerResolver owners) {
+    public AddressController(AddressService addresses, OwnerKeyResolver owners) {
         this.addresses = addresses;
         this.owners = owners;
     }
@@ -48,7 +48,7 @@ public class AddressController {
     @ResponseStatus(HttpStatus.CREATED)
     public List<AddressService.AddressView> create(
             @Valid @RequestBody AddressBody body, Authentication authentication,
-            @RequestHeader(value = CartOwnerResolver.GUEST_TOKEN_HEADER, required = false) String guestToken) {
+            @RequestHeader(value = OwnerKeyResolver.GUEST_TOKEN_HEADER, required = false) String guestToken) {
         String key = owner(authentication, guestToken);
         addresses.create(key, toInput(body));
         return addresses.list(key);
@@ -57,7 +57,7 @@ public class AddressController {
     @PutMapping("/{id}")
     public List<AddressService.AddressView> update(
             @PathVariable UUID id, @Valid @RequestBody AddressBody body, Authentication authentication,
-            @RequestHeader(value = CartOwnerResolver.GUEST_TOKEN_HEADER, required = false) String guestToken) {
+            @RequestHeader(value = OwnerKeyResolver.GUEST_TOKEN_HEADER, required = false) String guestToken) {
         String key = owner(authentication, guestToken);
         addresses.update(key, id, toInput(body));
         return addresses.list(key);
@@ -66,7 +66,7 @@ public class AddressController {
     @PostMapping("/{id}/default")
     public List<AddressService.AddressView> setDefault(
             @PathVariable UUID id, Authentication authentication,
-            @RequestHeader(value = CartOwnerResolver.GUEST_TOKEN_HEADER, required = false) String guestToken) {
+            @RequestHeader(value = OwnerKeyResolver.GUEST_TOKEN_HEADER, required = false) String guestToken) {
         String key = owner(authentication, guestToken);
         addresses.setDefault(key, id);
         return addresses.list(key);
@@ -75,19 +75,19 @@ public class AddressController {
     @DeleteMapping("/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void delete(@PathVariable UUID id, Authentication authentication,
-                       @RequestHeader(value = CartOwnerResolver.GUEST_TOKEN_HEADER, required = false) String guestToken) {
+                       @RequestHeader(value = OwnerKeyResolver.GUEST_TOKEN_HEADER, required = false) String guestToken) {
         addresses.delete(owner(authentication, guestToken), id);
     }
 
     @GetMapping
     public List<AddressService.AddressView> list(Authentication authentication,
-                                                 @RequestHeader(value = CartOwnerResolver.GUEST_TOKEN_HEADER, required = false) String guestToken) {
+                                                 @RequestHeader(value = OwnerKeyResolver.GUEST_TOKEN_HEADER, required = false) String guestToken) {
         return addresses.list(owner(authentication, guestToken));
     }
 
     @GetMapping("/{id}")
     public AddressService.Address detail(@PathVariable UUID id, Authentication authentication,
-                                         @RequestHeader(value = CartOwnerResolver.GUEST_TOKEN_HEADER, required = false) String guestToken) {
+                                         @RequestHeader(value = OwnerKeyResolver.GUEST_TOKEN_HEADER, required = false) String guestToken) {
         return addresses.get(owner(authentication, guestToken), id);
     }
 }

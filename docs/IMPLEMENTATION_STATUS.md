@@ -556,3 +556,47 @@ cd web && npx playwright test
 | 后端测试 | 38 个，36 通过，2 个 Testcontainers 用例跳过（当前 Maven 容器无 Docker socket） |
 | 前端构建 | 商城/后台/门店通过（供应商/客服沿用上一轮构建） |
 | Flyway | V20、V21 成功；当前 schema v21 |
+
+---
+
+## 2026-10-19（第 N 轮）：仓库模型收敛 + P0 功能开关 + 迁移可启动性修复
+
+### 仓库与凭据
+- Gitea 收敛为**单分支 `main`**，`.env` 入库（98 键），内部同事 clone 即构建；删除远端 `gitea-dev`（删除前已 `git bundle` 备份到本机）。
+- GitHub / Gitee 重新定位为**独立公开分叉**（非 Gitea 分支、不整仓镜像）；删除 `mirror-gitee.yml`，新增 `secret-guard.yml`（`vars.PUBLIC_MIRROR=true` 时才启用）。
+- remote URL 去掉明文密码，改用 `credential.helper=store`（`~/.git-credentials`，0600）；全局配置以便全新 clone 直接可用。
+- `.env.example` 补全到与 `.env` 键集合一致（仅缺 `GITEA_*/GITHUB_*/GITEE_*` 7 个凭据键），公开分叉按它即可自行配置构建。
+
+### P0 功能开关（FLAG-001..005）
+- V22 `feature_flag` 表：`code/enabled/updated_by/updated_at/reason`，初始 3 个布尔开关。
+- `FeatureFlagService`：缓存 TTL 默认 30s（≤30s 满足 FLAG-004），未知编码抛错不兜底；变更强制填写原因并记录操作人。
+- `FeatureGuardFilter`（`HIGHEST_PRECEDENCE+30`，服务端强制，FLAG-005）：
+  - `supplier.enabled=false` → `/open/v1/**`、`/supplier/**` 返回 403 `SUPPLIER_DISABLED`
+  - `pos.sale.enabled=false` → `/store/v1/pos/sales/**` 返回 403 `POS_SALE_DISABLED`
+  - `pos.pickup.enabled=false` → `/store/v1/pickups/**` 返回 403 `POS_PICKUP_DISABLED`
+  - 站点 `MAINTENANCE/CLOSED` → 顾客前台 `/api/v1/**` 返回 503，放行 `/api/v1/payments/**`（支付/退款回调）、`/api/v1/site/**`、`/admin/**`、`/store/**`、`/open/**`、`/actuator/**`
+- 后台接口：`GET/PUT /admin/v1/feature-flags[/{code}]`；`site_status` 仍由 `system_setting` 单一存放，保存时校验 `OPEN/MAINTENANCE/CLOSED`。
+- 选型结论写入 `requirements/TECHNOLOGY_DECISIONS_V2.md` §3.1（FF4j 1.9 停留 2022-12、Togglz 4.6.4、Unleash 12.3.0 实测对比）。
+
+**未完成（诚实说明）**：前端维护页与开关关闭提示尚未实现。后端已返回 `SITE_CLOSED` / `SITE_MAINTENANCE` / `SUPPLIER_DISABLED` / `POS_*_DISABLED` 结构化错误，商城、门店端、供应商门户需要读取这些 code 并展示对应页面/禁用态。
+
+### 迁移可启动性修复（发现的真实 P0 缺陷）
+| 问题 | 影响 | 修复 |
+|---|---|---|
+| V11 插入引用 demo 类目的商品 | 全新库迁移到 V11 直接外键失败 | 演示商品移入 `db/demo/seed.sql` |
+| V19 插入引用 demo 员工的绑定 | 全新库迁移到 V19 外键失败 | 绑定移入 `db/demo/staff.sql` |
+| V8 插入演示会员/优惠券 | prod 也得到演示数据 | V23 清理（被引用则显式失败） |
+| demo seeder 与 prod 共存 | 静默污染生产库 | `app.mode=prod` 时启动失败 |
+
+> 修改 V11/V19 会使**已存在的旧库** checksum 不匹配，需一次性 `mvn flyway:repair`；全新库不受影响。
+
+### 验证
+| 项目 | 结果 |
+|---|---|
+| 后端测试 | **62 个，60 通过，2 个 Testcontainers 跳过** |
+| 新增测试 | FeatureFlagService 6、FeatureGuardFilter 8、SystemSettingService 5、DemoDataSeeder 3、MigrationSmoke 2 |
+| 迁移冒烟 | 嵌入式 PostgreSQL 从空库执行 V1–V23 成功；V22 开关行、V23 清理、`site_status` 均断言通过 |
+| demo 种子 | 迁移后执行 `db/demo/seed.sql` + `staff.sql` 成功，演示会员/券/代发商品/门店绑定均在 |
+| 构建 | `mvn -Pprod package`、`mvn -Pdemo package` 均成功 |
+| 模块边界 | `ModulithStructureTest` 通过（新增 `feature` 模块 + `setting-service` 命名接口） |
+| 全新 clone | 单分支 `main`，`.env` 98 键，可直接构建 |

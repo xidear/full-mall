@@ -2,6 +2,7 @@ package com.fullmall.seed;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.context.event.ApplicationReadyEvent;
 import org.springframework.context.annotation.Profile;
 import org.springframework.context.event.EventListener;
@@ -20,14 +21,23 @@ public class DemoDataSeeder {
 
     private final JdbcTemplate jdbcTemplate;
     private final DataSource dataSource;
+    private final String appMode;
 
-    public DemoDataSeeder(JdbcTemplate jdbcTemplate, DataSource dataSource) {
+    public DemoDataSeeder(JdbcTemplate jdbcTemplate, DataSource dataSource,
+                          @Value("${app.mode:dev}") String appMode) {
         this.jdbcTemplate = jdbcTemplate;
         this.dataSource = dataSource;
+        this.appMode = appMode;
     }
 
     @EventListener(ApplicationReadyEvent.class)
     public void seed() {
+        // dev/demo profile 与 app.mode=prod 的组合是配置错误，必须启动失败而不是静默跳过
+        if ("prod".equalsIgnoreCase(appMode)) {
+            throw new IllegalStateException(
+                    "演示数据种子不允许在 app.mode=prod 下启用：请移除 dev/demo profile "
+                            + "或将 app.mode 改为 dev（当前 app.mode=" + appMode + "）");
+        }
         Long productCount = jdbcTemplate.queryForObject("SELECT COUNT(*) FROM product", Long.class);
         if (productCount == null) {
             throw new IllegalStateException("Product count query returned null during demo seeding");

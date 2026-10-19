@@ -199,8 +199,12 @@ public abstract class BaseCrudController<E extends BaseEntity, DTO, CREATE, UPDA
 ### 6.1 开关模型
 
 ```text
-feature_flag(code, enabled, scope, payload_json, updated_by, updated_at, reason)
+feature_flag(code, enabled, updated_by, updated_at, reason)
 ```
+
+> 实现说明（2026-10-19）：P0 只落地布尔开关，暂不需要 `scope` / `payload_json`；
+> 站点状态不进本表，继续由 `system_setting.site_status` 单一存放，避免同一语义两处真相。
+> 数据迁移见 V22；执行点为 `FeatureGuardFilter`（服务端强制）。
 
 开关：
 

@@ -93,7 +93,7 @@ Modulith 规则：
 - 过期/隔离/冻结批次不可售；退款回补只允许回到可售批次，否则 409 转人工处理。
 - 取消未支付订单会释放预占和促销名额；支付与取消都用条件状态更新，竞态只有一方成功。
 
-## 5. 数据库迁移（当前 Flyway v21）
+## 5. 数据库迁移（当前 Flyway v23）
 
 | 版本 | 内容 |
 |---|---|
@@ -118,11 +118,19 @@ Modulith 规则：
 | V19 | 员工 PIN、员工-门店绑定 |
 | V20 | 促销：秒杀/买赠/拼团、参团、订单行 `promotion_id`/`line_type` |
 | V21 | `promotion_redemption.released_at`，支持取消订单回退促销名额 |
+| V22 | `feature_flag`（supplier/pos.sale/pos.pickup 三个布尔开关 + 审计字段） |
+| V23 | 清理 V8 误插的演示会员/优惠券；被引用时显式失败，不静默跳过 |
 
 重要教训：
 
 - 任何状态列如果可能超过 16 字符（如 `PARTIALLY_REFUNDED`），直接建 `VARCHAR(32)`，否则运行期 500。
-- 新表迁移不要在迁移里塞演示业务数据；V8 的演示会员/券是已知问题。
+- **迁移禁止携带业务演示数据**。2026-10-19 修复了三处：V8 的演示会员/券（V23 清理）、V11 的供应商代发演示商品、V19 的员工-门店绑定。它们已移入 `db/demo/seed.sql` 与 `db/demo/staff.sql`。
+- **迁移不得依赖 demo 数据**。原 V11 引用只存在于 demo seed 的类目、V19 引用只存在于 demo staff 的账号，导致全新数据库根本跑不完迁移。现在由 `MigrationSmokeTest`（嵌入式 PostgreSQL，不依赖 Docker）在每次 `mvn test` 时验证。
+- 因为修改了 V11/V19 内容，**已存在的旧数据库会报 checksum 不匹配**，需要一次性修复：
+  ```bash
+  cd server && mvn -B flyway:repair   # 或 spring-boot 启动前执行 Flyway repair
+  ```
+  全新数据库无需处理。
 - Flyway 校验和会阻止修改已应用迁移；补字段用新迁移。
 
 ## 6. 已实现功能面
@@ -233,7 +241,7 @@ npx playwright test
 
 ### 7.3 测试基线
 
-- 后端最近结果：38 个测试，36 通过，2 个 Testcontainers 用例在无 Docker socket 的 Maven 容器中跳过。
+- 后端最近结果：**62 个测试，60 通过，2 个 Testcontainers 用例跳过**（无 Docker socket）。新增 `MigrationSmokeTest` 用嵌入式 PostgreSQL 验证全部迁移可执行，不依赖 Docker。
 - Playwright 最近结果：**10/10 通过**（admin、pickup、POS、promotions、storefront、supplier、support）。
 - `ServerContextTest` 使用 H2、Flyway off；`ModulithStructureTest` 校验模块边界。
 - Mockito 在 JDK 21 容器中 self-attach 受限，已用 `server/src/test/resources/mockito-extensions/org.mockito.plugins.MockMaker` = `mock-maker-subclass` 修复。
@@ -333,9 +341,10 @@ MSYS_NO_PATHCONV=1 wsl bash -lc "cd /mnt/d/works/full-mall && docker compose con
 
 ### 9.1 当前布局
 
-- `server/src/main/resources/db/demo/seed.sql`：商品/SKU/门店/仓库/批次/供应商/法律文档；`DemoDataSeeder` 仅在 dev/demo 且 product 表为空时执行。
-- `db/demo/staff.sql`：演示员工账号。
-- `V8__pos.sql`：**在迁移里插入演示会员与优惠券**，因此 prod 也会得到演示数据，是已知 P0 污染。
+- `server/src/main/resources/db/demo/seed.sql`：商品/SKU/门店/仓库/批次/供应商/法律文档/**演示会员与优惠券**/**供应商代发演示商品**；`DemoDataSeeder` 仅在 dev/demo 且 product 表为空时执行。
+- `db/demo/staff.sql`：演示员工账号 + 员工-门店绑定。
+- `V8__pos.sql` 曾插入演示会员与优惠券（V23 已清理）；迁移现在只建结构与初始开关行，prod 不再获得演示业务数据。
+- `DemoDataSeeder` 在 `app.mode=prod` 下启动即失败（不再静默跳过）。
 - `db/demo/seed.sql` 末尾新增演示促销 `91000000-…`：`DEMO-FLASH-MUG`、`DEMO-GIFT-MILK`、`DEMO-GROUP-MUG`。长期数据库因 product 表非空会跳过整个 seed，需手工插入。
 - 测试/ E2E 中硬编码 UUID：
   - 牛奶 SKU `bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb`

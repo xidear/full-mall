@@ -210,3 +210,52 @@ VALUES
  '2 人成团，每人 2490 分，24 小时内未成团自动退款。', 'ACTIVE', now() - interval '1 hour', now() + interval '30 days',
  'dddddddd-dddd-dddd-dddd-dddddddddddd', 2490, NULL, NULL, NULL, NULL, NULL, 0, 1, 2, 24, 10)
 ON CONFLICT (id) DO NOTHING;
+
+-- 演示会员与优惠券（V23 起从迁移移出，仅 dev/demo 执行；prod 不再自动获得演示数据）
+INSERT INTO member (id, member_no, name, phone, tier, points_balance, stored_value_balance, currency)
+VALUES
+('a1000000-0000-0000-0000-000000000001', 'M0001', '王小明', '13800000001', 'GOLD', 500, 10000, 'CNY'),
+('a1000000-0000-0000-0000-000000000002', 'M0002', '李静', '13800000002', 'STANDARD', 120, 0, 'CNY')
+ON CONFLICT (id) DO NOTHING;
+
+INSERT INTO coupon (id, code, name, discount_type, discount_value, min_spend_amount,
+                    max_discount_amount, member_id, status, valid_from, valid_to)
+VALUES
+('c1000000-0000-0000-0000-000000000001', 'POS10', '满 100 元减 10 元', 'FIXED', 1000, 10000,
+ NULL, NULL, 'ISSUED', now() - interval '1 day', now() + interval '365 days'),
+('c1000000-0000-0000-0000-000000000002', 'MEMBER20', '会员 8 折券（最高减 30 元）', 'PERCENT', 20, 0,
+ 3000, NULL, 'ISSUED', now() - interval '1 day', now() + interval '365 days')
+ON CONFLICT (id) DO NOTHING;
+
+-- Demo product that can only be fulfilled by the supplier, so the supplier API
+-- flow can be verified end-to-end without touching warehouse/store stock.
+INSERT INTO product (id, title, description, category_id, status, inventory_tracking_level, shelf_life_managed)
+VALUES ('aaaa0000-0000-0000-0000-0000000000c1', '供应商直发测试商品',
+        '仅由演示供应商供货，用于 /open/v1 代发履约联调。', '99999999-9999-9999-9999-999999999998',
+        'ACTIVE', 'VARIANT', FALSE)
+ON CONFLICT (id) DO NOTHING;
+
+INSERT INTO product_translation (product_id, locale, title, description, slug, seo_title, seo_description)
+VALUES ('aaaa0000-0000-0000-0000-0000000000c1', 'zh-CN', '供应商直发测试商品',
+        '仅由演示供应商供货，用于 /open/v1 代发履约联调。', 'supplier-dropship-demo',
+        '供应商直发测试商品', '供应商代发联调商品')
+ON CONFLICT (product_id, locale) DO NOTHING;
+
+INSERT INTO sku (id, product_id, sku_code, barcode, price_amount, price_currency,
+                 compare_at_amount, compare_at_currency, options_json, image_url, shelf_life_policy_json)
+VALUES ('bbbb0000-0000-0000-0000-0000000000c1', 'aaaa0000-0000-0000-0000-0000000000c1',
+        'SUPPLIER-ONLY', '6900000000c1', 5000, 'CNY', NULL, NULL, '{"规格":"供应商直发"}'::jsonb,
+        NULL, '{}'::jsonb)
+ON CONFLICT (id) DO NOTHING;
+
+INSERT INTO supplier_sku (supplier_id, sku_id, supplier_sku_code, price_amount, price_currency)
+VALUES ('33333333-3333-3333-3333-333333333333', 'bbbb0000-0000-0000-0000-0000000000c1',
+        'SUP-DROPSHIP-001', 3500, 'CNY')
+ON CONFLICT (supplier_id, sku_id) DO NOTHING;
+
+INSERT INTO inventory_batch (id, sku_id, location_type, location_id, batch_no, production_date, expiry_date,
+                             quantity, reserved_quantity, status, unit_cost_amount, unit_cost_currency, received_at)
+VALUES ('b3000000-0000-0000-0000-0000000000c1', 'bbbb0000-0000-0000-0000-0000000000c1',
+        'SUPPLIER', '33333333-3333-3333-3333-333333333333', 'SUPPLIER-FEED', NULL, NULL,
+        100, 0, 'AVAILABLE', 3500, 'CNY', now())
+ON CONFLICT (id) DO NOTHING;

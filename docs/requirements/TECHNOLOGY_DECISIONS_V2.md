@@ -187,6 +187,28 @@ Full Mall 的落地：
 7. **Ranger 是否需要**：只有数据平台列脱敏需求时才引入，应用层不用。
 8. **Moneta**：多币种舍入复杂时评估 JSR 354；当前 `Money` 保留。
 
+## 3.1 已结论：功能开关（P0，2026-10-19）
+
+**结论**：P0 采用「平台自有 `feature_flag` 表 + 30s 缓存 + 服务端强制过滤器」的薄封装，不引入开关中间件。
+理由与后续升级路径记录在案，避免被当作“自研框架”。
+
+| 候选 | 许可证 | 实测（Maven Central，2026-10-19） | 采纳情况 |
+|---|---|---|---|
+| FF4j | Apache-2.0 | `ff4j-spring-boot-starter` 最新 1.9，lastUpdated **2022-12**，面向 Spring Boot 2.x | 不采纳：对 Boot 3.4 过旧 |
+| Togglz | Apache-2.0 | `togglz-spring-boot-starter` 4.6.4，lastUpdated **2026-08** | 备选：维护活跃，若开关数量增长/需要灰度时切换 |
+| Unleash | Apache-2.0 | `unleash-client-java` 12.3.0，lastUpdated **2026-08** | 不采纳（P0）：需额外部署 Unleash Server，4 个开关不划算 |
+| Spring Boot `@ConditionalOnProperty` | Apache-2.0 | 内置 | 不采纳：变更需重启，不满足 FLAG-004 实时生效 |
+
+**为什么现在不引入库**：
+
+1. 架构文档（`TECHNICAL_ARCHITECTURE_V2.md` §6.1）已经规定了 `feature_flag(code, enabled, scope, payload, updated_by, updated_at, reason)` 表结构与审计字段，引入开关库会形成第二套存储与真相。
+2. P0 只有 3 个布尔开关 + 1 个站点状态，无灰度/分群/A-B 需求；库带来的 UI、策略、灰度能力当前无对应需求。
+3. `FeatureFlagService` 是薄接口（`isEnabled(code)` / `update(code, enabled, reason, actor)`），后续切 Togglz 只需替换实现，调用方与过滤器不变。
+
+**升级触发条件**：开关数量 > 20、需要按用户/门店灰度、需要 A/B 实验或外部配置中心托管时，切 Togglz（嵌入式、Apache-2.0、维护活跃）或 Unleash（集中式）。
+
+**站点状态单一真相**：`site.status` 仍存放在 `system_setting.site_status`（V7 已有，后台设置页已在用），`FeatureGuardFilter` 通过 `SystemSettingService.siteStatus()` 读取并缓存 30s；`FEATURE` 表只放布尔开关，避免同一语义两处存储。
+
 ## 4. 禁止事项
 
 - 禁止自研字段-角色权限矩阵作为默认方案。

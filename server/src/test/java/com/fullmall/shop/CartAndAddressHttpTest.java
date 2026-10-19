@@ -390,6 +390,31 @@ class CartAndAddressHttpTest {
     }
 
     @Test
+    void brandScopedRuleAppliesOnlyToMatchingBrand() {
+        UUID brandId = UUID.fromString("bbbbbbbb-9999-8888-7777-000000000001");
+        jdbc.update("UPDATE product SET brand_id = ? WHERE id = 'aaaaaaaa-2222-2222-2222-222222222222'", brandId);
+        jdbc.update("""
+                INSERT INTO promotion (id, code, type, title, status, starts_at, ends_at, rules, priority)
+                VALUES (?, 'HTTP-BRAND-RULE', 'FULL_REDUCTION', '品牌满减', 'ACTIVE',
+                        now() - interval '1 hour', now() + interval '1 day', ?::jsonb, 10)
+                """, UUID.randomUUID(),
+                "{\"thresholdAmount\":1000,\"value\":250,\"scope\":\"BRAND\",\"scopeIds\":[\"" + brandId + "\"]}");
+
+        var matched = http.exchange("/api/v1/promotions/preview", HttpMethod.POST,
+                new HttpEntity<>(Map.of("items", java.util.List.of(
+                        Map.of("skuId", SKU.toString(), "quantity", 2))), guestHeaders()), String.class);
+        assertThat(matched.getBody()).contains("HTTP-BRAND-RULE").contains("\"discountAmount\":250");
+
+        jdbc.update("UPDATE product SET brand_id = NULL WHERE id = 'aaaaaaaa-2222-2222-2222-222222222222'");
+        var unmatched = http.exchange("/api/v1/promotions/preview", HttpMethod.POST,
+                new HttpEntity<>(Map.of("items", java.util.List.of(
+                        Map.of("skuId", SKU.toString(), "quantity", 2))), guestHeaders()), String.class);
+        assertThat(unmatched.getBody()).doesNotContain("HTTP-BRAND-RULE");
+
+        jdbc.update("DELETE FROM promotion WHERE code = 'HTTP-BRAND-RULE'");
+    }
+
+    @Test
     void promotionPreviewAppliesActiveFullReduction() {
         jdbc.update("DELETE FROM promotion WHERE code = 'HTTP-FULL-20'");
         jdbc.update("""

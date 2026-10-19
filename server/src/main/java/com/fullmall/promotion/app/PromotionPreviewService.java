@@ -83,7 +83,7 @@ public class PromotionPreviewService {
         }
         long total = subtotalsBySku.values().stream().mapToLong(Long::longValue).sum();
         java.util.Map<String, RuleScope> scopes = loadScopes();
-        java.util.Map<UUID, UUID> categoryOfSku = categoryOfSkus(subtotalsBySku.keySet());
+        java.util.Map<UUID, SkuAttributes> attributesOfSku = attributesOfSkus(subtotalsBySku.keySet());
 
         List<PromotionEngine.ScopedRule> result = new ArrayList<>();
         for (PromotionEngine.Rule rule : loadActiveRules(channel)) {
@@ -94,8 +94,14 @@ public class PromotionPreviewService {
             long base = switch (scopeType) {
                 case "SKU" -> sumMatching(subtotalsBySku, skuId -> scope.ids().contains(skuId.toString()));
                 case "CATEGORY" -> sumMatching(subtotalsBySku, skuId -> {
-                    UUID categoryId = categoryOfSku.get(skuId);
-                    return categoryId != null && scope.ids().contains(categoryId.toString());
+                    SkuAttributes attrs = attributesOfSku.get(skuId);
+                    return attrs != null && attrs.categoryId() != null
+                            && scope.ids().contains(attrs.categoryId().toString());
+                });
+                case "BRAND" -> sumMatching(subtotalsBySku, skuId -> {
+                    SkuAttributes attrs = attributesOfSku.get(skuId);
+                    return attrs != null && attrs.brandId() != null
+                            && scope.ids().contains(attrs.brandId().toString());
                 });
                 default -> total;
             };
@@ -112,17 +118,22 @@ public class PromotionPreviewService {
                 .sum();
     }
 
-    private java.util.Map<UUID, UUID> categoryOfSkus(java.util.Set<UUID> skuIds) {
+    /** SKU 的类目与品牌（一次批量查询）。 */
+    private record SkuAttributes(UUID categoryId, UUID brandId) {
+    }
+
+    private java.util.Map<UUID, SkuAttributes> attributesOfSkus(java.util.Set<UUID> skuIds) {
         if (skuIds.isEmpty()) {
             return java.util.Map.of();
         }
-        java.util.Map<UUID, UUID> result = new java.util.HashMap<>();
+        java.util.Map<UUID, SkuAttributes> result = new java.util.HashMap<>();
         jdbcTemplate.query("""
-                SELECT s.id AS sku_id, p.category_id
+                SELECT s.id AS sku_id, p.category_id, p.brand_id
                   FROM sku s JOIN product p ON p.id = s.product_id
                  WHERE s.id = ANY(?)
                 """, rs -> {
-            result.put(rs.getObject("sku_id", UUID.class), rs.getObject("category_id", UUID.class));
+            result.put(rs.getObject("sku_id", UUID.class), new SkuAttributes(
+                    rs.getObject("category_id", UUID.class), rs.getObject("brand_id", UUID.class)));
         }, (Object) skuIds.toArray(new UUID[0]));
         return result;
     }

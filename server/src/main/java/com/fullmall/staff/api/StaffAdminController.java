@@ -39,15 +39,17 @@ public class StaffAdminController {
 
     @PostMapping("/{staffId}/stores")
     public List<java.util.UUID> bindStore(@PathVariable java.util.UUID staffId,
-                                          @RequestBody BindStore request) {
-        authService.bindStore(staffId, request.storeId());
+                                          @RequestBody BindStore request,
+                                          org.springframework.security.core.Authentication authentication) {
+        authService.bindStore(staffId, request.storeId(), authentication.getName());
         return authService.storeIds(staffId);
     }
 
     @PostMapping("/{staffId}/stores/unbind")
     public List<java.util.UUID> unbindStore(@PathVariable java.util.UUID staffId,
-                                            @RequestBody BindStore request) {
-        authService.unbindStore(staffId, request.storeId());
+                                            @RequestBody BindStore request,
+                                            org.springframework.security.core.Authentication authentication) {
+        authService.unbindStore(staffId, request.storeId(), authentication.getName());
         return authService.storeIds(staffId);
     }
 

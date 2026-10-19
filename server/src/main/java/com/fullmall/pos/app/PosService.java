@@ -83,6 +83,7 @@ public class PosService {
     private final StaffAuthService staffAuthService;
     private final boolean requireManagerApproval;
     private final Map<String, PosPaymentProvider> providers;
+    private final com.fullmall.platform.audit.AuditEventService auditEvents;
 
     public PosService(PosRepository repository,
                       CatalogService catalogService,
@@ -92,8 +93,10 @@ public class PosService {
                       StaffAuthService staffAuthService,
                       @org.springframework.beans.factory.annotation.Value("${app.pos.require-manager-approval:false}")
                       boolean requireManagerApproval,
-                      List<PosPaymentProvider> paymentProviders) {
+                      List<PosPaymentProvider> paymentProviders,
+                      com.fullmall.platform.audit.AuditEventService auditEvents) {
         this.repository = repository;
+        this.auditEvents = auditEvents;
         this.catalogService = catalogService;
         this.inventoryService = inventoryService;
         this.storeService = storeService;
@@ -716,7 +719,11 @@ public class PosService {
         String operator = request.operatorName() == null || request.operatorName().isBlank()
                 ? sale.operatorName()
                 : request.operatorName().trim();
-        return applyRefund(sale, quantities, request.reason().trim(), operator, RefundType.FULL);
+        PosSaleView refunded = applyRefund(sale, quantities, request.reason().trim(), operator, RefundType.FULL);
+        auditEvents.record(new com.fullmall.platform.audit.AuditEventService.AuditEvent(
+                "POS_REFUND", operator, "pos_sale", saleId.toString(),
+                "type=FULL;reason=" + request.reason().trim(), null));
+        return refunded;
     }
 
     @Transactional
@@ -740,7 +747,11 @@ public class PosService {
                 ? sale.operatorName()
                 : request.operatorName().trim();
         RefundType type = isFullRefund(sale, quantities) ? RefundType.FULL : RefundType.PARTIAL;
-        return applyRefund(sale, quantities, request.reason().trim(), operator, type);
+        PosSaleView refunded = applyRefund(sale, quantities, request.reason().trim(), operator, type);
+        auditEvents.record(new com.fullmall.platform.audit.AuditEventService.AuditEvent(
+                "POS_REFUND", operator, "pos_sale", saleId.toString(),
+                "type=" + type + ";reason=" + request.reason().trim(), null));
+        return refunded;
     }
 
     private PosSaleView applyRefund(PosSale sale, Map<UUID, Integer> quantities, String reason,

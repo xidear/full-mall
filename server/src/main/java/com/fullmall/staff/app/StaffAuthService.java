@@ -125,19 +125,31 @@ public class StaffAuthService {
     }
 
     @Transactional
-    public void bindStore(UUID staffId, UUID storeId) {
+    public void bindStore(UUID staffId, UUID storeId, String actor) {
         if (repository.findAccountById(staffId) == null) {
             throw new ApiException(HttpStatus.NOT_FOUND, "STAFF_NOT_FOUND", "员工不存在");
         }
         repository.bindStore(staffId, storeId);
+        auditPermission("BIND", staffId, storeId, actor);
     }
 
     @Transactional
-    public void unbindStore(UUID staffId, UUID storeId) {
+    public void unbindStore(UUID staffId, UUID storeId, String actor) {
         if (repository.findAccountById(staffId) == null) {
             throw new ApiException(HttpStatus.NOT_FOUND, "STAFF_NOT_FOUND", "员工不存在");
         }
         repository.unbindStore(staffId, storeId);
+        auditPermission("UNBIND", staffId, storeId, actor);
+    }
+
+    /** SEC-003：权限（门店绑定）变更必须留痕；缺操作人直接失败，不伪造。 */
+    private void auditPermission(String action, UUID staffId, UUID storeId, String actor) {
+        if (actor == null || actor.isBlank()) {
+            throw new IllegalArgumentException("门店绑定变更必须记录操作人: staffId=" + staffId);
+        }
+        auditEvents.record(new com.fullmall.platform.audit.AuditEventService.AuditEvent(
+                "PERMISSION_CHANGED", actor, "staff_store", staffId.toString(),
+                action + " store=" + storeId, null));
     }
 
     public List<UUID> storeIds(UUID staffId) {

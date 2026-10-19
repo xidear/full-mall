@@ -713,3 +713,17 @@ cd web && npx playwright test
 
 **仍缺（下一步）**：退款、库存调整、权限变更三类事件尚未接入。
 
+### A3 续：退款与权限变更接入
+
+- `POS_REFUND`：`PosService.refundSale` / `refundLines` 成功后记录操作人、销售单、退款类型与原因
+  （由 `PostgresPosFlowTest` 的真实退款链路覆盖）。
+- `PERMISSION_CHANGED`：`StaffAuthService.bindStore/unbindStore` 记录 BIND/UNBIND 与门店；
+  **缺操作人直接抛错**，不伪造用户名；控制器传入已认证账号。
+- 事件覆盖进度：开关变更 ✅ 登录 ✅ 退款 ✅ 权限变更 ✅；**库存调整（盘点/调拨）仍待接入**，
+  因为 `ConfirmStocktakeRequest` 目前不含操作人字段，需要先改 DTO 与前端调用。
+
+| 验证 | 结果 |
+|---|---|
+| 后端测试 | **85 个，全部通过，0 跳过** |
+| 退款链路 | POS 集成测试走真实退款并写入 `audit_event` |
+

@@ -1279,3 +1279,17 @@ cd web && npx playwright test
 
 > 未做：购物车接口层（Controller）与前端；金额计算仍在结算时进行，购物车只存 SKU 与数量。
 
+### 购物车接口层
+
+- `CartController`：`POST/PUT/DELETE /api/v1/cart/items`、`GET /api/v1/cart`、`POST /api/v1/cart/merge`。
+- `CartOwnerResolver`：登录 → `member:<用户名>`；未登录必须带 `X-Cart-Token` → `guest:<token>`；
+  两者都没有 400（**不建匿名共享购物车**，避免串车）；token 仅允许字母数字/-/_ 且 ≤128。
+- 合并接口要求同时具备登录身份与游客 token。
+
+| 验证 | 结果 |
+|---|---|
+| 后端测试 | **210 个，全部通过，0 跳过** |
+| 新增测试 | `CartOwnerResolverTest` 5 个（会员映射、游客缺 token、非法 token、匿名视为游客、合并需登录） |
+
+> 未做：HTTP 层端到端测试（当前覆盖服务层 + 归属解析，Controller 为薄委托）；购物车不返回商品价格与库存。
+

@@ -125,7 +125,7 @@
 | 任务 | 需求 | 验收 | 依赖 |
 |---|---|---|---|
 | 🚧 G6 文案翻译流水线（状态机+TM+审校发布接口已完成，缺自动 OUTDATED 与真实 Provider） | I18N-003/004 | provider 可后台配置；TM 命中不重复计费；法律/支付未审校不可发布 | G1 |
-| G7 媒体本地化模型 | AST-001、I18N-001 | `asset_variant` + `product_media` 按 locale 取图；**不回退中文图**而是标记未本地化 | G4 |
+| G7 媒体本地化模型 | AST-001、I18N-001 | `asset_variant` + `product_media` 按 locale 取图；回退到**系统默认语言**并标记 `contentSource` | G4 |
 | G8 AI 生成 | AST-005 | `MediaGenerationProvider` + 异步任务 + 审核队列 + Mock；生产缺 key 报错 | G7 |
 | G9 用量与对账 | SEC-004 | `ai_usage` 单价快照 + 幂等 + 预算闸门 + 月度对账差异告警 | G8 |
 | G10 无文字主图 + 叠字渲染 | I18N-002 | 生成无文字视觉图，本地化文案由渲染服务叠加，导出静态图 | G8 |

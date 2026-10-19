@@ -257,7 +257,9 @@ Full Mall 的落地：
 - 语言边界：Admin/供应商固定中文，前台多语言；回退链只处理"未翻译"，不掩盖"翻错"。
 - 文案：专业翻译 API（DeepL / Google Cloud Translation / Azure）+ 翻译记忆 + 术语表 + 人工审校状态机；
   审校工作流用 Tolgee/Weblate，不自研翻译后台。
-- 媒体：`asset/asset_variant/product_media` 三层，按 locale 取图；**中文图不回退给外语用户**。
+- 媒体：`asset/asset_variant/product_media` 三层，按 locale 取图；回退目标是
+  **系统默认语言（单一配置，当前 zh-CN，出海改 en）**，不是写死英文。
+  响应带 `contentSource=SELF|DEFAULT|PLACEHOLDER`，禁止把默认内容伪装成已本地化。
 - AI 生成：`MediaGenerationProvider` 抽象（图片/视频），生成无文字视觉图 + 本地化叠字渲染，
   避免模型把外文文字画错；生成结果必须人工审核。
 - 用量：`ai_usage` 记录 provider/model/单位/单价快照/幂等键，月度与供应商账单对账。

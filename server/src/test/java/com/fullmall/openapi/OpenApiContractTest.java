@@ -5,7 +5,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.test.web.client.TestRestTemplate;
+import com.fullmall.test.TestHttp;
 import org.springframework.http.ResponseEntity;
 import org.springframework.test.context.ActiveProfiles;
 
@@ -60,8 +60,15 @@ class OpenApiContractTest {
         }
     }
 
-    @Autowired
-    TestRestTemplate rest;
+    @org.springframework.beans.factory.annotation.Value("${local.server.port}")
+    int port;
+
+    TestHttp rest;
+
+    @org.junit.jupiter.api.BeforeEach
+    void initHttp() {
+        rest = new TestHttp(port);
+    }
 
     private final ObjectMapper objectMapper = new ObjectMapper();
 

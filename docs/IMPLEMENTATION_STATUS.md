@@ -1152,3 +1152,25 @@ cd web && npx playwright test
 | 新增测试 | `ArticleAdminFlowTest` 2 个（无英文译文拒绝发布；补英文并审校后可发布且中文仍为 DRAFT；送审未知译文报错） |
 | 测试策略 | 写路径用嵌入式 PostgreSQL 真实 SQL 验证，符合上一轮定的规则 |
 
+---
+
+## 2026-10-19（C2a）：支付渠道配置
+
+- `PaymentConfigService` + `POST/PUT/GET /admin/v1/payment-configs`、`.../deactivate`，全部 `ADMIN`。
+- **模式校验**：`DIRECT` 禁止 sp*/sub* 且必须填 `mchId`；`SUB_MERCHANT` 必须同时填**上游 `spMchId`** 与
+  **我方唯一子商户 `subMchId`**（整个商城一个）。
+- **单一 ACTIVE**：同 `(channel, market)` 已有生效配置时拒绝新增，要求先停用（换服务商要保留旧配置供历史退款）。
+- **版本快照**：编辑 = 新版本（旧版本保留原值），符合"退款按版本路由"。
+- **掩码**：列表返回 `spMchIdMasked/subMchIdMasked`，不返回完整商户号。
+- 审计：`PAYMENT_CONFIG_CREATED / UPDATED / DEACTIVATED`。
+
+| 验证 | 结果 |
+|---|---|
+| 后端测试 | **203 个，全部通过，0 跳过** |
+| 新增测试 | `PaymentConfigServiceTest` 4 个（子商户缺失拒绝、直连模式拒绝 sp 字段、单一 ACTIVE、编辑生成新版本且掩码） |
+| 真实 SQL | 全部在嵌入式 PostgreSQL 上执行 |
+| 踩坑 | `Map.ofEntries` 不接受 null 值导致 NPE，改为可变 `LinkedHashMap` |
+
+> **未完成**：证书上传、密钥加密存储、连通性自检（需真实渠道资质）；
+> 支付下单/退款尚未按 `config_version_id` 取配置（当前只有配置管理）。
+

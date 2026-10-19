@@ -934,3 +934,19 @@ cd web && npx playwright test
 > 3. 同一订单多笔支付会被重复计入 SUM，属于已知简化，接入真实支付（C 组）时按 payment 唯一约束收敛；
 > 4. 结算状态机只到 DRAFT，CONFIRMED/PAID/DISPUTED 的流转与后台确认接口未实现。
 
+---
+
+## 2026-10-19（B6 一半）：结算 CSV 导出
+
+- `SupplierSettlementCsvService`：列固定声明（10 列），金额按**最小货币单位整数**导出，不做"元"格式化；
+  行数上限 2000；每次导出写 `export_task` 审计（resource/scope/actor/rows/columns）。
+- 接口 `GET /open/v1/settlements.csv`（供应商自助，范围由认证身份决定），`Content-Disposition` 附件下载。
+- 复用 A2 的 `ExportAuditRepository` 与 Apache Commons CSV，不重复造轮子。
+
+| 验证 | 结果 |
+|---|---|
+| 后端测试 | **139 个，全部通过，0 跳过** |
+| 新增测试 | `SupplierSettlementCsvServiceTest` 4 个（固定列与整数金额、审计字段、越界不查库、缺操作人/供应商） |
+
+> **未完成（B6 另一半）**：CSV **导入**校验（表头/类型/金额/重复键/业务键、错误行号 + 原因、整体失败不留部分数据）尚未实现。
+

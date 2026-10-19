@@ -21,11 +21,24 @@ public class SupplierOpenController {
 
     private final SupplierService supplierService;
     private final com.fullmall.supplier.app.SupplierSettlementService settlementService;
+    private final com.fullmall.supplier.app.SupplierSettlementCsvService settlementCsvService;
 
     public SupplierOpenController(SupplierService supplierService,
-                                  com.fullmall.supplier.app.SupplierSettlementService settlementService) {
+                                  com.fullmall.supplier.app.SupplierSettlementService settlementService,
+                                  com.fullmall.supplier.app.SupplierSettlementCsvService settlementCsvService) {
         this.supplierService = supplierService;
         this.settlementService = settlementService;
+        this.settlementCsvService = settlementCsvService;
+    }
+
+    @GetMapping(value = "/settlements.csv", produces = "text/csv;charset=UTF-8")
+    public org.springframework.http.ResponseEntity<String> settlementsCsv(
+            @RequestAttribute(SupplierHmacFilter.SUPPLIER_ID_ATTRIBUTE) UUID supplierId,
+            @RequestParam(defaultValue = "200") int limit) {
+        var csv = settlementCsvService.export(supplierId, limit, "supplier:" + supplierId, null);
+        return org.springframework.http.ResponseEntity.ok()
+                .header("Content-Disposition", "attachment; filename=\"supplier-settlements.csv\"")
+                .body(csv.content());
     }
 
     @GetMapping("/settlements")

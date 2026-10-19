@@ -1030,3 +1030,24 @@ cd web && npx playwright test
 > 仍缺：商品保存时自动计算 `source_hash` 并触发 OUTDATED（需要改商品写入流程）；
 > 真实 Provider 与后台配置仍未接。
 
+---
+
+## 2026-10-19（G6/G7 支撑）：默认语言单一来源 + 回退判定
+
+- `SystemSettingService.defaultLocale()`：从 `system_setting.default_locale` 读取，
+  与 site_status 共用同一份 30s 缓存；缺失或为空**直接抛错**（V7 已播种 `zh-CN`），
+  保存时校验 `xx` / `xx-YY` 格式。
+- `platform/i18n/LocaleFallback`：纯函数，规则只有一条
+  **请求语言 → 系统默认语言 → 占位**；返回 `Source=SELF|DEFAULT|PLACEHOLDER`，
+  防止把默认语言内容伪装成已本地化。
+- **默认语言是配置项，不写死英文**：当前 `zh-CN`，出海改配置为 `en`，代码零改动；
+  也不存在"某语言特殊禁止"的分支。
+
+| 验证 | 结果 |
+|---|---|
+| 后端测试 | **175 个，全部通过，0 跳过**（上轮 165） |
+| 新增测试 | `LocaleFallbackTest` 10 个（请求优先、空请求回退、可配置默认、非法默认报错、非法请求忽略、大小写归一、三种来源判定） |
+| 修改测试 | `SystemSettingServiceTest` 夹具补 `default_locale` |
+
+> 修了两个自己引入的问题：正则大小写敏感导致 `ZH-cn` 被判非法；设置服务测试夹具缺字段触发新校验。
+

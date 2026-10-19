@@ -29,6 +29,7 @@ public class SystemSettingService {
 
     public static final String SITE_STATUS_KEY = "site_status";
     public static final String MAINTENANCE_MESSAGE_KEY = "maintenance_message";
+    public static final String DEFAULT_LOCALE_KEY = "default_locale";
 
     public static final String SITE_STATUS_OPEN = "OPEN";
     public static final String SITE_STATUS_MAINTENANCE = "MAINTENANCE";
@@ -65,6 +66,13 @@ public class SystemSettingService {
         return siteState().maintenanceMessage();
     }
 
+    /**
+     * 系统默认语言（I18N-001）：媒体与文案回退的唯一来源，当前 `zh-CN`，出海改配置即可。
+     */
+    public String defaultLocale() {
+        return siteState().defaultLocale();
+    }
+
     public Map<String, String> publicSettings() {
         Map<String, String> all = repository.findAll();
         Map<String, String> result = new LinkedHashMap<>();
@@ -87,6 +95,11 @@ public class SystemSettingService {
                 throw ApiException.badRequest("INVALID_SETTING_KEY", "不支持的配置项: " + entry.getKey());
             }
             String value = entry.getValue() == null ? "" : entry.getValue().trim();
+            if (DEFAULT_LOCALE_KEY.equals(entry.getKey())
+                    && !value.matches("^[a-z]{2,3}(-[A-Za-z0-9]{2,8})?$")) {
+                throw ApiException.badRequest("INVALID_DEFAULT_LOCALE",
+                        "default_locale 格式应为 xx 或 xx-YY，实际=" + value);
+            }
             if (SITE_STATUS_KEY.equals(entry.getKey()) && !SITE_STATUS_VALUES.contains(value)) {
                 throw ApiException.badRequest("INVALID_SITE_STATUS",
                         "site_status 只能是 OPEN / MAINTENANCE / CLOSED，实际=" + value);
@@ -120,13 +133,18 @@ public class SystemSettingService {
                         "system_setting." + SITE_STATUS_KEY + " 取值非法: " + status);
             }
             String message = all.getOrDefault(MAINTENANCE_MESSAGE_KEY, "");
-            SiteState state = new SiteState(status, message);
+            String locale = all.get(DEFAULT_LOCALE_KEY);
+            if (locale == null || locale.isBlank()) {
+                throw new IllegalStateException(
+                        "system_setting 缺少 " + DEFAULT_LOCALE_KEY + "；V7 迁移应已插入默认值");
+            }
+            SiteState state = new SiteState(status, message, locale.trim());
             siteCache = new SiteCache(state, now);
             return state;
         }
     }
 
-    private record SiteState(String status, String maintenanceMessage) {
+    private record SiteState(String status, String maintenanceMessage, String defaultLocale) {
     }
 
     private record SiteCache(SiteState state, Instant loadedAt) {

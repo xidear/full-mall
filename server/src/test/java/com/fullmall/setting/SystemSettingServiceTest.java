@@ -34,6 +34,7 @@ class SystemSettingServiceTest {
             map.put(SystemSettingService.SITE_STATUS_KEY, status);
         }
         map.put(SystemSettingService.MAINTENANCE_MESSAGE_KEY, "系统维护中，请稍后再试。");
+        map.put(SystemSettingService.DEFAULT_LOCALE_KEY, "zh-CN");
         return map;
     }
 

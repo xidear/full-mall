@@ -4,44 +4,49 @@
 > 触发：用户明确「微信/支付宝都要支持**商户模式**与**服务商模式**；服务商模式下我方店铺是**服务商下属商户（子商户）**，不是服务商本身，不是 b2b2c；业务可以是 B2C 或 B2B」
 > 关联需求：PAY-001/002/003/004/005、CR-021（禁止手写 JSON）
 
-## 1. 两种模式的区别（必须分清，写错会影响资金归属）
+## 1. 两种模式的区别（已按用户纠正：我方是子商户，不是服务商）
 
-| | 直连商户模式（MERCHANT） | 服务商模式（SERVICE_PROVIDER） |
+| | 直连商户模式（DIRECT） | 服务商模式（SUB_MERCHANT） |
 |---|---|---|
-| 谁签约 | 我方每个主体各自签约 | 我方作为**服务商/ISV** 签约，旗下商户作为**子商户**进件 |
-| 下单标识 | 自己的 `mchid` / `app_id` | 服务商 `sp_mchid` / `app_id` + **子商户 `sub_mchid` / `sub_appid`** |
-| 签名证书 | 商户 API 证书/密钥 | **服务商**证书/密钥（代子商户调用） |
-| 资金流向 | 进我方商户号 | **直接进子商户号**（我们不做平台分账） |
-| 对账 | 按自己的商户号拉账单 | **按 `sp_mchid` + `sub_mchid` 拉子商户账单** |
-| 退款 | 原商户号发起 | 带 `sub_mchid` 发起 |
-| 回调 | 回调到我方 | 回调到**服务商**，必须按 `sub_mchid` 路由到对应店铺/订单 |
+| 上游是谁 | 微信支付 / 支付宝官方 | **第三方支付服务商（SP/ISV）**，它是服务商 |
+| **我方角色** | 自己就是商户 | **我方是服务商下属的子商户** |
+| 关键标识 | 我方 `mchid` / `app_id` | 上游 `sp_mchid` / `sp_app_id` + **我方 `sub_mch_id` / `sub_app_id`** |
+| 签约与进件 | 我方直接与官方签约 | **由服务商代我方进件/报备**，我方提供营业执照、结算账户 |
+| 调用凭证 | 我方商户 API 证书 | 我方子商户凭证（服务商下发/代申请），或服务商代调用 |
+| 资金流向 | 进我方商户号 | **进我方子商户号**（钱仍是我们的，服务商不代收） |
+| 对账 | 按我方商户号拉账单 | 按 `sp_mchid + sub_mch_id` 拉**我方子商户**账单；服务商可能提供汇总账单 |
+| 回调 | 回调我方 | 回调到服务商平台或我方子商户地址，需按 `sub_mch_id` 路由到店铺/订单 |
+| 资质门槛 | 需自行申请商户号 | **我方无需服务商资质**，但也受服务商约束（费率、结算周期、可用产品） |
 
-关键澄清（按用户口径）：服务商模式里 **我方平台是服务商，我们的店铺/商户是子商户**，钱进子商户，
-因而不是 b2b2c 的平台代收代付，也**不做二级清算/分账**。业务形态可以是 B2C（自营店铺）或 B2B（企业客户下单）。
+> 我方做的是 B2C/B2B 商城，**不做 b2b2c 平台代收**；服务商模式的价值是省去自行进件与多主体管理，
+> 钱进我方子商户账户，不存在平台二次清算或分账。
 
 ## 2. 数据模型
 
 ```
 payment_provider_config
-  id, provider(WECHAT|ALIPAY|UNIONPAY|AGGREGATOR), mode(MERCHANT|SERVICE_PROVIDER),
+  id, provider(WECHAT|ALIPAY|UNIONPAY|AGGREGATOR), mode(DIRECT|SUB_MERCHANT),
   display_name, market_code, currency,
-  app_id, mch_id/sp_mch_id, api_version,
+  -- DIRECT：我方 mch_id/app_id
+  -- SUB_MERCHANT：上游 sp_mchid/sp_app_id + 我方 sub_mch_id/sub_app_id + 服务商名称
+  sp_name, sp_mch_id, sp_app_id, mch_id, sub_mch_id, app_id, sub_app_id, api_version,
   -- 证书与密钥：只存引用与密文，禁止明文
   private_key_ref, platform_cert_ref, api_v3_key_cipher, cert_serial,
   callback_url, notify_url,
   status(ACTIVE|DISABLED), created_by, created_at, updated_at, rotated_at
 
-payment_sub_merchant            -- 服务商模式下：我方店铺/主体 → 子商户号
-  id, config_id, owner_type(STORE|LEGAL_ENTITY), owner_id,
-  sub_mch_id, sub_app_id, sub_merchant_name,
-  auth_state(PENDING|AUTHORIZED|REVOKED), auth_token_cipher, authorized_at
+payment_sub_merchant            -- 服务商模式下：我方主体/店铺 → **我方的子商户号**
+  id, config_id, owner_type(LEGAL_ENTITY|STORE), owner_id,
+  sub_mch_id, sub_app_id, merchant_name,      -- 都是我方的
+  onboard_state(PENDING|ONBOARDED|REJECTED),  -- 服务商代进件状态
+  auth_token_cipher, authorized_at            -- 支付宝 ISV 场景：我方给服务商应用的授权令牌
 ```
 
 约束：
 
 - `(provider, mode, market_code, owner_id)` 唯一，避免同一店铺挂两个有效配置；
-- 服务商模式下 `sub_mch_id` **必填**，缺失时下单直接失败（不猜、不回退直连）；
-- 直连模式下 `sub_*` 字段必须为空；
+- 服务商模式下 `sp_mch_id`（上游）与我方 `sub_mch_id` **都必填**，缺失时下单直接失败（不猜、不回退直连）；
+- 直连模式下 `sp_*` 与 `sub_*` 字段必须为空；
 - 所有敏感字段加密存储（AES-GCM/KMS），API 返回**掩码**，轮换写审计。
 
 ## 3. Provider 配置必须走 Web 图形界面（禁止手写 JSON）

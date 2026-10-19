@@ -1008,3 +1008,25 @@ cd web && npx playwright test
 > **未接线**：还没有 HTTP 接口与商品编辑流程；自动标记 `OUTDATED`（源文变更时）尚未实现；
 > 真实 Provider（DeepL/Google/Azure）与后台配置未接入。
 
+---
+
+## 2026-10-19（G6 接线）：译文审校/发布与前台过滤
+
+- `ProductTranslationWorkflowService`：送审（MACHINE→REVIEWED，非法状态 409）、
+  发布（**仅 REVIEWED**，经 `TranslationStatus.requirePublishable`）、源文变更标 `OUTDATED`、
+  `published()` 只返回 PUBLISHED。
+- 每个动作写审计：`TRANSLATION_REVIEWED` / `TRANSLATION_PUBLISHED` / `TRANSLATION_OUTDATED`；
+  缺操作人 400。
+- 接口：`POST /admin/v1/products/{id}/translations/{locale}/review`（ADMIN/OPERATOR）、
+  `POST .../publish?sensitive=`（**仅 ADMIN**）。
+- **前台读取改为只认 PUBLISHED**：`CatalogRepository` 的 5 处 `product_translation` JOIN
+  全部加上 `AND t.status = 'PUBLISHED'`；旧数据默认已是 PUBLISHED，不会消失。
+
+| 验证 | 结果 |
+|---|---|
+| 后端测试 | **165 个，全部通过，0 跳过** |
+| 新增测试 | `ProductTranslationWorkflowServiceTest` 8 个（送审、直接发布被拒、发布成功、OUTDATED 过滤、源文变更审计、无变化不审计、缺失 404、缺操作人） |
+
+> 仍缺：商品保存时自动计算 `source_hash` 并触发 OUTDATED（需要改商品写入流程）；
+> 真实 Provider 与后台配置仍未接。
+

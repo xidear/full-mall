@@ -21,9 +21,31 @@ import java.util.UUID;
 public class AdminCatalogController {
 
     private final CatalogService catalogService;
+    private final com.fullmall.catalog.app.ProductTranslationWorkflowService translationWorkflow;
 
-    public AdminCatalogController(CatalogService catalogService) {
+    public AdminCatalogController(CatalogService catalogService,
+                                  com.fullmall.catalog.app.ProductTranslationWorkflowService translationWorkflow) {
         this.catalogService = catalogService;
+        this.translationWorkflow = translationWorkflow;
+    }
+
+    /** 译文送审（I18N-003）。 */
+    @PostMapping("/{productId}/translations/{locale}/review")
+    @org.springframework.security.access.prepost.PreAuthorize("hasAnyRole('ADMIN','OPERATOR')")
+    public com.fullmall.catalog.infra.ProductTranslationRepository.Row reviewTranslation(
+            @PathVariable UUID productId, @PathVariable String locale,
+            org.springframework.security.core.Authentication authentication) {
+        return translationWorkflow.review(productId, locale, authentication.getName());
+    }
+
+    /** 译文发布（I18N-004）：只有已审校可发布。 */
+    @PostMapping("/{productId}/translations/{locale}/publish")
+    @org.springframework.security.access.prepost.PreAuthorize("hasRole('ADMIN')")
+    public com.fullmall.catalog.infra.ProductTranslationRepository.Row publishTranslation(
+            @PathVariable UUID productId, @PathVariable String locale,
+            @RequestParam(defaultValue = "false") boolean sensitive,
+            org.springframework.security.core.Authentication authentication) {
+        return translationWorkflow.publish(productId, locale, sensitive, authentication.getName());
     }
 
     @GetMapping

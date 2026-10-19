@@ -36,6 +36,7 @@ public class CatalogRepository {
                        p.category_id, p.status, p.inventory_tracking_level, p.shelf_life_managed
                 FROM product p
                 LEFT JOIN product_translation t ON t.product_id = p.id AND t.locale = ?
+                  AND t.status = 'PUBLISHED'
                 WHERE p.status = 'ACTIVE'
                   AND (CAST(? AS uuid) IS NULL OR p.category_id = CAST(? AS uuid))
                   AND (? = '' OR COALESCE(t.title, p.title) ILIKE ?)
@@ -53,6 +54,7 @@ public class CatalogRepository {
                 SELECT COUNT(*)
                 FROM product p
                 LEFT JOIN product_translation t ON t.product_id = p.id AND t.locale = ?
+                  AND t.status = 'PUBLISHED'
                 WHERE p.status = 'ACTIVE'
                   AND (CAST(? AS uuid) IS NULL OR p.category_id = CAST(? AS uuid))
                   AND (? = '' OR COALESCE(t.title, p.title) ILIKE ?)
@@ -72,6 +74,7 @@ public class CatalogRepository {
                        p.category_id, p.status, p.inventory_tracking_level, p.shelf_life_managed
                 FROM product p
                 LEFT JOIN product_translation t ON t.product_id = p.id AND t.locale = ?
+                  AND t.status = 'PUBLISHED'
                 WHERE (? = '' OR COALESCE(t.title, p.title) ILIKE ?)
                 ORDER BY p.created_at DESC
                 LIMIT ? OFFSET ?
@@ -86,6 +89,7 @@ public class CatalogRepository {
                 SELECT COUNT(*)
                 FROM product p
                 LEFT JOIN product_translation t ON t.product_id = p.id AND t.locale = ?
+                  AND t.status = 'PUBLISHED'
                 WHERE (? = '' OR COALESCE(t.title, p.title) ILIKE ?)
                 """, Long.class, locale, normalizedKeyword, pattern);
         if (count == null) {
@@ -108,6 +112,7 @@ public class CatalogRepository {
                        p.category_id, p.status, p.inventory_tracking_level, p.shelf_life_managed
                 FROM product p
                 LEFT JOIN product_translation t ON t.product_id = p.id AND t.locale = ?
+                  AND t.status = 'PUBLISHED'
                 WHERE p.id = ?
                 """, locale, productId);
         return rows.stream().findFirst().map(this::mapProduct).orElse(null);

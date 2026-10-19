@@ -20,9 +20,19 @@ import java.util.UUID;
 public class SupplierOpenController {
 
     private final SupplierService supplierService;
+    private final com.fullmall.supplier.app.SupplierSettlementService settlementService;
 
-    public SupplierOpenController(SupplierService supplierService) {
+    public SupplierOpenController(SupplierService supplierService,
+                                  com.fullmall.supplier.app.SupplierSettlementService settlementService) {
         this.supplierService = supplierService;
+        this.settlementService = settlementService;
+    }
+
+    @GetMapping("/settlements")
+    public List<com.fullmall.supplier.infra.SupplierSettlementRepository.SettlementRow> settlements(
+            @RequestAttribute(SupplierHmacFilter.SUPPLIER_ID_ATTRIBUTE) UUID supplierId,
+            @RequestParam(defaultValue = "20") int limit) {
+        return settlementService.list(supplierId, limit);
     }
 
     @GetMapping("/ping")

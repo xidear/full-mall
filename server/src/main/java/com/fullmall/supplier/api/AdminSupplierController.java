@@ -5,10 +5,13 @@ import com.fullmall.supplier.app.SupplierCredentialStatus;
 import com.fullmall.supplier.app.SupplierTokenService;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.security.core.Authentication;
+import com.fullmall.supplier.infra.SupplierSettlementRepository;
 
 import java.time.Duration;
 import java.time.Instant;
@@ -21,10 +24,13 @@ public class AdminSupplierController {
 
     private final SupplierAdminService adminService;
     private final SupplierTokenService tokenService;
+    private final com.fullmall.supplier.app.SupplierSettlementService settlementService;
 
-    public AdminSupplierController(SupplierAdminService adminService, SupplierTokenService tokenService) {
+    public AdminSupplierController(SupplierAdminService adminService, SupplierTokenService tokenService,
+                                   com.fullmall.supplier.app.SupplierSettlementService settlementService) {
         this.adminService = adminService;
         this.tokenService = tokenService;
+        this.settlementService = settlementService;
     }
 
     public record TokenIssued(String token, Instant expiresAt) {
@@ -46,6 +52,18 @@ public class AdminSupplierController {
     @org.springframework.security.access.prepost.PreAuthorize("hasRole('ADMIN')")
     public void revokeToken(@PathVariable UUID supplierId) {
         tokenService.revoke(supplierId);
+    }
+
+    /** 生成结算单（SUP-020）。退款暂按 0，佣金费率未配置时为 0。 */
+    @PostMapping("/{supplierId}/settlements")
+    @org.springframework.security.access.prepost.PreAuthorize("hasRole('ADMIN')")
+    public SupplierSettlementRepository.SettlementRow generateSettlement(
+            @PathVariable UUID supplierId,
+            @RequestParam String periodStart,
+            @RequestParam String periodEnd,
+            Authentication authentication) {
+        return settlementService.generate(supplierId,
+                Instant.parse(periodStart), Instant.parse(periodEnd), authentication.getName());
     }
 
     /** 凭证健康度与风险提示（SUP-031）。 */

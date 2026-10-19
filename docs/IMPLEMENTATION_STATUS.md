@@ -911,3 +911,26 @@ cd web && npx playwright test
 
 > B2 技术面完成。仍缺：后台 UI 展示这些提示、Bearer 请求的审计事件（当前仅 HMAC 路径写审计）。
 
+---
+
+## 2026-10-19（B5 起步）：供应商结算单
+
+- V33 `supplier_settlement`：周期、订单数、毛额、退款、佣金、应付、币种、状态；
+  **DB 约束 `payable = gross − refund − commission`**，让账算错在写库时就失败。
+- `SettlementCalculator` 纯函数：佣金四舍五入到分（HALF_UP），拒绝负值、退款大于毛额、费率越界、应付为负。
+- `SupplierSettlementService.generate`：按 `fulfillment_order.type='SUPPLIER_DROPSHIP'` + `payment.status='PAID'` 聚合；
+  **多币种周期直接拒绝**（不做臆造汇率换算）；写审计 `SETTLEMENT_GENERATED`。
+- 接口：`GET /open/v1/settlements`（供应商自助查询）、`POST /admin/v1/suppliers/{id}/settlements?periodStart&periodEnd`（ADMIN 生成）。
+
+| 验证 | 结果 |
+|---|---|
+| 后端测试 | **135 个，全部通过，0 跳过** |
+| 新增测试 | `SettlementCalculatorTest` 5 个（无佣金、5% 舍入、退款冲减、非法输入、应付为负） |
+| 迁移 | V33 空库冒烟通过 |
+
+> **已知口径缺口（不假装完整）**：
+> 1. **退款金额暂按 0** —— 售后/退货对账（B8）完成后接入，公式不变；
+> 2. **佣金费率未配置时为 0**，无臆造费率；配置项 `app.supplier.settlement.commission-rate`；
+> 3. 同一订单多笔支付会被重复计入 SUM，属于已知简化，接入真实支付（C 组）时按 payment 唯一约束收敛；
+> 4. 结算状态机只到 DRAFT，CONFIRMED/PAID/DISPUTED 的流转与后台确认接口未实现。
+

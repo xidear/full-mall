@@ -1833,3 +1833,23 @@ cd web && npx playwright test
 > 说明：本轮未做审计 outbox——它需要先决定"重放快照用什么实体类型"，
 > 改成 Map 会破坏现有按实体类查询的历史语义，不能仓促改。
 
+---
+
+## 2026-10-19：商品评价
+
+- V47 `product_review`：`rating 1..5`、`status PUBLISHED/HIDDEN`、**唯一约束 (order_id, sku_id, member_id)**。
+- `ProductReviewService`：校验订单属于该会员、状态为 `PAID`/`FULFILLED`、SKU 在订单内；
+  重复评价返回 409；`averageRating` **无评价返回 null**（不返回 0 冒充满分）。
+- 接口：`GET /api/v1/products/{skuId}/reviews`（公开）、`POST /api/v1/products/reviews`（会员）。
+
+| 验证 | 结果 |
+|---|---|
+| 后端测试 | **274 个，全部通过，0 跳过** |
+| 新增测试 | 4 个：正常评价且平均分正确、重复评价拒绝、他人订单拒绝、SKU 不在订单内拒绝、未支付订单拒绝 |
+
+### 已知问题（本轮发现，未修）
+
+测试期日志出现 `Unexpected error occurred in scheduled task`：`group_buy` / `orders` 查询报
+`BadSqlGrammarException`，原因是**某个测试上下文在无迁移的表上运行了定时任务**。
+不影响测试结果，但属于噪音且可能掩盖真实调度失败，下轮定位并加显式开关。
+

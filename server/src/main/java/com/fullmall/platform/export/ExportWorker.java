@@ -40,11 +40,17 @@ public class ExportWorker {
     private final MemberExportRepository memberRepository;
     private final PosSalesExportRepository posRepository;
     private final Path storageDir;
+    private final int maxRows;
 
     public ExportWorker(ExportJobService jobs,
                         MemberExportRepository memberRepository,
                         PosSalesExportRepository posRepository,
-                        @Value("${app.export.storage-dir:}") String storageDir) {
+                        @Value("${app.export.storage-dir:}") String storageDir,
+                        @Value("${app.export.max-rows:5000}") int maxRows) {
+        if (maxRows <= 0) {
+            throw new IllegalArgumentException("app.export.max-rows 必须大于 0，实际=" + maxRows);
+        }
+        this.maxRows = maxRows;
         this.jobs = jobs;
         this.memberRepository = memberRepository;
         this.posRepository = posRepository;
@@ -71,6 +77,9 @@ public class ExportWorker {
             jobs.succeed(job.id(), rows, target.toString());
             log.info("导出完成 job={} resource={} projection={} rows={}",
                     job.id(), job.resource(), job.projection(), rows);
+        } catch (ExportTooLargeException error) {
+            jobs.fail(job.id(), error.getMessage());
+            log.warn("导出超限失败 job={} resource={}: {}", job.id(), job.resource(), error.getMessage());
         } catch (RuntimeException | IOException error) {
             jobs.fail(job.id(), error.getMessage() == null ? error.getClass().getSimpleName() : error.getMessage());
             log.warn("导出失败 job={} resource={} error={}", job.id(), job.resource(), error.getMessage());
@@ -90,9 +99,24 @@ public class ExportWorker {
         }
     }
 
+    /** 超过上限不许静默截断：宁可失败并明确告知，也不让用户以为拿到了全量。 */
+    static final class ExportTooLargeException extends RuntimeException {
+        ExportTooLargeException(String message) {
+            super(message);
+        }
+    }
+
+    private void requireWithinLimit(int fetched) {
+        if (fetched > maxRows) {
+            throw new ExportTooLargeException(
+                    "导出结果超过上限 " + maxRows + " 行（多取 1 行用于判定）。请缩小时间范围或按门店/语言分批导出");
+        }
+    }
+
     private int writeMembers(CSVPrinter printer) throws IOException {
         printer.printRecord("memberNo", "nameMasked", "phoneMasked", "tier", "points", "storedValue", "currency");
-        List<MemberExportRepository.MemberRow> rows = memberRepository.findForExport(5000);
+        List<MemberExportRepository.MemberRow> rows = memberRepository.findForExport(maxRows + 1);
+        requireWithinLimit(rows.size());
         for (MemberExportRepository.MemberRow row : rows) {
             printer.printRecord(row.memberNo(),
                     com.fullmall.platform.export.FieldMasker.name(row.name()),
@@ -110,7 +134,8 @@ public class ExportWorker {
             printer.printRecord("saleNo", "skuCode", "quantity", "refundedQuantity",
                     "lineTotalAmount", "currency");
         }
-        List<PosSalesExportRepository.SaleLineRow> rows = posRepository.findRecent(5000);
+        List<PosSalesExportRepository.SaleLineRow> rows = posRepository.findRecent(maxRows + 1);
+        requireWithinLimit(rows.size());
         for (PosSalesExportRepository.SaleLineRow row : rows) {
             if (!finance) {
                 printer.printRecord(row.saleNo(), row.skuCode(), row.quantity(),

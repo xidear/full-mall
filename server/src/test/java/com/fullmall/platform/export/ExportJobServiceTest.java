@@ -20,7 +20,8 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
         webEnvironment = SpringBootTest.WebEnvironment.NONE,
         properties = {
                 "spring.autoconfigure.exclude=org.springframework.boot.autoconfigure.amqp.RabbitAutoConfiguration,org.springframework.boot.autoconfigure.data.redis.RedisAutoConfiguration",
-                "spring.modulith.events.jdbc.schema-initialization.enabled=false"
+                "spring.modulith.events.jdbc.schema-initialization.enabled=false",
+                "app.export.max-rows=1"
         })
 @ActiveProfiles("test")
 class ExportJobServiceTest {
@@ -97,6 +98,24 @@ class ExportJobServiceTest {
         assertThat(job.rowCount()).isEqualTo(1);
         String csv = java.nio.file.Files.readString(java.nio.file.Path.of(job.filePath()));
         assertThat(csv).contains("phoneMasked").contains("138****0001").doesNotContain("13800000001");
+    }
+
+    @Test
+    void exportOverLimitFailsInsteadOfSilentlyTruncating() {
+        // 上限设为 1，插入 2 条会员
+        jdbc.update("DELETE FROM member");
+        jdbc.update("""
+                INSERT INTO member (id, member_no, name, phone, tier, points_balance, stored_value_balance, currency)
+                VALUES (?, 'M9101', '甲', '13800001001', 'GOLD', 0, 0, 'CNY'),
+                       (?, 'M9102', '乙', '13800001002', 'GOLD', 0, 0, 'CNY')
+                """, UUID.randomUUID(), UUID.randomUUID());
+        UUID id = service.create("admin", "member", "OPS", Map.of(), null);
+
+        assertThat(worker.runOnce()).isTrue();
+
+        var job = service.find(id);
+        assertThat(job.status()).isEqualTo("FAILED");
+        assertThat(job.error()).contains("超过上限");
     }
 
     @Test

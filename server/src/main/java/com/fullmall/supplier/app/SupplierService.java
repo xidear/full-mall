@@ -74,6 +74,18 @@ public class SupplierService {
                 .toList();
     }
 
+    /**
+     * 单笔订单查询。范围由 listOrders 保证（仓储已按 supplierId 过滤），
+     * 因此供应商 A 查 B 的订单只会得到 404，不泄露存在性。
+     */
+    public SupplierOrderView getOrder(UUID supplierId, UUID fulfillmentId) {
+        return listOrders(supplierId, null).stream()
+                .filter(order -> order.fulfillmentId().equals(fulfillmentId))
+                .findFirst()
+                .orElseThrow(() -> com.fullmall.platform.error.ApiException.notFound(
+                        "SUPPLIER_ORDER_NOT_FOUND", "订单不存在或不属于当前供应商: " + fulfillmentId));
+    }
+
     @Transactional
     public SupplierOrderView accept(UUID supplierId, UUID fulfillmentId, SupplierAcceptRequest request) {
         FulfillmentOrder fulfillment = fulfillmentService.acceptSupplierOrder(

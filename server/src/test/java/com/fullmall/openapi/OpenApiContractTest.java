@@ -45,7 +45,9 @@ class OpenApiContractTest {
             "/admin/v1/assets",
             "/store/v1/pos/sales",
             "/store/v1/pickups/{pickupCode}/verify",
-            "/open/v1");
+            "/open/v1",
+            "/open/v1/orders/{fulfillmentId}",
+            "/open/v1/inventory/feed");
 
     @org.springframework.boot.test.context.TestConfiguration
     static class PermitAllSecurity {

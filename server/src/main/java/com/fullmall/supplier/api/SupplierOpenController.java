@@ -38,6 +38,13 @@ public class SupplierOpenController {
         return supplierService.listOrders(supplierId, status);
     }
 
+    @GetMapping("/orders/{fulfillmentId}")
+    public SupplierOrderView order(
+            @RequestAttribute(SupplierHmacFilter.SUPPLIER_ID_ATTRIBUTE) UUID supplierId,
+            @PathVariable UUID fulfillmentId) {
+        return supplierService.getOrder(supplierId, fulfillmentId);
+    }
+
     @PostMapping("/orders/{fulfillmentId}/accept")
     public SupplierOrderView accept(
             @RequestAttribute(SupplierHmacFilter.SUPPLIER_ID_ATTRIBUTE) UUID supplierId,

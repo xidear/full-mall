@@ -757,3 +757,18 @@ cd web && npx playwright test
 | 新增测试 | `RiskAlertServiceTest` 5 个（去重跳过、写入、缺失参数、写入失败、条数越界） |
 | 迁移 | V28 空库冒烟通过 |
 
+---
+
+## 2026-10-19（B1 起步）：供应商 `/open/v1` 契约补齐
+
+- 新增 `GET /open/v1/orders/{fulfillmentId}`：单笔订单查询，**范围由 supplierId 过滤保证**，
+  供应商 A 查 B 的订单返回 404（不泄露存在性）。
+- 纳入 `OpenApiContractTest` 必测清单：`/open/v1`、`/open/v1/orders/{fulfillmentId}`、`/open/v1/inventory/feed`。
+- 策略按默认方案 (a)：**后端先统一并保留兼容**，供应商门户前端切换另开一轮。
+
+| 验证 | 结果 |
+|---|---|
+| 后端测试 | **96 个，全部通过，0 跳过** |
+| 新增测试 | `SupplierOrderScopeTest` 2 个（越权 404、本人可读） |
+| 契约 | springdoc 生成的路径包含新增端点 |
+

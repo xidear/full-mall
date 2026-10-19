@@ -27,6 +27,7 @@ public class PaymentService {
     private final com.fullmall.distribution.app.ReferralService referralService;
     private final com.fullmall.member.app.MemberRewardService memberRewards;
     private final com.fullmall.member.app.MemberPointsService memberPoints;
+    private final com.fullmall.notification.app.NotificationService notifications;
 
     public PaymentService(PaymentRepository paymentRepository,
                           OrderService orderService,
@@ -36,7 +37,8 @@ public class PaymentService {
                           com.fullmall.distribution.app.CommissionLedgerService commissionLedger,
                           com.fullmall.distribution.app.ReferralService referralService,
                           com.fullmall.member.app.MemberRewardService memberRewards,
-                          com.fullmall.member.app.MemberPointsService memberPoints) {
+                          com.fullmall.member.app.MemberPointsService memberPoints,
+                          com.fullmall.notification.app.NotificationService notifications) {
         this.paymentRepository = paymentRepository;
         this.orderService = orderService;
         this.mockPaymentConnector = mockPaymentConnector;
@@ -46,12 +48,20 @@ public class PaymentService {
         this.referralService = referralService;
         this.memberRewards = memberRewards;
         this.memberPoints = memberPoints;
+        this.notifications = notifications;
     }
 
     /**
      * 退款对佣金的处理（分销金融正确性）：
      * 整单退款 → 佣金回冲；部分退款 → 佣金延长冻结（比例回冲尚未实现，绝不提前解冻）。
      */
+    private void notifyMember(UUID orderId, String eventType, String title, String content) {
+        UUID memberId = orderService.memberIdOf(orderId);
+        if (memberId != null) {
+            notifications.notifyMember(memberId.toString(), eventType, title, content);
+        }
+    }
+
     private void applyCommissionPolicy(UUID orderId, long refundedAmount) {
         var order = orderService.getOrder(orderId);
         long orderTotal = order.total().amount();
@@ -81,6 +91,7 @@ public class PaymentService {
         paymentRepository.update(refunded);
         paymentRepository.insertEvent(payment.id(), "PAYMENT_REFUNDED",
                 "{\"amount\":" + amount + "}");
+        notifyMember(orderId, "ORDER_REFUNDED", "退款已受理", "退款 " + amount + " 分已受理，请留意到账。");
         applyCommissionPolicy(orderId, amount);
         analyticsService.record("payment_refunded", orderId, null, Map.of(
                 "provider", refunded.provider(),
@@ -117,6 +128,7 @@ public class PaymentService {
         referralService.settleOrder(orderId, paid.amount().amount(), paid.amount().currency());
         // 会员积分与成长值（MEM-002）：匿名订单不产生
         memberRewards.accrue(orderId, order.contactPhone(), paid.amount().amount());
+        notifyMember(orderId, "ORDER_PAID", "支付成功", "订单已支付成功，我们将尽快为您发货。");
         analyticsService.record("payment_succeeded", orderId, null, Map.of(
                 "provider", paid.provider(),
                 "amount", paid.amount().amount(),

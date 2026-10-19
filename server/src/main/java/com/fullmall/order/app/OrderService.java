@@ -256,6 +256,11 @@ public class OrderService {
         orderRepository.insertOrder(order);
         // 绑定会员（手机号唯一匹配时），后续"我的订单"按 member_id 查
         orderRepository.attachMemberByPhone(orderId, request.contact().phone());
+        UUID orderMemberId = orderRepository.memberIdOf(orderId);
+        if (orderMemberId != null) {
+            notificationService.notifyMember(orderMemberId.toString(), "ORDER_CREATED",
+                    "订单已创建", "订单 " + order.orderNo() + " 已创建，请尽快完成支付。");
+        }
         promotionService.recordCheckout(promotionPricing, orderId, request.contact().phone());
         referralService.attachCheckout(orderId, request.contact().phone(), request.referrerId(), request.referralMode());
 
@@ -318,6 +323,11 @@ public class OrderService {
         }
 
         return getOrder(orderId);
+    }
+
+    /** 订单归属会员（游客订单返回 null）。 */
+    public UUID memberIdOf(UUID orderId) {
+        return orderRepository.memberIdOf(orderId);
     }
 
     public Order getOrder(UUID orderId) {

@@ -52,6 +52,18 @@ public class NotificationService {
         }
     }
 
+    /**
+     * 给会员写一条站内消息（订单事件用）。
+     *
+     * @param memberId 会员 UUID；为空时静默跳过属于错误用法，调用方必须自行判空
+     */
+    public void notifyMember(String memberId, String eventType, String title, String content) {
+        if (memberId == null || memberId.isBlank()) {
+            throw new IllegalArgumentException("notifyMember 需要会员 ID");
+        }
+        deliver("MEMBER", memberId, eventType, "IN_APP", title, content);
+    }
+
     /** 顾客侧消息列表（按收件人）。 */
     public List<Notification> findForRecipient(String recipientType, String recipientId, int limit) {
         if (recipientId == null || recipientId.isBlank()) {

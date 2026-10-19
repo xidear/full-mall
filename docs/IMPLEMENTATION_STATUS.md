@@ -1938,3 +1938,19 @@ cd web && npx playwright test
 > 未做：顾客侧推送（短信/微信模板）、消息中心与订单状态事件的自动写入（现有 notification 模块已有写入能力，
 > 但顾客手机号与 `recipient_id` 的映射尚未统一）。
 
+---
+
+## 2026-10-19：订单事件 → 会员消息（接线，未端到端验证）
+
+- `NotificationService.notifyMember(memberId, eventType, title, content)`：写 `recipient_type=MEMBER`、`channel=IN_APP`。
+- `OrderService` 下单后、`PaymentService` 支付/退款后调用，收件人取 `orders.member_id`（游客订单不通知）。
+
+| 验证 | 结果 |
+|---|---|
+| 后端测试 | **283 个，全部通过，0 跳过** |
+| 已验证 | `notifyMember` 落库、消息按收件人隔离、已读隔离 |
+| **未验证** | 下单/支付自动写入消息的端到端链路——在 HTTP 测试里按 `event_type` 查库得到 0 条，
+原因未查明（可能与测试内会员绑定时机或事务可见性有关），**不猜测** |
+
+> 下一步：单独写一个"下单→支付→查消息"的集成测试并输出实际条数与收件人，定位是绑定时机问题还是写入未触发。
+

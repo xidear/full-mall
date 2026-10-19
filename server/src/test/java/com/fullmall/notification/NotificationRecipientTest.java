@@ -67,6 +67,16 @@ class NotificationRecipientTest {
     }
 
     @Test
+    void notifyMemberPersistsInAppMessage() {
+        notifications.notifyMember("member-c", "ORDER_PAID", "支付成功", "内容");
+
+        var mine = notifications.findForRecipient("MEMBER", "member-c", 10);
+        assertThat(mine).hasSize(1);
+        assertThat(mine.get(0).eventType()).isEqualTo("ORDER_PAID");
+        assertThat(mine.get(0).channel()).isEqualTo("IN_APP");
+    }
+
+    @Test
     void memberSeesOnlyOwnMessages() {
         var mine = notifications.findForRecipient("MEMBER", "member-a", 10);
 

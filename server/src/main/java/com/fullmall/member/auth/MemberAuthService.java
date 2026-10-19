@@ -109,6 +109,17 @@ public class MemberAuthService {
         return new SessionIssued(token, memberId, memberNo);
     }
 
+    /** 会话 token → 会员 ID；无效返回 empty（由调用方决定 401）。 */
+    public java.util.Optional<UUID> resolveSession(String token) {
+        if (token == null || token.isBlank()) {
+            return java.util.Optional.empty();
+        }
+        List<UUID> rows = jdbcTemplate.queryForList("""
+                SELECT member_id FROM member_session WHERE token_hash = ? AND expires_at > now()
+                """, UUID.class, sha256Hex(token.trim()));
+        return rows.stream().findFirst();
+    }
+
     private UUID findOrCreateMember(String phone) {
         List<UUID> existing = jdbcTemplate.queryForList(
                 "SELECT id FROM member WHERE phone = ?", UUID.class, phone);

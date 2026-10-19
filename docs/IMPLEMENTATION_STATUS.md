@@ -1441,3 +1441,17 @@ cd web && npx playwright test
 >
 > 未做：短信通道（当前只回传/丢弃）、会员登录后的接口鉴权接入（`member_session` 尚未被过滤器使用）。
 
+### 会员 token 生效
+
+- `MemberAuthFilter`：仅 `/api/v1/**`（排除 `/api/v1/member/auth/**`），
+  `Authorization: Bearer <token>` → 解析为会员身份（principal = 会员 UUID，`ROLE_MEMBER`）。
+  无效/过期 token **直接 401，不静默降级为游客**。
+- 归属键随之变为 `member:<uuid>`，购物车/地址按下单人隔离。
+
+| 验证 | 结果 |
+|---|---|
+| 后端测试 | **231 个，全部通过，0 跳过** |
+| 新增 HTTP 用例 | 登录 → 会员加购 3 件；游客车为空；会员车可见；无效 token 401 |
+| 踩坑 | 过滤器最初排在 Spring Security 之前（`HIGHEST_PRECEDENCE+40`），上下文被安全链覆盖导致 400；
+改为 `@Order(0)`（晚于安全链的 -100）后正常 |
+

@@ -26,7 +26,8 @@ import static org.assertj.core.api.Assertions.assertThat;
         properties = {
                 "spring.autoconfigure.exclude=org.springframework.boot.autoconfigure.amqp.RabbitAutoConfiguration,org.springframework.boot.autoconfigure.data.redis.RedisAutoConfiguration",
                 "spring.modulith.events.jdbc.schema-initialization.enabled=false",
-                "app.demo.read-only=false"
+                "app.demo.read-only=false",
+                "app.member.otp.return-code=true"
         })
 @ActiveProfiles("test")
 class CartAndAddressHttpTest {
@@ -169,6 +170,42 @@ class CartAndAddressHttpTest {
         assertThat(jdbc.queryForObject(
                 "SELECT status FROM distribution_commission WHERE order_id = ?::uuid", String.class, orderId))
                 .isEqualTo("FROZEN");
+    }
+
+    @Test
+    void memberTokenScopesCartToMemberIdentity() {
+        // 登录拿 token
+        var otp = http.exchange("/api/v1/member/auth/otp", HttpMethod.POST,
+                new HttpEntity<>(Map.of("phone", "13900000123"), guestHeaders()), String.class);
+        String code = com.jayway.jsonpath.JsonPath.read(otp.getBody(), "$.debugCode");
+        var session = http.exchange("/api/v1/member/auth/verify", HttpMethod.POST,
+                new HttpEntity<>(Map.of("phone", "13900000123", "code", code), guestHeaders()), String.class);
+        String token = com.jayway.jsonpath.JsonPath.read(session.getBody(), "$.token");
+
+        HttpHeaders memberHeaders = new HttpHeaders();
+        memberHeaders.set("Authorization", "Bearer " + token);
+        memberHeaders.set("Content-Type", "application/json");
+
+        // 会员加购
+        var add = http.exchange("/api/v1/cart/items", HttpMethod.POST,
+                new HttpEntity<>(Map.of("skuId", SKU.toString(), "quantity", 3), memberHeaders), String.class);
+        assertThat(add.getStatusCode().value()).as(String.valueOf(add.getBody())).isEqualTo(200);
+
+        // 游客车看不到会员的商品
+        var guestCart = http.exchange("/api/v1/cart", HttpMethod.GET,
+                new HttpEntity<>(guestHeaders()), String.class);
+        assertThat(guestCart.getBody()).isEqualTo("[]");
+
+        // 会员车能看到
+        var memberCart = http.exchange("/api/v1/cart", HttpMethod.GET,
+                new HttpEntity<>(memberHeaders), String.class);
+        assertThat(memberCart.getBody()).contains("\"quantity\":3");
+
+        // 无效 token 直接 401，不降级为游客
+        HttpHeaders bad = new HttpHeaders();
+        bad.set("Authorization", "Bearer not-a-real-token");
+        var rejected = http.exchange("/api/v1/cart", HttpMethod.GET, new HttpEntity<>(bad), String.class);
+        assertThat(rejected.getStatusCode().value()).isEqualTo(401);
     }
 
     @Test

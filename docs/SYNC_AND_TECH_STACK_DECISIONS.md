@@ -96,3 +96,19 @@
 2. 升级完成后接 **JaVers starter**，再上 **outbox + 单消费者审计**
 3. **A6 异步导出**（轮询 + 指数退避），删除同步导出
 4. 其余 G 组（媒体本地化、AI 生成）按原计划
+### 6.1 代码级迁移实测（同一 spike 分支）
+
+Boot 4.1.1 + Modulith 2.1.1 + springdoc 3.1.1 + Testcontainers 2.0.5 之后：
+
+- **主代码编译通过**（`mvn -DskipTests compile` BUILD SUCCESS）——说明业务代码对 Boot 4 的 API 依赖很小。
+- **测试：160 个执行，12 个错误**，根因集中在四处：
+
+| 现象 | 根因 | 修复方向 |
+|---|---|---|
+| `NoClassDefFound TestRestTemplate` | Boot 4 移除了 `org.springframework.boot.test.web.client.TestRestTemplate` | 换 `RestTestClient`/`RestClient`，或改用 WebTestClient |
+| `No qualifying bean ObjectMapper` | Boot 4 把 Jackson 自动配置拆成独立模块，未随 starter 传递 | 显式引入 Jackson starter（`spring-boot-jackson`/`jackson2` 模块） |
+| `Schema validation: missing table [asset]` + `relation "jv_commit" does not exist` | **Flyway 没有执行**：Boot 4 下 Flyway 自动配置条件变化，或需显式 starter | 确认 `flyway-core` 自动配置触发条件，显式配置 `spring.flyway.*` 或引入对应 starter |
+| 上下文加载链式失败 | 上两项导致 | 修完前两项复测 |
+
+**结论**：升级不是"改版本号"，但**业务代码几乎无需改动**，主要成本在测试基础设施与自动配置模块化。
+这反而说明 Boot 4 升级是划算的：改的是脚手架，不是业务。

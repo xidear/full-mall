@@ -1,0 +1,130 @@
+package com.fullmall.coupon;
+
+import com.fullmall.coupon.app.CouponService;
+import io.zonky.test.db.postgres.embedded.EmbeddedPostgres;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.context.DynamicPropertyRegistry;
+import org.springframework.test.context.DynamicPropertySource;
+
+import java.time.Instant;
+import java.util.UUID;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+
+@SpringBootTest(
+        webEnvironment = SpringBootTest.WebEnvironment.NONE,
+        properties = {
+                "spring.autoconfigure.exclude=org.springframework.boot.autoconfigure.amqp.RabbitAutoConfiguration,org.springframework.boot.autoconfigure.data.redis.RedisAutoConfiguration",
+                "spring.modulith.events.jdbc.schema-initialization.enabled=false"
+        })
+@ActiveProfiles("test")
+class CouponServiceTest {
+
+    private static final EmbeddedPostgres POSTGRES;
+    private static final UUID MEMBER = UUID.fromString("cccccccc-0000-0000-0000-0000000000aa");
+    private static final UUID MEMBER2 = UUID.fromString("cccccccc-0000-0000-0000-0000000000bb");
+
+    static {
+        try {
+            POSTGRES = EmbeddedPostgres.builder().start();
+        } catch (Exception error) {
+            throw new IllegalStateException("无法启动嵌入式 PostgreSQL", error);
+        }
+    }
+
+    @DynamicPropertySource
+    static void datasource(DynamicPropertyRegistry registry) {
+        registry.add("spring.datasource.url", () -> POSTGRES.getJdbcUrl("postgres", "postgres"));
+        registry.add("spring.datasource.username", () -> "postgres");
+        registry.add("spring.datasource.password", () -> "");
+        registry.add("spring.datasource.driver-class-name", () -> "org.postgresql.Driver");
+    }
+
+    @Autowired
+    CouponService coupons;
+
+    @Autowired
+    JdbcTemplate jdbc;
+
+    @BeforeEach
+    void seed() {
+        jdbc.update("DELETE FROM member_coupon");
+        jdbc.update("DELETE FROM coupon_template WHERE code LIKE 'CP-%'");
+        jdbc.update("DELETE FROM member WHERE id IN (?, ?)", MEMBER, MEMBER2);
+        jdbc.update("""
+                INSERT INTO member (id, member_no, name, phone, tier, points_balance, stored_value_balance, currency)
+                VALUES (?, 'M-CP-1', '券用户', '13977770001', 'STANDARD', 0, 0, 'CNY'),
+                       (?, 'M-CP-2', '券用户2', '13977770002', 'STANDARD', 0, 0, 'CNY')
+                """, MEMBER, MEMBER2);
+    }
+
+    private UUID activeTemplate(String code, int total, int perMember) {
+        UUID id = coupons.createTemplate(code, "测试券", "AMOUNT", 500, 1_000, total, perMember, 30,
+                Instant.now().minusSeconds(60), Instant.now().plusSeconds(86_400));
+        coupons.activate(id);
+        return id;
+    }
+
+    @Test
+    void claimIssuesUnusedCouponWithExpiry() {
+        UUID templateId = activeTemplate("CP-1", 10, 1);
+
+        coupons.claim(templateId, MEMBER);
+
+        var mine = coupons.listMine(MEMBER, "UNUSED", 10);
+        assertThat(mine).hasSize(1);
+        assertThat(mine.get(0).status()).isEqualTo("UNUSED");
+        assertThat(mine.get(0).expiresAt()).isAfter(Instant.now());
+    }
+
+    @Test
+    void perMemberLimitIsEnforced() {
+        UUID templateId = activeTemplate("CP-2", 10, 1);
+        coupons.claim(templateId, MEMBER);
+
+        assertThatThrownBy(() -> coupons.claim(templateId, MEMBER))
+                .isInstanceOf(com.fullmall.platform.error.ApiException.class)
+                .hasMessageContaining("每人限领");
+    }
+
+    @Test
+    void soldOutWhenStockExhausted() {
+        UUID templateId = activeTemplate("CP-3", 1, 5);
+        coupons.claim(templateId, MEMBER);
+
+        assertThatThrownBy(() -> coupons.claim(templateId, MEMBER2))
+                .isInstanceOf(com.fullmall.platform.error.ApiException.class)
+                .hasMessageContaining("已领完");
+        assertThat(jdbc.queryForObject(
+                "SELECT issued_quantity FROM coupon_template WHERE id = ?", Integer.class, templateId))
+                .isEqualTo(1);
+    }
+
+    @Test
+    void inactiveTemplateCannotBeClaimed() {
+        UUID id = coupons.createTemplate("CP-4", "未启用券", "AMOUNT", 500, 0, 5, 1, 30,
+                Instant.now().minusSeconds(60), Instant.now().plusSeconds(86_400));
+
+        assertThatThrownBy(() -> coupons.claim(id, MEMBER))
+                .isInstanceOf(com.fullmall.platform.error.ApiException.class)
+                .hasMessageContaining("未开始发放");
+    }
+
+    @Test
+    void expiredCouponShowsAsExpiredEvenWithoutScheduler() {
+        UUID templateId = activeTemplate("CP-5", 10, 1);
+        coupons.claim(templateId, MEMBER);
+        jdbc.update("UPDATE member_coupon SET expires_at = now() - interval '1 minute' WHERE member_id = ?",
+                MEMBER);
+
+        var mine = coupons.listMine(MEMBER, null, 10);
+        assertThat(mine).singleElement()
+                .satisfies(coupon -> assertThat(coupon.status()).isEqualTo("EXPIRED"));
+    }
+}

@@ -241,12 +241,34 @@ npx playwright test
 
 ### 7.3 测试基线
 
-- 后端最近结果：**62 个测试，60 通过，2 个 Testcontainers 用例跳过**（无 Docker socket）。新增 `MigrationSmokeTest` 用嵌入式 PostgreSQL 验证全部迁移可执行，不依赖 Docker。
+- 后端最近结果：**62 个测试，62 通过，0 跳过**。
+- 集成测试不再依赖 Docker：`PostgresTestDatabase` 优先用 Testcontainers（postgres:17），
+  没有 Docker 守护进程时**显式告警**并改用嵌入式 PostgreSQL（真实 PostgreSQL 进程）。
+  两条路径都跑真实数据库，日志里会写明用了哪条，不会把缺库伪装成通过。
+- `MigrationSmokeTest` 从空库执行全部迁移并校验 demo 种子，同样不依赖 Docker。
 - Playwright 最近结果：**10/10 通过**（admin、pickup、POS、promotions、storefront、supplier、support）。
 - `ServerContextTest` 使用 H2、Flyway off；`ModulithStructureTest` 校验模块边界。
 - Mockito 在 JDK 21 容器中 self-attach 受限，已用 `server/src/test/resources/mockito-extensions/org.mockito.plugins.MockMaker` = `mock-maker-subclass` 修复。
 
 ## 8. 本机与跨机器开发环境
+
+### 8.0 无 root 环境（Linux 容器，2026-10-19 实测）
+
+本机 `uid=1000`、**没有 `sudo`**、`su` 的 root 密码未知（用户提供的密码被拒），因此：
+
+| 能力 | 状态 | 替代方案 |
+|---|---|---|
+| JDK 21 / Maven | 用户态安装 `~/.local/opt`，`~/.dsh-java-env` 引入三个 shell profile | 等同于系统安装 |
+| Docker CLI + Compose | 用户态安装 `~/.local/bin/docker`、`~/.docker/cli-plugins/docker-compose` | 可做 `docker compose config` 校验，已通过 |
+| Docker 守护进程 | **不可用**：`dockerd needs to be started with root privileges`；rootless 需要 `unshare`，被 seccomp 拒绝（`Operation not permitted`），且缺 `newuidmap/newgidmap` | 测试改用嵌入式 PostgreSQL |
+| Testcontainers | 自动降级到嵌入式 PostgreSQL（有 WARN 日志） | `mvn test` 仍覆盖真实 SQL |
+
+验证 compose 文件（不需要守护进程）：
+
+```bash
+docker compose --env-file .env.example config -q
+docker compose --env-file .env.example -f compose.lite.yaml config -q
+```
 
 ### 8.1 当前验证环境（2026-10-19）
 

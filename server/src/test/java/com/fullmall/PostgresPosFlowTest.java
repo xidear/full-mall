@@ -14,9 +14,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
-import org.testcontainers.containers.PostgreSQLContainer;
-import org.testcontainers.junit.jupiter.Container;
-import org.testcontainers.junit.jupiter.Testcontainers;
+import com.fullmall.test.PostgresTestDatabase;
 
 import java.util.List;
 import java.util.Map;
@@ -25,7 +23,6 @@ import java.util.UUID;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-@Testcontainers(disabledWithoutDocker = true)
 @SpringBootTest(
         webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
         properties = {
@@ -41,14 +38,12 @@ class PostgresPosFlowTest {
     private static final String STORE_ID = "22222222-2222-2222-2222-222222222222";
     private static final String MEMBER_PHONE = "13800000001";
 
-    @Container
-    static final PostgreSQLContainer<?> POSTGRES = new PostgreSQLContainer<>("postgres:17-alpine");
-
     @DynamicPropertySource
     static void datasource(DynamicPropertyRegistry registry) {
-        registry.add("spring.datasource.url", POSTGRES::getJdbcUrl);
-        registry.add("spring.datasource.username", POSTGRES::getUsername);
-        registry.add("spring.datasource.password", POSTGRES::getPassword);
+        PostgresTestDatabase database = PostgresTestDatabase.get();
+        registry.add("spring.datasource.url", database::jdbcUrl);
+        registry.add("spring.datasource.username", database::username);
+        registry.add("spring.datasource.password", database::password);
         registry.add("spring.datasource.driver-class-name", () -> "org.postgresql.Driver");
     }
 
@@ -87,18 +82,20 @@ class PostgresPosFlowTest {
         assertEquals(500, coupon.get("sale").get("couponDiscount").get("amount").asInt());
 
         JsonNode points = post("/store/v1/pos/sales/" + saleId + "/points", Map.of("points", 100), null);
-        assertEquals(3380, points.get("sale").get("payable").get("amount").asInt());
+        // 3980 原价 → 会员 GOLD 95 折 -199 = 3781 → 优惠券 -500 = 3281 → 积分 100 分 = 3181
+        assertEquals(3181, points.get("sale").get("payable").get("amount").asInt());
 
         JsonNode tendered = post("/store/v1/pos/sales/" + saleId + "/tenders", Map.of(
                 "type", "CASH",
-                "amount", 3380,
-                "cashTendered", 3380,
+                "amount", 3181,
+                "cashTendered", 3181,
                 "idempotencyKey", UUID.randomUUID().toString()), null);
         assertEquals(0, tendered.get("remainingAmount").get("amount").asInt());
 
         JsonNode completed = post("/store/v1/pos/sales/" + saleId + "/complete", null, null);
         assertEquals("COMPLETED", completed.get("sale").get("status").asText());
-        assertEquals(33, completed.get("sale").get("pointsEarned").asInt());
+        // 积分基数 = 3181/100 = 31，GOLD 会员 2 倍积分 → 62
+        assertEquals(62, completed.get("sale").get("pointsEarned").asInt());
         assertEquals(stockBefore - 2, storeMilkStock(adminToken));
 
         String saleLineId = completed.get("sale").get("lines").get(0).get("id").asText();

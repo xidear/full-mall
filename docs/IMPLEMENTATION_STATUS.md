@@ -600,3 +600,21 @@ cd web && npx playwright test
 | 构建 | `mvn -Pprod package`、`mvn -Pdemo package` 均成功 |
 | 模块边界 | `ModulithStructureTest` 通过（新增 `feature` 模块 + `setting-service` 命名接口） |
 | 全新 clone | 单分支 `main`，`.env` 98 键，可直接构建 |
+
+### 追加（同日）：无 root 环境补齐验证能力
+
+| 项 | 结论 |
+|---|---|
+| root 提权 | 不可用：无 `sudo`；`su` 用所给密码返回 `Authentication failure`；`/etc/shadow` 为 `root:shadow 640`，不可核对 |
+| Docker 守护进程 | 不可用：`dockerd needs to be started with root privileges`；rootless 需 `unshare`，被 seccomp 拒绝（`Operation not permitted`），且无 `newuidmap/newgidmap` |
+| Docker CLI / Compose | 已用户态安装（Docker 29.9.1、Compose v5.6.0），`compose.yaml` 与 `compose.lite.yaml` 均 `config -q` 通过 |
+| 集成测试 | 新增 `PostgresTestDatabase`：有 Docker 用 Testcontainers(postgres:17)，无 Docker 用嵌入式 PostgreSQL，全程真实数据库并打印所用模式 |
+| 测试结果 | **62 个测试，62 通过，0 跳过**（原先跳过的 2 个集成测试现在真实执行） |
+
+### 本轮由"取消跳过"暴露并修复的问题
+
+| 问题 | 性质 | 修复 |
+|---|---|---|
+| 同一 SKU+批次的付费行与买赠行生成两条拣货行 | **产品缺陷**：扫码按批次确认无法区分，拣货任务永远停在 PENDING | `FulfillmentService` 按 `sku+batch` 合并拣货行并累加数量 |
+| POS 用例期望 payable 3380 / 积分 33 | 断言早于会员等级功能，未考虑 GOLD 95 折与 2 倍积分 | 修正为 3181 / 62 并写明推导 |
+| 自提用例期望批次余量 3 | 断言早于促销功能，未考虑"买二赠一"赠品行占用真实库存 | 修正为 2 并注明赠品行 |

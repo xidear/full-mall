@@ -25,7 +25,9 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 @Service
@@ -93,19 +95,29 @@ public class FulfillmentService {
         if (storeId != null) {
             eventPublisher.publishEvent(new StoreTaskChangedEvent(storeId, taskId, "CREATED"));
         }
+        // 同一 SKU + 同一批次的多条分配（例如付费行与买赠行）必须合并为一条拣货行，
+        // 否则扫码按批次确认时无法区分，拣货任务永远无法完成。
+        Map<String, MergedPickLine> merged = new LinkedHashMap<>();
         for (LineAllocation allocation : lineAllocations) {
             for (ReservationAllocation reservation : allocation.allocations()) {
-                repository.insertPickTaskLine(new PickTaskLine(
-                        Ids.newId(),
-                        taskId,
-                        allocation.skuId(),
-                        null,
-                        reservation.quantity(),
-                        reservation.batchId(),
-                        null,
-                        reservation.expiryDate(),
-                        0));
+                String key = allocation.skuId() + "|" + reservation.batchId();
+                merged.merge(key,
+                        new MergedPickLine(allocation.skuId(), reservation.batchId(),
+                                reservation.expiryDate(), reservation.quantity()),
+                        MergedPickLine::plus);
             }
+        }
+        for (MergedPickLine line : merged.values()) {
+            repository.insertPickTaskLine(new PickTaskLine(
+                    Ids.newId(),
+                    taskId,
+                    line.skuId(),
+                    null,
+                    line.quantity(),
+                    line.batchId(),
+                    null,
+                    line.expiryDate(),
+                    0));
         }
 
         if (type == FulfillmentType.STORE_PICKUP) {
@@ -332,5 +344,13 @@ public class FulfillmentService {
 
     private List<UUID> orderLineIds(FulfillmentOrder fulfillment) {
         return fulfillment.lines().stream().map(FulfillmentLine::orderLineId).toList();
+    }
+
+    private record MergedPickLine(java.util.UUID skuId, java.util.UUID batchId,
+                                  java.time.LocalDate expiryDate, int quantity) {
+
+        private MergedPickLine plus(MergedPickLine other) {
+            return new MergedPickLine(skuId, batchId, expiryDate, quantity + other.quantity);
+        }
     }
 }

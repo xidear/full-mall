@@ -14,9 +14,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
-import org.testcontainers.containers.PostgreSQLContainer;
-import org.testcontainers.junit.jupiter.Container;
-import org.testcontainers.junit.jupiter.Testcontainers;
+import com.fullmall.test.PostgresTestDatabase;
 
 import java.util.List;
 import java.util.Map;
@@ -26,7 +24,6 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-@Testcontainers(disabledWithoutDocker = true)
 @SpringBootTest(
         webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
         properties = {
@@ -41,14 +38,12 @@ class PostgresPickupFlowTest {
     private static final String SKU_ID = "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb";
     private static final String STORE_ID = "22222222-2222-2222-2222-222222222222";
 
-    @Container
-    static final PostgreSQLContainer<?> POSTGRES = new PostgreSQLContainer<>("postgres:17-alpine");
-
     @DynamicPropertySource
     static void datasource(DynamicPropertyRegistry registry) {
-        registry.add("spring.datasource.url", POSTGRES::getJdbcUrl);
-        registry.add("spring.datasource.username", POSTGRES::getUsername);
-        registry.add("spring.datasource.password", POSTGRES::getPassword);
+        PostgresTestDatabase database = PostgresTestDatabase.get();
+        registry.add("spring.datasource.url", database::jdbcUrl);
+        registry.add("spring.datasource.username", database::username);
+        registry.add("spring.datasource.password", database::password);
         registry.add("spring.datasource.driver-class-name", () -> "org.postgresql.Driver");
     }
 
@@ -115,7 +110,8 @@ class PostgresPickupFlowTest {
             }
         }
         assertNotNull(storeBatch, "Store milk batch must exist");
-        assertEquals(3, storeBatch.get("quantity").asInt());
+        // 买 2 件鲜奶自动触发"买二赠一"：付费行 2 件 + 赠品行 1 件，共从该批次出库 3 件
+        assertEquals(2, storeBatch.get("quantity").asInt());
         assertEquals(0, storeBatch.get("reservedQuantity").asInt());
     }
 

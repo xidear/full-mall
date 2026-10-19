@@ -9,7 +9,7 @@
 | | 直连商户模式（DIRECT） | 服务商模式（SUB_MERCHANT） |
 |---|---|---|
 | 上游是谁 | 微信支付 / 支付宝官方 | **第三方支付服务商（SP/ISV）**，它是服务商 |
-| **我方角色** | 自己就是商户 | **我方是服务商下属的子商户** |
+| **我方角色** | 自己就是商户 | **整个商城 = 一个子商户**（不是服务商，下面没有子商户） |
 | 关键标识 | 我方 `mchid` / `app_id` | 上游 `sp_mchid` / `sp_app_id` + **我方 `sub_mch_id` / `sub_app_id`** |
 | 签约与进件 | 我方直接与官方签约 | **由服务商代我方进件/报备**，我方提供营业执照、结算账户 |
 | 调用凭证 | 我方商户 API 证书 | 我方子商户凭证（服务商下发/代申请），或服务商代调用 |
@@ -35,18 +35,20 @@ payment_provider_config
   callback_url, notify_url,
   status(ACTIVE|DISABLED), created_by, created_at, updated_at, rotated_at
 
-payment_sub_merchant            -- 服务商模式下：我方主体/店铺 → **我方的子商户号**
-  id, config_id, owner_type(LEGAL_ENTITY|STORE), owner_id,
-  sub_mch_id, sub_app_id, merchant_name,      -- 都是我方的
-  onboard_state(PENDING|ONBOARDED|REJECTED),  -- 服务商代进件状态
-  auth_token_cipher, authorized_at            -- 支付宝 ISV 场景：我方给服务商应用的授权令牌
-```
+-- 没有独立子商户表：**整个商城就是一个子商户**
+-- 服务商可更换、也可随时改走直连模式，因此配置是多行、单一 ACTIVE：
+--   (channel, mode) 在任一时刻只有一条 ACTIVE；历史支付通过 payment.provider_config_id 指向当时使用的配置
+
+payment                      -- 已存在表增加一列（退款必须回到原服务商）
+  + provider_config_id UUID  -- 下单时使用的配置快照引用；退款按此路由，不能按"当前配置"
 
 约束：
 
-- `(provider, mode, market_code, owner_id)` 唯一，避免同一店铺挂两个有效配置；
-- 服务商模式下 `sp_mch_id`（上游）与我方 `sub_mch_id` **都必填**，缺失时下单直接失败（不猜、不回退直连）；
+- 同一 `(channel, market_code)` 在任一时刻**只能有一条 ACTIVE 配置**（切换服务商 = 新配置置 ACTIVE、旧配置置 DISABLED）；
+- 服务商模式下 `sp_mch_id`（上游服务商）与我方 `sub_mch_id`（**整个商城这一个**）都必填，缺失时下单直接失败；
 - 直连模式下 `sp_*` 与 `sub_*` 字段必须为空；
+- **退款必须按 `payment.provider_config_id` 回到原配置/原服务商**：换服务商后旧订单的退款仍走旧通道，
+  否则会被渠道拒绝或退款到错误主体；
 - 所有敏感字段加密存储（AES-GCM/KMS），API 返回**掩码**，轮换写审计。
 
 ## 3. Provider 配置必须走 Web 图形界面（禁止手写 JSON）
@@ -84,13 +86,13 @@ reconcile(date, ctx) -> List<ChannelStatementRow>   // 按 sub_mch_id 拉账单
 
 回调处理要点：
 
-1. 先验签（服务商证书），再**按 `sub_mch_id` 反查店铺/配置**，匹配不到直接拒绝并告警；
+1. 先验签（服务商证书），再**按 `sub_mch_id` 反查配置**（整商城只有一个子商户，不需要按门店路由），匹配不到直接拒绝并告警；
 2. 幂等 inbox（已有设计），重复/乱序回调不改账；
 3. 退款必须带同一 `sub_mch_id`，否则会打回。
 
 ## 5. 对账与结算
 
-- 微信：服务商模式下按 `sp_mchid + sub_mchid + bill_date` 下载交易/退款/资金账单；
+- 微信：服务商模式下按 `sp_mchid + sub_mchid + bill_date` 下载**整商城**交易/退款/资金账单；
 - 支付宝：ISV 模式下按 `app_auth_token` 代子商户查账单（需在子商户授权范围内）；
 - 差异分类：我方多记/少记/渠道手续费/退款滞后/跨日；
 - 账单与 `ai_usage` 类同思路：**单价快照 + 幂等键**，月度对账出差异报告。

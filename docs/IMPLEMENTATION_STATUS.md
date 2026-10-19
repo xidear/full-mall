@@ -1214,3 +1214,16 @@ cd web && npx playwright test
 > **仍未做**：定时调度（`@Scheduled`）、对象存储与签名 URL、删除旧同步导出接口、
 > 大表 keyset 分批（当前单次上限 5000 行）。
 
+### A6 第三步：调度器
+
+- `ExportJobScheduler`：`@Scheduled` 定时抢占并执行，**默认关闭**
+  （`app.export.worker.enabled=false`），生产 worker profile 显式打开。
+- 每轮最多 `batches-per-run`（默认 5）个任务；单个任务异常不影响后续（worker 已把该任务置 FAILED）。
+
+| 验证 | 结果 |
+|---|---|
+| 后端测试 | **211 个，全部通过，0 跳过** |
+| 新增测试 | `ExportSchedulerTest`：开启 worker 后 PENDING 任务在 20s 内自动变 SUCCEEDED 且产出文件 |
+
+> **仍未做**：对象存储与签名 URL、删除旧的同步导出接口、大表 keyset 分批。
+

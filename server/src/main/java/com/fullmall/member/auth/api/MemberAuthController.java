@@ -23,6 +23,16 @@ public class MemberAuthController {
     public record VerifyOtp(@NotBlank String phone, @NotBlank String code) {
     }
 
+    /** 当前登录会员资料（需 Bearer token）。 */
+    @GetMapping("/me")
+    public MemberAuthService.MemberProfile me(org.springframework.security.core.Authentication authentication) {
+        if (authentication == null || authentication.getName() == null) {
+            throw com.fullmall.platform.error.ApiException.badRequest(
+                    "MEMBER_REQUIRED", "需要会员登录");
+        }
+        return auth.profile(java.util.UUID.fromString(authentication.getName()));
+    }
+
     @PostMapping("/otp")
     public Map<String, Object> requestOtp(@RequestBody RequestOtp body) {
         var issued = auth.requestOtp(body.phone());

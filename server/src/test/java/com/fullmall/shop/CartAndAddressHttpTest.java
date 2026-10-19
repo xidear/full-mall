@@ -201,6 +201,12 @@ class CartAndAddressHttpTest {
                 new HttpEntity<>(memberHeaders), String.class);
         assertThat(memberCart.getBody()).contains("\"quantity\":3");
 
+        // 会员可取自己的资料（掩码）
+        var me = http.exchange("/api/v1/member/auth/me", HttpMethod.GET,
+                new HttpEntity<>(memberHeaders), String.class);
+        assertThat(me.getStatusCode().value()).isEqualTo(200);
+        assertThat(me.getBody()).contains("139****0123").doesNotContain("13900000123");
+
         // 无效 token 直接 401，不降级为游客
         HttpHeaders bad = new HttpHeaders();
         bad.set("Authorization", "Bearer not-a-real-token");

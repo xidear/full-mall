@@ -109,6 +109,28 @@ public class MemberAuthService {
         return new SessionIssued(token, memberId, memberNo);
     }
 
+    public record MemberProfile(UUID id, String memberNo, String nameMasked, String phoneMasked,
+                                String tier, long points, long storedValue, String currency) {
+    }
+
+    /** 会员自身资料（手机号与姓名掩码，避免前端/日志泄露 PII）。 */
+    public MemberProfile profile(UUID memberId) {
+        return jdbcTemplate.query("""
+                SELECT id, member_no, name, phone, tier, points_balance, stored_value_balance, currency
+                  FROM member WHERE id = ?
+                """, (rs, rowNum) -> new MemberProfile(
+                rs.getObject("id", UUID.class),
+                rs.getString("member_no"),
+                com.fullmall.platform.export.FieldMasker.name(rs.getString("name")),
+                com.fullmall.platform.export.FieldMasker.phone(rs.getString("phone")),
+                rs.getString("tier"),
+                rs.getLong("points_balance"),
+                rs.getLong("stored_value_balance"),
+                rs.getString("currency")), memberId)
+                .stream().findFirst()
+                .orElseThrow(() -> ApiException.notFound("MEMBER_NOT_FOUND", "会员不存在: " + memberId));
+    }
+
     /** 会话 token → 会员 ID；无效返回 empty（由调用方决定 401）。 */
     public java.util.Optional<UUID> resolveSession(String token) {
         if (token == null || token.isBlank()) {

@@ -42,8 +42,11 @@ public class MemberAuthFilter extends OncePerRequestFilter {
 
     @Override
     protected boolean shouldNotFilter(HttpServletRequest request) {
-        return !request.getRequestURI().startsWith("/api/v1/")
-                || request.getRequestURI().startsWith("/api/v1/member/auth/");
+        String path = request.getRequestURI();
+        // 只跳过登录接口本身；/api/v1/member/auth/me 等仍需鉴权
+        return !path.startsWith("/api/v1/")
+                || path.equals("/api/v1/member/auth/otp")
+                || path.equals("/api/v1/member/auth/verify");
     }
 
     @Override

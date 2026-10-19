@@ -1455,3 +1455,16 @@ cd web && npx playwright test
 | 踩坑 | 过滤器最初排在 Spring Security 之前（`HIGHEST_PRECEDENCE+40`），上下文被安全链覆盖导致 400；
 改为 `@Order(0)`（晚于安全链的 -100）后正常 |
 
+### 会员资料接口
+
+- `GET /api/v1/member/auth/me`：返回会员号、**掩码姓名与手机号**、等级、积分、储值。
+- 过滤器排除规则收窄为只跳过 `/auth/otp` 与 `/auth/verify`，`/me` 需要有效 token。
+
+| 验证 | 结果 |
+|---|---|
+| 后端测试 | **231 个，全部通过，0 跳过** |
+| HTTP 断言 | 登录后取资料 200，返回 `139****0123` 且不含明文手机号 |
+
+> 说明：提现自助本轮**未做**。原因是模型未定——`distribution_commission.promoter_staff_id` 指向员工，
+> 而自助提现应绑定会员身份；究竟"推广员是员工还是会员"需要业务确认，我不猜。
+

@@ -135,6 +135,27 @@ class CouponCheckoutTest {
     }
 
     @Test
+    void exclusiveModeRejectsCouponThatIsWorseThanPromotion() {
+        // 促销：满 1000 减 800（大于券面额 500）
+        jdbc.update("""
+                INSERT INTO promotion (id, code, type, title, status, starts_at, ends_at, rules, priority)
+                VALUES (?, ?, 'FULL_REDUCTION', '测试满减', 'ACTIVE',
+                        now() - interval '1 hour', now() + interval '1 day',
+                        '{"thresholdAmount":1000,"value":800}'::jsonb, 10)
+                """, UUID.randomUUID(), "CK-PROMO-" + memberId.toString().substring(0, 8).toUpperCase());
+        UUID couponId = claimCoupon();
+
+        org.assertj.core.api.Assertions.assertThatThrownBy(
+                        () -> orders.checkout(request(couponId), null))
+                .isInstanceOf(com.fullmall.platform.error.ApiException.class)
+                .hasMessageContaining("小于当前促销优惠");
+
+        // 券未被吃掉
+        assertThat(jdbc.queryForObject(
+                "SELECT status FROM member_coupon WHERE id = ?", String.class, couponId)).isEqualTo("UNUSED");
+    }
+
+    @Test
     void sameCouponCannotBeUsedTwice() {
         UUID couponId = claimCoupon();
         orders.checkout(request(couponId), null);

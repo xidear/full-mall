@@ -75,10 +75,8 @@ public class PromotionRepository {
     public void insert(Promotion promotion) {
         jdbcTemplate.update("""
                 INSERT INTO promotion (id, code, type, title, description, status, starts_at, ends_at,
-                                       sku_id, promo_price_amount, gift_sku_id, buy_quantity, gift_quantity,
-                                       max_gift_per_order, stock_limit, sold_quantity, per_user_limit,
-                                       group_size, group_duration_hours, priority, created_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?, now())
+                                       rules, priority, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, CAST(? AS jsonb), ?, now())
                 """,
                 promotion.id(),
                 promotion.code(),
@@ -88,16 +86,7 @@ public class PromotionRepository {
                 promotion.status().name(),
                 java.sql.Timestamp.from(promotion.startsAt()),
                 java.sql.Timestamp.from(promotion.endsAt()),
-                promotion.skuId(),
-                promotion.promoPriceAmount(),
-                promotion.giftSkuId(),
-                promotion.buyQuantity(),
-                promotion.giftQuantity(),
-                promotion.maxGiftPerOrder(),
-                promotion.stockLimit(),
-                promotion.perUserLimit(),
-                promotion.groupSize(),
-                promotion.groupDurationHours(),
+                com.fullmall.promotion.domain.PromotionRules.toJson(promotion),
                 promotion.priority());
     }
 

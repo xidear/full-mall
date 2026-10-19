@@ -195,20 +195,17 @@ VALUES
  '22222222-2222-2222-2222-222222222222', 'MILK-SH-BULK', CURRENT_DATE, CURRENT_DATE + 60,
  1000, 0, 'AVAILABLE', 1200, 'CNY', now())
 ON CONFLICT (id) DO NOTHING;
-INSERT INTO promotion (id, code, type, title, description, status, starts_at, ends_at, sku_id,
-                       promo_price_amount, gift_sku_id, buy_quantity, gift_quantity, max_gift_per_order,
-                       stock_limit, sold_quantity, per_user_limit, group_size, group_duration_hours, priority)
+INSERT INTO promotion (id, code, type, title, description, status, starts_at, ends_at, rules, priority)
 VALUES
 ('91000000-0000-0000-0000-000000000001', 'DEMO-FLASH-MUG', 'FLASH_SALE', '马克杯限时秒杀',
  '手工陶瓷马克杯限时 2990 分，每单最多 5 件。', 'ACTIVE', now() - interval '1 hour', now() + interval '30 days',
- 'dddddddd-dddd-dddd-dddd-dddddddddddd', 2990, NULL, NULL, NULL, NULL, 30, 0, 5, NULL, NULL, 30),
+ '{"skuId":"dddddddd-dddd-dddd-dddd-dddddddddddd","promoPriceAmount":2990,"stockLimit":30,"perUserLimit":5}'::jsonb, 30),
 ('91000000-0000-0000-0000-000000000002', 'DEMO-GIFT-MILK', 'BUY_GIFT', '鲜奶买二赠一',
  '购买 2 件 1L 鲜奶赠送 1 件同款，每单最多赠 2 件。', 'ACTIVE', now() - interval '1 hour', now() + interval '30 days',
- 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb', NULL, 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb', 2, 1, 2,
- 20, 0, NULL, NULL, NULL, 20),
+ '{"skuId":"bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb","giftSkuId":"bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb","buyQuantity":2,"giftQuantity":1,"maxGiftPerOrder":2,"stockLimit":20,"perUserLimit":20}'::jsonb, 20),
 ('91000000-0000-0000-0000-000000000003', 'DEMO-GROUP-MUG', 'GROUP_BUY', '马克杯 2 人拼团',
  '2 人成团，每人 2490 分，24 小时内未成团自动退款。', 'ACTIVE', now() - interval '1 hour', now() + interval '30 days',
- 'dddddddd-dddd-dddd-dddd-dddddddddddd', 2490, NULL, NULL, NULL, NULL, NULL, 0, 1, 2, 24, 10)
+ '{"skuId":"dddddddd-dddd-dddd-dddd-dddddddddddd","promoPriceAmount":2490,"groupSize":2,"groupDurationHours":24,"perUserLimit":1}'::jsonb, 10)
 ON CONFLICT (id) DO NOTHING;
 
 -- 演示会员与优惠券（V23 起从迁移移出，仅 dev/demo 执行；prod 不再自动获得演示数据）

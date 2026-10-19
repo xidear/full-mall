@@ -1118,3 +1118,21 @@ cd web && npx playwright test
 | 后端测试 | **197 个，全部通过，0 跳过** |
 | 说明 | 这是对上一轮"编译通过但未验证"的补齐；踩坑记录：`FulfillmentMode` 只有 `SHIP/PICKUP`，seed 里写错枚举名导致上下文失败 |
 
+---
+
+## 2026-10-19：Promotion 收敛（37 列 → 关键列 + rules JSONB）
+
+- V39：`promotion` 增加 `rules JSONB`，把 skuId/promoPriceAmount/giftSkuId/buyQuantity/giftQuantity/
+  maxGiftPerOrder/stockLimit/perUserLimit/groupSize/groupDurationHours 收进 JSON；
+  这些旧列**重建为生成列**（`GENERATED ALWAYS AS ((rules->>'x')::type) STORED`），
+  **现有 25 处读代码零改动**。
+- 写路径只改两处：`PromotionRepository.insert` 与 `db/demo/seed.sql` 写 `rules`；
+  `sold_quantity`、`priority`、`status`、时间窗仍是普通列（原子计数/排序/索引需要）。
+- 约束改为直接校验 JSON（`promotion_flash_rules_check` 等），新增促销类型不用改表。
+
+| 验证 | 结果 |
+|---|---|
+| 后端测试 | **197 个，全部通过，0 跳过** |
+| 迁移 | V39 在真实 PostgreSQL 跑通（含既有数据回填与 seed 重写） |
+| 说明 | 第一次跑失败是因为 seed 仍写生成列，改 seed 后通过——错误信息直接指出语句序号 |
+

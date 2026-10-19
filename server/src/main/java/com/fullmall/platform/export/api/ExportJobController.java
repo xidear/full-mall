@@ -6,8 +6,6 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.util.Map;
 import java.util.UUID;
 
@@ -17,9 +15,12 @@ import java.util.UUID;
 public class ExportJobController {
 
     private final ExportJobService service;
+    private final com.fullmall.platform.export.ExportStorage storage;
 
-    public ExportJobController(ExportJobService service) {
+    public ExportJobController(ExportJobService service,
+                               com.fullmall.platform.export.ExportStorage storage) {
         this.service = service;
+        this.storage = storage;
     }
 
     public record CreateExport(String resource, String projection, Map<String, Object> params) {
@@ -45,20 +46,15 @@ public class ExportJobController {
                     org.springframework.http.HttpStatus.CONFLICT, "EXPORT_NOT_READY",
                     "导出尚未完成，当前状态=" + job.status());
         }
-        Path path = Path.of(job.filePath());
-        if (!Files.isReadable(path)) {
+        if (!storage.exists(job.filePath())) {
             throw new com.fullmall.platform.error.ApiException(
                     org.springframework.http.HttpStatus.GONE, "EXPORT_FILE_MISSING",
                     "导出文件已不可用，请重新导出");
         }
-        try {
-            return org.springframework.http.ResponseEntity.ok()
-                    .header("Content-Disposition", "attachment; filename=export-" + jobId + ".csv")
-                    .header("Content-Type", "text/csv;charset=UTF-8")
-                    .body(Files.readAllBytes(path));
-        } catch (java.io.IOException error) {
-            throw new IllegalStateException("读取导出文件失败: " + path, error);
-        }
+        return org.springframework.http.ResponseEntity.ok()
+                .header("Content-Disposition", "attachment; filename=export-" + jobId + ".csv")
+                .header("Content-Type", "text/csv;charset=UTF-8")
+                .body(storage.read(job.filePath()));
     }
 
     @GetMapping("/{jobId}")

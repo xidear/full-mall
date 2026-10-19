@@ -14,8 +14,6 @@ import org.springframework.transaction.annotation.Transactional;
 import java.io.BufferedWriter;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.util.List;
 import java.util.Locale;
 
@@ -39,13 +37,13 @@ public class ExportWorker {
     private final ExportJobService jobs;
     private final MemberExportRepository memberRepository;
     private final PosSalesExportRepository posRepository;
-    private final Path storageDir;
+    private final ExportStorage storage;
     private final int maxRows;
 
     public ExportWorker(ExportJobService jobs,
                         MemberExportRepository memberRepository,
                         PosSalesExportRepository posRepository,
-                        @Value("${app.export.storage-dir:}") String storageDir,
+                        ExportStorage storage,
                         @Value("${app.export.max-rows:5000}") int maxRows) {
         if (maxRows <= 0) {
             throw new IllegalArgumentException("app.export.max-rows 必须大于 0，实际=" + maxRows);
@@ -54,9 +52,7 @@ public class ExportWorker {
         this.jobs = jobs;
         this.memberRepository = memberRepository;
         this.posRepository = posRepository;
-        this.storageDir = Path.of(storageDir == null || storageDir.isBlank()
-                ? System.getProperty("java.io.tmpdir") + "/fullmall-exports"
-                : storageDir);
+        this.storage = storage;
     }
 
     /**
@@ -71,10 +67,10 @@ public class ExportWorker {
             return false;
         }
         try {
-            Files.createDirectories(storageDir);
-            Path target = storageDir.resolve(job.id() + ".csv");
-            int rows = writeCsv(job, target);
-            jobs.succeed(job.id(), rows, target.toString());
+            java.io.ByteArrayOutputStream buffer = new java.io.ByteArrayOutputStream();
+            int rows = writeCsv(job, buffer);
+            String key = storage.store(job.id() + ".csv", buffer.toByteArray());
+            jobs.succeed(job.id(), rows, key);
             log.info("导出完成 job={} resource={} projection={} rows={}",
                     job.id(), job.resource(), job.projection(), rows);
         } catch (ExportTooLargeException error) {
@@ -87,9 +83,10 @@ public class ExportWorker {
         return true;
     }
 
-    private int writeCsv(ExportJob job, Path target) throws IOException {
+    private int writeCsv(ExportJob job, java.io.ByteArrayOutputStream buffer) throws IOException {
         boolean finance = "FINANCE".equalsIgnoreCase(job.projection());
-        try (BufferedWriter writer = Files.newBufferedWriter(target, StandardCharsets.UTF_8);
+        try (BufferedWriter writer = new java.io.BufferedWriter(
+                new java.io.OutputStreamWriter(buffer, StandardCharsets.UTF_8));
              CSVPrinter printer = new CSVPrinter(writer, CSVFormat.DEFAULT)) {
             return switch (job.resource().toLowerCase(Locale.ROOT)) {
                 case "member" -> writeMembers(printer);

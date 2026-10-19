@@ -53,6 +53,9 @@ class ExportJobServiceTest {
     @Autowired
     ExportWorker worker;
 
+    @Autowired
+    ExportStorage storage;
+
     @org.junit.jupiter.api.BeforeEach
     void clean() {
         jdbc.update("DELETE FROM export_job");
@@ -96,7 +99,7 @@ class ExportJobServiceTest {
         var job = service.find(id);
         assertThat(job.status()).isEqualTo("SUCCEEDED");
         assertThat(job.rowCount()).isEqualTo(1);
-        String csv = java.nio.file.Files.readString(java.nio.file.Path.of(job.filePath()));
+        String csv = new String(storage.read(job.filePath()), java.nio.charset.StandardCharsets.UTF_8);
         assertThat(csv).contains("phoneMasked").contains("138****0001").doesNotContain("13800000001");
     }
 

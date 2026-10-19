@@ -72,15 +72,28 @@ public class OrderRepository {
                                String currency, java.time.Instant createdAt) {
     }
 
-    public List<OrderSummary> findByContactPhone(String phone, int limit) {
+    public List<OrderSummary> findByMemberId(UUID memberId, int limit) {
         return jdbcTemplate.query("""
                 SELECT id, order_no, status, total_amount, currency, created_at
-                  FROM orders WHERE contact_phone = ?
+                  FROM orders WHERE member_id = ?
                  ORDER BY created_at DESC LIMIT ?
                 """, (rs, rowNum) -> new OrderSummary(
                 rs.getObject("id", UUID.class), rs.getString("order_no"), rs.getString("status"),
                 rs.getLong("total_amount"), rs.getString("currency"),
-                rs.getTimestamp("created_at").toInstant()), phone, limit);
+                rs.getTimestamp("created_at").toInstant()), memberId, limit);
+    }
+
+    /** 下单后按手机号把订单绑定到会员（手机号唯一时）。 */
+    public void attachMemberByPhone(UUID orderId, String phone) {
+        if (phone == null || phone.isBlank()) {
+            return;
+        }
+        jdbcTemplate.update("""
+                UPDATE orders o SET member_id = m.id
+                  FROM member m
+                 WHERE o.id = ? AND o.member_id IS NULL AND m.phone = ?
+                   AND (SELECT COUNT(*) FROM member m2 WHERE m2.phone = m.phone) = 1
+                """, orderId, phone.trim());
     }
 
     public Order findOrder(UUID orderId) {

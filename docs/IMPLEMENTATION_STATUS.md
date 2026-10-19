@@ -1564,3 +1564,17 @@ cd web && npx playwright test
 > 说明：订单仍以 `contact_phone` 关联会员（尚无 `member_id` 外键）。手机号变更会导致历史订单失联，
 > 后续应迁移为 `orders.member_id` 并在下单时写入。
 
+---
+
+## 2026-10-19：订单绑定会员（消除手机号隐患）
+
+- V45：`orders.member_id` + 索引；**仅当手机号在会员表中唯一**时才回填，避免错绑。
+- 下单后 `attachMemberByPhone` 绑定会员；`GET /api/v1/orders/mine` 改为按 `member_id` 查询。
+
+| 验证 | 结果 |
+|---|---|
+| 后端测试 | **244 个，全部通过，0 跳过** |
+| 真实 HTTP | 会员下单后 `orders.member_id` 非空；"我的订单"按会员查（游客 400） |
+
+> 未做：订单详情/售后等按 `member_id` 的越权校验；历史订单中手机号不唯一的仍未绑定（需人工）。
+

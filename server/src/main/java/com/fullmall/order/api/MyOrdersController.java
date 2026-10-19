@@ -1,6 +1,5 @@
 package com.fullmall.order.api;
 
-import com.fullmall.member.auth.MemberAuthService;
 import com.fullmall.order.infra.OrderRepository;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -15,11 +14,9 @@ import java.util.UUID;
 public class MyOrdersController {
 
     private final OrderRepository orders;
-    private final MemberAuthService memberAuth;
 
-    public MyOrdersController(OrderRepository orders, MemberAuthService memberAuth) {
+    public MyOrdersController(OrderRepository orders) {
         this.orders = orders;
-        this.memberAuth = memberAuth;
     }
 
     @GetMapping("/api/v1/orders/mine")
@@ -33,7 +30,6 @@ public class MyOrdersController {
             throw com.fullmall.platform.error.ApiException.badRequest(
                     "INVALID_LIMIT", "查询条数必须在 1..100，实际=" + limit);
         }
-        String phone = memberAuth.phoneOf(UUID.fromString(authentication.getName()));
-        return orders.findByContactPhone(phone, limit);
+        return orders.findByMemberId(UUID.fromString(authentication.getName()), limit);
     }
 }

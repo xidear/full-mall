@@ -164,6 +164,10 @@ class CartAndAddressHttpTest {
         assertThat(jdbc.queryForObject(
                 "SELECT discount_amount FROM orders WHERE id = ?::uuid", Long.class, createdOrderId))
                 .isEqualTo(100L);
+        // 订单已按手机号绑定会员
+        assertThat(jdbc.queryForObject(
+                "SELECT member_id FROM orders WHERE id = ?::uuid", java.util.UUID.class, createdOrderId))
+                .isNotNull();
         // 下单后购物车清空
         var cart = http.exchange("/api/v1/cart", HttpMethod.GET,
                 new HttpEntity<>(guestHeaders()), String.class);

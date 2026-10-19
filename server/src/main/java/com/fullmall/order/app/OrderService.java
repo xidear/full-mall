@@ -237,6 +237,8 @@ public class OrderService {
                 Instant.now(),
                 List.of());
         orderRepository.insertOrder(order);
+        // 绑定会员（手机号唯一匹配时），后续"我的订单"按 member_id 查
+        orderRepository.attachMemberByPhone(orderId, request.contact().phone());
         promotionService.recordCheckout(promotionPricing, orderId, request.contact().phone());
         referralService.attachCheckout(orderId, request.contact().phone(), request.referrerId(), request.referralMode());
 

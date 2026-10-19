@@ -61,10 +61,37 @@ public class PromotionPreviewService {
             subtotal = Math.addExact(subtotal, sku.price().amount() * item.quantity());
         }
 
-        List<PromotionEngine.Rule> rules = loadActiveRules(channel);
-        var result = PromotionEngine.choose(rules, subtotal);
+        List<PromotionEngine.ScopedRule> scoped = loadActiveRules(channel).stream()
+                .map(rule -> new PromotionEngine.ScopedRule(rule,
+                        eligibleSubtotal(rule, items)))
+                .toList();
+        var result = PromotionEngine.chooseScoped(scoped);
         return new Preview(subtotal, result.discountAmount(),
                 subtotal - result.discountAmount(), result.appliedRuleCode(), resolvedLocale);
+    }
+
+    /**
+     * 规则命中范围内的金额。`rules.scopeIds` 目前按 SKU 过滤；缺省表示全场。
+     */
+    private long eligibleSubtotal(PromotionEngine.Rule rule, List<Item> items) {
+        java.util.Set<String> scopeIds = scopeIds(rule.code());
+        if (scopeIds.isEmpty()) {
+            return items.stream()
+                    .mapToLong(item -> catalogService.getSku(item.skuId()).price().amount() * item.quantity())
+                    .sum();
+        }
+        return items.stream()
+                .filter(item -> scopeIds.contains(item.skuId().toString()))
+                .mapToLong(item -> catalogService.getSku(item.skuId()).price().amount() * item.quantity())
+                .sum();
+    }
+
+    private java.util.Set<String> scopeIds(String ruleCode) {
+        List<String> raw = jdbcTemplate.queryForList("""
+                SELECT jsonb_array_elements_text(COALESCE(rules->'scopeIds', '[]'::jsonb)) AS id
+                  FROM promotion WHERE code = ?
+                """, String.class, ruleCode);
+        return new java.util.HashSet<>(raw);
     }
 
     /**

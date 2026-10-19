@@ -71,6 +71,29 @@ class PromotionEngineTest {
     }
 
     @Test
+    void scopedRuleUsesItsOwnBaseForThresholdAndDiscount() {
+        // 规则 A 只覆盖部分商品（基数 1500，未到门槛 2000）；规则 B 覆盖全场（基数 3000）
+        var result = PromotionEngine.chooseScoped(java.util.List.of(
+                new PromotionEngine.ScopedRule(
+                        new PromotionEngine.Rule("SCOPED", PromotionEngine.Type.FULL_REDUCTION, 2000, 300, 99), 1500),
+                new PromotionEngine.ScopedRule(
+                        new PromotionEngine.Rule("ALL", PromotionEngine.Type.FULL_REDUCTION, 2000, 200, 1), 3000)));
+
+        assertThat(result.appliedRuleCode()).isEqualTo("ALL");
+        assertThat(result.discountAmount()).isEqualTo(200);
+    }
+
+    @Test
+    void scopedRuleQualifiesOnItsOwnBase() {
+        var result = PromotionEngine.chooseScoped(java.util.List.of(
+                new PromotionEngine.ScopedRule(
+                        new PromotionEngine.Rule("SCOPED", PromotionEngine.Type.FULL_REDUCTION, 1000, 300, 99), 1500)));
+
+        assertThat(result.appliedRuleCode()).isEqualTo("SCOPED");
+        assertThat(result.discountAmount()).isEqualTo(300);
+    }
+
+    @Test
     void rejectsInvalidRules() {
         assertThatThrownBy(() -> PromotionEngine.choose(
                 List.of(new PromotionEngine.Rule("BAD", PromotionEngine.Type.FULL_DISCOUNT, 1_000, 100, 1)), 5_000))

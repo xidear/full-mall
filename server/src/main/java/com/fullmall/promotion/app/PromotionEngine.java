@@ -43,12 +43,35 @@ public final class PromotionEngine {
         }
     }
 
+    /**
+     * 规则 + 该规则的计费基数（范围限定时，基数只算命中的行）。
+     */
+    public record ScopedRule(Rule rule, long eligibleSubtotal) {
+    }
+
+    /** 全量基数版本：所有规则共用同一基数。 */
     public static Result choose(List<Rule> rules, long subtotalAmount) {
+        return chooseScoped(rules.stream()
+                .map(rule -> new ScopedRule(rule, subtotalAmount))
+                .toList());
+    }
+
+    /**
+     * 按规则各自的基数挑选最优：门槛与折扣都用 {@code eligibleSubtotal}。
+     *
+     * <p>范围限定规则（只对部分商品生效）时，不能拿整单小计判断门槛——
+     * 否则"某类目满 200 减 20"会被其它类目的金额凑满。
+     */
+    public static Result chooseScoped(List<ScopedRule> scopedRules) {
+        if (scopedRules == null || scopedRules.isEmpty()) {
+            return new Result(null, 0, "无可用促销");
+        }
+        return pickBest(scopedRules);
+    }
+
+    private static Result chooseLegacy(List<Rule> rules, long subtotalAmount) {
         if (subtotalAmount < 0) {
             throw new IllegalArgumentException("小计不能为负: " + subtotalAmount);
-        }
-        if (rules == null || rules.isEmpty()) {
-            return new Result(null, 0, "无可用促销");
         }
 
         Rule best = null;
@@ -93,6 +116,57 @@ public final class PromotionEngine {
             }
         }
 
+        return best == null
+                ? new Result(null, 0, "未达到任何促销门槛")
+                : new Result(best.code(), bestDiscount, "命中 " + best.type());
+    }
+
+    private static Result pickBest(List<ScopedRule> scopedRules) {
+        Rule best = null;
+        long bestDiscount = 0;
+        for (ScopedRule scoped : scopedRules) {
+            Rule rule = scoped.rule();
+            long base = scoped.eligibleSubtotal();
+            if (base < 0) {
+                throw new IllegalArgumentException("计费基数不能为负: " + rule.code());
+            }
+            if (rule.thresholdAmount() <= 0) {
+                throw new IllegalArgumentException("促销门槛必须大于 0: " + rule.code());
+            }
+            if (base < rule.thresholdAmount()) {
+                continue;
+            }
+            long discount = switch (rule.type()) {
+                case FULL_REDUCTION -> {
+                    if (rule.value() <= 0) {
+                        throw new IllegalArgumentException("满减金额必须大于 0: " + rule.code());
+                    }
+                    yield Math.min(rule.value(), base);
+                }
+                case FULL_DISCOUNT -> {
+                    if (rule.value() <= 0 || rule.value() >= 100) {
+                        throw new IllegalArgumentException("满折百分比必须在 1..99: " + rule.code());
+                    }
+                    long off = BigDecimal.valueOf(base)
+                            .multiply(BigDecimal.valueOf(100 - rule.value()))
+                            .divide(BigDecimal.valueOf(100), 0, RoundingMode.HALF_UP)
+                            .longValueExact();
+                    yield Math.min(off, base);
+                }
+            };
+            if (discount <= 0) {
+                continue;
+            }
+            boolean better = best == null
+                    || discount > bestDiscount
+                    || (discount == bestDiscount && rule.priority() > best.priority())
+                    || (discount == bestDiscount && rule.priority() == best.priority()
+                        && rule.code().compareTo(best.code()) < 0);
+            if (better) {
+                best = rule;
+                bestDiscount = discount;
+            }
+        }
         return best == null
                 ? new Result(null, 0, "未达到任何促销门槛")
                 : new Result(best.code(), bestDiscount, "命中 " + best.type());

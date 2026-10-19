@@ -727,3 +727,19 @@ cd web && npx playwright test
 | 后端测试 | **85 个，全部通过，0 跳过** |
 | 退款链路 | POS 集成测试走真实退款并写入 `audit_event` |
 
+### A3 收尾：库存调整审计（方案 2）
+
+- 新增 `platform/scope/CurrentActor`：优先取 `ActorDetails`，否则取认证名；
+  **无认证直接 401，不返回 system/anonymous 假身份**；后台任务必须显式传系统身份，不走本类。
+- `WarehouseService` 注入审计：盘点确认记 `STOCK_ADJUSTED`（行数 + 状态），
+  调拨出库记 `STOCK_TRANSFER_SHIPPED`；不改公开 DTO，避免动前端契约。
+- 踩坑记录：审计块最初误插到 `createStocktake`（同名的 `findStocktake` 返回值），
+  编译报 `lines()` 不存在才发现，已移到 `confirmStocktake`。
+
+> A3 事件覆盖：开关变更 / 登录 / 退款 / 权限变更 / 库存调整，**五类齐全**。
+
+| 验证 | 结果 |
+|---|---|
+| 后端测试 | **89 个，全部通过，0 跳过** |
+| 新增测试 | `CurrentActorTest` 4 个（无认证、ActorDetails、回退用户名、匿名拒绝） |
+

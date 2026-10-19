@@ -27,11 +27,17 @@ public class WarehouseService {
 
     private final WarehouseRepository repository;
     private final int replenishmentTarget;
+    private final com.fullmall.platform.audit.AuditEventService auditEvents;
+    private final com.fullmall.platform.scope.CurrentActor currentActor;
 
     public WarehouseService(WarehouseRepository repository,
-                            @Value("${app.warehouse.replenishment-target:30}") int replenishmentTarget) {
+                            @Value("${app.warehouse.replenishment-target:30}") int replenishmentTarget,
+                            com.fullmall.platform.audit.AuditEventService auditEvents,
+                            com.fullmall.platform.scope.CurrentActor currentActor) {
         this.repository = repository;
         this.replenishmentTarget = replenishmentTarget;
+        this.auditEvents = auditEvents;
+        this.currentActor = currentActor;
     }
 
     public List<LocationView> locations() {
@@ -130,6 +136,9 @@ public class WarehouseService {
             }
         }
         repository.markStocktakeConfirmed(stocktakeId, Instant.now());
+        auditEvents.record(new com.fullmall.platform.audit.AuditEventService.AuditEvent(
+                "STOCK_ADJUSTED", currentActor.requireUsername(), "stocktake", stocktakeId.toString(),
+                "lines=" + request.lines().size() + ";status=CONFIRMED", null));
         return repository.findStocktake(stocktakeId);
     }
 
@@ -149,7 +158,11 @@ public class WarehouseService {
         for (CreateTransferRequest.TransferLine line : request.lines()) {
             repository.insertTransferLine(transferId, line.skuId(), line.quantity());
         }
-        return repository.findTransfer(transferId);
+        TransferView result = repository.findTransfer(transferId);
+        auditEvents.record(new com.fullmall.platform.audit.AuditEventService.AuditEvent(
+                "STOCK_TRANSFER_SHIPPED", currentActor.requireUsername(), "transfer",
+                transferId.toString(), "status=IN_TRANSIT", null));
+        return result;
     }
 
     @Transactional

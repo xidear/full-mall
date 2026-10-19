@@ -102,7 +102,7 @@ Modulith 规则：
 - 过期/隔离/冻结批次不可售；退款回补只允许回到可售批次，否则 409 转人工处理。
 - 取消未支付订单会释放预占和促销名额；支付与取消都用条件状态更新，竞态只有一方成功。
 
-## 5. 数据库迁移（当前 Flyway v48）
+## 5. 数据库迁移（当前 Flyway v49）
 
 | 版本 | 内容 |
 |---|---|
@@ -154,6 +154,7 @@ Modulith 规则：
 | V46 | 促销类型放开 `FULL_REDUCTION` / `FULL_DISCOUNT`（参数仍走 `rules JSONB`） |
 | V47 | `product_review` 商品评价（唯一约束：订单+SKU+会员） |
 | V48 | `member_favorite` 商品收藏（主键 member+sku） |
+| V49 | `member_browse_history` 浏览足迹（主键 member+sku，重复浏览更新时间+次数） |
 
 重要教训：
 

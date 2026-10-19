@@ -1909,3 +1909,16 @@ cd web && npx playwright test
 
 > 说明：调度噪音仍未定位（上一轮记录），本轮不继续消耗在日志噪音上，转做增量能力。
 
+---
+
+## 2026-10-19：浏览足迹
+
+- V49 `member_browse_history(member_id, sku_id, viewed_at, view_count)`，主键去重。
+- `BrowseHistoryService`：重复浏览**更新时间并累加次数**（不会刷屏）、按最近浏览倒序、支持清空。
+- 接口：`GET/POST/DELETE /api/v1/history`，需会员登录。
+
+| 验证 | 结果 |
+|---|---|
+| 后端测试 | **280 个，全部通过，0 跳过** |
+| 新增测试 | 3 个：重复浏览只更新时间且次数为 2、清空返回删除条数、未知 SKU 拒绝 |
+

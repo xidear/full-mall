@@ -2154,3 +2154,32 @@ python3 scripts/check-api-alignment.py --verbose # 列出全部后端路由
 > 那是方法错误，不是代码问题。已改为脚本化检查并写入仓库。
 > 说明：本脚本是静态文本分析，不是运行时验证；前端 Node 依赖未安装，因此**没有跑前端构建**。
 
+---
+
+## 2026-10-19：前端构建**已实测通过**
+
+之前我只能说"前端存在"，本轮真正跑了构建：
+
+```bash
+cd web
+npm ci --no-audit --no-fund --cache /tmp/npm-cache   # 650 包，13s
+npm run build                                         # 全部 workspace
+```
+
+| 应用 | 构建结果 |
+|---|---|
+| `storefront`（Nuxt） | ✅ 完成（client 3.5s / server 1.9s，产物 2.19 MB） |
+| `admin` | ✅ |
+| `store-console` | ✅ |
+| `supplier-portal` | ✅ |
+| `support-console` | ✅ |
+| `mobile`（uni-app，`build:h5`） | ⬜ **未构建**（不在 `workspaces` 列表，用独立 `npm run build:h5`） |
+
+| 验证 | 结果 |
+|---|---|
+| 前端构建 | **5/6 应用通过**（退出码 0） |
+| 后端测试 | 本轮未改后端，未重跑（上轮 299 全绿） |
+
+**踩坑**：`npm ci` 默认写 `~/.npm`（宿主用户目录，权限不足）→ `EACCES`。
+改用 `--cache /tmp/npm-cache` 后正常。这条要写进构建文档，否则别人 clone 下来同样会卡。
+

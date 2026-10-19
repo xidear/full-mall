@@ -502,3 +502,17 @@ MSYS_NO_PATHCONV=1 wsl bash -lc "cd /mnt/d/works/full-mall && docker compose con
 - `docs/requirements/TECHNOLOGY_DECISIONS_V2.md`：成熟方案调研矩阵；字段可见性非硬性要求，禁止自建字段权限矩阵。
 - `docs/DEVELOPMENT_PLAN_V2.md`：v2 分阶段计划、估算、依赖、风险、DoD。
 - `docs/GIT_AND_ENVIRONMENTS.md`：三个 Git 下游、Gitea 分支、密钥清单、启动方式。
+
+## 9. 前端构建（实测）
+
+```bash
+cd web
+npm ci --no-audit --no-fund --cache /tmp/npm-cache   # 必须指定 cache
+npm run build                                         # 构建 5 个 workspace 应用
+```
+
+- **`~/.npm` 在容器内不可写**：直接用 `npm ci` 会 `EACCES`，必须 `--cache /tmp/npm-cache`。
+- `apps/mobile` 是 uni-app，**不在 workspaces 列表**，需单独 `npm run build:h5`。
+- 已实测通过：storefront（Nuxt）、admin、store-console、supplier-portal、support-console。
+- 前端调用与后端路由的一致性检查：`python3 scripts/check-api-alignment.py`。
+

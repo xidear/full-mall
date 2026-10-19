@@ -24,8 +24,7 @@ import static org.assertj.core.api.Assertions.assertThat;
         properties = {
                 "spring.autoconfigure.exclude=org.springframework.boot.autoconfigure.amqp.RabbitAutoConfiguration,org.springframework.boot.autoconfigure.data.redis.RedisAutoConfiguration",
                 "spring.modulith.events.jdbc.schema-initialization.enabled=false",
-                "app.scheduling.enabled=true",
-                "app.export.worker.enabled=true",
+                                "app.export.worker.enabled=true",
                 "app.export.worker.interval-ms=200",
                 "app.export.worker.initial-delay-ms=200",
                 "app.export.storage-dir=/tmp/fullmall-exports-test"
@@ -55,6 +54,9 @@ class ExportSchedulerTest {
     ExportJobService jobs;
 
     @Autowired
+    ExportJobScheduler scheduler;
+
+    @Autowired
     JdbcTemplate jdbc;
 
     @Test
@@ -67,6 +69,9 @@ class ExportSchedulerTest {
                 """, UUID.randomUUID());
 
         UUID id = jobs.create("scheduler", "member", "OPS", Map.of(), null);
+
+        // 直接驱动调度方法（真实代码路径），不依赖 Spring 全局调度，避免跨测试干扰
+        scheduler.run();
 
         Instant deadline = Instant.now().plus(Duration.ofSeconds(20));
         String status = "PENDING";

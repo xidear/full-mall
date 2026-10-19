@@ -21,8 +21,7 @@ import static org.assertj.core.api.Assertions.assertThat;
         properties = {
                 "spring.autoconfigure.exclude=org.springframework.boot.autoconfigure.amqp.RabbitAutoConfiguration,org.springframework.boot.autoconfigure.data.redis.RedisAutoConfiguration",
                 "spring.modulith.events.jdbc.schema-initialization.enabled=false",
-                "app.scheduling.enabled=true",
-                "app.distribution.release.enabled=true",
+                                "app.distribution.release.enabled=true",
                 "app.distribution.release.interval-ms=200",
                 "app.distribution.release.initial-delay-ms=200"
         })
@@ -50,6 +49,12 @@ class CommissionReleaseSchedulerTest {
     @Autowired
     JdbcTemplate jdbc;
 
+    @Autowired
+    com.fullmall.distribution.app.CommissionReleaseScheduler scheduler;
+
+    @Autowired
+    com.fullmall.distribution.app.CommissionLedgerService ledger;
+
     @Test
     void expiredFrozenCommissionBecomesAvailable() throws Exception {
         UUID orderId = UUID.randomUUID();
@@ -64,6 +69,9 @@ class CommissionReleaseSchedulerTest {
                                                      commission_amount, currency, status, frozen_until)
                 VALUES (?, ?, ?, 1000, 50, 'CNY', 'FROZEN', now() - interval '1 minute')
                 """, commissionId, orderId, UUID.randomUUID());
+
+        // 直接驱动解冻逻辑（真实代码路径），不依赖 Spring 全局调度
+        scheduler.release();
 
         Instant deadline = Instant.now().plus(Duration.ofSeconds(15));
         String status = "FROZEN";

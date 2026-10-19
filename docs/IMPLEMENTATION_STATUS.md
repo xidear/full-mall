@@ -1873,3 +1873,24 @@ cd web && npx playwright test
 |---|---|
 | 后端测试 | **274 个，全部通过，0 跳过** |
 
+### 调度噪音定位（未完成，记录实测）
+
+本轮所做的尝试与结果：
+
+| 措施 | 结果 |
+|---|---|
+| `@Profile("!test")` → `app.scheduling.enabled` 显式开关（测试默认 false） | 保留 |
+| 两个调度测试显式开启 `app.scheduling.enabled=true` | 保留（后改为直接调用） |
+| 把无关任务 initialDelay 推到 1 小时 | **仍出现 2 条错误** |
+| 两个调度测试改为**直接调用**调度方法，不再依赖全局调度 | **仍出现 2 条错误** |
+| 单独运行 ServerContextTest / CartAndAddressHttpTest / MigrationSmokeTest / SupplierOpenSecurityTest | **各自 0 条错误** |
+
+结论（仅限已证实的部分）：
+1. 错误只在**全量运行**时出现，且每次恰好 **2 条**（`group_buy` 与 `orders` 查询）；
+2. 表名正确（V20 有 `group_buy`），**不是代码表名错误**；
+3. 单类运行时无错误 → 与**上下文缓存/跨类共存**有关；
+4. 具体是哪个上下文、为何在无表库上执行，**尚未定位**。
+
+下一步建议：在 `TaskUtils` 错误路径打上 context id / 数据库 URL，或分批运行 `-Dtest=` 组合来二分；
+定位前不建议继续改动调度代码。
+

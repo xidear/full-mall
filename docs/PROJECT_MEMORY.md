@@ -256,15 +256,23 @@ npx playwright test
 
 ## 8. 本机与跨机器开发环境
 
-### 8.0 无 root 环境（Linux 容器，2026-10-19 实测）
+### 8.0 运行环境（容器 vs 主机，2026-10-19 实测）
 
-本机 `uid=1000`、**没有 `sudo`**、`su` 的 root 密码未知（用户提供的密码被拒），因此：
+**实测拓扑**：AI Agent 的 shell 跑在宿主机 `rtx5070ti` 上的容器 `dsh-web` 里
+（`/.dockerenv` 存在、`PID1=sh`、用户 `uid=1000(node)`），**不是宿主机本身**。
+
+- 宿主机：用户 `xidear`，`sudo whoami` 返回 `root`（用户已实测），`docker ps` 正常。
+- 容器内：没有 `sudo` 命令、没有 `xidear` 用户、没有 `docker` 组、没有挂载 `/var/run/docker.sock`、
+  `su root` 用主机密码会 `Authentication failure`（容器 root 密码与主机不同）。
+
+因此 **宿主机可用的 sudo 密码在容器内无效**，这不是密码错误。
 
 | 能力 | 状态 | 替代方案 |
 |---|---|---|
 | JDK 21 / Maven | 用户态安装 `~/.local/opt`，`~/.dsh-java-env` 引入三个 shell profile | 等同于系统安装 |
 | Docker CLI + Compose | 用户态安装 `~/.local/bin/docker`、`~/.docker/cli-plugins/docker-compose` | 可做 `docker compose config` 校验，已通过 |
-| Docker 守护进程 | **不可用**：`dockerd needs to be started with root privileges`；rootless 需要 `unshare`，被 seccomp 拒绝（`Operation not permitted`），且缺 `newuidmap/newgidmap` | 测试改用嵌入式 PostgreSQL |
+| Docker 守护进程 | **容器内不可用**：`dockerd needs to be started with root privileges`；rootless 需要 `unshare`，被 seccomp 拒绝（`Operation not permitted`），且缺 `newuidmap/newgidmap` | 测试改用嵌入式 PostgreSQL；或把 Agent 移到宿主机 |
+| 宿主机 Docker | 可用（`xidear` + `sudo`，`docker ps` 正常） | 在宿主机跑 `mvn test` / `compose up` / Playwright 即可 |
 | Testcontainers | 自动降级到嵌入式 PostgreSQL（有 WARN 日志） | `mvn test` 仍覆盖真实 SQL |
 
 验证 compose 文件（不需要守护进程）：

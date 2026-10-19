@@ -73,6 +73,25 @@ public class SupplierTokenService {
         return new IssuedToken(token, expiresAt);
     }
 
+    public record CredentialState(String authMode, String ipAllowlist, Instant tokenExpiresAt,
+                                  boolean tokenRevoked, boolean active) {
+    }
+
+    public CredentialState state(UUID supplierId) {
+        List<CredentialState> rows = jdbcTemplate.query("""
+                SELECT auth_mode, ip_allowlist, token_expires_at, token_revoked_at, active
+                  FROM supplier_credential WHERE supplier_id = ?
+                """, (rs, rowNum) -> new CredentialState(
+                rs.getString("auth_mode"),
+                rs.getString("ip_allowlist"),
+                rs.getTimestamp("token_expires_at") == null
+                        ? null : rs.getTimestamp("token_expires_at").toInstant(),
+                rs.getTimestamp("token_revoked_at") != null,
+                rs.getBoolean("active")), supplierId);
+        return rows.stream().findFirst()
+                .orElseThrow(() -> new IllegalStateException("供应商没有凭证记录: " + supplierId));
+    }
+
     public void revoke(UUID supplierId) {
         int updated = jdbcTemplate.update("""
                 UPDATE supplier_credential SET token_revoked_at = now() WHERE supplier_id = ?

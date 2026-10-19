@@ -892,3 +892,22 @@ cd web && npx playwright test
 > 至此 **B2 认证与限流（SUP-030/031 部分、SUP-033）技术面闭环**；
 > 仍缺：后台签发/吊销 token 接口、SUP-031 单认证风险提示。
 
+---
+
+## 2026-10-19（B2 收尾）：token 管理接口与 SUP-031 风险提示
+
+- `POST /admin/v1/suppliers/{id}/token`：签发/轮换，明文只在响应出现一次，有效期 90 天。
+- `DELETE /admin/v1/suppliers/{id}/token`：吊销。
+- `GET /admin/v1/suppliers/{id}/credential-health`：返回 `authMode/ipAllowlist/tokenExpiresAt/tokenRevoked/active` + `warnings`。
+- 风险提示是可测纯函数 `SupplierCredentialStatus.warnings(...)`，规则：
+  仅 HMAC 提示启用 token；仅 token 提示写操作应用 HMAC；未配 IP 白名单提示限制来源；
+  token 未签发/已过期/7 天内过期分别提示。
+- 三个接口均 `@PreAuthorize("hasRole('ADMIN')")`。
+
+| 验证 | 结果 |
+|---|---|
+| 后端测试 | **130 个，全部通过，0 跳过** |
+| 新增测试 | `SupplierCredentialStatusTest` 5 个（HMAC-only、TOKEN-only、BOTH 无告警、未签发、过期与将过期） |
+
+> B2 技术面完成。仍缺：后台 UI 展示这些提示、Bearer 请求的审计事件（当前仅 HMAC 路径写审计）。
+

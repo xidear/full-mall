@@ -2209,3 +2209,42 @@ npm run build                                         # 全部 workspace
 > 说明：`NotFoundHttpTest` 是**处理器的单元测试**；测试上下文的安全策略会在到达 dispatch 前返回 401，
 > 因此没有做 HTTP 层断言（运行中的应用已手工确认 404 行为）。
 
+---
+
+## 2026-10-19：真浏览器 E2E 首次运行（9/10 通过）
+
+环境：嵌入式 PG + 后端(dev) + storefront(3000) + 4 个控制台(5273–5276)，Playwright + **Chromium**。
+
+| 用例 | 结果 |
+|---|---|
+| storefront 主题切换 | ✅ |
+| storefront 浏览 → 加购 → 自提下单 | ✅ |
+| storefront 购物车改数量/删除 | ✅ |
+| promotions 秒杀、拼团弹窗 | ✅ 2 条 |
+| pickup 门店自提核销 | ✅ |
+| pos 组合支付/日结/退款 | ✅ |
+| supplier 供应商签名履约 | ✅ |
+| support 客服认领会话/转人工 | ✅ |
+| **admin 后台全流程** | ❌ 停在"促销管理"找不到「马克杯限时秒杀」 |
+
+### 本轮补的后端缺口（真实）
+
+后台页面调用 `GET/POST /admin/v1/promotions` 与 `POST /admin/v1/promotions/{id}/status`，
+而后端**只有** `/admin/v1/promotions/rules`（我前几轮新加的规则构建器）。已把
+`PromotionService.listAll()` / `create()` / `updateStatus()` 接出来。
+
+### 工具与配置修正
+
+- `playwright.config.ts` 只有 `msedge`（容器内无 Edge）→ 增加 `chromium` 项目；
+- 用例写死 5273–5276，而 dev 脚本是 5173–5176 → 各应用新增 `dev:e2e` 脚本对齐端口。
+
+### 已知未解决
+
+admin 促销列表断言**仍失败**，后端接口已存在且被调用，`马克杯限时秒杀` 却未出现在表格里。
+根因**未定位**（可能是列表渲染条件、鉴权后的数据裁剪或字段不匹配），不猜测。
+
+| 验证 | 结果 |
+|---|---|
+| 后端测试 | **300 个，全部通过，0 跳过** |
+| E2E | **9 通过 / 1 失败** |
+

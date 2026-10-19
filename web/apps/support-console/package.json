@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "vite --host 0.0.0.0 --port 5176",
     "build": "vue-tsc --noEmit && vite build",
-    "preview": "vite preview --host 0.0.0.0 --port 5176"
+    "preview": "vite preview --host 0.0.0.0 --port 5176",
+    "dev:e2e": "vite --host 0.0.0.0 --port 5276"
   },
   "dependencies": {
     "vue": "^3.5.0"

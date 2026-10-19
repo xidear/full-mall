@@ -87,8 +87,8 @@ public class DistributionRepository {
                                  String currency) {
         jdbcTemplate.update("""
                 INSERT INTO distribution_commission (id, order_id, promoter_staff_id, order_amount,
-                                                     commission_amount, currency, status)
-                VALUES (?, ?, ?, ?, ?, ?, 'PENDING')
+                                                     commission_amount, currency, status, frozen_until)
+                VALUES (?, ?, ?, ?, ?, ?, 'FROZEN', now() + interval '7 days')
                 ON CONFLICT (order_id, promoter_staff_id) DO NOTHING
                 """, UUID.randomUUID(), orderId, promoterId, orderAmount, commission, currency);
     }

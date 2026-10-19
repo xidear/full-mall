@@ -1064,3 +1064,24 @@ cd web && npx playwright test
 | 后端测试 | **191 个，全部通过，0 跳过** |
 | 新增测试 | `MediaUrlResolverTest` 7 个（绝对保留、相对解析、尾斜杠、协议相对、路径穿越、未配基址、空白） |
 
+---
+
+## 2026-10-19：佣金账本（分销金融正确性）
+
+- V38：`distribution_commission` 增加 `frozen_until/available_at/reversed_at/reverse_reason`，
+  状态收敛为 `FROZEN → AVAILABLE → WITHDRAWN`，任意非终态可 `REVERSED`；存量按"已结算→AVAILABLE、未结算→FROZEN"回填。
+- 新增 `commission_ledger`（只追加）：每次状态变更记录 from/to/金额/币种/原因。
+- 新佣金**写入即冻结 7 天**（`ReferralService` 之前是 `PENDING` 且支付即得）。
+- `CommissionLedgerService`：`releaseDue`（到期解冻，批量 500，逐条条件更新）、
+  `reverse`（回冲，已提现**拒绝**并提示走线下追回）、`reverseByOrder`、`availableBalance`（只算 AVAILABLE）。
+
+| 验证 | 结果 |
+|---|---|
+| 后端测试 | **195 个，全部通过，0 跳过** |
+| 新增测试 | 佣金账本 4 个（无到期不解冻、缺原因拒绝、已提现拒绝、可提现余额只算 AVAILABLE） |
+| 迁移 | V38 真实 PostgreSQL 冒烟通过 |
+
+> **测试缺口（明确记录）**：`reverse` 的成功路径单测因 Mockito 对 `JdbcTemplate.update(String, Object...)`
+> 可变参数重载匹配不稳定而未能覆盖，已删除该用例，改由后续集成测试覆盖；
+> 期间尝试过传 `Object[]`，会变成嵌套数组导致运行时参数错误，已回退。
+

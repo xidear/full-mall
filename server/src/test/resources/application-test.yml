@@ -1,0 +1,5 @@
+# 测试默认关闭定时任务：避免在无迁移/共享数据的上下文里跑后台任务产生噪音与误判。
+# 需要调度行为的测试用 @SpringBootTest(properties = "app.scheduling.enabled=true") 单独打开。
+app:
+  scheduling:
+    enabled: false

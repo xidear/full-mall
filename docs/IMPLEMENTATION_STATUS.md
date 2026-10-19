@@ -1853,3 +1853,23 @@ cd web && npx playwright test
 `BadSqlGrammarException`，原因是**某个测试上下文在无迁移的表上运行了定时任务**。
 不影响测试结果，但属于噪音且可能掩盖真实调度失败，下轮定位并加显式开关。
 
+---
+
+## 2026-10-19：调度开关改为显式属性（噪音未完全消除）
+
+- `SchedulingConfig` 从 `@Profile("!test")` 改为 `@ConditionalOnProperty(app.scheduling.enabled)`，默认 true。
+- 新增 `src/test/resources/application-test.yml`：测试默认**关闭**调度。
+- 需要调度的两个测试（ExportSchedulerTest、CommissionReleaseSchedulerTest）显式 `app.scheduling.enabled=true`。
+
+**根因分析（部分结论）**：`@Profile("!test")` 在 `["test","dev"]` 下**仍会匹配**——
+`dev` 满足"非 test"表达式，所以带 dev 的测试上下文一直开着定时任务。这是触发器，已修。
+
+**仍未消除**：全量运行仍出现 2 条 `Unexpected error occurred in scheduled task`
+（`group_buy` / `orders` 查询 `BadSqlGrammarException`）。已确认表名正确（V20 有 `group_buy`），
+因此**不是代码表名错误**，而是某个上下文在无迁移的表上执行了任务。具体是哪个上下文**尚未定位**，
+不做猜测，记为下一轮首要问题。
+
+| 验证 | 结果 |
+|---|---|
+| 后端测试 | **274 个，全部通过，0 跳过** |
+

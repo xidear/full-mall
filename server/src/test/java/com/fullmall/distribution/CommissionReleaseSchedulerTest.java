@@ -21,6 +21,7 @@ import static org.assertj.core.api.Assertions.assertThat;
         properties = {
                 "spring.autoconfigure.exclude=org.springframework.boot.autoconfigure.amqp.RabbitAutoConfiguration,org.springframework.boot.autoconfigure.data.redis.RedisAutoConfiguration",
                 "spring.modulith.events.jdbc.schema-initialization.enabled=false",
+                "app.scheduling.enabled=true",
                 "app.distribution.release.enabled=true",
                 "app.distribution.release.interval-ms=200",
                 "app.distribution.release.initial-delay-ms=200"

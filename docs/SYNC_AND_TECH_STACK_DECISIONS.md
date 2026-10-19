@@ -96,3 +96,23 @@
 2. 升级完成后接 **JaVers starter**，再上 **outbox + 单消费者审计**
 3. **A6 异步导出**（轮询 + 指数退避），删除同步导出
 4. 其余 G 组（媒体本地化、AI 生成）按原计划
+## 6. Boot 4.1.1 升级 spike 实测结果（2026-10-19）
+
+分支：`spike/spring-boot-4`（**未合并**，main 保持 3.4.5 绿色）。
+
+| 项 | 实测 |
+|---|---|
+| `spring-boot-starter-parent` | 4.1.1 可解析（Spring Framework 7.0.9） |
+| `spring-modulith-bom` | 1.3.5 → **2.1.1**（Boot 4 主线） |
+| `springdoc-openapi-starter-webmvc-ui` | 2.8.5 → **3.1.1** |
+| `org.testcontainers:*` | **Boot 4 不再托管版本**；且 TC 2.x 改了 artifact 名（`testcontainers-postgresql`），需同步改依赖坐标 |
+| 编译 | POM 阶段即失败（版本缺失），尚未进入代码级错误 |
+
+结论：升级**可行且必须做**，但属于"跨大版本"改造，范围至少包含：
+1. Testcontainers 2.x 坐标与 API（`PostgreSQLContainer` 包路径/构造）；
+2. Spring Modulith 2.x（`ApplicationModules.verify()` 约定、启停 API）；
+3. Spring Security 7（`SecurityFilterChain`、方法级授权实现类可能改名）；
+4. springdoc 3.x（OpenAPI 生成器 API 变化）；
+5. JaVers starter 改用（Boot 4 版），并据此重构审计连接方案（见 §3）。
+
+执行要求：**单独分支、先依赖后代码、每步跑全量测试**；不与业务改动混提交。

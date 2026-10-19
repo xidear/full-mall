@@ -85,6 +85,9 @@ class SupplierOpenSecurityTest {
     @Autowired
     SupplierSecretCipher cipher;
 
+    @Autowired
+    com.fullmall.supplier.app.SupplierTokenService tokenService;
+
     @BeforeEach
     void seedCredential() {
         jdbc.update("DELETE FROM supplier_nonce");
@@ -147,6 +150,35 @@ class SupplierOpenSecurityTest {
         ResponseEntity<String> response = ping("nonce-ip-" + UUID.randomUUID(), SECRET);
         assertThat(response.getStatusCode().value()).isEqualTo(401);
         assertThat(response.getBody()).contains("SUPPLIER_IP_NOT_ALLOWED");
+    }
+
+    @Test
+    void bearerTokenIsAccepted() throws Exception {
+        jdbc.update("UPDATE supplier_credential SET auth_mode = 'BOTH' WHERE access_key = ?", ACCESS_KEY);
+        var issued = tokenService.issue(SUPPLIER_ID, java.time.Duration.ofHours(1));
+
+        HttpHeaders headers = new HttpHeaders();
+        headers.set("Authorization", "Bearer " + issued.token());
+        ResponseEntity<String> response = rest.exchange("/open/v1/ping", HttpMethod.GET,
+                new HttpEntity<>(headers), String.class);
+
+        assertThat(response.getStatusCode().value()).isEqualTo(200);
+        assertThat(response.getBody()).contains(SUPPLIER_ID.toString());
+    }
+
+    @Test
+    void revokedTokenIsRejected() throws Exception {
+        jdbc.update("UPDATE supplier_credential SET auth_mode = 'BOTH' WHERE access_key = ?", ACCESS_KEY);
+        var issued = tokenService.issue(SUPPLIER_ID, java.time.Duration.ofHours(1));
+        tokenService.revoke(SUPPLIER_ID);
+
+        HttpHeaders headers = new HttpHeaders();
+        headers.set("Authorization", "Bearer " + issued.token());
+        ResponseEntity<String> response = rest.exchange("/open/v1/ping", HttpMethod.GET,
+                new HttpEntity<>(headers), String.class);
+
+        assertThat(response.getStatusCode().value()).isEqualTo(401);
+        assertThat(response.getBody()).contains("SUPPLIER_TOKEN_INVALID");
     }
 
     private static String sha256Hex(byte[] body) throws Exception {

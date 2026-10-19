@@ -870,3 +870,25 @@ cd web && npx playwright test
 > **未覆盖**：token 端到端（真实请求带 Bearer）+ 429 集成用例仍未补；
 > 后台签发/吊销接口与 SUP-031 风险提示尚未实现。
 
+---
+
+## 2026-10-19（补测）：Bearer Token 与限流端到端
+
+补齐前两轮记录的两笔测试欠账，全部用**真实 HTTP + 真实 PostgreSQL**验证：
+
+| 用例 | 断言 |
+|---|---|
+| Bearer token 正常请求 | 200，响应含供应商 ID |
+| token 吊销后请求 | 401 `SUPPLIER_TOKEN_INVALID` |
+| 限流额度 2 时第三次请求 | 429 `SUPPLIER_RATE_LIMITED`，且 `Retry-After` 非空 |
+
+限流用例单独起一个上下文（`app.supplier.rate-limit.max-requests=2`），避免影响其它用例。
+
+| 验证 | 结果 |
+|---|---|
+| 后端测试 | **125 个，全部通过，0 跳过** |
+| 供应商安全端到端 | HMAC 正常/重放/错签/IP 白名单/token/吊销/限流，共 7 条真实请求用例 |
+
+> 至此 **B2 认证与限流（SUP-030/031 部分、SUP-033）技术面闭环**；
+> 仍缺：后台签发/吊销 token 接口、SUP-031 单认证风险提示。
+

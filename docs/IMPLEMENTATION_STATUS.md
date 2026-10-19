@@ -1309,3 +1309,21 @@ cd web && npx playwright test
 
 > 未做：地址 Controller（下一步）；收货地址与订单快照的衔接。
 
+---
+
+## 2026-10-19：地址接口 + 主链路 HTTP 端到端
+
+- `AddressController`：`POST/PUT/GET/DELETE /api/v1/addresses`、`POST /{id}/default`；
+  归属解析复用 `CartOwnerResolver`（登录 → member，游客 → `X-Cart-Token`）。
+- 新增 `CartAndAddressHttpTest`（**真实 HTTP + 真实 PostgreSQL**）：
+  - 游客加购 200 且返回数量；
+  - 建地址 201，列表返回掩码手机号与 `isDefault=true`；
+  - 缺少 `X-Cart-Token` 返回 400。
+
+| 验证 | 结果 |
+|---|---|
+| 后端测试 | **218 个，全部通过，0 跳过** |
+| 模块边界 | `ModulithStructureTest` 抓到 address→cart 未暴露依赖，已给 `cart.app` 加 `@NamedInterface("cart-service")` |
+
+> 主链路（加购 → 地址）已用真实请求验证；**结算衔接（购物车 → 下单）尚未实现**。
+

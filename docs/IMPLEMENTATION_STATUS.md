@@ -1104,3 +1104,17 @@ cd web && npx playwright test
 > 原因是需要构造 `Order`/`Payment` 记录的完整上下文，且既有 Mockito 对 `JdbcTemplate`
 > varargs 的匹配不稳定。已列入下一步：用嵌入式 PostgreSQL 集成测试覆盖整单回冲与部分延长冻结两条路径。
 
+### 补测：退款 → 佣金（集成测试，缺口已关闭）
+
+`RefundCommissionLinkTest`（嵌入式 PostgreSQL，真实 SQL）：
+
+| 用例 | 断言 |
+|---|---|
+| 整单退款 | 佣金状态 `REVERSED`，`commission_ledger` 出现一条 `to_status=REVERSED` |
+| 部分退款 | 佣金仍 `FROZEN`，且 `frozen_until` **被延长**（不能提前解冻） |
+
+| 验证 | 结果 |
+|---|---|
+| 后端测试 | **197 个，全部通过，0 跳过** |
+| 说明 | 这是对上一轮"编译通过但未验证"的补齐；踩坑记录：`FulfillmentMode` 只有 `SHIP/PICKUP`，seed 里写错枚举名导致上下文失败 |
+

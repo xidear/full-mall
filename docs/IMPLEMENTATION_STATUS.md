@@ -1174,3 +1174,25 @@ cd web && npx playwright test
 > **未完成**：证书上传、密钥加密存储、连通性自检（需真实渠道资质）；
 > 支付下单/退款尚未按 `config_version_id` 取配置（当前只有配置管理）。
 
+---
+
+## 2026-10-19（A6 第一步）：异步导出任务
+
+- V40 `export_job`：`status(PENDING/RUNNING/SUCCEEDED/FAILED/CANCELLED/EXPIRED)`、
+  `projection`（决定列集合，配合角色化导出）、`file_path`、`row_count`、`expires_at`（7 天）。
+- `ExportJobService`：
+  - `create`：记录发起人/资源/投影/参数，返回 jobId（HTTP 202）；
+  - `claimNext`：`FOR UPDATE SKIP LOCKED` 领取并置 RUNNING，**多副本不会重复执行**；
+  - `succeed` / `fail`：状态机条件更新，失败必须写原因；
+  - `findForRequester`：**只有发起人能看自己的任务**，过期返回 410。
+- 接口：`POST /admin/v1/export-jobs`（202 + jobId）、`GET /admin/v1/export-jobs/{id}`（前端轮询）。
+
+| 验证 | 结果 |
+|---|---|
+| 后端测试 | **208 个，全部通过，0 跳过** |
+| 新增测试 | 5 个：领取后二次领取为空、完成写行数与路径、失败必须给原因、他人不可查看、过期 410 |
+| 踩坑 | 测试共享同一数据库导致互相领取对方任务，加 `@BeforeEach DELETE` 隔离 |
+
+> **未完成**：worker（定时抢占 + 流式写 CSV + 落存储）、签名 URL 下载、删掉旧的同步导出接口。
+> 当前只有任务与状态机，**还没有真正生成文件**。
+

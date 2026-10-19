@@ -1659,3 +1659,18 @@ cd web && npx playwright test
 > **踩坑（真实缺陷）**：V46 放开数据库类型后，Java 枚举没同步，结算时 `PromotionType.valueOf` 直接抛
 > `No enum constant` → 500。这条只有端到端下单测试能发现（试算 API 走的是独立查询，不经过枚举）。
 
+---
+
+## 2026-10-19（PRO-004）：促销渠道隔离
+
+- 规则增加 `rules.channel`（缺省 `ONLINE`）；`loadActiveRules(channel)` 按渠道过滤。
+- 线上试算与结算固定 `ONLINE`；POS 路径不走该引擎（PRO-005：自提不二次优惠）。
+
+| 验证 | 结果 |
+|---|---|
+| 后端测试 | **254 个，全部通过，0 跳过** |
+| 真实 HTTP | `channel=POS` 的满减规则，线上试算**不命中**；缺省规则的满减照常命中 |
+
+> 未做：POS 端自己的促销集合（PRO-006）、后台按渠道配置界面。
+> 现有"渠道"是 token 级隔离，不是门店/市场级；跨市场差异化规则仍需 `market` 维度。
+

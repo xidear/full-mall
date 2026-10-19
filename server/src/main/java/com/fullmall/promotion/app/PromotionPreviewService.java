@@ -37,6 +37,10 @@ public class PromotionPreviewService {
     }
 
     public Preview preview(List<Item> items, String locale) {
+        return preview(items, locale, "ONLINE");
+    }
+
+    public Preview preview(List<Item> items, String locale, String channel) {
         if (items == null || items.isEmpty()) {
             throw ApiException.badRequest("EMPTY_ITEMS", "试算至少需要一个商品");
         }
@@ -57,14 +61,22 @@ public class PromotionPreviewService {
             subtotal = Math.addExact(subtotal, sku.price().amount() * item.quantity());
         }
 
-        List<PromotionEngine.Rule> rules = loadActiveRules();
+        List<PromotionEngine.Rule> rules = loadActiveRules(channel);
         var result = PromotionEngine.choose(rules, subtotal);
         return new Preview(subtotal, result.discountAmount(),
                 subtotal - result.discountAmount(), result.appliedRuleCode(), resolvedLocale);
     }
 
-    /** 当前生效的满减/满折规则（供结算与试算共用）。 */
-    public List<PromotionEngine.Rule> loadActiveRules() {
+    /**
+     * 当前生效的满减/满折规则（供结算与试算共用）。
+     *
+     * <p>渠道隔离（PRO-004）：规则的 `rules.channel` 决定生效渠道，缺省为 `ONLINE`；
+     * 线上只认 `ONLINE`，POS 路径不走本引擎（避免自提二次优惠，PRO-005）。
+     */
+    public List<PromotionEngine.Rule> loadActiveRules(String channel) {
+        if (channel == null || channel.isBlank()) {
+            throw new IllegalArgumentException("渠道不能为空");
+        }
         List<PromotionEngine.Rule> rules = new ArrayList<>();
         jdbcTemplate.query("""
                 SELECT code, type, priority,
@@ -74,6 +86,7 @@ public class PromotionPreviewService {
                  WHERE status = 'ACTIVE'
                    AND type IN ('FULL_REDUCTION', 'FULL_DISCOUNT')
                    AND starts_at <= now() AND ends_at >= now()
+                   AND COALESCE(rules->>'channel', 'ONLINE') = ?
                 """, rs -> {
             long threshold = rs.getLong("threshold_amount");
             if (rs.wasNull()) {
@@ -84,7 +97,7 @@ public class PromotionPreviewService {
                     rs.getString("code"),
                     PromotionEngine.Type.valueOf(rs.getString("type")),
                     threshold, value, rs.getInt("priority")));
-        });
+        }, channel);
         return rules;
     }
 }

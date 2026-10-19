@@ -205,7 +205,7 @@ public class OrderService {
         // 满减/满折（PRO-001）：与秒杀/买赠**互斥**——已有促销优惠时不再叠加，避免重复优惠
         if (discount.amount() == 0) {
             var engineResult = com.fullmall.promotion.app.PromotionEngine.choose(
-                    promotionPreviews.loadActiveRules(), subtotal.amount());
+                    promotionPreviews.loadActiveRules("ONLINE"), subtotal.amount());
             if (engineResult.applied()) {
                 discount = new Money(engineResult.discountAmount(), currency);
             }

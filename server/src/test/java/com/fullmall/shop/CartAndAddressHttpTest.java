@@ -301,6 +301,26 @@ class CartAndAddressHttpTest {
     }
 
     @Test
+    void posChannelPromotionIsIgnoredOnline() {
+        jdbc.update("DELETE FROM promotion WHERE code = 'HTTP-POS-ONLY'");
+        jdbc.update("""
+                INSERT INTO promotion (id, code, type, title, status, starts_at, ends_at, rules, priority)
+                VALUES (?, 'HTTP-POS-ONLY', 'FULL_REDUCTION', '仅 POS 满减', 'ACTIVE',
+                        now() - interval '1 hour', now() + interval '1 day',
+                        '{"thresholdAmount":1000,"value":900,"channel":"POS"}'::jsonb, 10)
+                """, UUID.randomUUID());
+
+        var response = http.exchange("/api/v1/promotions/preview", HttpMethod.POST,
+                new HttpEntity<>(Map.of("items", java.util.List.of(
+                        Map.of("skuId", SKU.toString(), "quantity", 2))), guestHeaders()), String.class);
+
+        assertThat(response.getStatusCode().value()).isEqualTo(200);
+        assertThat(response.getBody()).doesNotContain("HTTP-POS-ONLY");
+
+        jdbc.update("DELETE FROM promotion WHERE code = 'HTTP-POS-ONLY'");
+    }
+
+    @Test
     void promotionPreviewAppliesActiveFullReduction() {
         jdbc.update("DELETE FROM promotion WHERE code = 'HTTP-FULL-20'");
         jdbc.update("""

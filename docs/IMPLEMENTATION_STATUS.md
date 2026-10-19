@@ -809,3 +809,23 @@ cd web && npx playwright test
 > **未覆盖**：过滤器层面的 IP 拒绝尚无集成测试；白名单目前只能直接写库，
 > 后台配置界面（SUP-031 风险提示）与 Bearer Token（SUP-030 另一条路径）尚未实现。
 
+---
+
+## 2026-10-19（补测）：`/open/v1` 端到端安全测试
+
+连续两轮记录的缺口已补：`SupplierOpenSecurityTest` 用**真实 HTTP + 真实 PostgreSQL + 真实签名**验证：
+
+| 用例 | 断言 |
+|---|---|
+| 正确签名 | 200，响应含供应商 ID |
+| 同 nonce 重放 | **409** `SUPPLIER_NONCE_REPLAYED` |
+| 错误 secret 签名 | 401 `SUPPLIER_SIGNATURE_INVALID` |
+| IP 白名单外 | 401 `SUPPLIER_IP_NOT_ALLOWED` |
+
+覆盖了此前只靠单测的 nonce 落库与 IP 白名单两条链路，串起来的行为第一次被真实验证。
+
+| 验证 | 结果 |
+|---|---|
+| 后端测试 | **110 个，全部通过，0 跳过** |
+| 说明 | 测试类旧名 `SupplierOpenSecurityIT` 不被 surefire 默认拾取，已改名 `...Test` |
+

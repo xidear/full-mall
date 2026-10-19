@@ -7,7 +7,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.test.web.client.TestRestTemplate;
+import com.fullmall.test.TestHttp;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
@@ -75,8 +75,15 @@ class SupplierRateLimitTest {
         }
     }
 
-    @Autowired
-    TestRestTemplate rest;
+    @org.springframework.beans.factory.annotation.Value("${local.server.port}")
+    int port;
+
+    TestHttp rest;
+
+    @org.junit.jupiter.api.BeforeEach
+    void initHttp() {
+        rest = new TestHttp(port);
+    }
 
     @Autowired
     JdbcTemplate jdbc;

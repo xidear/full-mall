@@ -112,3 +112,25 @@ Boot 4.1.1 + Modulith 2.1.1 + springdoc 3.1.1 + Testcontainers 2.0.5 之后：
 
 **结论**：升级不是"改版本号"，但**业务代码几乎无需改动**，主要成本在测试基础设施与自动配置模块化。
 这反而说明 Boot 4 升级是划算的：改的是脚手架，不是业务。
+
+### 6.2 升级完成（Boot 4.1.1 全绿）
+
+| 项 | 结果 |
+|---|---|
+| 主代码编译 | ✅ |
+| 全量测试 | ✅ **165 个，0 失败 0 错误** |
+| `-Pprod` / `-Pdemo` 打包 | ✅ 均成功 |
+
+修掉的四个真实障碍（都已写进代码，不是绕过）：
+
+1. **Testcontainers 2.x 改坐标**：`postgresql` → `testcontainers-postgresql`，`junit-jupiter` → `testcontainers-junit-jupiter`；
+   Boot 4 不再托管其版本，需引入 `testcontainers-bom`。
+2. **Jackson 拆模块**：Boot 4 默认 Jackson 3；本项目用 Jackson 2 的 `com.fasterxml`，
+   引入 `spring-boot-jackson2` 兼容模块（**不是回退版本**，是官方桥接模块）。
+3. **Flyway 拆模块**：`spring-boot-flyway` 必须显式引入，否则 **Flyway 静默不执行**，
+   表现为 Hibernate 报 "missing table"——这类“不报错但不干活”的问题最危险。
+4. **`TestRestTemplate` 被移除**：新增 `com.fullmall.test.TestHttp`（基于 `RestClient`），
+   两个坑：`retrieve()` 遇 4xx 会抛异常（必须用 `exchange` 原样返回状态码）；
+   转换器顺序要让 `StringHttpMessageConverter` 在 Jackson **之前**，否则 JSON 响应里的纯文本会被 Jackson 抢走。
+
+**结论**：Boot 4 升级成本集中在"脚手架/测试基础设施"，业务代码零改动。

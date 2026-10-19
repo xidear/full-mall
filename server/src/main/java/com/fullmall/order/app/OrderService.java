@@ -52,6 +52,8 @@ import java.util.UUID;
 @Service
 public class OrderService {
 
+    private final com.fullmall.platform.media.MediaUrlResolver mediaUrls;
+
     private static final long FLAT_SHIPPING_FEE = 0L;
 
     private final OrderRepository orderRepository;
@@ -76,7 +78,8 @@ public class OrderService {
                         NotificationService notificationService,
                         ReferralService referralService,
                         PromotionService promotionService,
-                        ObjectMapper objectMapper) {
+                        ObjectMapper objectMapper,
+                        com.fullmall.platform.media.MediaUrlResolver mediaUrls) {
         this.orderRepository = orderRepository;
         this.catalogService = catalogService;
         this.inventoryService = inventoryService;
@@ -88,6 +91,7 @@ public class OrderService {
         this.referralService = referralService;
         this.promotionService = promotionService;
         this.objectMapper = objectMapper;
+        this.mediaUrls = mediaUrls;
     }
 
     @Transactional
@@ -233,7 +237,7 @@ public class OrderService {
                     item.promotionId(),
                     item.lineType(),
                     com.fullmall.order.domain.OrderLineSnapshot.toJson(
-                            sku.imageUrl(),
+                            mediaUrls.absolute(sku.imageUrl()),
                             OrderLine.attributesText(sku.options()),
                             sku.compareAtPrice() == null ? null : sku.compareAtPrice().amount()));
             orderRepository.insertOrderLine(orderId, line);

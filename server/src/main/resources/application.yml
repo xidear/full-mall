@@ -62,6 +62,10 @@ springdoc:
     path: /v3/api-docs
 
 app:
+  # 媒体公共基址：相对路径在写入快照/对外输出前统一转成绝对 http(s) URL
+  # 测试期本地上传，上线改为 CDN/云存储域名（只改配置，不改代码）
+  media:
+    public-base-url: ${MEDIA_PUBLIC_BASE_URL:http://localhost:8080/media}
   mode: ${APP_MODE:dev}
   security:
     hsts-enabled: ${HSTS_ENABLED:false}

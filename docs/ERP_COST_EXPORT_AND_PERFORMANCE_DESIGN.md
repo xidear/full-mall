@@ -163,3 +163,28 @@ cost_ledger(id, sku_id, warehouse_id, occurred_at, qty_delta, unit_cost, value_d
 1. 需要索引/WHERE/ORDER BY（如 `type`、`status`、`created_at`、`channel`）
 2. 参与外键关联
 3. 金额汇总与对账必需（`gross_amount`/`payable_amount` 等）
+
+
+## 8. 图片地址：快照存绝对 URL，不存相对路径（2026-10-19）
+
+原因（用户明确）：
+
+1. **域名会变**；
+2. **小程序/客户端要求 `http(s)://` 绝对地址**；
+3. **存储商会变、存储方案会整体迁移**（测试期本地 → 上线云存储）。
+
+实现 `platform/media/MediaUrlResolver`：
+
+| 输入 | 输出 |
+|---|---|
+| `https://www.aaa.com/bbb.jpg` | 原样保留（历史快照指向当时的存储/CDN） |
+| `images/aaa.jpg` 或 `/images/aaa.jpg` | `{app.media.public-base-url}/images/aaa.jpg` |
+| `//cdn.example.com/a.jpg` | `https://cdn.example.com/a.jpg` |
+| `../images/aaa.jpg` | **拒绝**（路径穿越） |
+| 相对路径但未配置基址 | **拒绝**（不允许把相对路径写进快照） |
+
+配置项：`app.media.public-base-url`（环境变量 `MEDIA_PUBLIC_BASE_URL`），
+测试期 `http://localhost:8080/media`，上线改 CDN/云存储域名，**代码不动**。
+
+写入点：`OrderService` 生成订单行快照时调用 `mediaUrls.absolute(sku.imageUrl())`，
+因此快照里永远是绝对地址。

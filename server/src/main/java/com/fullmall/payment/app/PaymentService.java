@@ -28,6 +28,7 @@ public class PaymentService {
     private final com.fullmall.member.app.MemberRewardService memberRewards;
     private final com.fullmall.member.app.MemberPointsService memberPoints;
     private final com.fullmall.notification.app.NotificationService notifications;
+    private final com.fullmall.coupon.app.CouponService coupons;
 
     public PaymentService(PaymentRepository paymentRepository,
                           OrderService orderService,
@@ -38,7 +39,8 @@ public class PaymentService {
                           com.fullmall.distribution.app.ReferralService referralService,
                           com.fullmall.member.app.MemberRewardService memberRewards,
                           com.fullmall.member.app.MemberPointsService memberPoints,
-                          com.fullmall.notification.app.NotificationService notifications) {
+                          com.fullmall.notification.app.NotificationService notifications,
+                          com.fullmall.coupon.app.CouponService coupons) {
         this.paymentRepository = paymentRepository;
         this.orderService = orderService;
         this.mockPaymentConnector = mockPaymentConnector;
@@ -49,6 +51,7 @@ public class PaymentService {
         this.memberRewards = memberRewards;
         this.memberPoints = memberPoints;
         this.notifications = notifications;
+        this.coupons = coupons;
     }
 
     /**
@@ -71,6 +74,8 @@ public class PaymentService {
             var orderForMember = orderService.getOrder(orderId);
             memberPoints.rollbackForOrder(orderId, orderForMember.contactPhone());
             memberRewards.rollback(orderId, orderForMember.contactPhone());
+            // 整单退款退券：未过期恢复可用，已过期置为 EXPIRED
+            coupons.returnForOrder(orderId);
         } else {
             commissionLedger.extendFreezeByOrder(orderId, java.time.Duration.ofDays(7), "部分退款，延长冻结");
         }

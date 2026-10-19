@@ -180,6 +180,29 @@ public class CouponService {
         }
     }
 
+    /**
+     * 订单退款/取消时退券（幂等）。
+     *
+     * <p>未过期 → 恢复 `UNUSED`（可以再用）；已过期 → `EXPIRED`（不假装还能用）。
+     * 两种情况都清空 `order_id` 与 `used_at`，满足 DB 上"USED 必须带 used_at"的约束。
+     *
+     * @return 被退回的券数量
+     */
+    @Transactional
+    public int returnForOrder(UUID orderId) {
+        int returned = jdbcTemplate.update("""
+                UPDATE member_coupon
+                   SET status = 'UNUSED', used_at = NULL, order_id = NULL
+                 WHERE order_id = ? AND status = 'USED' AND expires_at > now()
+                """, orderId);
+        int expired = jdbcTemplate.update("""
+                UPDATE member_coupon
+                   SET status = 'EXPIRED', used_at = NULL, order_id = NULL
+                 WHERE order_id = ? AND status = 'USED' AND expires_at <= now()
+                """, orderId);
+        return returned + expired;
+    }
+
     public List<Coupon> listMine(UUID memberId, String status, int limit) {
         if (limit <= 0 || limit > 100) {
             throw ApiException.badRequest("INVALID_LIMIT", "查询条数必须在 1..100，实际=" + limit);

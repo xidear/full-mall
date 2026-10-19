@@ -25,7 +25,8 @@ import static org.assertj.core.api.Assertions.assertThat;
         properties = {
                 "spring.autoconfigure.exclude=org.springframework.boot.autoconfigure.amqp.RabbitAutoConfiguration,org.springframework.boot.autoconfigure.data.redis.RedisAutoConfiguration",
                 "spring.modulith.events.jdbc.schema-initialization.enabled=false",
-                "app.promotion.coupon.mode=EXCLUSIVE"
+                "app.promotion.coupon.mode=EXCLUSIVE",
+                "app.payment.provider=mock"
         })
 @ActiveProfiles("test")
 class CouponCheckoutTest {
@@ -59,6 +60,9 @@ class CouponCheckoutTest {
 
     @Autowired
     CouponService coupons;
+
+    @Autowired
+    com.fullmall.payment.app.PaymentService payments;
 
     @Autowired
     JdbcTemplate jdbc;
@@ -132,6 +136,34 @@ class CouponCheckoutTest {
                 "SELECT status, order_id FROM member_coupon WHERE id = ?", couponId))
                 .containsEntry("status", "USED")
                 .containsEntry("order_id", order.id());
+    }
+
+    @Test
+    void fullRefundReturnsCouponToUnused() {
+        UUID couponId = claimCoupon();
+        var order = orders.checkout(request(couponId), null);
+        payments.payMock(order.id());
+
+        payments.refund(order.id(), order.total().amount());
+
+        assertThat(jdbc.queryForMap(
+                "SELECT status, order_id, used_at FROM member_coupon WHERE id = ?", couponId))
+                .containsEntry("status", "UNUSED")
+                .containsEntry("order_id", null)
+                .containsEntry("used_at", null);
+    }
+
+    @Test
+    void refundOfExpiredCouponMarksItExpired() {
+        UUID couponId = claimCoupon();
+        var order = orders.checkout(request(couponId), null);
+        payments.payMock(order.id());
+        jdbc.update("UPDATE member_coupon SET expires_at = now() - interval '1 minute' WHERE id = ?", couponId);
+
+        payments.refund(order.id(), order.total().amount());
+
+        assertThat(jdbc.queryForObject(
+                "SELECT status FROM member_coupon WHERE id = ?", String.class, couponId)).isEqualTo("EXPIRED");
     }
 
     @Test

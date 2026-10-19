@@ -54,6 +54,7 @@ public class OrderService {
 
     private final com.fullmall.platform.media.MediaUrlResolver mediaUrls;
     private final MemberDiscountLookup memberDiscounts;
+    private final com.fullmall.member.app.MemberPointsService memberPoints;
 
     private static final long FLAT_SHIPPING_FEE = 0L;
 
@@ -81,7 +82,8 @@ public class OrderService {
                         PromotionService promotionService,
                         ObjectMapper objectMapper,
                         com.fullmall.platform.media.MediaUrlResolver mediaUrls,
-                        MemberDiscountLookup memberDiscounts) {
+                        MemberDiscountLookup memberDiscounts,
+                        com.fullmall.member.app.MemberPointsService memberPoints) {
         this.orderRepository = orderRepository;
         this.catalogService = catalogService;
         this.inventoryService = inventoryService;
@@ -95,6 +97,7 @@ public class OrderService {
         this.objectMapper = objectMapper;
         this.mediaUrls = mediaUrls;
         this.memberDiscounts = memberDiscounts;
+        this.memberPoints = memberPoints;
     }
 
     @Transactional
@@ -204,7 +207,18 @@ public class OrderService {
         Money total = new Money(memberPricing.payableAmount(), currency);
         discount = discount.plus(memberDiscount);
 
+
         UUID orderId = Ids.newId();
+
+        // 积分抵扣（MEM-003）：1 积分 = 1 分，最多抵到应付为 0
+        if (request.pointsToUse() != null && request.pointsToUse() > 0) {
+            var redemption = memberPoints.redeem(request.contact().phone(), orderId,
+                    request.pointsToUse(), total.amount());
+            if (redemption.pointsUsed() > 0) {
+                total = new Money(total.amount() - redemption.amount(), currency);
+                discount = discount.plus(new Money(redemption.amount(), currency));
+            }
+        }
         Order order = new Order(
                 orderId,
                 Ids.orderNo(),

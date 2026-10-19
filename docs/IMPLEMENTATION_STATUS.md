@@ -1513,3 +1513,21 @@ cd web && npx playwright test
 
 > 未做：生日礼、积分抵扣（下单用积分）、成长值回退（退款后扣减）。
 
+---
+
+## 2026-10-19（MEM-003）：积分抵扣与回退
+
+- `MemberPointsService`：**1 积分 = 1 分**（"100 积分抵 1 元"），比例可配 `app.member.points.per-minor-unit`。
+  - `redeem`：校验余额、**按应付金额封顶**、写 `points_ledger(REDEEM)` 并扣余额；
+    `business_key=order:<id>:redeem` 保证同一订单只能抵一次。
+  - `rollbackForOrder`：按原抵扣额退回，`business_key=...:redeem-rollback` 幂等，重复调用返回 0。
+- 结算接入：`CheckoutRequest` 新增 `pointsToUse`；`OrderService` 在会员折扣后抵扣，
+  抵扣额计入订单 `discount_amount`，**不会把应付抵成负数**。
+
+| 验证 | 结果 |
+|---|---|
+| 后端测试 | **242 个，全部通过，0 跳过** |
+| 新增测试 | 5 个：正常抵扣并记账、超余额拒绝、按应付封顶（请求 200 抵 50）、同单重复抵扣拒绝、退款只退一次 |
+
+> 未做：退款流程调用 `rollbackForOrder`（服务已就绪，尚未接进退款）；积分抵扣除数不可配置上限。
+

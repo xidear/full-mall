@@ -22,7 +22,8 @@ public record CheckoutRequest(
         List<UUID> legalAcceptanceIds,
         UUID referrerId,
         String referralMode,
-        UUID groupBuyId
+        UUID groupBuyId,
+        @jakarta.validation.constraints.Min(0) Long pointsToUse
 ) {
 
     public record Item(

@@ -24,15 +24,21 @@ public class PromotionPreviewController {
     public record PreviewItem(@NotNull UUID skuId, @Min(1) int quantity) {
     }
 
-    public record PreviewRequest(@NotEmpty List<@Valid PreviewItem> items, String locale) {
+    public record PreviewRequest(@NotEmpty List<@Valid PreviewItem> items, String locale, String channel) {
     }
 
     @PostMapping("/preview")
     public PromotionPreviewService.Preview preview(@Valid @RequestBody PreviewRequest request) {
+        String channel = request.channel() == null || request.channel().isBlank()
+                ? "ONLINE" : request.channel().trim().toUpperCase(java.util.Locale.ROOT);
+        if (!java.util.List.of("ONLINE", "POS", "PICKUP").contains(channel)) {
+            throw com.fullmall.platform.error.ApiException.badRequest(
+                    "INVALID_CHANNEL", "渠道只能是 ONLINE / POS / PICKUP");
+        }
         return previews.preview(
                 request.items().stream()
                         .map(item -> new PromotionPreviewService.Item(item.skuId(), item.quantity()))
                         .toList(),
-                request.locale());
+                request.locale(), channel);
     }
 }

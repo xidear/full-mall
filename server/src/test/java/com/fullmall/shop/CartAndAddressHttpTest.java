@@ -425,7 +425,28 @@ class CartAndAddressHttpTest {
     }
 
     @Test
-    void promotionPreviewAppliesActiveFullReduction() {
+    void posRuleOnlyAppearsWhenPreviewingPosChannel() {
+        jdbc.update("""
+                INSERT INTO promotion (id, code, type, title, status, starts_at, ends_at, rules, priority)
+                VALUES (?, 'HTTP-POS-RULE', 'FULL_REDUCTION', 'POS 满减', 'ACTIVE',
+                        now() - interval '1 hour', now() + interval '1 day',
+                        '{"thresholdAmount":1000,"value":200,"channel":"POS"}'::jsonb, 10)
+                """, UUID.randomUUID());
+
+        var online = http.exchange("/api/v1/promotions/preview", HttpMethod.POST,
+                new HttpEntity<>(Map.of("items", java.util.List.of(
+                        Map.of("skuId", SKU.toString(), "quantity", 2))), guestHeaders()), String.class);
+        assertThat(online.getBody()).doesNotContain("HTTP-POS-RULE");
+
+        var pos = http.exchange("/api/v1/promotions/preview", HttpMethod.POST,
+                new HttpEntity<>(Map.of("channel", "POS",
+                        "items", java.util.List.of(Map.of("skuId", SKU.toString(), "quantity", 2))),
+                        guestHeaders()), String.class);
+        assertThat(pos.getBody()).contains("HTTP-POS-RULE").contains("\"discountAmount\":200");
+    }
+
+    @Test
+    void promotionPreviewAppliesFullReduction() {
         jdbc.update("DELETE FROM promotion WHERE code = 'HTTP-FULL-20'");
         jdbc.update("""
                 INSERT INTO promotion (id, code, type, title, status, starts_at, ends_at, rules, priority)

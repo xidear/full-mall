@@ -22,13 +22,14 @@ public class SupplierRepository {
 
     public CredentialRow findCredential(String accessKey) {
         List<CredentialRow> rows = jdbcTemplate.query("""
-                SELECT supplier_id, secret_encrypted, active
+                SELECT supplier_id, secret_encrypted, active, ip_allowlist
                 FROM supplier_credential
                 WHERE access_key = ?
                 """, (rs, rowNum) -> new CredentialRow(
                 rs.getObject("supplier_id", UUID.class),
                 rs.getString("secret_encrypted"),
-                rs.getBoolean("active")), accessKey);
+                rs.getBoolean("active"),
+                rs.getString("ip_allowlist")), accessKey);
         return rows.stream().findFirst().orElse(null);
     }
 
@@ -163,7 +164,8 @@ public class SupplierRepository {
         return value == null ? null : value.toInstant();
     }
 
-    public record CredentialRow(UUID supplierId, String secretEncrypted, boolean active) {
+    public record CredentialRow(UUID supplierId, String secretEncrypted, boolean active,
+                                String ipAllowlist) {
     }
 
     public record OrderHeader(

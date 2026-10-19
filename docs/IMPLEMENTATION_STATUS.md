@@ -791,3 +791,21 @@ cd web && npx playwright test
 > **未覆盖**：尚无「真实 HMAC 请求重放」的集成测试（现有集成测试不调用 `/open/v1`）。
 > 已记录为下一步：用固定凭证构造两次同 nonce 请求，断言第二次 401。
 
+---
+
+## 2026-10-19（B2 一部分）：供应商 IP 白名单
+
+- 新增 `SupplierIpAllowlist`：支持单 IP、CIDR、逗号分隔多段；**非法配置抛错**而不是跳过坏项；
+  未配置=不限制；**IPv6 明确抛错**（不假装支持）。
+- V30 给 `supplier_credential` 加 `ip_allowlist`；`SupplierHmacFilter` 在凭据校验后、验签前检查来源 IP，
+  不匹配返回 401 `SUPPLIER_IP_NOT_ALLOWED`。
+
+| 验证 | 结果 |
+|---|---|
+| 后端测试 | **106 个，全部通过，0 跳过** |
+| 新增测试 | `SupplierIpAllowlistTest` 6 个（空配置、精确/CIDR、/0、空 IP、IPv6、非法配置） |
+| 迁移 | V30 空库冒烟通过 |
+
+> **未覆盖**：过滤器层面的 IP 拒绝尚无集成测试；白名单目前只能直接写库，
+> 后台配置界面（SUP-031 风险提示）与 Bearer Token（SUP-030 另一条路径）尚未实现。
+

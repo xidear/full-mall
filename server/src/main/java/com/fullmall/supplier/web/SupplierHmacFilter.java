@@ -116,6 +116,13 @@ public class SupplierHmacFilter extends OncePerRequestFilter {
             unauthorized(response, "SUPPLIER_CREDENTIAL_INVALID", "供应商 Access Key 无效或已停用");
             return;
         }
+        // SUP-030：IP 白名单（多段 CIDR）。配置错误会抛错而不是悄悄放行。
+        SupplierIpAllowlist allowlist = SupplierIpAllowlist.parse(credential.ipAllowlist());
+        if (allowlist.isConfigured() && !allowlist.allows(request.getRemoteAddr())) {
+            unauthorized(response, "SUPPLIER_IP_NOT_ALLOWED",
+                    "调用来源 IP 不在白名单内: " + request.getRemoteAddr());
+            return;
+        }
         String secret;
         try {
             secret = cipher.decrypt(credential.secretEncrypted());

@@ -53,6 +53,7 @@ import java.util.UUID;
 public class OrderService {
 
     private final com.fullmall.platform.media.MediaUrlResolver mediaUrls;
+    private final MemberDiscountLookup memberDiscounts;
 
     private static final long FLAT_SHIPPING_FEE = 0L;
 
@@ -79,7 +80,8 @@ public class OrderService {
                         ReferralService referralService,
                         PromotionService promotionService,
                         ObjectMapper objectMapper,
-                        com.fullmall.platform.media.MediaUrlResolver mediaUrls) {
+                        com.fullmall.platform.media.MediaUrlResolver mediaUrls,
+                        MemberDiscountLookup memberDiscounts) {
         this.orderRepository = orderRepository;
         this.catalogService = catalogService;
         this.inventoryService = inventoryService;
@@ -92,6 +94,7 @@ public class OrderService {
         this.promotionService = promotionService;
         this.objectMapper = objectMapper;
         this.mediaUrls = mediaUrls;
+        this.memberDiscounts = memberDiscounts;
     }
 
     @Transactional
@@ -193,7 +196,13 @@ public class OrderService {
         if (discount.amount() < 0) {
             throw new IllegalStateException("Promotion subtotal exceeds catalog subtotal for checkout");
         }
-        Money total = subtotal.plus(shippingFee).minus(discount);
+        // 会员等级价（MEM-002）：促销后金额再打折，运费不参与；匿名不享受
+        Integer tierRate = memberDiscounts.discountRate(request.contact().phone());
+        MemberPricing.Discount memberPricing = MemberPricing.apply(
+                subtotal.amount(), discount.amount(), shippingFee.amount(), tierRate);
+        Money memberDiscount = new Money(memberPricing.memberDiscountAmount(), currency);
+        Money total = new Money(memberPricing.payableAmount(), currency);
+        discount = discount.plus(memberDiscount);
 
         UUID orderId = Ids.newId();
         Order order = new Order(

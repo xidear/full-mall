@@ -142,6 +142,12 @@ class CartAndAddressHttpTest {
                         "detail", "南京西路 1 号"), guestHeaders()), String.class);
         String addressId = com.jayway.jsonpath.JsonPath.read(addressResponse.getBody(), "$[0].id");
 
+        // GOLD 会员（95 折）用于验证 MEM-002
+        jdbc.update("""
+                INSERT INTO member (id, member_no, name, phone, tier, points_balance, stored_value_balance, currency)
+                VALUES (?, 'M-GOLD-1', '张三', '13800000011', 'GOLD', 0, 0, 'CNY')
+                ON CONFLICT (phone) DO NOTHING
+                """, UUID.randomUUID());
         jdbc.update("""
                 INSERT INTO referral_binding (id, customer_phone, promoter_staff_id, mode, active)
                 VALUES (?, '13800000011', ?, 'ORDER', TRUE)
@@ -153,6 +159,11 @@ class CartAndAddressHttpTest {
 
         assertThat(checkout.getStatusCode().value()).isEqualTo(200);
         assertThat(checkout.getBody()).contains("orderNo");
+        // MEM-002：GOLD 95 折，2000 小计 → 会员折扣 100
+        String createdOrderId = com.jayway.jsonpath.JsonPath.read(checkout.getBody(), "$.id");
+        assertThat(jdbc.queryForObject(
+                "SELECT discount_amount FROM orders WHERE id = ?::uuid", Long.class, createdOrderId))
+                .isEqualTo(100L);
         // 下单后购物车清空
         var cart = http.exchange("/api/v1/cart", HttpMethod.GET,
                 new HttpEntity<>(guestHeaders()), String.class);

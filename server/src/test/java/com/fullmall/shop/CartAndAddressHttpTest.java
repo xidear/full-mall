@@ -271,6 +271,27 @@ class CartAndAddressHttpTest {
     }
 
     @Test
+    void promotionPreviewAppliesActiveFullReduction() {
+        jdbc.update("DELETE FROM promotion WHERE code = 'HTTP-FULL-20'");
+        jdbc.update("""
+                INSERT INTO promotion (id, code, type, title, status, starts_at, ends_at, rules, priority)
+                VALUES (?, 'HTTP-FULL-20', 'FULL_REDUCTION', '满 20 减 5', 'ACTIVE',
+                        now() - interval '1 hour', now() + interval '1 day',
+                        '{"thresholdAmount":2000,"value":500}'::jsonb, 10)
+                """, UUID.randomUUID());
+
+        var response = http.exchange("/api/v1/promotions/preview", HttpMethod.POST,
+                new HttpEntity<>(Map.of("items", java.util.List.of(
+                        Map.of("skuId", SKU.toString(), "quantity", 2))), guestHeaders()), String.class);
+
+        assertThat(response.getStatusCode().value()).isEqualTo(200);
+        assertThat(response.getBody()).contains("HTTP-FULL-20")
+                .contains("\"discountAmount\":500");
+
+        jdbc.update("DELETE FROM promotion WHERE code = 'HTTP-FULL-20'");
+    }
+
+    @Test
     void checkoutWithEmptyCartIsRejected() {
         var response = http.exchange("/api/v1/cart/checkout", HttpMethod.POST,
                 new HttpEntity<>(Map.of(), guestHeaders()), String.class);

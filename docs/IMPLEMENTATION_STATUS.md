@@ -1627,3 +1627,19 @@ cd web && npx playwright test
 
 > 未做：试算 API 与结算接入、叠加/互斥配置、渠道隔离、按类目/品牌限定范围（PRO-002/003/004）。
 
+---
+
+## 2026-10-19（PRO-008）：促销试算 API
+
+- `POST /api/v1/promotions/preview`：传商品明细 → 返回小计、命中规则编码、优惠额、应付。
+- `PromotionPreviewService`：只读取**当前生效**（ACTIVE 且在时间窗内）的满减/满折规则，
+  参数从 `promotion.rules` JSONB 取（`thresholdAmount` / `value`），无需新表；币种不一致直接拒绝。
+- 顺序约定写入文档：**促销 → 会员折扣 → 积分抵扣**（试算只算促销层）。
+
+| 验证 | 结果 |
+|---|---|
+| 后端测试 | **252 个，全部通过，0 跳过** |
+| 真实 HTTP | 造一条"满 20 减 5"规则 → 试算返回 `HTTP-FULL-20` 且 `discountAmount=500` |
+
+> 未做：结算流程尚未调用该引擎（下单仍用原有 `promoSubtotal`），两者需在下一轮统一，否则同一单可能重复优惠。
+

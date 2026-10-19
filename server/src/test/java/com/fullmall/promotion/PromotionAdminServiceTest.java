@@ -99,6 +99,30 @@ class PromotionAdminServiceTest {
     }
 
     @Test
+    void listAndUpdateOnlyDraftRules() {
+        jdbc.update("DELETE FROM promotion WHERE code = 'ADMIN-RULE-6'");
+        UUID id = service.create(command("ADMIN-RULE-6", "ALL", List.of()), "admin");
+
+        assertThat(service.list("DRAFT", 50)).anySatisfy(rule -> {
+            assertThat(rule.id()).isEqualTo(id);
+            assertThat(rule.thresholdAmount()).isEqualTo(2_000);
+        });
+
+        var updated = new PromotionAdminService.Command("ADMIN-RULE-6B", "改后的规则", "FULL_REDUCTION",
+                3_000, 500, "ALL", List.of(), "ONLINE",
+                Instant.now(), Instant.now().plusSeconds(3600), 20);
+        service.update(id, updated, "admin");
+        assertThat(jdbc.queryForObject("SELECT code FROM promotion WHERE id = ?", String.class, id))
+                .isEqualTo("ADMIN-RULE-6B");
+
+        service.activate(id, "admin");
+        assertThatThrownBy(() -> service.update(id, updated, "admin"))
+                .isInstanceOf(com.fullmall.platform.error.ApiException.class)
+                .hasMessageContaining("只有草稿");
+        jdbc.update("DELETE FROM promotion WHERE code = 'ADMIN-RULE-6B'");
+    }
+
+    @Test
     void rejectsInvalidDiscountPercentage() {
         var bad = new PromotionAdminService.Command("ADMIN-RULE-5", "测试", "FULL_DISCOUNT", 1_000, 100,
                 "ALL", List.of(), "ONLINE", Instant.now(), Instant.now().plusSeconds(60), 1);

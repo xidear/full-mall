@@ -46,15 +46,7 @@ public class PromotionAdminService {
         requireActor(actor);
         validate(command);
 
-        ObjectNode rules = MAPPER.createObjectNode();
-        rules.put("thresholdAmount", command.thresholdAmount());
-        rules.put("value", command.value());
-        rules.put("scope", command.scope());
-        rules.put("channel", command.channel());
-        var ids = rules.putArray("scopeIds");
-        if (command.scopeIds() != null) {
-            command.scopeIds().forEach(id -> ids.add(id.toString()));
-        }
+        ObjectNode rules = buildRules(command);
 
         UUID id = UUID.randomUUID();
         int inserted = jdbcTemplate.update("""
@@ -68,6 +60,77 @@ public class PromotionAdminService {
         }
         audit("PROMOTION_CREATED", id, actor, command.type() + "/" + command.scope());
         return id;
+    }
+
+    public record RuleView(UUID id, String code, String title, String type, String status,
+                           long thresholdAmount, long value, String scope, String channel,
+                           int priority, Instant startsAt, Instant endsAt) {
+    }
+
+    public List<RuleView> list(String status, int limit) {
+        if (limit <= 0 || limit > 200) {
+            throw ApiException.badRequest("INVALID_LIMIT", "查询条数必须在 1..200，实际=" + limit);
+        }
+        String filter = status == null || status.isBlank() ? null : status.trim().toUpperCase(Locale.ROOT);
+        return jdbcTemplate.query("""
+                SELECT id, code, title, type, status, priority, starts_at, ends_at,
+                       COALESCE((rules->>'thresholdAmount')::bigint, 0) AS threshold_amount,
+                       COALESCE((rules->>'value')::bigint, 0) AS rule_value,
+                       COALESCE(rules->>'scope', 'ALL') AS scope,
+                       COALESCE(rules->>'channel', 'ONLINE') AS channel
+                  FROM promotion
+                 WHERE type IN ('FULL_REDUCTION', 'FULL_DISCOUNT')
+                   AND (?::text IS NULL OR status = ?::text)
+                 ORDER BY created_at DESC LIMIT ?
+                """, (rs, rowNum) -> new RuleView(
+                rs.getObject("id", UUID.class), rs.getString("code"), rs.getString("title"),
+                rs.getString("type"), rs.getString("status"),
+                rs.getLong("threshold_amount"), rs.getLong("rule_value"),
+                rs.getString("scope"), rs.getString("channel"), rs.getInt("priority"),
+                rs.getTimestamp("starts_at").toInstant(), rs.getTimestamp("ends_at").toInstant()),
+                filter, filter, limit);
+    }
+
+    /** 编辑仅允许草稿：已生效规则被静默改动会让"试算与结算"在用户眼皮下变化。 */
+    @Transactional
+    public void update(UUID id, Command command, String actor) {
+        requireActor(actor);
+        validate(command);
+        String status = jdbcTemplate.queryForList(
+                "SELECT status FROM promotion WHERE id = ?", String.class, id)
+                .stream().findFirst()
+                .orElseThrow(() -> ApiException.notFound("PROMOTION_NOT_FOUND", "规则不存在: " + id));
+        if (!"DRAFT".equals(status)) {
+            throw ApiException.conflict("PROMOTION_NOT_EDITABLE",
+                    "只有草稿状态的规则可以编辑，当前=" + status + "（改规则请先结束并新建）");
+        }
+
+        ObjectNode rules = buildRules(command);
+        int updated = jdbcTemplate.update("""
+                UPDATE promotion
+                   SET code = ?, title = ?, type = ?, starts_at = ?, ends_at = ?,
+                       rules = CAST(? AS jsonb), priority = ?
+                 WHERE id = ? AND status = 'DRAFT'
+                """, command.code(), command.title(), command.type(),
+                Timestamp.from(command.startsAt()), Timestamp.from(command.endsAt()),
+                rules.toString(), command.priority(), id);
+        if (updated != 1) {
+            throw new IllegalStateException("规则更新失败: " + id);
+        }
+        audit("PROMOTION_UPDATED", id, actor, command.type() + "/" + command.scope());
+    }
+
+    private ObjectNode buildRules(Command command) {
+        ObjectNode rules = MAPPER.createObjectNode();
+        rules.put("thresholdAmount", command.thresholdAmount());
+        rules.put("value", command.value());
+        rules.put("scope", command.scope() == null ? "ALL" : command.scope().toUpperCase(Locale.ROOT));
+        rules.put("channel", command.channel() == null ? "ONLINE" : command.channel().toUpperCase(Locale.ROOT));
+        var ids = rules.putArray("scopeIds");
+        if (command.scopeIds() != null) {
+            command.scopeIds().forEach(scopeId -> ids.add(scopeId.toString()));
+        }
+        return rules;
     }
 
     @Transactional

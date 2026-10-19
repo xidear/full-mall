@@ -38,6 +38,22 @@ public class AdminPromotionController {
         return Map.of("id", id);
     }
 
+    @GetMapping
+    public java.util.List<PromotionAdminService.RuleView> list(
+            @RequestParam(required = false) String status,
+            @RequestParam(defaultValue = "50") int limit) {
+        return service.list(status, limit);
+    }
+
+    @PutMapping("/{id}")
+    public void update(@PathVariable UUID id, @RequestBody CreateRule body,
+                       Authentication authentication) {
+        service.update(id, new PromotionAdminService.Command(
+                body.code(), body.title(), body.type(), body.thresholdAmount(), body.value(),
+                body.scope(), body.scopeIds(), body.channel(), body.startsAt(), body.endsAt(),
+                body.priority()), authentication.getName());
+    }
+
     @PostMapping("/{id}/activate")
     public void activate(@PathVariable UUID id, Authentication authentication) {
         service.activate(id, authentication.getName());

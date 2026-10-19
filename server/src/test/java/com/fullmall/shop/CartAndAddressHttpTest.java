@@ -173,6 +173,21 @@ class CartAndAddressHttpTest {
         var anonymousDetail = http.exchange("/api/v1/orders/" + createdOrderId, HttpMethod.GET,
                 new HttpEntity<>(guestHeaders()), String.class);
         assertThat(anonymousDetail.getStatusCode().value()).isEqualTo(404);
+
+        // 另一个会员访问同一订单也必须 404（独立证据，不是复用游客分支）
+        var otherOtp = http.exchange("/api/v1/member/auth/otp", HttpMethod.POST,
+                new HttpEntity<>(Map.of("phone", "13900000999"), guestHeaders()), String.class);
+        String otherCode = com.jayway.jsonpath.JsonPath.read(otherOtp.getBody(), "$.debugCode");
+        var otherSession = http.exchange("/api/v1/member/auth/verify", HttpMethod.POST,
+                new HttpEntity<>(Map.of("phone", "13900000999", "code", otherCode), guestHeaders()),
+                String.class);
+        String otherToken = com.jayway.jsonpath.JsonPath.read(otherSession.getBody(), "$.token");
+        HttpHeaders otherHeaders = new HttpHeaders();
+        otherHeaders.set("Authorization", "Bearer " + otherToken);
+
+        var otherDetail = http.exchange("/api/v1/orders/" + createdOrderId, HttpMethod.GET,
+                new HttpEntity<>(otherHeaders), String.class);
+        assertThat(otherDetail.getStatusCode().value()).isEqualTo(404);
         // 下单后购物车清空
         var cart = http.exchange("/api/v1/cart", HttpMethod.GET,
                 new HttpEntity<>(guestHeaders()), String.class);

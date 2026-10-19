@@ -1977,3 +1977,28 @@ cd web && npx playwright test
 |---|---|
 | 后端测试 | **284 个，全部通过，0 跳过** |
 
+---
+
+## 2026-10-19：更正上一轮的误报（不是重复推送，是双渠道）
+
+上一轮我报告"`ORDER_PAID` 给同一顾客写了两个 CUSTOMER 消息 = 重复推送"，**这是我的判断错误**。
+
+核实：`notifyOrderEvent(..., List.of("IN_APP", "SMS"))` 按渠道各投递一条，属**设计如此**。
+我在打印里只选了 `recipient_type/recipient_id/event_type`，没带 `channel`，才把两个渠道误看成重复。
+
+已改为精确断言：
+
+```java
+SELECT channel FROM notification
+ WHERE recipient_type='CUSTOMER' AND recipient_id=? AND event_type='ORDER_PAID'
+ ORDER BY channel
+→ containsExactly("IN_APP", "SMS")
+```
+
+| 验证 | 结果 |
+|---|---|
+| 后端测试 | **284 个，全部通过，0 跳过** |
+
+**教训（写在这里以免重犯）**：断言"重复"前必须先看 `channel`（以及幂等键），
+只按事件类型计数会把多渠道投递误判成重复。
+

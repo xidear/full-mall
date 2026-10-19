@@ -164,6 +164,22 @@ public class CouponService {
         return new Eligibility(true, "可用", discount);
     }
 
+    /**
+     * 核销：`UNUSED` → `USED` 并绑定订单（条件更新，防并发重复核销）。
+     */
+    @Transactional
+    public void consume(UUID couponId, UUID memberId, UUID orderId) {
+        int updated = jdbcTemplate.update("""
+                UPDATE member_coupon
+                   SET status = 'USED', used_at = now(), order_id = ?
+                 WHERE id = ? AND member_id = ? AND status = 'UNUSED' AND expires_at > now()
+                """, orderId, couponId, memberId);
+        if (updated != 1) {
+            throw ApiException.conflict("COUPON_NOT_CONSUMABLE",
+                    "券不可核销（已使用/已过期/不属于该会员）: " + couponId);
+        }
+    }
+
     public List<Coupon> listMine(UUID memberId, String status, int limit) {
         if (limit <= 0 || limit > 100) {
             throw ApiException.badRequest("INVALID_LIMIT", "查询条数必须在 1..100，实际=" + limit);

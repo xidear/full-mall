@@ -23,7 +23,8 @@ public record CheckoutRequest(
         UUID referrerId,
         String referralMode,
         UUID groupBuyId,
-        @jakarta.validation.constraints.Min(0) Long pointsToUse
+        @jakarta.validation.constraints.Min(0) Long pointsToUse,
+        UUID couponId
 ) {
 
     public record Item(

@@ -83,6 +83,19 @@ public class OrderRepository {
                 rs.getTimestamp("created_at").toInstant()), memberId, limit);
     }
 
+    /** 按手机号查会员（手机号唯一时）；用于下单过程中取券归属。 */
+    public UUID findMemberIdByPhone(String phone) {
+        if (phone == null || phone.isBlank()) {
+            return null;
+        }
+        List<UUID> rows = jdbcTemplate.queryForList("""
+                SELECT m.id FROM member m
+                 WHERE m.phone = ?
+                   AND (SELECT COUNT(*) FROM member m2 WHERE m2.phone = m.phone) = 1
+                """, UUID.class, phone.trim());
+        return rows.isEmpty() ? null : rows.get(0);
+    }
+
     /** 下单后按手机号把订单绑定到会员（手机号唯一时）。 */
     public void attachMemberByPhone(UUID orderId, String phone) {
         if (phone == null || phone.isBlank()) {

@@ -56,6 +56,8 @@ public class OrderService {
     private final MemberDiscountLookup memberDiscounts;
     private final com.fullmall.member.app.MemberPointsService memberPoints;
     private final com.fullmall.promotion.app.PromotionPreviewService promotionPreviews;
+    private final com.fullmall.coupon.app.CouponService coupons;
+    private final String couponMode;
 
     private static final long FLAT_SHIPPING_FEE = 0L;
 
@@ -85,7 +87,9 @@ public class OrderService {
                         com.fullmall.platform.media.MediaUrlResolver mediaUrls,
                         MemberDiscountLookup memberDiscounts,
                         com.fullmall.member.app.MemberPointsService memberPoints,
-                        com.fullmall.promotion.app.PromotionPreviewService promotionPreviews) {
+                        com.fullmall.promotion.app.PromotionPreviewService promotionPreviews,
+                        com.fullmall.coupon.app.CouponService coupons,
+                        @org.springframework.beans.factory.annotation.Value("${app.promotion.coupon.mode:EXCLUSIVE}") String couponMode) {
         this.orderRepository = orderRepository;
         this.catalogService = catalogService;
         this.inventoryService = inventoryService;
@@ -101,6 +105,12 @@ public class OrderService {
         this.memberDiscounts = memberDiscounts;
         this.memberPoints = memberPoints;
         this.promotionPreviews = promotionPreviews;
+        this.coupons = coupons;
+        this.couponMode = couponMode == null ? "EXCLUSIVE" : couponMode.trim().toUpperCase();
+        if (!java.util.List.of("EXCLUSIVE", "STACKABLE").contains(this.couponMode)) {
+            throw new IllegalArgumentException(
+                    "app.promotion.coupon.mode 只能是 EXCLUSIVE 或 STACKABLE，实际=" + couponMode);
+        }
     }
 
     @Transactional
@@ -226,6 +236,31 @@ public class OrderService {
 
 
         UUID orderId = Ids.newId();
+
+        // 优惠券（默认 EXCLUSIVE：与促销互斥，取优惠更大者；STACKABLE 则叠加）
+        if (request.couponId() != null) {
+            UUID couponMemberId = request.contact() == null ? null
+                    : orderRepository.findMemberIdByPhone(request.contact().phone());
+            if (couponMemberId == null) {
+                throw ApiException.badRequest("COUPON_REQUIRES_MEMBER", "优惠券只对会员订单可用");
+            }
+            var eligibility = coupons.checkUsable(request.couponId(), couponMemberId, total.amount());
+            if (!eligibility.usable()) {
+                throw ApiException.conflict("COUPON_NOT_USABLE", eligibility.reason());
+            }
+            if ("EXCLUSIVE".equals(couponMode)) {
+                if (eligibility.discountAmount() <= discount.amount()) {
+                    throw ApiException.conflict("COUPON_NOT_BETTER_THAN_PROMOTION",
+                            "该券优惠小于当前促销优惠，请移除券或改用它用");
+                }
+                total = new Money(total.amount() + discount.amount() - eligibility.discountAmount(), currency);
+                discount = new Money(eligibility.discountAmount(), currency);
+            } else {
+                total = new Money(Math.max(total.amount() - eligibility.discountAmount(), 0), currency);
+                discount = discount.plus(new Money(eligibility.discountAmount(), currency));
+            }
+            coupons.consume(request.couponId(), couponMemberId, orderId);
+        }
 
         // 积分抵扣（MEM-003）：1 积分 = 1 分，最多抵到应付为 0
         if (request.pointsToUse() != null && request.pointsToUse() > 0) {

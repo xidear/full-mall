@@ -102,7 +102,7 @@ class OrderNotificationFlowTest {
                 null,
                 new CheckoutRequest.Contact("通知用户", PHONE, null),
                 new CheckoutRequest.Address("上海", "上海", "静安", "南京西路 9 号", "200040"),
-                List.of(), null, null, null, null), null);
+                List.of(), null, null, null, null, null), null);
 
         // 下单：恰好一条会员消息，收件人是订单归属会员
         assertThat(jdbc.queryForObject("""

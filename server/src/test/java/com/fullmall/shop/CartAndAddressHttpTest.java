@@ -212,6 +212,14 @@ class CartAndAddressHttpTest {
                 new HttpEntity<>(memberHeaders), String.class);
         assertThat(memberCart.getBody()).contains("\"quantity\":3");
 
+        // MEM-002：支付后按 GOLD 2 倍积分累积（实付 1900 → 基数 19 → 38 分）
+        Integer points = jdbc.queryForObject(
+                "SELECT points_balance FROM member WHERE phone = '13800000011'", Integer.class);
+        assertThat(points).isEqualTo(38);
+        assertThat(jdbc.queryForObject(
+                "SELECT COUNT(*) FROM points_ledger WHERE business_key LIKE 'order:%:points'", Integer.class))
+                .isEqualTo(1);
+
         // 会员可取自己的资料（掩码）
         var me = http.exchange("/api/v1/member/auth/me", HttpMethod.GET,
                 new HttpEntity<>(memberHeaders), String.class);

@@ -1498,3 +1498,18 @@ cd web && npx playwright test
 > 未做：积分倍率与成长值（MEM-002 后半）、会员价与促销互斥/叠加的可配置策略（PRO-003）。
 > 口径风险：当前会员折扣在促销之后叠加，若业务要求"会员价与促销取优不叠加"，需改为比较取大。
 
+### MEM-002 后半：积分与成长值
+
+- `MemberRewardService`：积分 = ⌊实付/100⌋ × 等级积分倍率，成长值 = ⌊实付/100⌋；
+  两者写 `points_ledger` / `growth_ledger`（**business_key 幂等**，重复回调不重复加）；
+  成长值达标自动升级，**只升不降**（按 `sort_order` 比较）。
+- `PaymentService.payMock` 支付成功后调用；匿名/无会员的手机号不产生任何记录。
+
+| 验证 | 结果 |
+|---|---|
+| 后端测试 | **237 个，全部通过，0 跳过** |
+| 真实 HTTP | GOLD 会员实付 1900 → 积分 **38**（19×2 倍率），`points_ledger` 仅 1 条 |
+| 模块边界 | `payment → member.app` 未暴露，已加 `@NamedInterface("member-service")` |
+
+> 未做：生日礼、积分抵扣（下单用积分）、成长值回退（退款后扣减）。
+

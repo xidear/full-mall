@@ -25,6 +25,7 @@ public class PaymentService {
     private final String configuredProvider;
     private final com.fullmall.distribution.app.CommissionLedgerService commissionLedger;
     private final com.fullmall.distribution.app.ReferralService referralService;
+    private final com.fullmall.member.app.MemberRewardService memberRewards;
 
     public PaymentService(PaymentRepository paymentRepository,
                           OrderService orderService,
@@ -32,7 +33,8 @@ public class PaymentService {
                           AnalyticsService analyticsService,
                           @Value("${app.payment.provider:mock}") String configuredProvider,
                           com.fullmall.distribution.app.CommissionLedgerService commissionLedger,
-                          com.fullmall.distribution.app.ReferralService referralService) {
+                          com.fullmall.distribution.app.ReferralService referralService,
+                          com.fullmall.member.app.MemberRewardService memberRewards) {
         this.paymentRepository = paymentRepository;
         this.orderService = orderService;
         this.mockPaymentConnector = mockPaymentConnector;
@@ -40,6 +42,7 @@ public class PaymentService {
         this.configuredProvider = configuredProvider;
         this.commissionLedger = commissionLedger;
         this.referralService = referralService;
+        this.memberRewards = memberRewards;
     }
 
     /**
@@ -105,6 +108,8 @@ public class PaymentService {
         orderService.markPaid(orderId);
         // 佣金：支付成功后按实付生成（写入即为 FROZEN，冻结期满才可提现）
         referralService.settleOrder(orderId, paid.amount().amount(), paid.amount().currency());
+        // 会员积分与成长值（MEM-002）：匿名订单不产生
+        memberRewards.accrue(orderId, order.contactPhone(), paid.amount().amount());
         analyticsService.record("payment_succeeded", orderId, null, Map.of(
                 "provider", paid.provider(),
                 "amount", paid.amount().amount(),

@@ -2,7 +2,9 @@
 
 源码开放（非商业许可）的跨境商城。首发中国大陆，支持多仓、门店、供应商代发、门店自提、批次/效期、Mock 支付与门店组合支付收银；后续扩展香港、澳门、台湾地区。
 
-> 当前仓库已完成 Phase 0 地基与 POS 收银 P0（组合支付/积分/优惠券/现金小结/日结/退款）。计划与决策见 [`docs/DEVELOPMENT_PLAN.md`](docs/DEVELOPMENT_PLAN.md) 和 [`docs/adr/`](docs/adr/)。
+> 当前仓库已完成 Phase 0 地基、POS 收银 P0、供应商/仓储/RBAC/售后、会员等级/分销/客服、秒杀/买赠/拼团与门店数据权限。计划与决策见 [`docs/DEVELOPMENT_PLAN.md`](docs/DEVELOPMENT_PLAN.md) 和 [`docs/adr/`](docs/adr/)。
+>
+> **换机器或新会话开发前，请先读 [`docs/PROJECT_MEMORY.md`](docs/PROJECT_MEMORY.md)**：环境、构建命令、模块边界、种子数据、并发规则和已知陷阱都在里面。
 
 ## 技术栈
 

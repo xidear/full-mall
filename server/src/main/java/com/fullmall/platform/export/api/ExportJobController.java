@@ -6,6 +6,8 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.Map;
 import java.util.UUID;
 
@@ -30,6 +32,33 @@ public class ExportJobController {
         UUID id = service.create(authentication.getName(), body.resource(), body.projection(),
                 body.params(), null);
         return Map.of("jobId", id);
+    }
+
+    /** 下载：鉴权（只有发起人）+ 过期检查；文件不存在直接 410，不返回空内容。 */
+    @GetMapping("/{jobId}/download")
+    @PreAuthorize("hasAnyRole('ADMIN','OPERATOR')")
+    public org.springframework.http.ResponseEntity<byte[]> download(@PathVariable UUID jobId,
+                                                                    Authentication authentication) {
+        var job = service.findForRequester(jobId, authentication.getName());
+        if (!"SUCCEEDED".equals(job.status()) || job.filePath() == null) {
+            throw new com.fullmall.platform.error.ApiException(
+                    org.springframework.http.HttpStatus.CONFLICT, "EXPORT_NOT_READY",
+                    "导出尚未完成，当前状态=" + job.status());
+        }
+        Path path = Path.of(job.filePath());
+        if (!Files.isReadable(path)) {
+            throw new com.fullmall.platform.error.ApiException(
+                    org.springframework.http.HttpStatus.GONE, "EXPORT_FILE_MISSING",
+                    "导出文件已不可用，请重新导出");
+        }
+        try {
+            return org.springframework.http.ResponseEntity.ok()
+                    .header("Content-Disposition", "attachment; filename=export-" + jobId + ".csv")
+                    .header("Content-Type", "text/csv;charset=UTF-8")
+                    .body(Files.readAllBytes(path));
+        } catch (java.io.IOException error) {
+            throw new IllegalStateException("读取导出文件失败: " + path, error);
+        }
     }
 
     @GetMapping("/{jobId}")

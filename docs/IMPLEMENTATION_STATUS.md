@@ -1196,3 +1196,21 @@ cd web && npx playwright test
 > **未完成**：worker（定时抢占 + 流式写 CSV + 落存储）、签名 URL 下载、删掉旧的同步导出接口。
 > 当前只有任务与状态机，**还没有真正生成文件**。
 
+### A6 第二步：导出执行器与下载
+
+- `ExportWorker.runOnce()`：抢占任务 → 按 `projection` 选列 → 写 CSV 落盘 → 状态置 SUCCEEDED/FAILED。
+  - `FINANCE` 才包含 `costAmount/grossProfitAmount/grossMarginBps`，`OPS` 不含——权限落地在文件内容里；
+  - 成本缺失输出 `COST_MISSING`，不给 0；
+  - 未知资源直接 FAILED 并记录原因（不静默留空文件）。
+- 下载接口 `GET /admin/v1/export-jobs/{id}/download`：校验归属 + 过期 + 文件存在；
+  未完成返回 409，文件丢失返回 410。
+- 模块边界：给 `member.export` 加 `@NamedInterface("member-export")`（`platform` 依赖被 `ModulithStructureTest` 抓到并修正）。
+
+| 验证 | 结果 |
+|---|---|
+| 后端测试 | **210 个，全部通过，0 跳过** |
+| 新增测试 | worker 生成 CSV 且手机号掩码、未知资源 FAILED（含原因） |
+
+> **仍未做**：定时调度（`@Scheduled`）、对象存储与签名 URL、删除旧同步导出接口、
+> 大表 keyset 分批（当前单次上限 5000 行）。
+

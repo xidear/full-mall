@@ -49,6 +49,9 @@ class ExportJobServiceTest {
     @Autowired
     JdbcTemplate jdbc;
 
+    @Autowired
+    ExportWorker worker;
+
     @org.junit.jupiter.api.BeforeEach
     void clean() {
         jdbc.update("DELETE FROM export_job");
@@ -76,6 +79,35 @@ class ExportJobServiceTest {
         assertThat(job.status()).isEqualTo("SUCCEEDED");
         assertThat(job.rowCount()).isEqualTo(42);
         assertThat(job.filePath()).isEqualTo("/tmp/export.csv");
+    }
+
+    @Test
+    void workerWritesCsvAndMarksSucceeded() throws Exception {
+        jdbc.update("DELETE FROM member");
+        jdbc.update("""
+                INSERT INTO member (id, member_no, name, phone, tier, points_balance, stored_value_balance, currency)
+                VALUES (?, 'M9001', '王小明', '13800000001', 'GOLD', 100, 0, 'CNY')
+                """, UUID.randomUUID());
+        UUID id = service.create("admin", "member", "OPS", Map.of(), null);
+
+        assertThat(worker.runOnce()).isTrue();
+
+        var job = service.find(id);
+        assertThat(job.status()).isEqualTo("SUCCEEDED");
+        assertThat(job.rowCount()).isEqualTo(1);
+        String csv = java.nio.file.Files.readString(java.nio.file.Path.of(job.filePath()));
+        assertThat(csv).contains("phoneMasked").contains("138****0001").doesNotContain("13800000001");
+    }
+
+    @Test
+    void workerFailsJobForUnknownResource() {
+        UUID id = service.create("admin", "unknown_resource", "OPS", Map.of(), null);
+
+        assertThat(worker.runOnce()).isTrue();
+
+        var job = service.find(id);
+        assertThat(job.status()).isEqualTo("FAILED");
+        assertThat(job.error()).contains("不支持的导出资源");
     }
 
     @Test

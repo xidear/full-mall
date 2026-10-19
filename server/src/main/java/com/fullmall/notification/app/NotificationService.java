@@ -52,6 +52,32 @@ public class NotificationService {
         }
     }
 
+    /** 顾客侧消息列表（按收件人）。 */
+    public List<Notification> findForRecipient(String recipientType, String recipientId, int limit) {
+        if (recipientId == null || recipientId.isBlank()) {
+            throw com.fullmall.platform.error.ApiException.badRequest(
+                    "RECIPIENT_REQUIRED", "缺少收件人");
+        }
+        if (limit <= 0 || limit > 100) {
+            throw com.fullmall.platform.error.ApiException.badRequest(
+                    "INVALID_LIMIT", "查询条数必须在 1..100，实际=" + limit);
+        }
+        return repository.findForRecipient(recipientType, recipientId, limit);
+    }
+
+    /** 标记单条已读（只能标记自己的）。 */
+    public boolean markRead(String recipientType, String recipientId, java.util.UUID notificationId) {
+        if (recipientId == null || recipientId.isBlank()) {
+            throw com.fullmall.platform.error.ApiException.badRequest(
+                    "RECIPIENT_REQUIRED", "缺少收件人");
+        }
+        return repository.markRead(recipientType, recipientId, notificationId);
+    }
+
+    public int unreadCount(String recipientType, String recipientId) {
+        return repository.unreadCount(recipientType, recipientId);
+    }
+
     public List<Notification> findRecent(int limit, String channel, String recipientType) {
         int safeLimit = Math.min(Math.max(limit, 1), 200);
         return repository.findRecent(safeLimit, channel, recipientType);

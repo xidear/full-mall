@@ -47,6 +47,50 @@ public class NotificationRepository {
         }
     }
 
+    private static final String COLUMNS = """
+            SELECT id, recipient_type, recipient_id, event_type, channel, title, content,
+                   status, read_at, sent_at, error_message, created_at
+            FROM notification
+            """;
+
+    public List<Notification> findForRecipient(String recipientType, String recipientId, int limit) {
+        return jdbcTemplate.query(COLUMNS + """
+                WHERE recipient_type = ? AND recipient_id = ?
+                ORDER BY created_at DESC LIMIT ?
+                """, (rs, rowNum) -> new Notification(
+                rs.getObject("id", UUID.class),
+                rs.getString("recipient_type"),
+                rs.getString("recipient_id"),
+                rs.getString("event_type"),
+                rs.getString("channel"),
+                rs.getString("title"),
+                rs.getString("content"),
+                rs.getString("status"),
+                rs.getTimestamp("read_at") == null ? null : rs.getTimestamp("read_at").toInstant(),
+                rs.getTimestamp("sent_at") == null ? null : rs.getTimestamp("sent_at").toInstant(),
+                rs.getString("error_message"),
+                rs.getTimestamp("created_at").toInstant()),
+                recipientType, recipientId, limit);
+    }
+
+    public boolean markRead(String recipientType, String recipientId, java.util.UUID notificationId) {
+        return jdbcTemplate.update("""
+                UPDATE notification SET read_at = now()
+                 WHERE id = ? AND recipient_type = ? AND recipient_id = ? AND read_at IS NULL
+                """, notificationId, recipientType, recipientId) == 1;
+    }
+
+    public int unreadCount(String recipientType, String recipientId) {
+        Integer count = jdbcTemplate.queryForObject("""
+                SELECT COUNT(*) FROM notification
+                 WHERE recipient_type = ? AND recipient_id = ? AND read_at IS NULL
+                """, Integer.class, recipientType, recipientId);
+        if (count == null) {
+            throw new IllegalStateException("未读消息计数返回 null");
+        }
+        return count;
+    }
+
     public List<Notification> findRecent(int limit, String channel, String recipientType) {
         StringBuilder sql = new StringBuilder("""
                 SELECT id, recipient_type, recipient_id, event_type, channel, title, content,

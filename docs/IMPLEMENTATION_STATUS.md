@@ -2547,3 +2547,26 @@ make verify-fast   # 跳过 E2E
 > 未做：现有 7 个 `@Scheduled` 方法（订单超时、库存预留释放、拼团过期、导出 worker、佣金解冻等）
 > 仍在代码里写死 cron，尚未迁移到该注册表。迁移需逐个改造并补回归测试，单独排期。
 
+---
+
+## 2026-10-19：两个保留清理任务迁入图形化注册表
+
+- `NotificationRetentionJob`（`清洁@Scheduled` + 古老开关） → **`NotificationRetentionTask implements ScheduledJob`**
+- `ExportRetentionJob` → **`ExportRetentionTask implements ScheduledJob`**
+- 两个旧类已删除；cron 与启停改由 `scheduled_task` 表控制，后台可改、可手动触发。
+
+| 验证 | 结果 |
+|---|---|
+| 后端测试 | **324 个，全部通过，0 跳过** |
+| 新增测试 | 注册表中同时存在三个任务（maintenance/notification/export）；两个新任务 `runNow` 均返回 `SUCCESS` |
+
+### 仍未迁移（逐个来，不一次全改）
+
+| 任务 | 风险 | 备注 |
+|---|---|---|
+| 佣金解冻 `CommissionReleaseScheduler` | 中 | 默认关闭，可较快迁移 |
+| 导出 worker `ExportJobScheduler` | 中 | 轮询型，迁移后要确认不重领任务 |
+| 订单超时 `OrderExpiryJob` | 高 | 改变订单状态，迁移需补回归 |
+| 库存预留释放 `ReservationExpiryJob` | 高 | 影响可售库存 |
+| 拼团过期（`PromotionService` 内） | 高 | 在服务内部方法上，需要先抽出来 |
+

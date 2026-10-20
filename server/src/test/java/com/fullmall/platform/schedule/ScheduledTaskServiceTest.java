@@ -86,6 +86,23 @@ class ScheduledTaskServiceTest {
     }
 
     @Test
+    void allRetentionTasksAreRegistered() {
+        var codes = tasks.list().stream().map(ScheduledTaskService.TaskView::code).toList();
+
+        assertThat(codes).contains("maintenance.retention",
+                "notification.retention", "export.retention");
+    }
+
+    @Test
+    void migratedTasksRunAndReportSuccess() {
+        var notification = tasks.runNow("notification.retention");
+        var export = tasks.runNow("export.retention");
+
+        assertThat(notification.lastStatus()).isEqualTo("SUCCESS");
+        assertThat(export.lastStatus()).isEqualTo("SUCCESS");
+    }
+
+    @Test
     void runNowRecordsStatus() {
         var result = tasks.runNow("maintenance.retention");
 

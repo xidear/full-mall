@@ -3131,3 +3131,33 @@ public record CheckoutContext(pointsToUse, couponId, otpCode, placedBy, placedBy
 
 > 本轮只做数据接口，**前端选择器 UI 未做**——先有可靠数据源，UI 才有意义。
 
+---
+
+## 2026-10-19：后台规则 UI 真机验证 + 修掉一个跨控制器的鉴权缺陷
+
+### 修复：后台控制器拿不到 `Authentication`（真 bug）
+
+`StaffAuthFilter` 的 `@Order(HIGHEST_PRECEDENCE + 30)` 让它**跑在 Spring Security 链之前**，
+它设置的 `SecurityContext` 随后被安全链覆盖 → 后台控制器注入的 `Authentication` 为 **null**，
+`POST /admin/v1/promotions/rules` 直接 NPE（500）。
+
+改为 `@Order(0)`（晚于安全链）后恢复。**影响面不止促销**：所有在 `/admin`、`/store` 下
+使用 `Authentication` 参数的接口此前都是坏的（多数控制器用 `@RequestAttribute StaffUser` 才没暴露）。
+
+### 新增 E2E（真浏览器）
+
+`web/e2e/promotion-rules.spec.ts`：登录后台 → 促销管理 → 新建规则（默认时间窗）→ 断言列表出现
+该规则且状态为「草稿」、存在「启用」按钮。
+
+| 验证 | 结果 |
+|---|---|
+| E2E（Chromium） | ✅ 通过（2.9s） |
+| 前端构建（含类型检查） | ✅ |
+
+### 未验证（如实记录）
+
+**「启用」按钮的点击没有到达后端**（服务端无对应请求记录）。测试里暂时只断言按钮存在，
+不假装它工作。下一步要查清是点击被拦、还是 `api.post` 未发出。
+
+顺带修了规则表状态显示（此前直接显示 `DRAFT` 而非「草稿」）。
+

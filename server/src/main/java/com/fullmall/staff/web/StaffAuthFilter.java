@@ -25,7 +25,9 @@ import java.util.Set;
 import java.util.UUID;
 
 @Component
-@Order(Ordered.HIGHEST_PRECEDENCE + 30)
+// 必须晚于 Spring Security 的过滤器链（-100）：否则本过滤器设置的 SecurityContext
+    // 会被安全链覆盖，控制器里注入的 Authentication 变成 null（已实测）。
+    @Order(0)
 @ConditionalOnWebApplication(type = ConditionalOnWebApplication.Type.SERVLET)
 public class StaffAuthFilter extends OncePerRequestFilter {
 

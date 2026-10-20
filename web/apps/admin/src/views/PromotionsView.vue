@@ -189,7 +189,7 @@ const ruleForm = reactive({
   scope: 'ALL' as 'ALL' | 'SKU' | 'CATEGORY' | 'BRAND',
   scopeIds: [] as string[],
   channel: 'ONLINE' as 'ONLINE' | 'POS' | 'PICKUP',
-  window: [] as Date[],
+  window: [new Date(), new Date(Date.now() + 30 * 24 * 3600 * 1000)] as Date[],
   priority: 10
 })
 
@@ -222,7 +222,8 @@ function openRuleCreate() {
   ruleForm.scope = 'ALL'
   ruleForm.scopeIds = []
   ruleForm.channel = 'ONLINE'
-  ruleForm.window = []
+  // 默认"现在起 30 天"，绝大多数活动无需改时间
+  ruleForm.window = [new Date(), new Date(Date.now() + 30 * 24 * 3600 * 1000)]
   ruleForm.priority = 10
   scopeOptions.value = []
   ruleDialog.value = true
@@ -288,6 +289,10 @@ function typeLabel(type: PromotionType) {
   return { FLASH_SALE: '秒杀', BUY_GIFT: '买赠', GROUP_BUY: '拼团' }[type]
 }
 
+function ruleStatusLabel(status: string) {
+  return { DRAFT: '草稿', ACTIVE: '进行中', ENDED: '已结束' }[status] ?? status
+}
+
 function statusLabel(status: string) {
   return { ACTIVE: '进行中', DRAFT: '草稿', ENDED: '已结束' }[status] ?? status
 }
@@ -331,7 +336,9 @@ function windowLabel(promotion: PromotionView) {
       </el-table-column>
       <el-table-column prop="scope" label="范围" width="110" />
       <el-table-column prop="channel" label="渠道" width="100" />
-      <el-table-column prop="status" label="状态" width="100" />
+      <el-table-column label="状态" width="100">
+        <template #default="{ row }">{{ ruleStatusLabel(row.status) }}</template>
+      </el-table-column>
       <el-table-column label="操作" width="160">
         <template #default="{ row }">
           <el-button v-if="row.status === 'DRAFT'" size="small" type="primary"

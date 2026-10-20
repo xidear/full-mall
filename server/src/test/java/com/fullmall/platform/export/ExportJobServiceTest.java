@@ -159,4 +159,38 @@ class ExportJobServiceTest {
                 .isInstanceOf(com.fullmall.platform.error.ApiException.class)
                 .hasMessageContaining("过期");
     }
+
+    @Test
+    void purgesOnlyFinishedOldJobs() {
+        jdbc.update("DELETE FROM export_job");
+        jdbc.update("""
+                INSERT INTO export_job (id, requester, resource, projection, status, created_at)
+                VALUES (?, 'ops', 'member', 'OPS', 'SUCCEEDED', now() - interval '30 days')
+                """, UUID.randomUUID());
+        UUID runningId = UUID.randomUUID();
+        jdbc.update("""
+                INSERT INTO export_job (id, requester, resource, projection, status, created_at)
+                VALUES (?, 'ops', 'member', 'OPS', 'RUNNING', now() - interval '30 days')
+                """, runningId);
+        UUID freshId = UUID.randomUUID();
+        jdbc.update("""
+                INSERT INTO export_job (id, requester, resource, projection, status)
+                VALUES (?, 'ops', 'member', 'OPS', 'SUCCEEDED')
+                """, freshId);
+
+        int removed = service.purgeFinishedBefore(7);
+
+        assertThat(removed).isEqualTo(1);
+        assertThat(jdbc.queryForObject(
+                "SELECT COUNT(*) FROM export_job WHERE id = ?", Integer.class, runningId)).isEqualTo(1);
+        assertThat(jdbc.queryForObject(
+                "SELECT COUNT(*) FROM export_job WHERE id = ?", Integer.class, freshId)).isEqualTo(1);
+    }
+
+    @Test
+    void purgeRejectsNonPositiveDays() {
+        assertThatThrownBy(() -> service.purgeFinishedBefore(0))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("保留天数");
+    }
 }

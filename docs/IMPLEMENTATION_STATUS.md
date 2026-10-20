@@ -2462,3 +2462,20 @@ make verify-fast   # 跳过 E2E
 > 说明：定时任务本机未触发（默认关闭，且测试环境 `app.scheduling.enabled=false`），
 > 验证的是清理**逻辑**本身，不是调度触发。
 
+---
+
+## 2026-10-19：导出任务清理（默认关闭）
+
+- `ExportJobService.purgeFinishedBefore(days)`：只删 **SUCCEEDED / FAILED** 且超期的任务；
+  **进行中的任务不删**（删了会让 worker 找不到记录）。
+- `ExportRetentionJob`：`app.export.retention.enabled`（默认关闭）、`days` 默认 7（与既有 `RETENTION` 一致）。
+
+| 验证 | 结果 |
+|---|---|
+| 后端测试 | **315 个，全部通过，0 跳过** |
+| 新增测试 | 30 天前已成功的被删；30 天前仍在 RUNNING 的保留；新的保留；`days<=0` 拒绝 |
+
+> 未覆盖：**磁盘上的导出文件**没有清理（当前是本地存储），需要另做文件级保留策略。
+> 踩坑：我把新方法插在 `@Transactional` 与 `claimNext` 之间，导致两个 `@Transactional` 叠到同一方法上编译失败；
+> 已修正注解位置。
+

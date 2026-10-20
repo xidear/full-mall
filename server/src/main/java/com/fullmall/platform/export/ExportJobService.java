@@ -67,6 +67,26 @@ public class ExportJobService {
     /**
      * 领取一个待执行任务；没有则返回 null。`SKIP LOCKED` 保证多副本不重复领取。
      */
+    /**
+     * 清理已结束（SUCCEEDED/FAILED）且早于保留期的导出任务。
+     *
+     * <p>只删**已结束**的任务：进行中的任务被删会导致 worker 找不到记录。
+     *
+     * @param days 保留天数，必须 &gt; 0
+     * @return 删除条数
+     */
+    @Transactional
+    public int purgeFinishedBefore(int days) {
+        if (days <= 0) {
+            throw new IllegalArgumentException("导出保留天数必须大于 0，实际=" + days);
+        }
+        return jdbcTemplate.update("""
+                DELETE FROM export_job
+                 WHERE status IN ('SUCCEEDED', 'FAILED')
+                   AND created_at < now() - make_interval(days => ?)
+                """, days);
+    }
+
     @Transactional
     public ExportJob claimNext() {
         List<UUID> ids = jdbcTemplate.query("""

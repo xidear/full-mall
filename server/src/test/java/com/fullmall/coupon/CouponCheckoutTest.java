@@ -138,6 +138,24 @@ class CouponCheckoutTest {
                 .containsEntry("order_id", order.id());
     }
 
+    /**
+     * 部分退款**不退券**：券已在本单用掉，部分退款退券会让用户拿同一张券享受两次优惠。
+     * 这条测试把该口径钉住——它是**有意为之**，不是遗漏。
+     */
+    @Test
+    void partialRefundKeepsCouponUsed() {
+        UUID couponId = claimCoupon();
+        var order = orders.checkout(request(couponId), null);
+        payments.payMock(order.id());
+
+        payments.refund(order.id(), order.total().amount() / 2);
+
+        assertThat(jdbc.queryForMap(
+                "SELECT status, order_id FROM member_coupon WHERE id = ?", couponId))
+                .containsEntry("status", "USED")
+                .containsEntry("order_id", order.id());
+    }
+
     @Test
     void fullRefundReturnsCouponToUnused() {
         UUID couponId = claimCoupon();

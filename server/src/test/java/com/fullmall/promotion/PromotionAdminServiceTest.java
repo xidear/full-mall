@@ -123,6 +123,30 @@ class PromotionAdminServiceTest {
     }
 
     @Test
+    void scopeOptionsReturnSelectableItems() {
+        // 测试库没有演示商品，这里造一条保证选择器有数据
+        UUID productId = UUID.randomUUID();
+        UUID skuId = UUID.randomUUID();
+        jdbc.update("INSERT INTO product (id, title, status) VALUES (?, '范围选项商品', 'ACTIVE')", productId);
+        jdbc.update("""
+                INSERT INTO sku (id, product_id, sku_code, price_amount, price_currency)
+                VALUES (?, ?, ?, 1000, 'CNY')
+                """, skuId, productId, "SKU-OPT-" + skuId.toString().substring(0, 6));
+
+        var skus = service.scopeOptions("SKU", 5);
+        assertThat(skus).isNotEmpty();
+        assertThat(skus.get(0).id()).isNotNull();
+        assertThat(skus.get(0).label()).isNotBlank();
+    }
+
+    @Test
+    void scopeOptionsRejectUnknownScope() {
+        assertThatThrownBy(() -> service.scopeOptions("WHATEVER", 10))
+                .isInstanceOf(com.fullmall.platform.error.ApiException.class)
+                .hasMessageContaining("范围只能是");
+    }
+
+    @Test
     void rejectsInvalidDiscountPercentage() {
         var bad = new PromotionAdminService.Command("ADMIN-RULE-5", "测试", "FULL_DISCOUNT", 1_000, 100,
                 "ALL", List.of(), "ONLINE", Instant.now(), Instant.now().plusSeconds(60), 1);

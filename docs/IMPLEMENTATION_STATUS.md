@@ -3111,3 +3111,23 @@ public record CheckoutContext(pointsToUse, couponId, otpCode, placedBy, placedBy
 > 未做：其余 10 个参数仍可进一步分组（如 `OrderInfo` / `Delivery`），但当前风险已可控，
 > 继续拆会牵动所有调用点，收益递减。
 
+---
+
+## 2026-10-19：范围选择器的数据接口
+
+后台要给券/促销选范围（SKU/类目/品牌），需要"可选项"数据源。新增：
+
+- `GET /admin/v1/promotions/scope-options?scope=SKU|CATEGORY|BRAND&limit=`
+  返回 `{ id, label, extra }`：
+  - `SKU` → `label=sku_code`、`extra=商品标题`
+  - `CATEGORY` → `label=类目名`、`extra=类目编码`
+  - `BRAND` → `label=品牌名`
+- 未知范围、非法 limit 明确报错（不返回空列表冒充"没有数据"）。
+
+| 验证 | 结果 |
+|---|---|
+| 后端测试 | **363 个，全部通过，0 跳过** |
+| 新增用例 | SKU 选项有数据且含 id/label；未知范围报「范围只能是…」 |
+
+> 本轮只做数据接口，**前端选择器 UI 未做**——先有可靠数据源，UI 才有意义。
+

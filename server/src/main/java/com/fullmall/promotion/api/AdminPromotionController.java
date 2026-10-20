@@ -65,6 +65,13 @@ public class AdminPromotionController {
 
     // ---- 满减/满折规则（结构化表单，JSON 由服务端生成） ----
 
+    /** 范围选择器的数据源（SKU/类目/品牌）。 */
+    @GetMapping("/scope-options")
+    public List<PromotionAdminService.ScopeOption> scopeOptions(@RequestParam String scope,
+                                                                @RequestParam(defaultValue = "100") int limit) {
+        return rules.scopeOptions(scope, limit);
+    }
+
     @GetMapping("/rules")
     public List<PromotionAdminService.RuleView> listRules(@RequestParam(required = false) String status,
                                                           @RequestParam(defaultValue = "50") int limit) {

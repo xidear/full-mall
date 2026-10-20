@@ -67,6 +67,35 @@ public class PromotionAdminService {
                            int priority, Instant startsAt, Instant endsAt) {
     }
 
+    /** 范围可选项（SKU/类目/品牌），供后台选择器使用。 */
+    public record ScopeOption(UUID id, String label, String extra) {
+    }
+
+    public List<ScopeOption> scopeOptions(String scope, int limit) {
+        String normalized = scope == null ? "" : scope.trim().toUpperCase(Locale.ROOT);
+        if (limit <= 0 || limit > 200) {
+            throw ApiException.badRequest("INVALID_LIMIT", "查询条数必须在 1..200，实际=" + limit);
+        }
+        return switch (normalized) {
+            case "SKU" -> jdbcTemplate.query("""
+                    SELECT s.id, s.sku_code AS label, p.title AS extra
+                      FROM sku s JOIN product p ON p.id = s.product_id
+                     ORDER BY s.sku_code LIMIT ?
+                    """, (rs, rowNum) -> new ScopeOption(
+                    rs.getObject("id", UUID.class), rs.getString("label"), rs.getString("extra")), limit);
+            case "CATEGORY" -> jdbcTemplate.query("""
+                    SELECT id, name AS label, code AS extra FROM category ORDER BY name LIMIT ?
+                    """, (rs, rowNum) -> new ScopeOption(
+                    rs.getObject("id", UUID.class), rs.getString("label"), rs.getString("extra")), limit);
+            case "BRAND" -> jdbcTemplate.query("""
+                    SELECT id, name AS label, NULL AS extra FROM brand ORDER BY name LIMIT ?
+                    """, (rs, rowNum) -> new ScopeOption(
+                    rs.getObject("id", UUID.class), rs.getString("label"), rs.getString("extra")), limit);
+            default -> throw ApiException.badRequest("INVALID_SCOPE",
+                    "范围只能是 SKU / CATEGORY / BRAND");
+        };
+    }
+
     public List<RuleView> list(String status, int limit) {
         if (limit <= 0 || limit > 200) {
             throw ApiException.badRequest("INVALID_LIMIT", "查询条数必须在 1..200，实际=" + limit);

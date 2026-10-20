@@ -288,6 +288,33 @@ public class AfterSaleService {
         return ids.get(0);
     }
 
+    /**
+     * 完成换货：顾客确认收到换货商品后，由门店/客服标记完成。
+     *
+     * <p>为什么不自动完成：系统无法感知顾客何时真正收到换货（没有签收回调），
+     * 自动完成会让"未收到货却已完成"的售后无法追溯。
+     */
+    @Transactional
+    public AfterSaleView completeExchange(UUID afterSaleId, String operator) {
+        if (operator == null || operator.isBlank()) {
+            throw ApiException.badRequest("OPERATOR_REQUIRED", "必须记录操作人");
+        }
+        AfterSaleView afterSale = require(afterSaleId);
+        if (!"EXCHANGE".equals(afterSale.type())) {
+            throw ApiException.conflict("AFTER_SALE_NOT_EXCHANGE",
+                    "只有换货售后可以标记换货完成");
+        }
+        if (!"EXCHANGE_SHIPPED".equals(afterSale.status())) {
+            throw ApiException.conflict("AFTER_SALE_NOT_SHIPPED",
+                    "换货尚未发出，不能标记完成，当前状态=" + afterSale.status());
+        }
+        repository.completeExchange(afterSaleId, operator);
+        repository.insertEvent(afterSaleId, "EXCHANGE_COMPLETED", "换货已完成", operator);
+        notifyOrder(afterSale.orderId(), "AFTER_SALE_EXCHANGE_COMPLETED", "换货已完成",
+                "您的换货已完成，感谢您的耐心等待。");
+        return require(afterSaleId);
+    }
+
     private AfterSaleView require(UUID afterSaleId) {
         AfterSaleView afterSale = repository.find(afterSaleId);
         if (afterSale == null) {

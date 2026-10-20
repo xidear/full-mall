@@ -60,6 +60,14 @@ public class AdminAfterSaleController {
         return view;
     }
 
+    /** 换货完成（顾客确认收到后由门店/客服标记）。 */
+    @PostMapping("/{afterSaleId}/complete-exchange")
+    public AfterSaleDtos.AfterSaleView completeExchange(
+            @PathVariable java.util.UUID afterSaleId,
+            org.springframework.security.core.Authentication authentication) {
+        return afterSaleService.completeExchange(afterSaleId, authentication.getName());
+    }
+
     @PostMapping("/{afterSaleId}/refund")
     public AfterSaleView refund(@PathVariable UUID afterSaleId) {
         return afterSaleService.refund(afterSaleId, "运营后台");

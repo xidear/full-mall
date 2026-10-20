@@ -160,6 +160,31 @@ class ExchangeShippingTest {
     }
 
     @Test
+    void exchangeCanBeCompletedAfterShipping() {
+        String phone = "1390000" + (1000 + Math.abs(UUID.randomUUID().hashCode() % 9000));
+        UUID afterSaleId = seedAfterSale("EXCHANGE", "RECEIVED", phone);
+        afterSales.shipExchange(afterSaleId, "SF", "SF-COMPLETE-1");
+
+        var completed = afterSales.completeExchange(afterSaleId, "客服小李");
+
+        assertThat(completed.status()).isEqualTo("COMPLETED");
+        assertThat(jdbc.queryForObject(
+                "SELECT COUNT(*) FROM after_sale_event WHERE after_sale_id = ?"
+                        + " AND event_type = 'EXCHANGE_COMPLETED'", Integer.class, afterSaleId))
+                .isEqualTo(1);
+    }
+
+    @Test
+    void exchangeCannotCompleteBeforeShipping() {
+        String phone = "1390000" + (1000 + Math.abs(UUID.randomUUID().hashCode() % 9000));
+        UUID afterSaleId = seedAfterSale("EXCHANGE", "RECEIVED", phone);
+
+        assertThatThrownBy(() -> afterSales.completeExchange(afterSaleId, "客服"))
+                .isInstanceOf(com.fullmall.platform.error.ApiException.class)
+                .hasMessageContaining("尚未发出");
+    }
+
+    @Test
     void returnAfterSaleCannotShipExchange() {
         String phone = "1390000" + (1000 + Math.abs(UUID.randomUUID().hashCode() % 9000));
         UUID afterSaleId = seedAfterSale("RETURN", "RECEIVED", phone);

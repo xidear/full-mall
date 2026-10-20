@@ -52,6 +52,17 @@ public class AfterSaleRepository {
         }
     }
 
+    /** 标记换货完成（只有已发货的换货单可完成）。 */
+    public void completeExchange(UUID afterSaleId, String operator) {
+        int updated = jdbcTemplate.update("""
+                UPDATE after_sale SET status = 'COMPLETED'
+                 WHERE id = ? AND status = 'EXCHANGE_SHIPPED'
+                """, afterSaleId);
+        if (updated != 1) {
+            throw new IllegalStateException("换货完成状态更新失败：" + afterSaleId);
+        }
+    }
+
     public void insertEvent(UUID afterSaleId, String eventType, String note, String operatorName) {
         jdbcTemplate.update("""
                 INSERT INTO after_sale_event (id, after_sale_id, event_type, note, operator_name)

@@ -3006,3 +3006,26 @@ make verify-fast   # 跳过 E2E
 `flush()` 最初加上了"等待库中 PENDING 归零"的条件，结果**死循环卡住测试 10 分钟**——
 因为该测试上下文里消费者无法清空行。已改为**带 10 秒上限**，超时抛错而不是无限等待。
 
+---
+
+## 2026-10-19：换货完成状态（售后闭环最后一步）
+
+- `AfterSaleService.completeExchange(id, operator)`：类型必须 `EXCHANGE`、状态必须 `EXCHANGE_SHIPPED`，
+  推进到 `COMPLETED`，写 `EXCHANGE_COMPLETED` 事件并通知顾客。
+- 接口：`POST /admin/v1/after-sales/{id}/complete-exchange`。
+
+**为什么不做自动完成**：系统感知不到顾客何时真正收到换货（没有签收回调）。自动完成会导致
+"未收到货却已标记完成"的售后无法追溯，所以由门店/客服在顾客确认后手动标记。
+
+| 验证 | 结果 |
+|---|---|
+| 后端测试 | **357 个，全部通过，0 跳过** |
+| 新增用例 | 发货后可完成且写事件；未发货时标记完成被拒 |
+
+### 售后（换货）完整状态机
+
+```
+REQUESTED → APPROVED → RECEIVED → [出库扣减] → EXCHANGE_SHIPPED → COMPLETED
+                                            ↘ 退款路径：REFUNDED
+```
+

@@ -53,6 +53,37 @@ public class LocalExportStorage implements ExportStorage {
         return key != null && Files.isReadable(resolve(key));
     }
 
+    /** 删除最后修改时间早于保留期的文件；返回实际删除数量。 */
+    @Override
+    public int deleteOlderThan(int days) {
+        if (days <= 0) {
+            throw new IllegalArgumentException("导出文件保留天数必须大于 0，实际=" + days);
+        }
+        if (!Files.isDirectory(baseDir)) {
+            return 0;
+        }
+        long cutoff = System.currentTimeMillis() - java.time.Duration.ofDays(days).toMillis();
+        int removed = 0;
+        try (var stream = Files.walk(baseDir)) {
+            var candidates = stream.filter(Files::isRegularFile)
+                    .filter(path -> {
+                        try {
+                            return Files.getLastModifiedTime(path).toMillis() < cutoff;
+                        } catch (IOException error) {
+                            throw new IllegalStateException("读取文件时间失败: " + path, error);
+                        }
+                    })
+                    .toList();
+            for (Path path : candidates) {
+                Files.delete(path);
+                removed++;
+            }
+        } catch (IOException error) {
+            throw new IllegalStateException("清理导出文件失败: " + baseDir, error);
+        }
+        return removed;
+    }
+
     private Path resolve(String key) {
         if (key == null || key.isBlank() || key.contains("..") || key.startsWith("/")) {
             throw new IllegalArgumentException("非法导出文件 key: " + key);

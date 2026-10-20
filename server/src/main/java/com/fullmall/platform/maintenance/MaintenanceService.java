@@ -20,24 +20,29 @@ public class MaintenanceService {
     private final NotificationService notifications;
     private final ExportJobService exportJobs;
     private final AuditRetentionService audit;
+    private final com.fullmall.platform.export.ExportStorage exportStorage;
 
     public MaintenanceService(NotificationService notifications,
                               ExportJobService exportJobs,
-                              AuditRetentionService audit) {
+                              AuditRetentionService audit,
+                              com.fullmall.platform.export.ExportStorage exportStorage) {
         this.notifications = notifications;
         this.exportJobs = exportJobs;
         this.audit = audit;
+        this.exportStorage = exportStorage;
     }
 
-    public record Report(int notifications, int exportJobs, int auditCommits, int auditSnapshots) {
+    public record Report(int notifications, int exportJobs, int auditCommits, int auditSnapshots,
+                         int exportFiles) {
     }
 
     public Report runRetention(int notificationDays, int exportDays, int auditDays) {
         int removedNotifications = notifications.purgeOlderThan(notificationDays);
         int removedExports = exportJobs.purgeFinishedBefore(exportDays);
         var auditReport = audit.purgeOlderThan(auditDays);
+        int removedFiles = exportStorage.deleteOlderThan(exportDays);
         return new Report(removedNotifications, removedExports,
-                auditReport.commits(), auditReport.snapshots());
+                auditReport.commits(), auditReport.snapshots(), removedFiles);
     }
 
     /** 使用默认保留期。 */

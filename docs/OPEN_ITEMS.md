@@ -79,7 +79,7 @@
 | E4 | 会员等级后台配置 | ⚠️ | `member_level` 表存在；后台无编辑页 |
 | E5 | 积分有效期/过期清零 | ⬜ | 只有账本，无过期策略 |
 | E6 | 储值充值支付对接 | ⚠️ | POS 支持储值扣款；充值走什么渠道未接 |
-| E7 | 评价审核 | ✅ | `GET /admin/v1/reviews` + `POST /admin/v1/reviews/{id}/status`（PUBLISHED↔HIDDEN，权限 `product.manage`，有测试）；后台页面未做 |
+| E7 | 评价审核 | ✅ | `GET /admin/v1/reviews` + `POST /admin/v1/reviews/{id}/status`（PUBLISHED↔HIDDEN，权限 `product.manage`，有测试）；后台页面已做并 E2E 验证 |
 | E8 | 评价图片/晒单 | ⬜ | 只有文本 |
 | E9 | 收藏/足迹的前端页面 | ⚠️ | 后端接口齐；storefront 无页面 |
 | E10 | 会员消息中心前端 | ⚠️ | 接口齐；storefront 无页面 |

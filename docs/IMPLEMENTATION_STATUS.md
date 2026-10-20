@@ -2648,3 +2648,30 @@ make verify-fast   # 跳过 E2E
 |---|---|
 | 拼团过期（`PromotionService` 内部方法） | 逻辑写在服务里，需先抽成独立类再接入 |
 
+---
+
+## 2026-10-19：拼团过期迁入 + 注册表全覆盖（8/8）
+
+- `PromotionService.expireGroupBuys` 去掉 `@Scheduled`，成为纯执行逻辑；
+  新增 `GroupBuyExpiryTask`（`promotion.group-buy-expiry`）。
+- 主代码中**已无任何 `@Scheduled` 注解**（仅注释里提到）。
+
+### 默认启停策略（重要）
+
+全部迁完后如果默认都关闭，生产上**订单超时不会自动取消、库存会被永久占用**。因此按影响面区分：
+
+| 任务 | 默认 | 理由 |
+|---|---|---|
+| `order.expiry` | **开** | 不跑 → 未支付订单永占库存 |
+| `inventory.reservation-release` | **开** | 不跑 → 预留永不释放 |
+| `promotion.group-buy-expiry` | **开** | 不跑 → 失败拼团不退款 |
+| `distribution.commission-release` | **开** | 不跑 → 佣金永久冻结 |
+| `maintenance.retention` | 关 | 破坏性操作 |
+| `notification.retention` / `export.retention` | 关 | 破坏性操作 |
+| `export.worker` | 关 | 重型轮询，按需开启 |
+
+| 验证 | 结果 |
+|---|---|
+| 后端测试 | **326 个，全部通过，0 跳过** |
+| 新增用例 | 四个业务关键任务默认启用、四个破坏性/重型任务默认关闭；注册表共 8 个任务 |
+

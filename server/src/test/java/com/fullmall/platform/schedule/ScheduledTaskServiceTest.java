@@ -96,7 +96,23 @@ class ScheduledTaskServiceTest {
                 "distribution.commission-release",
                 "export.worker",
                 "order.expiry",
-                "inventory.reservation-release");
+                "inventory.reservation-release",
+                "promotion.group-buy-expiry");
+        assertThat(codes).hasSize(8);
+    }
+
+    @Test
+    void businessCriticalTasksEnabledByDefault() {
+        // 订单超时/库存释放/拼团过期/佣金解冻：不跑会导致库存被永久占用或佣金永远冻结
+        for (String code : new String[]{"order.expiry", "inventory.reservation-release",
+                "promotion.group-buy-expiry", "distribution.commission-release"}) {
+            assertThat(tasks.find(code).enabled()).as(code).isTrue();
+        }
+        // 破坏性/重型任务默认关闭
+        for (String code : new String[]{"maintenance.retention", "notification.retention",
+                "export.retention", "export.worker"}) {
+            assertThat(tasks.find(code).enabled()).as(code).isFalse();
+        }
     }
 
     @Test

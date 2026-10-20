@@ -30,7 +30,7 @@ public class ReservationReleaseTask implements ScheduledJob {
 
     @Override
     public boolean enabledByDefault() {
-        return false;
+        return true;
     }
 
     @Override

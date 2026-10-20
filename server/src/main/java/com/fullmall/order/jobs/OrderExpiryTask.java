@@ -35,7 +35,7 @@ public class OrderExpiryTask implements ScheduledJob {
 
     @Override
     public boolean enabledByDefault() {
-        return false;
+        return true;
     }
 
     @Override

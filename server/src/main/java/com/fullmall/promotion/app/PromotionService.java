@@ -22,7 +22,6 @@ import com.fullmall.promotion.infra.PromotionRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.context.ApplicationEventPublisher;
-import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -309,9 +308,10 @@ public class PromotionService {
                 .map(this::groupBuyView)
                 .toList();
     }
-
-    @Scheduled(initialDelayString = "${app.promotion.group-expiry-initial-delay-ms:60000}",
-            fixedDelayString = "${app.promotion.group-expiry-interval-ms:60000}")
+    /**
+     * 拼团过期的**执行逻辑**（不含调度）。
+     * 调度由 `GroupBuyExpiryTask` 通过注册表驱动，cron 可在后台修改。
+     */
     public void expireGroupBuys() {
         for (UUID groupBuyId : repository.findExpiredFormingGroups(Instant.now())) {
             List<UUID> refundOrderIds = repository.failGroup(groupBuyId);

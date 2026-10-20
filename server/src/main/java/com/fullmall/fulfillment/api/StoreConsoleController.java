@@ -63,6 +63,20 @@ public class StoreConsoleController {
     public record ShipRequest(String carrierCode, String trackingNo) {
     }
 
+    /** 接受自营履约单（ALLOCATED → ACCEPTED）。 */
+    @PostMapping("/fulfillments/{fulfillmentOrderId}/accept")
+    public com.fullmall.fulfillment.domain.FulfillmentOrder acceptFulfillment(
+            @PathVariable java.util.UUID fulfillmentOrderId) {
+        return fulfillmentService.acceptFulfillment(fulfillmentOrderId);
+    }
+
+    /** 打包（ACCEPTED/PICKING → PACKED）。 */
+    @PostMapping("/fulfillments/{fulfillmentOrderId}/pack")
+    public com.fullmall.fulfillment.domain.FulfillmentOrder packFulfillment(
+            @PathVariable java.util.UUID fulfillmentOrderId) {
+        return fulfillmentService.packFulfillment(fulfillmentOrderId);
+    }
+
     /** 仓库/门店发货：记录承运商与运单号，并通知顾客。 */
     @PostMapping("/fulfillments/{fulfillmentOrderId}/ship")
     public com.fullmall.fulfillment.domain.FulfillmentOrder shipFulfillment(

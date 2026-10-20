@@ -3724,3 +3724,34 @@ storefront 结算页需要真正的 OTP 流程：
 而构建照样成功。是我自己的 `print` 打印 `False` 才发现的。
 后续规则：补丁必须用 `assert 锚点 in 内容`，**禁止用宽泛词做存在性判断**。
 
+---
+
+## 2026-10-19：补 E2E 时发现「自营订单根本发不了货」（D10 已修）
+
+补 D9 的 E2E 时，`POST /store/v1/fulfillments/{id}/ship` 一直返回
+`FULFILLMENT_NOT_SHIPPABLE（当前状态 ALLOCATED）`。追查发现：
+
+- 自营履约单初始状态是 `ALLOCATED`；
+- `shipFulfillment` 只接受 `ACCEPTED/PICKING/PACKED`；
+- **没有任何接口把 ALLOCATED 推进到那三个状态**（只有供应商链路有 accept）。
+
+也就是说：**自营订单在 API 层完全发不了货**。已补：
+
+| 新接口 | 作用 |
+|---|---|
+| `POST /store/v1/fulfillments/{id}/accept` | ALLOCATED → ACCEPTED |
+| `POST /store/v1/fulfillments/{id}/pack` | ACCEPTED/PICKING → PACKED |
+
+### 验证
+
+| 项 | 结果 |
+|---|---|
+| 后端测试 | **406 个全绿** |
+| 新增 E2E `tracking.spec.ts` | ✅ 下单 → 支付 → **接受 → 打包 → 发货** → 顾客接口查轨迹含「已揽收」 |
+| 接口对齐 | **197** 路由 / 19 调用 / 0 未匹配 |
+
+### 同时发现的新缺陷（未修，已登记 D11）
+
+会员订单页**硬刷新会 404**：页面在服务端渲染时读不到 `localStorage` 里的 token。
+之前 E2E 都从站内跳转（客户端渲染）所以没暴露。修法需改用 cookie 保存令牌。
+

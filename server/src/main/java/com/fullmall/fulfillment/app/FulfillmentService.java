@@ -204,6 +204,41 @@ public class FulfillmentService {
      *
      * <p>发货后给订单写通知（站内 + 短信），内容带运单号。
      */
+    /**
+     * 接受自营履约单：ALLOCATED → ACCEPTED。
+     *
+     * <p>为什么必须有这一步：`shipFulfillment` 只接受 ACCEPTED/PICKING/PACKED，
+     * 而自营订单初始是 ALLOCATED——缺这一步会导致**自营订单永远无法发货**。
+     */
+    @Transactional
+    public FulfillmentOrder acceptFulfillment(UUID fulfillmentOrderId) {
+        FulfillmentOrder fulfillment = requireFulfillment(fulfillmentOrderId);
+        if (fulfillment.status() != FulfillmentStatus.ALLOCATED) {
+            throw ApiException.conflict("FULFILLMENT_NOT_ACCEPTABLE",
+                    "履约单当前状态为 " + fulfillment.status() + "，不能接受");
+        }
+        repository.updateStatus(fulfillmentOrderId, FulfillmentStatus.ACCEPTED);
+        return requireFulfillment(fulfillmentOrderId);
+    }
+
+    /** 打包：ACCEPTED/PICKING → PACKED（发货前最后一步）。 */
+    @Transactional
+    public FulfillmentOrder packFulfillment(UUID fulfillmentOrderId) {
+        FulfillmentOrder fulfillment = requireFulfillment(fulfillmentOrderId);
+        if (fulfillment.status() != FulfillmentStatus.ACCEPTED
+                && fulfillment.status() != FulfillmentStatus.PICKING) {
+            throw ApiException.conflict("FULFILLMENT_NOT_PACKABLE",
+                    "履约单当前状态为 " + fulfillment.status() + "，不能打包");
+        }
+        repository.updateStatus(fulfillmentOrderId, FulfillmentStatus.PACKED);
+        return requireFulfillment(fulfillmentOrderId);
+    }
+
+    /**
+     * 仓库/门店发货：记录承运商与运单号，并把状态推进到 `SHIPPED`。
+     *
+     * <p>校验：状态必须是 `ACCEPTED` / `PICKING` / `PACKED`；`carrierCode` 与 `trackingNo` **必填**。
+     */
     @Transactional
     public FulfillmentOrder shipFulfillment(UUID fulfillmentOrderId, String carrierCode, String trackingNo) {
         if (carrierCode == null || carrierCode.isBlank()) {

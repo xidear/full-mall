@@ -4080,3 +4080,19 @@ storefront 结算页需要真正的 OTP 流程：
 
 > 调度注册表测试再次拦下我：新任务没登记到断言里导致 `hasSize(9)` 失败，已更新为 10。
 
+---
+
+## 2026-10-19：收藏页带数据 E2E（E9 收口）
+
+新增 `favorites.spec.ts`：OTP 登录 → 调收藏接口 → 校验接口返回标题/价格 → 带 cookie 打开 `/favorites`
+→ 标题链接与价格都渲染。
+
+| 验证 | 结果 |
+|---|---|
+| E2E | ✅ `favorites.spec.ts` + `member-pages.spec.ts` 共 2 条通过 |
+| 后端测试 | 416 个（上轮已验证） |
+
+> 又一次踩"旧 jar"：第一次跑 E2E 时接口仍返回只有 `skuId` 的旧结构，因为只 `mvn test` 未 `package`。
+> 重新打包后接口返回 `title/priceAmount/productId`，E2E 随即通过。
+> **这条已经踩了第 4 次**，之后凡是验证 HTTP 行为前一律先 `package`。
+

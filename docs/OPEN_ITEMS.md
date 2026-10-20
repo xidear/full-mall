@@ -81,7 +81,7 @@
 | E6 | 储值充值支付对接 | ⚠️ | POS 支持储值扣款；充值走什么渠道未接 |
 | E7 | 评价审核 | ✅ | `GET /admin/v1/reviews` + `POST /admin/v1/reviews/{id}/status`（PUBLISHED↔HIDDEN，权限 `product.manage`，有测试）；后台页面已做并 E2E 验证 |
 | E8 | 评价图片/晒单 | ⬜ | 只有文本 |
-| E9 | 收藏页面 | ✅ | 后端收藏列表补齐标题/价格/商品 ID（有测试）；storefront `/favorites` 页面；**足迹页面未做** |
+| E9 | 收藏页面 | ✅ | 后端返回标题/价格/商品 ID；storefront `/favorites`；**E2E 已验证带数据渲染**；足迹页面仍未做 |
 | E10 | 会员消息中心 | ✅ | storefront `/notifications`（未读计数、标记已读、防重复）；导航入口已加；E2E 验证登录前后行为 |
 
 ## F. 商品与库存

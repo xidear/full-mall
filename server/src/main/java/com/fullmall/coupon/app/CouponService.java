@@ -25,9 +25,12 @@ public class CouponService {
     private static final String CODE_ALPHABET = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";
 
     private final JdbcTemplate jdbcTemplate;
+    private final com.fullmall.platform.audit.AuditEventService auditEvents;
 
-    public CouponService(JdbcTemplate jdbcTemplate) {
+    public CouponService(JdbcTemplate jdbcTemplate,
+                         com.fullmall.platform.audit.AuditEventService auditEvents) {
         this.jdbcTemplate = jdbcTemplate;
+        this.auditEvents = auditEvents;
     }
 
     public record TemplateView(UUID id, String code, String title, String type, long value,
@@ -266,6 +269,9 @@ public class CouponService {
             throw ApiException.conflict("COUPON_NOT_CONSUMABLE",
                     "券不可核销（已使用/已过期/不属于该会员）: " + couponId);
         }
+        auditEvents.record(new com.fullmall.platform.audit.AuditEventService.AuditEvent(
+                "COUPON_REDEEMED", "member:" + memberId, "coupon", couponId.toString(),
+                "订单 " + orderId, null));
     }
 
     /**

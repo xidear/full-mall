@@ -193,4 +193,18 @@ class CouponServiceTest {
         assertThat(mine).singleElement()
                 .satisfies(coupon -> assertThat(coupon.status()).isEqualTo("EXPIRED"));
     }
+
+    @Test
+    void consumeWritesAuditEvent() {
+        UUID templateId = activeTemplate("CP-AUDIT", 3, 1);
+        UUID couponId = coupons.claim(templateId, MEMBER);
+
+        coupons.consume(couponId, MEMBER, UUID.randomUUID());
+
+        var events = jdbc.queryForList(
+                "SELECT actor FROM audit_event WHERE event_type = 'COUPON_REDEEMED' AND resource_id = ?",
+                couponId.toString());
+        assertThat(events).hasSize(1);
+        assertThat(events.get(0).get("actor")).isEqualTo("member:" + MEMBER);
+    }
 }

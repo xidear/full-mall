@@ -70,6 +70,7 @@ public class OrderService {
     private final AnalyticsService analyticsService;
     private final IdempotencyRepository idempotencyRepository;
     private final NotificationService notificationService;
+    private final com.fullmall.platform.audit.AuditEventService auditEvents;
     private final ReferralService referralService;
     private final PromotionService promotionService;
     private final ObjectMapper objectMapper;
@@ -82,6 +83,7 @@ public class OrderService {
                         AnalyticsService analyticsService,
                         IdempotencyRepository idempotencyRepository,
                         NotificationService notificationService,
+                        com.fullmall.platform.audit.AuditEventService auditEvents,
                         ReferralService referralService,
                         PromotionService promotionService,
                         ObjectMapper objectMapper,
@@ -100,6 +102,7 @@ public class OrderService {
         this.analyticsService = analyticsService;
         this.idempotencyRepository = idempotencyRepository;
         this.notificationService = notificationService;
+        this.auditEvents = auditEvents;
         this.referralService = referralService;
         this.promotionService = promotionService;
         this.objectMapper = objectMapper;
@@ -471,6 +474,9 @@ public class OrderService {
         promotionService.releaseOrder(orderId);
         notificationService.notifyOrderEvent(orderId, "ORDER_CANCELLED", "订单已取消",
                 "订单因超时未支付已取消，库存与优惠已释放。", List.of("IN_APP", "SMS"));
+        auditEvents.record(new com.fullmall.platform.audit.AuditEventService.AuditEvent(
+                "ORDER_CANCELLED_BY_SYSTEM", "system:expiry", "order", orderId.toString(),
+                "超时未支付自动取消", null));
         return true;
     }
 

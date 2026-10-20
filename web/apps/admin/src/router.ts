@@ -13,6 +13,7 @@ import WarehouseView from './views/WarehouseView.vue'
 import PermissionsView from './views/PermissionsView.vue'
 import AfterSalesView from './views/AfterSalesView.vue'
 import CouponsView from './views/CouponsView.vue'
+import SetupView from './views/SetupView.vue'
 import ReviewsView from './views/ReviewsView.vue'
 import PromotionsView from './views/PromotionsView.vue'
 import ThemeStudioView from './views/ThemeStudioView.vue'
@@ -40,6 +41,7 @@ const router = createRouter({
     { path: '/after-sales', name: 'after-sales', component: AfterSalesView, meta: { title: '售后处理' } },
     { path: '/promotions', name: 'promotions', component: PromotionsView, meta: { title: '促销管理' } },
     { path: '/coupons', name: 'coupons', component: CouponsView, meta: { title: '优惠券' } },
+    { path: '/setup', name: 'setup', component: SetupView, meta: { title: '首次配置' } },
     { path: '/reviews', name: 'reviews', component: ReviewsView, meta: { title: '评价审核' } },
     { path: '/customers', name: 'customers', component: CustomersView, meta: { title: '客户管理' } },
     { path: '/staff', name: 'staff', component: StaffView, meta: { title: '员工与权限' } },

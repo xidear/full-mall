@@ -147,7 +147,7 @@ async function submitPassword() {
           title="首次配置尚未完成">
           <template #default>
             <span>还差 {{ setupMissing.length }} 项（如 {{ setupMissing[0] }}）。可稍后继续，不影响使用。</span>
-            <el-button link type="primary" @click="$router.push('/settings')">去系统设置</el-button>
+            <el-button link type="primary" @click="$router.push('/setup')">去完成配置</el-button>
           </template>
         </el-alert>
         <router-view />

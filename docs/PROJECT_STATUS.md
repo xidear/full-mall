@@ -12,11 +12,11 @@
 
 | 层 | 状态 | 证据 |
 |---|---|---|
-| 后端 | ✅ **366** 个测试全绿 | `cd server && mvn -B test` |
+| 后端 | ✅ **406** 个测试全绿 | `cd server && mvn -B test` |
 | 后端构建 | ✅ 可打包运行 | `mvn -DskipTests package` → jar 启动成功 |
 | 前端 | ✅ 5 个应用构建通过 | `cd web && npm run build` |
-| 前后端接口一致性 | ✅ 0 未匹配（189 路由 / 18 调用） | `python3 scripts/check-api-alignment.py` |
-| 端到端（真浏览器） | ✅ **12/12** | Playwright + Chromium（`make verify`） |
+| 前后端接口一致性 | ✅ 0 未匹配（197 路由 / 19 调用） | `python3 scripts/check-api-alignment.py` |
+| 端到端（真浏览器） | ✅ **14/14** | Playwright + Chromium（需先起 PG + 后端 + 5 个前端） |
 | 一键验证 | ✅ 可用 | `make verify` |
 | CI 定义 | ✅ 已写入 GitHub/Gitea | ⬜ **未真实执行**（本机无 runner） |
 | compose 部署 | ⬜ 未验证 | 容器内无 Docker |

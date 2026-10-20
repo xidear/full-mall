@@ -60,6 +60,17 @@ public class StoreConsoleController {
         return fulfillmentService.verifyPickup(pickupCode, request.verificationType(), request.verificationValue());
     }
 
+    public record ShipRequest(String carrierCode, String trackingNo) {
+    }
+
+    /** 仓库/门店发货：记录承运商与运单号，并通知顾客。 */
+    @PostMapping("/fulfillments/{fulfillmentOrderId}/ship")
+    public com.fullmall.fulfillment.domain.FulfillmentOrder shipFulfillment(
+            @PathVariable java.util.UUID fulfillmentOrderId, @RequestBody ShipRequest request) {
+        return fulfillmentService.shipFulfillment(
+                fulfillmentOrderId, request.carrierCode(), request.trackingNo());
+    }
+
     @GetMapping("/pickups/{pickupCode}")
     public PickupDetail pickup(@PathVariable String pickupCode) {
         storeAccessService.requireStore(currentStaff(), fulfillmentService.findPickup(pickupCode).storeId());

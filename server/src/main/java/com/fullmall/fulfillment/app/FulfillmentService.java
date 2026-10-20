@@ -195,6 +195,38 @@ public class FulfillmentService {
         return fulfillment;
     }
 
+
+    /**
+     * 仓库/门店发货：记录承运商与运单号，并把状态推进到 `SHIPPED`。
+     *
+     * <p>校验：状态必须是 `ACCEPTED` / `PICKING` / `PACKED`；`carrierCode` 与 `trackingNo` **必填**
+     * （没有运单号的"已发货"对顾客没有意义，也无法查件）。
+     *
+     * <p>发货后给订单写通知（站内 + 短信），内容带运单号。
+     */
+    @Transactional
+    public FulfillmentOrder shipFulfillment(UUID fulfillmentOrderId, String carrierCode, String trackingNo) {
+        if (carrierCode == null || carrierCode.isBlank()) {
+            throw ApiException.badRequest("CARRIER_REQUIRED", "必须填写承运商");
+        }
+        if (trackingNo == null || trackingNo.isBlank()) {
+            throw ApiException.badRequest("TRACKING_NO_REQUIRED", "必须填写运单号");
+        }
+        FulfillmentOrder fulfillment = repository.findById(fulfillmentOrderId);
+        if (fulfillment.status() != FulfillmentStatus.ACCEPTED
+                && fulfillment.status() != FulfillmentStatus.PICKING
+                && fulfillment.status() != FulfillmentStatus.PACKED) {
+            throw ApiException.conflict("FULFILLMENT_NOT_SHIPPABLE",
+                    "履约单当前状态为 " + fulfillment.status() + "，不能发货");
+        }
+        repository.updateShipment(fulfillmentOrderId, carrierCode.trim(), trackingNo.trim());
+        repository.updateStatus(fulfillmentOrderId, FulfillmentStatus.SHIPPED);
+        notificationService.notifyOrderEvent(fulfillment.orderId(), "ORDER_SHIPPED", "订单已发货",
+                "您的订单已发出，承运商 " + carrierCode.trim() + "，运单号 " + trackingNo.trim() + "。",
+                List.of("IN_APP", "SMS"));
+        return repository.findById(fulfillmentOrderId);
+    }
+
     public List<FulfillmentOrder> findFulfillments(UUID orderId) {
         return repository.findByOrderId(orderId);
     }

@@ -2695,3 +2695,23 @@ make verify-fast   # 跳过 E2E
 3. 我的断言写成"MEMBER 同时收 IN_APP 和 SMS"，但**身份统一后短信只走 CUSTOMER/手机号** →
    断言改正，不是实现错。
 
+---
+
+## 2026-10-19：发货物流信息（承运商 + 运单号 + 通知）
+
+- `FulfillmentService.shipFulfillment(fulfillmentOrderId, carrierCode, trackingNo)`：
+  - 状态必须是 `ACCEPTED` / `PICKING` / `PACKED`；
+  - **承运商与运单号必填**（没有单号的"已发货"对顾客没意义，也无法查件）；
+  - 写入 `carrier_code` / `tracking_no` 并推进到 `SHIPPED`；
+  - 通知内容带承运商与运单号（站内 + 短信）。
+- 接口：`POST /store/v1/fulfillments/{id}/ship`。
+
+| 验证 | 结果 |
+|---|---|
+| 后端测试 | **329 个，全部通过，0 跳过** |
+| 新增用例 | 发货写单号并通知（游客单：CUSTOMER 收 IN_APP+SMS）；缺承运商/缺运单号分别拒绝 |
+
+> 说明：物流表字段本就存在（V1 即有 `carrier_code`/`tracking_no`），供应商发货路径已在用；
+> 本轮补的是**仓库/门店发货**这条缺失路径与顾客通知。
+> 未做：物流轨迹查询（需对接快递 100 / 快递鸟等外部服务）。
+

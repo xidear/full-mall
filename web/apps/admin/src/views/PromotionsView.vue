@@ -50,7 +50,10 @@ const skuOptions = computed(() =>
   )
 )
 
-onMounted(load)
+onMounted(async () => {
+  await load()
+  await loadRules()
+})
 
 async function load() {
   loading.value = true
@@ -163,6 +166,124 @@ function money(value?: { amount: number; currency: string }) {
   return new Intl.NumberFormat('zh-CN', { style: 'currency', currency: value.currency }).format(value.amount / 100)
 }
 
+
+// ---- 满减 / 满折规则（结构化表单，JSON 由服务端生成） ----
+interface ScopeOption { id: string; label: string; extra?: string }
+interface PromotionRule {
+  id: string; code: string; title: string; type: string; status: string
+  thresholdAmount: number; value: number; scope: string; channel: string
+  priority: number; startsAt: string; endsAt: string
+}
+
+const rules = ref<PromotionRule[]>([])
+const ruleDialog = ref(false)
+const ruleSaving = ref(false)
+const scopeOptions = ref<ScopeOption[]>([])
+const ruleForm = reactive({
+  code: '',
+  title: '',
+  type: 'FULL_REDUCTION' as 'FULL_REDUCTION' | 'FULL_DISCOUNT',
+  thresholdYuan: 200,
+  valueYuan: 20,
+  percent: 90,
+  scope: 'ALL' as 'ALL' | 'SKU' | 'CATEGORY' | 'BRAND',
+  scopeIds: [] as string[],
+  channel: 'ONLINE' as 'ONLINE' | 'POS' | 'PICKUP',
+  window: [] as Date[],
+  priority: 10
+})
+
+async function loadRules() {
+  try {
+    rules.value = await api.get<PromotionRule[]>('/admin/v1/promotions/rules')
+  } catch (cause) {
+    error.value = cause instanceof Error ? cause.message : '加载满减规则失败'
+  }
+}
+
+async function loadScopeOptions(scope: string) {
+  scopeOptions.value = []
+  if (scope === 'ALL') return
+  try {
+    scopeOptions.value = await api.get<ScopeOption[]>(
+      `/admin/v1/promotions/scope-options?scope=${scope}&limit=100`)
+  } catch (cause) {
+    error.value = cause instanceof Error ? cause.message : '加载范围选项失败'
+  }
+}
+
+function openRuleCreate() {
+  ruleForm.code = ''
+  ruleForm.title = ''
+  ruleForm.type = 'FULL_REDUCTION'
+  ruleForm.thresholdYuan = 200
+  ruleForm.valueYuan = 20
+  ruleForm.percent = 90
+  ruleForm.scope = 'ALL'
+  ruleForm.scopeIds = []
+  ruleForm.channel = 'ONLINE'
+  ruleForm.window = []
+  ruleForm.priority = 10
+  scopeOptions.value = []
+  ruleDialog.value = true
+}
+
+async function submitRule() {
+  if (ruleForm.window.length !== 2) {
+    ElMessage.error('请选择活动时间')
+    return
+  }
+  if (ruleForm.scope !== 'ALL' && ruleForm.scopeIds.length === 0) {
+    ElMessage.error('非全场规则必须选择范围')
+    return
+  }
+  ruleSaving.value = true
+  try {
+    await api.post('/admin/v1/promotions/rules', {
+      code: ruleForm.code.trim().toUpperCase(),
+      title: ruleForm.title.trim(),
+      type: ruleForm.type,
+      thresholdAmount: Math.round(ruleForm.thresholdYuan * 100),
+      value: ruleForm.type === 'FULL_REDUCTION'
+        ? Math.round(ruleForm.valueYuan * 100)
+        : ruleForm.percent,
+      scope: ruleForm.scope,
+      scopeIds: ruleForm.scope === 'ALL' ? [] : ruleForm.scopeIds,
+      channel: ruleForm.channel,
+      startsAt: ruleForm.window[0].toISOString(),
+      endsAt: ruleForm.window[1].toISOString(),
+      priority: ruleForm.priority
+    })
+    ElMessage.success('规则已创建（草稿），启用后生效')
+    ruleDialog.value = false
+    await loadRules()
+  } catch (cause) {
+    error.value = cause instanceof Error ? cause.message : '创建规则失败'
+  } finally {
+    ruleSaving.value = false
+  }
+}
+
+async function activateRule(rule: PromotionRule) {
+  try {
+    await api.post(`/admin/v1/promotions/rules/${rule.id}/activate`)
+    ElMessage.success('规则已启用')
+    await loadRules()
+  } catch (cause) {
+    ElMessage.error(cause instanceof Error ? cause.message : '启用失败')
+  }
+}
+
+async function endRule(rule: PromotionRule) {
+  try {
+    await api.post(`/admin/v1/promotions/rules/${rule.id}/end`)
+    ElMessage.success('规则已结束')
+    await loadRules()
+  } catch (cause) {
+    ElMessage.error(cause instanceof Error ? cause.message : '结束失败')
+  }
+}
+
 function typeLabel(type: PromotionType) {
   return { FLASH_SALE: '秒杀', BUY_GIFT: '买赠', GROUP_BUY: '拼团' }[type]
 }
@@ -189,6 +310,96 @@ function windowLabel(promotion: PromotionView) {
       </div>
     </div>
     <el-alert v-if="error" :title="error" type="error" show-icon :closable="false" class="mb-16" />
+
+    <div class="header-actions" style="margin-bottom: 8px">
+      <strong>满减 / 满折规则</strong>
+      <el-button size="small" @click="openRuleCreate">新建规则</el-button>
+    </div>
+    <el-table :data="rules" size="small" stripe style="margin-bottom: 24px">
+      <el-table-column prop="code" label="编码" width="160" />
+      <el-table-column prop="title" label="名称" min-width="160" />
+      <el-table-column label="类型" width="120">
+        <template #default="{ row }">
+          {{ row.type === 'FULL_DISCOUNT' ? '满折' : '满减' }}
+        </template>
+      </el-table-column>
+      <el-table-column label="门槛/优惠" width="160">
+        <template #default="{ row }">
+          {{ (row.thresholdAmount / 100).toFixed(2) }} 元 →
+          {{ row.type === 'FULL_DISCOUNT' ? row.value / 10 + ' 折' : (row.value / 100).toFixed(2) + ' 元' }}
+        </template>
+      </el-table-column>
+      <el-table-column prop="scope" label="范围" width="110" />
+      <el-table-column prop="channel" label="渠道" width="100" />
+      <el-table-column prop="status" label="状态" width="100" />
+      <el-table-column label="操作" width="160">
+        <template #default="{ row }">
+          <el-button v-if="row.status === 'DRAFT'" size="small" type="primary"
+                     @click="activateRule(row)">启用</el-button>
+          <el-button v-if="row.status === 'ACTIVE'" size="small"
+                     @click="endRule(row)">结束</el-button>
+        </template>
+      </el-table-column>
+    </el-table>
+
+    <el-dialog v-model="ruleDialog" title="新建满减/满折规则" width="520px">
+      <el-form label-width="110px">
+        <el-form-item label="编码">
+          <el-input v-model="ruleForm.code" placeholder="例如 FULL-200-20" />
+        </el-form-item>
+        <el-form-item label="名称">
+          <el-input v-model="ruleForm.title" placeholder="例如 满 200 减 20" />
+        </el-form-item>
+        <el-form-item label="类型">
+          <el-select v-model="ruleForm.type">
+            <el-option label="满减" value="FULL_REDUCTION" />
+            <el-option label="满折" value="FULL_DISCOUNT" />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="门槛（元）">
+          <el-input-number v-model="ruleForm.thresholdYuan" :min="0.01" :precision="2" />
+        </el-form-item>
+        <el-form-item v-if="ruleForm.type === 'FULL_REDUCTION'" label="减免（元）">
+          <el-input-number v-model="ruleForm.valueYuan" :min="0.01" :precision="2" />
+        </el-form-item>
+        <el-form-item v-else label="折扣（1-99）">
+          <el-input-number v-model="ruleForm.percent" :min="1" :max="99" />
+        </el-form-item>
+        <el-form-item label="适用渠道">
+          <el-select v-model="ruleForm.channel">
+            <el-option label="线上" value="ONLINE" />
+            <el-option label="收银台" value="POS" />
+            <el-option label="自提" value="PICKUP" />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="范围">
+          <el-select v-model="ruleForm.scope" @change="loadScopeOptions(ruleForm.scope)">
+            <el-option label="全场" value="ALL" />
+            <el-option label="指定商品" value="SKU" />
+            <el-option label="指定类目" value="CATEGORY" />
+            <el-option label="指定品牌" value="BRAND" />
+          </el-select>
+        </el-form-item>
+        <el-form-item v-if="ruleForm.scope !== 'ALL'" label="范围项">
+          <el-select v-model="ruleForm.scopeIds" multiple filterable style="width: 100%"
+                     placeholder="搜索并选择">
+            <el-option v-for="option in scopeOptions" :key="option.id"
+                       :label="option.extra ? `${option.label} · ${option.extra}` : option.label"
+                       :value="option.id" />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="活动时间">
+          <el-date-picker v-model="ruleForm.window" type="datetimerange" style="width: 100%" />
+        </el-form-item>
+        <el-form-item label="优先级">
+          <el-input-number v-model="ruleForm.priority" :min="0" />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="ruleDialog = false">取消</el-button>
+        <el-button type="primary" :loading="ruleSaving" @click="submitRule">创建</el-button>
+      </template>
+    </el-dialog>
 
     <el-table :data="promotions" stripe>
       <el-table-column prop="title" label="活动" min-width="180">

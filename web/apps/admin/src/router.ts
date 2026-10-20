@@ -38,6 +38,7 @@ const router = createRouter({
     { path: '/permissions', name: 'permissions', component: PermissionsView, meta: { title: '权限矩阵' } },
     { path: '/after-sales', name: 'after-sales', component: AfterSalesView, meta: { title: '售后处理' } },
     { path: '/promotions', name: 'promotions', component: PromotionsView, meta: { title: '促销管理' } },
+    { path: '/coupons', name: 'coupons', component: CouponsView, meta: { title: '优惠券' } },
     { path: '/customers', name: 'customers', component: CustomersView, meta: { title: '客户管理' } },
     { path: '/staff', name: 'staff', component: StaffView, meta: { title: '员工与权限' } },
     { path: '/settings', name: 'settings', component: SettingsView, meta: { title: '系统设置' } }

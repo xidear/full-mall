@@ -42,6 +42,13 @@ public class CouponController {
         return Map.of("id", id);
     }
 
+    @GetMapping("/admin/v1/coupons/templates")
+    @PreAuthorize("hasRole('ADMIN')")
+    public List<CouponService.TemplateView> listTemplates(
+            @RequestParam(defaultValue = "100") int limit) {
+        return coupons.listTemplates(limit);
+    }
+
     @PostMapping("/admin/v1/coupons/templates/{id}/activate")
     @PreAuthorize("hasRole('ADMIN')")
     public void activate(@PathVariable UUID id) {

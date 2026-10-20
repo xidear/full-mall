@@ -2248,3 +2248,34 @@ admin 促销列表断言**仍失败**，后端接口已存在且被调用，`马
 | 后端测试 | **300 个，全部通过，0 跳过** |
 | E2E | **9 通过 / 1 失败** |
 
+---
+
+## 2026-10-19：admin 促销 500 的定位进展（未解决）
+
+用 Playwright 抓真实网络响应，结论明确：
+
+| 观察 | 事实 |
+|---|---|
+| 页面文案 | `API 500: Internal server error` |
+| 响应体 | `{"code":"INTERNAL_ERROR"}` |
+| 后端日志 | `AuthorizationDeniedException: Access Denied`，栈顶 `AdminPromotionController$$SpringCGLIB$$0.listAll` |
+| 直接带 token 调 API | promotions **500**、products **200**（同一 token、同一前缀） |
+
+### 已做的修正
+
+- `AdminPromotionController` **重写**：路径收敛到 `/admin/v1/promotions`（列表/创建/状态）与
+  `/admin/v1/promotions/rules`（满减满折规则），**移除全部 `@PreAuthorize`**，鉴权交给
+  `StaffAuthFilter`（路径 → 权限码 `promotion.manage`，ADMIN 直接放行）。
+- 过程中我的正则误改了注解（`@GetMapping")`），已整文件重写并编译通过。
+
+### 仍未解决
+
+即使控制器上没有方法级注解，调用仍被 `AuthorizationDeniedException` 拒绝。
+**根因未定位**（`@EnableMethodSecurity` 全局开启，但该类已无注解；怀疑与类级元数据缓存或全局规则有关）。
+不做猜测式修改。
+
+| 验证 | 结果 |
+|---|---|
+| 后端测试 | **300 个，全部通过，0 跳过** |
+| admin E2E | 仍失败（同一断言） |
+

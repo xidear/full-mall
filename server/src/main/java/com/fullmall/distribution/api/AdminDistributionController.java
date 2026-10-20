@@ -20,12 +20,22 @@ import java.util.UUID;
 public class AdminDistributionController {
 
     private final ReferralService referralService;
+    private final com.fullmall.distribution.app.DistributionReportService reportService;
     private final com.fullmall.distribution.app.WithdrawalService withdrawalService;
 
     public AdminDistributionController(ReferralService referralService,
-                                       com.fullmall.distribution.app.WithdrawalService withdrawalService) {
+                                       com.fullmall.distribution.app.WithdrawalService withdrawalService,
+                                       com.fullmall.distribution.app.DistributionReportService reportService) {
         this.referralService = referralService;
         this.withdrawalService = withdrawalService;
+        this.reportService = reportService;
+    }
+
+    /** 分销报表：按推广员汇总（金额单位：分）。 */
+    @GetMapping("/report")
+    public com.fullmall.distribution.app.DistributionReportService.Report report(
+            @RequestParam String from, @RequestParam String to) {
+        return reportService.report(java.time.LocalDate.parse(from), java.time.LocalDate.parse(to));
     }
 
     /** 维护推广员上级（二级分佣）。 */

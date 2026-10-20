@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, reactive, ref } from 'vue'
+import { computed, onMounted, reactive, ref } from 'vue'
 import { ElMessage } from 'element-plus'
 import { api } from '../api'
 
@@ -21,7 +21,38 @@ const form = reactive<Record<string, string>>({
   storage_provider: 'mock',
   sms_provider: 'mock',
   payment_provider: 'mock',
-  logistics_provider: 'mock'
+  logistics_provider: 'mock',
+  sms_access_key: '',
+  sms_secret_key: '',
+  sms_sign_name: '',
+  logistics_key: '',
+  logistics_customer: '',
+  map_provider: '',
+  map_key: '',
+  // 分销
+  'distribution.level1-mode': 'GROSS',
+  'distribution.level1-value': '5',
+  'distribution.level2-enabled': 'true',
+  'distribution.level2-mode': 'GROSS',
+  'distribution.level2-value': '2',
+  'distribution.bind-mode': 'PERMANENT',
+  'distribution.bind-timing': 'CART',
+  'distribution.freeze-policy': 'AFTER_SALE_CLOSED',
+  'distribution.after-sale-window-days': '7',
+  'distribution.min-withdrawal': '10000',
+  'distribution.payout-methods': 'ALIPAY,BANK',
+  'distribution.staff-payout': 'PAYROLL',
+  'distribution.staff-level2-enabled': 'false'
+})
+
+const minWithdrawalYuan = computed({
+  get: () => Number(form['distribution.min-withdrawal'] || 0) / 100,
+  set: (value: number) => { form['distribution.min-withdrawal'] = String(Math.round(value * 100)) }
+})
+
+const payoutMethods = computed({
+  get: () => (form['distribution.payout-methods'] || '').split(',').filter(Boolean),
+  set: (value: string[]) => { form['distribution.payout-methods'] = value.join(',') }
 })
 
 onMounted(load)
@@ -86,6 +117,77 @@ async function save() {
           </el-form-item>
           <el-form-item label="客服邮箱">
             <el-input v-model="form.service_email" />
+          </el-form-item>
+        </div>
+      </section>
+
+      <section class="form-section">
+        <h3>分销设置</h3>
+        <p class="muted">比例、绑定、冻结与提现规则都在这里配置，保存后立即生效。</p>
+        <div class="policy-grid">
+          <el-form-item label="一级佣金方式">
+            <el-select v-model="form['distribution.level1-mode']" style="width: 100%">
+              <el-option label="按订单金额百分比" value="GROSS" />
+              <el-option label="固定金额（分）" value="FIXED" />
+            </el-select>
+          </el-form-item>
+          <el-form-item label="一级佣金值">
+            <el-input v-model="form['distribution.level1-value']"
+                      :placeholder="form['distribution.level1-mode'] === 'GROSS' ? '5 表示 5%' : '500 表示 5.00 元'" />
+          </el-form-item>
+          <el-form-item label="开启二级分销">
+            <el-switch v-model="form['distribution.level2-enabled']" active-value="true" inactive-value="false" />
+          </el-form-item>
+          <el-form-item label="二级佣金方式">
+            <el-select v-model="form['distribution.level2-mode']" style="width: 100%">
+              <el-option label="按订单金额百分比" value="GROSS" />
+              <el-option label="固定金额（分）" value="FIXED" />
+            </el-select>
+          </el-form-item>
+          <el-form-item label="二级佣金值">
+            <el-input v-model="form['distribution.level2-value']" />
+          </el-form-item>
+          <el-form-item label="绑定方式">
+            <el-select v-model="form['distribution.bind-mode']" style="width: 100%">
+              <el-option label="一次性绑定（先到先得）" value="ONCE" />
+              <el-option label="终身绑定（可被接管）" value="PERMANENT" />
+            </el-select>
+          </el-form-item>
+          <el-form-item label="绑定时机">
+            <el-select v-model="form['distribution.bind-timing']" style="width: 100%">
+              <el-option label="注册时" value="REGISTER" />
+              <el-option label="下单时" value="CART" />
+              <el-option label="访问时" value="VISIT" />
+            </el-select>
+          </el-form-item>
+          <el-form-item label="冻结策略">
+            <el-select v-model="form['distribution.freeze-policy']" style="width: 100%">
+              <el-option label="订单完成 + 售后窗口（推荐）" value="AFTER_SALE_CLOSED" />
+              <el-option label="固定天数" value="FIXED_DAYS" />
+            </el-select>
+          </el-form-item>
+          <el-form-item label="售后窗口天数">
+            <el-input v-model="form['distribution.after-sale-window-days']" />
+          </el-form-item>
+          <el-form-item label="最低提现（元）">
+            <el-input-number v-model="minWithdrawalYuan" :min="0" :precision="2" style="width: 100%" />
+          </el-form-item>
+          <el-form-item label="可选打款方式">
+            <el-select v-model="payoutMethods" multiple style="width: 100%">
+              <el-option label="支付宝" value="ALIPAY" />
+              <el-option label="银行卡" value="BANK" />
+              <el-option label="微信零钱" value="WECHAT" />
+            </el-select>
+          </el-form-item>
+          <el-form-item label="员工佣金出款通道">
+            <el-select v-model="form['distribution.staff-payout']" style="width: 100%">
+              <el-option label="工资 / 绩效（不进钱包）" value="PAYROLL" />
+              <el-option label="也进钱包（可提现）" value="WALLET" />
+            </el-select>
+          </el-form-item>
+          <el-form-item label="员工二级（店长带队）">
+            <el-switch v-model="form['distribution.staff-level2-enabled']"
+                       active-value="true" inactive-value="false" />
           </el-form-item>
         </div>
       </section>

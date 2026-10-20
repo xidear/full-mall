@@ -27,8 +27,10 @@ public class CatalogController {
             @RequestParam(required = false) String keyword,
             @RequestParam(required = false) UUID categoryId,
             @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "20") int size) {
-        return catalogService.listProducts(locale, keyword, categoryId, page, size);
+            @RequestParam(defaultValue = "20") int size,
+            @RequestParam(required = false) String sort,
+            @RequestParam(required = false) String direction) {
+        return catalogService.listProducts(locale, keyword, categoryId, page, size, sort, direction);
     }
 
     @GetMapping("/{productId}")

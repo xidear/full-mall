@@ -21,6 +21,16 @@ const total = ref(0)
 
 onMounted(load)
 
+const sortKey = ref('createdAt')
+const sortDirection = ref<'asc' | 'desc'>('desc')
+
+function onSortChange(payload: { prop: string | null; order: 'ascending' | 'descending' | null }) {
+  sortKey.value = payload.prop ?? 'createdAt'
+  sortDirection.value = payload.order === 'ascending' ? 'asc' : 'desc'
+  page.value = 0
+  load()
+}
+
 function changePage(next: number) {
   page.value = next - 1
   load()
@@ -31,7 +41,8 @@ async function load() {
   error.value = ''
   try {
     const response = await api.get<ProductPage>('/admin/v1/products',
-      { locale: 'zh-CN', page: page.value, size: size.value })
+      { locale: 'zh-CN', page: page.value, size: size.value,
+        sort: sortKey.value, direction: sortDirection.value })
     products.value = response.items
     total.value = response.total ?? response.items.length
   } catch (cause) {
@@ -69,7 +80,7 @@ function price(product: Product) {
       <el-button type="primary" @click="router.push('/products/new')">新建商品</el-button>
     </div>
     <el-alert v-if="error" :title="error" type="error" show-icon :closable="false" class="mb-16" />
-    <el-table :data="products" stripe>
+    <el-table :data="products" stripe @sort-change="onSortChange">
       <el-table-column label="图片" width="76">
         <template #default="{ row }">
           <img

@@ -6,34 +6,69 @@ const config = useRuntimeConfig()
 const base = import.meta.server ? config.apiInternalBase : config.public.apiBase
 const categoryId = computed(() => typeof route.query.categoryId === 'string' ? route.query.categoryId : undefined)
 const keyword = computed(() => typeof route.query.keyword === 'string' ? route.query.keyword : undefined)
-const sort = ref<'default' | 'priceAsc' | 'priceDesc'>('default')
+const PAGE_SIZE = 20
+// 服务端排序（白名单在 API 层）；顾客端只选择排序方式，不做前端伪排序
+const sortKey = ref<'createdAt' | 'minPrice'>('createdAt')
+const direction = ref<'asc' | 'desc'>('desc')
+const extraItems = ref<Product[]>([])
+const loadingMore = ref(false)
+const loadMoreError = ref('')
 
-const { data, error } = await useFetch<ProductPage>(() => `${base}/api/v1/products`, {
-  query: {
-    locale: 'zh-CN',
-    categoryId: categoryId.value,
-    keyword: keyword.value,
-    page: 0,
-    size: 100
-  }
-})
-const { data: categories } = await useAsyncData<Category[]>('categories', () =>
-  $fetch<Category[]>(`${base}/api/v1/categories`)
+const { data, pending, error, refresh } = await useAsyncData<ProductPage>(
+  'products',
+  () => $fetch<ProductPage>(`${base}/api/v1/products`, {
+    query: {
+      locale: 'zh-CN',
+      categoryId: categoryId.value,
+      keyword: keyword.value,
+      page: 0,
+      size: PAGE_SIZE,
+      sort: sortKey.value,
+      direction: direction.value
+    }
+  }),
+  { watch: [sortKey, direction, categoryId, keyword] }
 )
 
 if (error.value) {
   throw createError({ statusCode: 502, statusMessage: `商品加载失败：${error.value.message}` })
 }
 
-const products = computed(() => {
-  const items = [...(data.value?.items ?? [])]
-  if (sort.value === 'priceAsc') {
-    items.sort((a, b) => (a.skus[0]?.price.amount ?? 0) - (b.skus[0]?.price.amount ?? 0))
-  } else if (sort.value === 'priceDesc') {
-    items.sort((a, b) => (b.skus[0]?.price.amount ?? 0) - (a.skus[0]?.price.amount ?? 0))
+// 排序或筛选变化时，清掉已追加的页
+watch([sortKey, direction, categoryId, keyword], () => { extraItems.value = [] })
+
+const products = computed(() => [...(data.value?.items ?? []), ...extraItems.value])
+const total = computed(() => data.value?.total ?? products.value.length)
+const hasMore = computed(() => products.value.length < total.value)
+
+async function loadMore() {
+  if (loadingMore.value || !hasMore.value) return
+  loadingMore.value = true
+  loadMoreError.value = ''
+  try {
+    const next = Math.floor(products.value.length / PAGE_SIZE)
+    const page = await $fetch<ProductPage>(`${base}/api/v1/products`, {
+      query: {
+        locale: 'zh-CN', categoryId: categoryId.value, keyword: keyword.value,
+        page: next, size: PAGE_SIZE, sort: sortKey.value, direction: direction.value
+      }
+    })
+    extraItems.value = [...extraItems.value, ...page.items]
+  } catch (cause) {
+    loadMoreError.value = cause instanceof Error ? cause.message : '加载更多失败'
+  } finally {
+    loadingMore.value = false
   }
-  return items
-})
+}
+
+function togglePriceSort() {
+  if (sortKey.value !== 'minPrice') {
+    sortKey.value = 'minPrice'
+    direction.value = 'asc'
+    return
+  }
+  direction.value = direction.value === 'asc' ? 'desc' : 'asc'
+}
 
 const activeCategory = computed(() =>
   categories.value?.find(category => category.id === categoryId.value)
@@ -69,19 +104,59 @@ const activeCategory = computed(() =>
         <div>
           <p class="eyebrow">商品列表</p>
           <h1>{{ activeCategory?.name || (keyword ? `搜索：${keyword}` : '全部商品') }}</h1>
-          <p class="muted">共 {{ data?.total ?? 0 }} 件商品</p>
+          <p class="muted">共 {{ total }} 件商品，已显示 {{ products.length }} 件</p>
         </div>
-        <select v-model="sort" class="sort-select">
-          <option value="default">综合排序</option>
-          <option value="priceAsc">价格从低到高</option>
-          <option value="priceDesc">价格从高到低</option>
-        </select>
+        <button type="button" class="sort-select" :disabled="pending" @click="togglePriceSort">
+          价格{{ sortKey === 'minPrice' ? (direction === 'asc' ? ' ↑' : ' ↓') : '排序' }}
+        </button>
       </div>
 
+      <p v-if="pending" class="loading-hint">正在加载…</p>
       <div class="product-grid">
         <ProductCard v-for="product in products" :key="product.id" :product="product" />
       </div>
-      <p v-if="!products.length" class="empty-state">没有找到符合条件的商品</p>
+      <p v-if="!products.length && !pending" class="empty-state">没有找到符合条件的商品</p>
+
+      <div v-if="hasMore" class="load-more">
+        <button type="button" :disabled="loadingMore" @click="loadMore">
+          {{ loadingMore ? '加载中…' : '加载更多' }}
+        </button>
+        <p v-if="loadMoreError" class="load-more-error">{{ loadMoreError }}</p>
+      </div>
+      <p v-else-if="products.length" class="empty-state">已经到底了</p>
     </div>
   </section>
 </template>
+
+<style scoped>
+.loading-hint {
+  color: #6b7280;
+  padding: 8px 0;
+}
+
+.load-more {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  margin: 24px 0 8px;
+}
+
+.load-more button {
+  padding: 10px 24px;
+  border: 1px solid #d1d5db;
+  border-radius: 999px;
+  background: #fff;
+  cursor: pointer;
+}
+
+.load-more button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.load-more-error {
+  color: #dc2626;
+  font-size: 13px;
+}
+</style>

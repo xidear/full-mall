@@ -53,8 +53,10 @@ public class AdminCatalogController {
             @RequestParam(defaultValue = "zh-CN") String locale,
             @RequestParam(required = false) String keyword,
             @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "50") int size) {
-        return catalogService.listAllProducts(locale, keyword, page, size);
+            @RequestParam(defaultValue = "50") int size,
+            @RequestParam(required = false) String sort,
+            @RequestParam(required = false) String direction) {
+        return catalogService.listAllProducts(locale, keyword, page, size, sort, direction);
     }
 
     @PostMapping

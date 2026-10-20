@@ -28,19 +28,31 @@ public class CatalogService {
     }
 
     public ProductPage listProducts(String locale, String keyword, UUID categoryId, int page, int size) {
+        return listProducts(locale, keyword, categoryId, page, size, "createdAt", "desc");
+    }
+
+    /** 顾客端列表：支持服务端排序（白名单在仓储层），并限制单页 1..50 条。 */
+    public ProductPage listProducts(String locale, String keyword, UUID categoryId, int page, int size,
+                                    String sortKey, String direction) {
         int safePage = Math.max(page, 0);
-        int safeSize = Math.min(Math.max(size, 1), 100);
+        int safeSize = Math.min(Math.max(size, 1), 50);
         int offset = safePage * safeSize;
-        List<Product> items = repository.findActive(locale, keyword, categoryId, safeSize, offset);
+        List<Product> items = repository.findActive(locale, keyword, categoryId, safeSize, offset,
+                sortKey, direction);
         long total = repository.countActive(locale, keyword, categoryId);
         return new ProductPage(items, safePage, safeSize, total);
     }
 
     public ProductPage listAllProducts(String locale, String keyword, int page, int size) {
+        return listAllProducts(locale, keyword, page, size, "createdAt", "desc");
+    }
+
+    public ProductPage listAllProducts(String locale, String keyword, int page, int size,
+                                       String sortKey, String direction) {
         int safePage = Math.max(page, 0);
         int safeSize = Math.min(Math.max(size, 1), 100);
         int offset = safePage * safeSize;
-        List<Product> items = repository.findAll(locale, keyword, safeSize, offset);
+        List<Product> items = repository.findAll(locale, keyword, safeSize, offset, sortKey, direction);
         long total = repository.countAll(locale, keyword);
         return new ProductPage(items, safePage, safeSize, total);
     }

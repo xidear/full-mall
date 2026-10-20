@@ -28,20 +28,28 @@ public class CatalogRepository {
     }
 
     public List<Product> findActive(String locale, String keyword, UUID categoryId, int limit, int offset) {
+        return findActive(locale, keyword, categoryId, limit, offset, "createdAt", "desc");
+    }
+
+    public List<Product> findActive(String locale, String keyword, UUID categoryId, int limit, int offset,
+                                    String sortKey, String direction) {
         String normalizedKeyword = keyword == null ? "" : keyword.trim();
         String pattern = "%" + normalizedKeyword + "%";
         List<Map<String, Object>> rows = jdbcTemplate.queryForList("""
                 SELECT p.id, COALESCE(t.title, p.title) AS title,
                        COALESCE(t.description, p.description) AS description,
-                       p.category_id, p.status, p.inventory_tracking_level, p.shelf_life_managed
+                       p.category_id, p.status, p.inventory_tracking_level, p.shelf_life_managed,
+                       COALESCE((SELECT MIN(s.price_amount) FROM sku s WHERE s.product_id = p.id), 0)
+                           AS min_price
                 FROM product p
                 LEFT JOIN product_translation t ON t.product_id = p.id AND t.locale = ?
                   AND t.status = 'PUBLISHED'
                 WHERE p.status = 'ACTIVE'
                   AND (CAST(? AS uuid) IS NULL OR p.category_id = CAST(? AS uuid))
                   AND (? = '' OR COALESCE(t.title, p.title) ILIKE ?)
-                ORDER BY p.created_at DESC
-                LIMIT ? OFFSET ?
+                ORDER BY
+                """ + productSafeOrderBy(sortKey, direction) + """
+                 LIMIT ? OFFSET ?
                 """, locale, categoryId, categoryId, normalizedKeyword, pattern, limit, offset);
 
         return rows.stream().map(this::mapProduct).toList();
@@ -65,7 +73,28 @@ public class CatalogRepository {
         return count;
     }
 
+    /**
+     * 商品列表排序白名单（只允许已知列 + 方向，绝不拼接用户输入）。
+     * 价格排序按该商品最低 SKU 价格，未知字段回落创建时间。
+     */
+    private static String productSafeOrderBy(String sortKey, String direction) {
+        String key = sortKey == null ? "" : sortKey.trim();
+        String column = switch (key) {
+            case "title" -> "title";
+            case "minPrice" -> "min_price";
+            case "createdAt" -> "p.created_at";
+            default -> "p.created_at";
+        };
+        String dir = "asc".equalsIgnoreCase(direction == null ? "" : direction.trim()) ? "ASC" : "DESC";
+        return column + " " + dir;
+    }
+
     public List<Product> findAll(String locale, String keyword, int limit, int offset) {
+        return findAll(locale, keyword, limit, offset, "createdAt", "desc");
+    }
+
+    public List<Product> findAll(String locale, String keyword, int limit, int offset,
+                                 String sortKey, String direction) {
         String normalizedKeyword = keyword == null ? "" : keyword.trim();
         String pattern = "%" + normalizedKeyword + "%";
         List<Map<String, Object>> rows = jdbcTemplate.queryForList("""
@@ -76,8 +105,9 @@ public class CatalogRepository {
                 LEFT JOIN product_translation t ON t.product_id = p.id AND t.locale = ?
                   AND t.status = 'PUBLISHED'
                 WHERE (? = '' OR COALESCE(t.title, p.title) ILIKE ?)
-                ORDER BY p.created_at DESC
-                LIMIT ? OFFSET ?
+                ORDER BY
+                """ + productSafeOrderBy(sortKey, direction) + """
+                 LIMIT ? OFFSET ?
                 """, locale, normalizedKeyword, pattern, limit, offset);
         return rows.stream().map(this::mapProduct).toList();
     }

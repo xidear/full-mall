@@ -78,3 +78,32 @@ Element Plus 官方组件用法（`el-table` + `el-pagination` + `v-loading` + `
 
 > **未做**：排序（需后端 `sort` 参数）、售后详情 loading、顾客端"加载更多"。
 > 这三项已列入下一轮，不会假装已完成。
+
+---
+
+## 5. 排序（第 143 轮：后端白名单 + Element Plus 服务端排序）
+
+| 层 | 实现 |
+|---|---|
+| 后端 | `GET /admin/v1/orders?sort=&direction=`；**白名单映射**：`createdAt→created_at`、`totalAmount→total_amount`、`status→status`，方向只接受 asc/desc，未知字段回落 `created_at DESC`。**绝不拼接用户输入** |
+| 前端 | `el-table` 用 Element Plus 官方 `sortable="custom"` + `@sort-change`，由服务端排序（不前端伪排序） |
+
+| 验证 | 结果 |
+|---|---|
+| 后端测试 | **387 个全绿** |
+| 新增用例 | 金额排序升降序生效；**未知字段/恶意片段安全回落且不破坏数据**（`total_amount; DROP TABLE orders` 不报错、表仍在） |
+
+### 前端选型（不造轮子）
+
+- 表格/分页/排序/加载：**Element Plus 官方组件**（`el-table` 的 `sortable="custom"`、`el-pagination`、`v-loading`）
+- 无限滚动（顾客端"加载更多"）：使用 Element Plus 的 **`v-infinite-scroll` 指令**（官方提供），
+  不使用自研 IntersectionObserver
+- 顾客端为 Nuxt，若不想引入 Element Plus，则用 Nuxt 内置的 VueUse `useInfiniteScroll`——两者都是成熟方案，
+  下一轮按"顾客端是否已引入 Element Plus"决定
+
+### 未完成
+
+- 商品列表的排序（后端 `listAllProducts` 目前只支持 page/size，需同样加白名单）
+- 顾客端"加载更多"（含每页条数：建议 20 条/页，首屏 SSR 渲染 20 条，滚动加载后续页）
+- 所有页面 loading 的逐页核对（目前主要列表已有 `v-loading`，详情弹窗部分缺失）
+

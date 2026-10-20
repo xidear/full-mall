@@ -22,7 +22,9 @@ public class AdminOrderController {
     public Map<String, Object> list(
             @RequestParam(required = false) String status,
             @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "50") int size) {
-        return orderService.listOrders(status, page, size);
+            @RequestParam(defaultValue = "50") int size,
+            @RequestParam(required = false) String sort,
+            @RequestParam(required = false) String direction) {
+        return orderService.listOrders(status, page, size, sort, direction);
     }
 }

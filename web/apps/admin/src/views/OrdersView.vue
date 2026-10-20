@@ -16,6 +16,16 @@ const total = ref(0)
 const page = ref(0)
 const size = ref(20)
 
+const sortKey = ref('createdAt')
+const sortDirection = ref<'asc' | 'desc'>('desc')
+
+function onSortChange(payload: { prop: string | null; order: 'ascending' | 'descending' | null }) {
+  sortKey.value = payload.prop ?? 'createdAt'
+  sortDirection.value = payload.order === 'ascending' ? 'asc' : 'desc'
+  page.value = 0
+  load()
+}
+
 function reloadFromFirstPage() {
   page.value = 0
   load()
@@ -52,7 +62,9 @@ async function load() {
     const response = await api.get<{ items: OrderSummary[]; total: number }>('/admin/v1/orders', {
       status: status.value || undefined,
       page: page.value,
-      size: size.value
+      size: size.value,
+      sort: sortKey.value,
+      direction: sortDirection.value
     })
     orders.value = response.items
     total.value = response.total
@@ -97,7 +109,7 @@ function money(amount: number, currency: string) {
     </div>
 
     <el-alert v-if="error" :title="error" type="error" show-icon :closable="false" class="mb-16" />
-    <el-table :data="orders" stripe>
+    <el-table :data="orders" @sort-change="onSortChange" stripe>
       <el-table-column prop="orderNo" label="订单号" min-width="180" />
       <el-table-column label="状态" width="120">
         <template #default="{ row }">
@@ -110,10 +122,10 @@ function money(amount: number, currency: string) {
         <template #default="{ row }">{{ fulfillmentModeLabel(row.fulfillmentMode) }}</template>
       </el-table-column>
       <el-table-column prop="contactName" label="联系人" width="120" />
-      <el-table-column label="金额" width="130">
+      <el-table-column label="金额" sortable="custom" prop="totalAmount" width="130">
         <template #default="{ row }">{{ money(row.total.amount, row.total.currency) }}</template>
       </el-table-column>
-      <el-table-column label="下单时间" width="180">
+      <el-table-column label="下单时间" sortable="custom" prop="createdAt" width="180">
         <template #default="{ row }">{{ new Date(row.createdAt).toLocaleString('zh-CN') }}</template>
       </el-table-column>
       <el-table-column label="操作" width="100">

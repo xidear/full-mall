@@ -453,10 +453,16 @@ public class OrderService {
     }
 
     public java.util.Map<String, Object> listOrders(String status, int page, int size) {
+        return listOrders(status, page, size, "createdAt", "desc");
+    }
+
+    public java.util.Map<String, Object> listOrders(String status, int page, int size,
+                                                    String sortKey, String direction) {
         int safePage = Math.max(page, 0);
         int safeSize = Math.min(Math.max(size, 1), 100);
         int offset = safePage * safeSize;
-        List<OrderSummary> items = orderRepository.findSummaries(status, safeSize, offset);
+        List<OrderSummary> items = orderRepository.findSummaries(status, safeSize, offset,
+                sortKey, direction);
         long total = orderRepository.countSummaries(status);
         return Map.of(
                 "items", items,

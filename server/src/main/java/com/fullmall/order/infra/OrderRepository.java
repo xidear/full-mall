@@ -186,14 +186,37 @@ public class OrderRepository {
         }
     }
 
+    /**
+     * 排序白名单：**只允许已知列与方向**，绝不拼接用户输入（防注入）。
+     *
+     * <p>未知字段回落到默认 `created_at DESC`，不报错——但会记日志由调用方观察。
+     */
+    private static String safeOrderBy(String sortKey, String direction) {
+        String key = sortKey == null ? "" : sortKey.trim();
+        String column = switch (key) {
+            case "createdAt" -> "created_at";
+            case "totalAmount" -> "total_amount";
+            case "status" -> "status";
+            default -> "created_at";
+        };
+        String dir = "asc".equalsIgnoreCase(direction == null ? "" : direction.trim()) ? "ASC" : "DESC";
+        return column + " " + dir;
+    }
+
     public List<com.fullmall.order.api.OrderSummary> findSummaries(String status, int limit, int offset) {
+        return findSummaries(status, limit, offset, "createdAt", "desc");
+    }
+
+    public List<com.fullmall.order.api.OrderSummary> findSummaries(String status, int limit, int offset,
+                                                                   String sortKey, String direction) {
         String normalized = status == null ? "" : status.trim();
         return jdbcTemplate.query("""
                 SELECT id, order_no, status, currency, total_amount, fulfillment_mode, contact_name, created_at
                 FROM orders
                 WHERE (? = '' OR status = ?)
-                ORDER BY created_at DESC
-                LIMIT ? OFFSET ?
+                ORDER BY
+                """ + safeOrderBy(sortKey, direction) + """
+                 LIMIT ? OFFSET ?
                 """, (rs, rowNum) -> new com.fullmall.order.api.OrderSummary(
                 rs.getObject("id", UUID.class),
                 rs.getString("order_no"),

@@ -43,16 +43,37 @@ public class CouponService {
     public UUID createTemplate(String code, String title, String type, long value, long minOrderAmount,
                               int totalQuantity, int perMemberLimit, int validityDays,
                               Instant startsAt, Instant endsAt) {
+        return createTemplate(code, title, type, value, minOrderAmount, totalQuantity,
+                perMemberLimit, validityDays, startsAt, endsAt, "ALL", java.util.List.of());
+    }
+
+    /** 带适用范围的建券（scope：ALL / SKU / CATEGORY / BRAND）。 */
+    public UUID createTemplate(String code, String title, String type, long value, long minOrderAmount,
+                              int totalQuantity, int perMemberLimit, int validityDays,
+                              Instant startsAt, Instant endsAt, String scope,
+                              java.util.List<UUID> scopeIds) {
         validateTemplate(code, type, value, totalQuantity, perMemberLimit, validityDays, startsAt, endsAt);
+
+        String normalizedScope = scope == null || scope.isBlank() ? "ALL" : scope.trim().toUpperCase();
+        if (!List.of("ALL", "SKU", "CATEGORY", "BRAND").contains(normalizedScope)) {
+            throw ApiException.badRequest("INVALID_COUPON_SCOPE", "范围只能是 ALL/SKU/CATEGORY/BRAND");
+        }
+        if (!"ALL".equals(normalizedScope) && (scopeIds == null || scopeIds.isEmpty())) {
+            throw ApiException.badRequest("COUPON_SCOPE_IDS_REQUIRED", "非全场券必须指定范围 ID");
+        }
+        String scopeJson = scopeIds == null ? "[]" : scopeIds.stream()
+                .map(id -> "\"" + id + "\"")
+                .collect(java.util.stream.Collectors.joining(",", "[", "]"));
 
         UUID id = UUID.randomUUID();
         jdbcTemplate.update("""
                 INSERT INTO coupon_template (id, code, title, type, value, min_order_amount,
                                              total_quantity, per_member_limit, validity_days,
-                                             starts_at, ends_at, status)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'DRAFT')
+                                             starts_at, ends_at, status, scope, scope_ids)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'DRAFT', ?, CAST(? AS jsonb))
                 """, id, code, title, type, value, minOrderAmount, totalQuantity, perMemberLimit,
-                validityDays, java.sql.Timestamp.from(startsAt), java.sql.Timestamp.from(endsAt));
+                validityDays, java.sql.Timestamp.from(startsAt), java.sql.Timestamp.from(endsAt),
+                normalizedScope, scopeJson);
         return id;
     }
 
@@ -128,6 +149,73 @@ public class CouponService {
     /**
      * 券对某金额的可用性（**只读校验，不改订单金额、不改券状态**）。
      */
+    /**
+     * 券在给定商品明细下的**可用金额**（按模板范围过滤）。
+     *
+     * <p>`scope=ALL` 返回全部小计；`SKU/CATEGORY/BRAND` 只累加命中商品。
+     * 与促销的范围口径一致，避免"促销按类目、券按全场"的错配。
+     */
+    public long eligibleAmount(UUID couponId, java.util.Map<UUID, Long> subtotalsBySku) {
+        List<ScopeRow> rows = jdbcTemplate.query("""
+                SELECT scope, scope_ids FROM coupon_template t
+                  JOIN member_coupon c ON c.template_id = t.id WHERE c.id = ?
+                """, (rs, rowNum) -> new ScopeRow(
+                rs.getString("scope"), rs.getString("scope_ids")), couponId);
+        if (rows.isEmpty()) {
+            throw ApiException.notFound("COUPON_NOT_FOUND", "券不存在: " + couponId);
+        }
+        if (subtotalsBySku == null || subtotalsBySku.isEmpty()) {
+            return 0;
+        }
+        ScopeRow scope = rows.get(0);
+        long total = subtotalsBySku.values().stream().mapToLong(Long::longValue).sum();
+        if ("ALL".equals(scope.scope())) {
+            return total;
+        }
+
+        java.util.Set<String> ids = new java.util.HashSet<>();
+        try {
+            new com.fasterxml.jackson.databind.ObjectMapper().readTree(scope.scopeIds())
+                    .forEach(node -> ids.add(node.asText()));
+        } catch (com.fasterxml.jackson.core.JsonProcessingException error) {
+            throw new IllegalStateException("券范围解析失败: " + couponId, error);
+        }
+
+        java.util.Map<UUID, String> categoryBySku = new java.util.HashMap<>();
+        java.util.Map<UUID, String> brandBySku = new java.util.HashMap<>();
+        if ("CATEGORY".equals(scope.scope()) || "BRAND".equals(scope.scope())) {
+            jdbcTemplate.query("""
+                    SELECT s.id, p.category_id, p.brand_id
+                      FROM sku s JOIN product p ON p.id = s.product_id
+                     WHERE s.id = ANY(?)
+                    """, rs -> {
+                UUID skuId = rs.getObject("id", UUID.class);
+                Object category = rs.getObject("category_id");
+                Object brand = rs.getObject("brand_id");
+                categoryBySku.put(skuId, category == null ? "" : category.toString());
+                brandBySku.put(skuId, brand == null ? "" : brand.toString());
+            }, (Object) subtotalsBySku.keySet().toArray(new UUID[0]));
+        }
+
+        long eligible = 0;
+        for (var entry : subtotalsBySku.entrySet()) {
+            String skuId = entry.getKey().toString();
+            boolean hit = switch (scope.scope()) {
+                case "SKU" -> ids.contains(skuId);
+                case "CATEGORY" -> ids.contains(categoryBySku.getOrDefault(entry.getKey(), ""));
+                case "BRAND" -> ids.contains(brandBySku.getOrDefault(entry.getKey(), ""));
+                default -> false;
+            };
+            if (hit) {
+                eligible += entry.getValue();
+            }
+        }
+        return eligible;
+    }
+
+    private record ScopeRow(String scope, String scopeIds) {
+    }
+
     public Eligibility checkUsable(UUID couponId, UUID memberId, long orderAmount) {
         if (orderAmount < 0) {
             throw ApiException.badRequest("INVALID_ORDER_AMOUNT", "订单金额不能为负");

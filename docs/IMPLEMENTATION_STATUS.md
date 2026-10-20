@@ -2921,3 +2921,23 @@ make verify-fast   # 跳过 E2E
 | 后端测试 | **346 个，全部通过，0 跳过** |
 | 断言内容 | 会员单：`MEMBER:<id>:IN_APP`、`CUSTOMER:<手机>:SMS`、`STAFF:ALL:IN_APP`，且**不含** `CUSTOMER:<手机>:IN_APP`；游客单：`CUSTOMER` 同时收 `IN_APP` 与 `SMS` |
 
+---
+
+## 2026-10-19：优惠券适用范围（SKU / 类目 / 品牌）
+
+- V55：`coupon_template.scope`（ALL/SKU/CATEGORY/BRAND）+ `scope_ids JSONB`；
+  DB 约束：非 ALL 必须至少一个范围 ID。
+- `CouponService.createTemplate(..., scope, scopeIds)`：建券时指定范围；
+  旧签名保留（等价 `ALL`）。
+- `CouponService.eligibleAmount(couponId, subtotalsBySku)`：按范围累加命中商品金额，
+  与促销的范围口径一致（避免"促销按类目、券按全场"的错配）。
+
+| 验证 | 结果 |
+|---|---|
+| 后端测试 | **349 个，全部通过，0 跳过** |
+| 新增用例 | SKU 券只算命中 SKU（1000 而非 3000）；全场券算全部（3000）；非全场缺 ID 被拒 |
+
+> **未接线**：结算仍用整单金额调用 `checkUsable`，尚未改用 `eligibleAmount` 的结果做门槛判断——
+> 下一步需要把"命中金额"传入结算，否则范围券实际仍按整单生效。
+> 这是明确的半开状态，已记入待办。
+

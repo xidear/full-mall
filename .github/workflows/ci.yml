@@ -27,6 +27,8 @@ jobs:
       - name: Production package
         working-directory: server
         run: mvn -B -ntp -DskipTests -Pprod package
+      - name: API alignment (前端调用 vs 后端路由)
+        run: python3 scripts/check-api-alignment.py
       - name: SBOM
         uses: anchore/sbom-action@v0
         with:
@@ -73,3 +75,35 @@ jobs:
       - uses: actions/checkout@v4
       - name: Validate Compose
         run: docker compose --env-file .env.example config > /dev/null
+
+  e2e:
+    # 真浏览器端到端：起嵌入式 PostgreSQL + 打包后的后端 + 前端产物，跑 Playwright。
+    # 注意：不使用 spring-boot:run（会 fork 子进程，容易测试到旧代码）。
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - name: Install Playwright Chromium
+        working-directory: web
+        run: npx playwright install --with-deps chromium
+      - name: Verify (backend tests, build, alignment, E2E)
+        run: make verify
+      - name: Upload Playwright artifacts on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-results
+          path: |
+            web/test-results
+            /tmp/fullmall-*.log
+          retention-days: 7
+

@@ -2333,3 +2333,29 @@ make verify-fast   # 跳过 E2E
 | 接口对齐 | 后端 177 条路由 / 前端 16 条调用 / **未匹配 0** |
 | E2E（Chromium） | **10 / 10 通过** |
 
+---
+
+## 2026-10-19：CI 接入（GitHub + Gitea）
+
+现有 `.github/workflows/ci.yml` 已有后端测试/打包/前端 5 应用构建/移动端构建/compose 校验，
+**缺接口对齐检查与 E2E**。本轮补上：
+
+| 变更 | 内容 |
+|---|---|
+| `ci.yml` → `backend` 作业 | 增加 `python3 scripts/check-api-alignment.py`（纯静态，秒级） |
+| `ci.yml` → 新增 `e2e` 作业 | 装 Chromium 后执行 **`make verify`**；失败时上传 `web/test-results` 与 `/tmp/fullmall-*.log` |
+| 新增 `.gitea/workflows/verify.yml` | 公司内部仓库的流水线，同样调用 `make verify` |
+
+设计原则：**本地怎么验、CI 就怎么验**，只有 `make verify` 一个事实来源，避免 CI 与本地两套脚本漂移。
+
+### 验证情况
+
+| 项目 | 结果 |
+|---|---|
+| 三个工作流 YAML 可解析 | ✅ 用 node `yaml` 解析，作业名正确（backend/web/compose/e2e、verify、guard） |
+| `make verify` 本地实测 | ✅ 上一轮已跑通（301 测试 + 包 + 构建 + 对齐 0 + E2E 10/10） |
+| **CI 实际执行** | ⬜ **未验证**——本机没有 GitHub/Gitea runner，无法触发 |
+
+> 诚实说明：工作流只在语法与结构层面验证过，**没有真正跑过一次 CI**。
+> 第一次真实触发时可能需要调整（如 runner 镜像缺少 Chromium 依赖、`--cache` 权限等）。
+

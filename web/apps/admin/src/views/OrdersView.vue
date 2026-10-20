@@ -13,6 +13,18 @@ import { api } from '../api'
 
 const orders = ref<OrderSummary[]>([])
 const total = ref(0)
+const page = ref(0)
+const size = ref(20)
+
+function reloadFromFirstPage() {
+  page.value = 0
+  load()
+}
+
+function changePage(next: number) {
+  page.value = next - 1
+  load()
+}
 const loading = ref(false)
 const error = ref('')
 const status = ref('')
@@ -37,13 +49,13 @@ async function load() {
   loading.value = true
   error.value = ''
   try {
-    const page = await api.get<{ items: OrderSummary[]; total: number }>('/admin/v1/orders', {
+    const response = await api.get<{ items: OrderSummary[]; total: number }>('/admin/v1/orders', {
       status: status.value || undefined,
-      page: 0,
-      size: 100
+      page: page.value,
+      size: size.value
     })
-    orders.value = page.items
-    total.value = page.total
+    orders.value = response.items
+    total.value = response.total
   } catch (cause) {
     error.value = cause instanceof Error ? cause.message : '订单加载失败'
   } finally {
@@ -77,7 +89,7 @@ function money(amount: number, currency: string) {
         <p class="muted">按状态筛选订单，查看商品、履约和自提信息。</p>
       </div>
       <div class="toolbar">
-        <el-select v-model="status" style="width: 160px" @change="load">
+        <el-select v-model="status" style="width: 160px" @change="reloadFromFirstPage">
           <el-option v-for="option in statusOptions" :key="option.value" :label="option.label" :value="option.value" />
         </el-select>
         <el-button @click="load">刷新</el-button>
@@ -110,7 +122,15 @@ function money(amount: number, currency: string) {
         </template>
       </el-table-column>
     </el-table>
-    <p class="muted">共 {{ total }} 条订单</p>
+    <div class="table-footer">
+      <span class="muted">共 {{ total }} 条订单</span>
+      <el-pagination
+        layout="prev, pager, next"
+        :page-size="size"
+        :total="total"
+        :current-page="page + 1"
+        @current-change="changePage" />
+    </div>
     <el-empty v-if="!loading && !orders.length" description="暂无订单" />
 
     <div v-if="selected" v-loading="detailLoading" class="order-detail">

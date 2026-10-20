@@ -13,14 +13,27 @@ interface Customer {
 const customers = ref<Customer[]>([])
 const loading = ref(false)
 const error = ref('')
+const page = ref(0)
+const size = ref(20)
+const total = ref(0)
+
+interface Page<T> { items: T[]; page: number; size: number; total: number }
 
 onMounted(load)
+
+function changePage(next: number) {
+  page.value = next - 1
+  load()
+}
 
 async function load() {
   loading.value = true
   error.value = ''
   try {
-    customers.value = await api.get<Customer[]>('/admin/v1/customers', { limit: 200 })
+    const response = await api.get<Page<Customer>>('/admin/v1/customers',
+      { page: page.value, size: size.value })
+    customers.value = response.items
+    total.value = response.total
   } catch (cause) {
     error.value = cause instanceof Error ? cause.message : '客户加载失败'
   } finally {
@@ -54,6 +67,16 @@ function money(value: Customer['totalSpent']) {
         <template #default="{ row }">{{ new Date(row.lastOrderAt).toLocaleString('zh-CN') }}</template>
       </el-table-column>
     </el-table>
+
+    <div class="table-footer">
+      <span class="muted">共 {{ total }} 位客户</span>
+      <el-pagination
+        layout="prev, pager, next"
+        :page-size="size"
+        :total="total"
+        :current-page="page + 1"
+        @current-change="changePage" />
+    </div>
     <el-empty v-if="!loading && !customers.length" description="暂无客户订单" />
   </div>
 </template>

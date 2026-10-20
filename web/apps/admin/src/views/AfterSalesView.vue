@@ -11,6 +11,19 @@ interface Location {
 }
 
 const afterSales = ref<AfterSaleView[]>([])
+const page = ref(0)
+const size = ref(20)
+const total = ref(0)
+
+function reloadFromFirstPage() {
+  page.value = 0
+  load()
+}
+
+function changePage(next: number) {
+  page.value = next - 1
+  load()
+}
 const locations = ref<Location[]>([])
 const loading = ref(false)
 const error = ref('')
@@ -48,9 +61,11 @@ async function load() {
   loading.value = true
   error.value = ''
   try {
-    afterSales.value = await api.get<AfterSaleView[]>('/admin/v1/after-sales', {
-      status: statusFilter.value || undefined
-    })
+    const response = await api.get<{ items: AfterSaleView[]; total: number }>(
+      '/admin/v1/after-sales',
+      { status: statusFilter.value || undefined, page: page.value, size: size.value })
+    afterSales.value = response.items
+    total.value = response.total
   } catch (cause) {
     error.value = cause instanceof Error ? cause.message : '售后单加载失败'
   } finally {
@@ -161,7 +176,7 @@ function money(value?: { amount: number; currency: string }) {
           <p class="muted">退货申请 → 审核 → 退货入库（隔离批次）→ Mock 原路退款；每一步都有事件记录。</p>
         </div>
         <div class="filters">
-          <el-select v-model="statusFilter" placeholder="全部状态" clearable style="width: 160px" @change="load">
+          <el-select v-model="statusFilter" placeholder="全部状态" clearable style="width: 160px" @change="reloadFromFirstPage">
             <el-option v-for="(label, value) in statusLabels" :key="value" :label="label" :value="value" />
           </el-select>
           <el-button @click="load">刷新</el-button>
@@ -198,6 +213,16 @@ function money(value?: { amount: number; currency: string }) {
           </template>
         </el-table-column>
       </el-table>
+
+      <div class="table-footer">
+        <span class="muted">共 {{ total }} 条售后</span>
+        <el-pagination
+          layout="prev, pager, next"
+          :page-size="size"
+          :total="total"
+          :current-page="page + 1"
+          @current-change="changePage" />
+      </div>
     </div>
 
     <el-dialog v-model="detailDialog" title="售后详情" width="680px">

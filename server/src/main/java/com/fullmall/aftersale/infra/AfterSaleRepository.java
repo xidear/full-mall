@@ -82,7 +82,22 @@ public class AfterSaleRepository {
         return rows.isEmpty() ? null : withChildren(rows.get(0));
     }
 
+    /** 按状态计数（分页用）。 */
+    public long countByStatus(String status) {
+        String filter = status == null ? "" : status.trim().toUpperCase();
+        Long count = jdbcTemplate.queryForObject("""
+                SELECT COUNT(*) FROM after_sale a
+                 WHERE (?::text = '' OR a.status = ?::text)
+                """, Long.class, filter, filter);
+        return count == null ? 0 : count;
+    }
+
     public List<AfterSaleView> list(String status, int limit) {
+        return list(status, 0, limit);
+    }
+
+    /** 分页列表（offset 由 page × size 计算）。 */
+    public List<AfterSaleView> list(String status, int page, int size) {
         String filter = status == null ? "" : status.trim().toUpperCase();
         return jdbcTemplate.query("""
                 SELECT a.id, a.after_sale_no, a.order_id, o.order_no, a.type, a.status, a.reason,
@@ -91,8 +106,9 @@ public class AfterSaleRepository {
                        a.exchange_carrier_code, a.exchange_tracking_no, a.exchange_shipped_at
                 FROM after_sale a JOIN orders o ON o.id = a.order_id
                 WHERE (? = '' OR a.status = ?)
-                ORDER BY a.created_at DESC LIMIT ?
-                """, (rs, rowNum) -> withChildren(map(rs)), filter, filter, limit);
+                ORDER BY a.created_at DESC LIMIT ? OFFSET ?
+                """, (rs, rowNum) -> withChildren(map(rs)), filter, filter, size,
+                Math.max(page, 0) * Math.max(size, 1));
     }
 
     public List<AfterSaleView> listByOrder(UUID orderId, String phone) {

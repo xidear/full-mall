@@ -19,7 +19,8 @@ public class CustomerController {
     }
 
     @GetMapping
-    public List<CustomerSummary> list(@RequestParam(defaultValue = "100") int limit) {
-        return customerService.list(limit);
+    public java.util.Map<String, Object> list(@RequestParam(defaultValue = "0") int page,
+                                              @RequestParam(defaultValue = "20") int size) {
+        return customerService.list(page, size);
     }
 }

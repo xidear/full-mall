@@ -168,6 +168,20 @@ body {
   font-size: 26px;
 }
 
+/* 列表页脚：总数 + 分页，统一间距，避免各页面各自写死 */
+.table-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 12px;
+}
+
+/* 表格滚动容器：横向滚动不影响页面布局，纵向交给页面滚动 */
+.el-table {
+  --el-table-border-color: var(--line);
+}
+
 .panel {
   padding: 22px;
   border: 1px solid #dedbd3;

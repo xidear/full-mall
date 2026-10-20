@@ -15,14 +15,25 @@ const products = ref<Product[]>([])
 const loading = ref(false)
 const error = ref('')
 
+const page = ref(0)
+const size = ref(20)
+const total = ref(0)
+
 onMounted(load)
+
+function changePage(next: number) {
+  page.value = next - 1
+  load()
+}
 
 async function load() {
   loading.value = true
   error.value = ''
   try {
-    const page = await api.get<ProductPage>('/admin/v1/products', { locale: 'zh-CN', size: 100 })
-    products.value = page.items
+    const response = await api.get<ProductPage>('/admin/v1/products',
+      { locale: 'zh-CN', page: page.value, size: size.value })
+    products.value = response.items
+    total.value = response.total ?? response.items.length
   } catch (cause) {
     error.value = cause instanceof Error ? cause.message : '加载失败'
   } finally {
@@ -107,6 +118,16 @@ function price(product: Product) {
         </template>
       </el-table-column>
     </el-table>
+
+    <div class="table-footer">
+      <span class="muted">共 {{ total }} 个商品</span>
+      <el-pagination
+        layout="prev, pager, next"
+        :page-size="size"
+        :total="total"
+        :current-page="page + 1"
+        @current-change="changePage" />
+    </div>
     <el-empty v-if="!loading && !products.length" description="暂无商品，点击右上角新建" />
   </div>
 </template>

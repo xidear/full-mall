@@ -542,3 +542,15 @@ cd ../web && NUXT_PUBLIC_API_BASE=http://localhost:8080 PORT=3099 \
 - 探测过程中发现：未知路径（如 `/api/status`）返回 **500 + 完整堆栈**，已在 `GlobalExceptionHandler`
   中补 `NoResourceFoundException → 404`。
 
+## 11. 重启后端的正确姿势（踩过的坑）
+
+- `mvn spring-boot:run` **会 fork 子 JVM**，`kill` 掉 mvn 主进程**不保证**子进程退出；
+  旧进程继续占用 8080，于是"改了代码却看到旧行为"。我因此连续几轮误判为"权限拦截"。
+- 联调/验证优先**打包跑 jar**：
+  ```bash
+  mvn -DskipTests package
+  SPRING_PROFILES_ACTIVE=dev java -jar target/fullmall-server-0.1.0-SNAPSHOT.jar
+  ```
+  启动失败会明确报 `Port 8080 was already in use`，比静默跑旧代码好得多。
+- 判断是否新代码：看启动日志时间、`ps -eo pid,etime,args | grep java`、或直接请求刚改过的接口。
+

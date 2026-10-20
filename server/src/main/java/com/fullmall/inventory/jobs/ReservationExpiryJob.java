@@ -1,12 +1,13 @@
 package com.fullmall.inventory.jobs;
 
 import com.fullmall.inventory.app.InventoryService;
-import org.springframework.context.annotation.Profile;
-import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
+/**
+ * 库存预留释放的**执行逻辑**（不含调度）。
+ * 调度由 `ReservationReleaseTask` 通过注册表驱动，因此不再需要 worker profile。
+ */
 @Component
-@Profile("worker")
 public class ReservationExpiryJob {
 
     private final InventoryService inventoryService;
@@ -14,8 +15,6 @@ public class ReservationExpiryJob {
     public ReservationExpiryJob(InventoryService inventoryService) {
         this.inventoryService = inventoryService;
     }
-
-    @Scheduled(fixedDelayString = "${app.reservation.release-interval-ms:60000}")
     public void releaseExpiredReservations() {
         inventoryService.releaseExpiredReservations();
     }

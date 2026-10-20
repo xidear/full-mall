@@ -4,13 +4,16 @@ import com.fullmall.order.app.OrderService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
 import java.time.Duration;
 import java.time.Instant;
 import java.util.UUID;
 
+/**
+ * 超时订单取消的**执行逻辑**（不含调度）。
+ * 调度由 `OrderExpiryTask` 通过注册表驱动。
+ */
 @Component
 public class OrderExpiryJob {
 
@@ -24,9 +27,6 @@ public class OrderExpiryJob {
         this.orderService = orderService;
         this.expiryMinutes = expiryMinutes;
     }
-
-    @Scheduled(initialDelayString = "${app.order.expiry-initial-delay-ms:60000}",
-            fixedDelayString = "${app.order.expiry-interval-ms:60000}")
     public void cancelExpiredOrders() {
         Instant cutoff = Instant.now().minus(Duration.ofMinutes(expiryMinutes));
         for (UUID orderId : orderService.findStalePendingOrderIds(cutoff, 200)) {

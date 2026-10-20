@@ -89,8 +89,14 @@ class ScheduledTaskServiceTest {
     void allRetentionTasksAreRegistered() {
         var codes = tasks.list().stream().map(ScheduledTaskService.TaskView::code).toList();
 
-        assertThat(codes).contains("maintenance.retention",
-                "notification.retention", "export.retention");
+        assertThat(codes).contains(
+                "maintenance.retention",
+                "notification.retention",
+                "export.retention",
+                "distribution.commission-release",
+                "export.worker",
+                "order.expiry",
+                "inventory.reservation-release");
     }
 
     @Test

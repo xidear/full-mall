@@ -2620,3 +2620,31 @@ make verify-fast   # 跳过 E2E
 > 说明：该用例基于真实等待（秒级），不是 mock 时间；断言留了余量以避免 CI 抖动，
 > 但仍能识别"翻倍执行"这类问题（翻倍会明显超过 5 次）。
 
+---
+
+## 2026-10-19：订单超时 + 库存预留释放迁入注册表（高风险任务）
+
+- `OrderExpiryJob` / `ReservationExpiryJob` 去掉 `@Scheduled`（后者还去掉了 `@Profile("worker")`），
+  变为**纯执行逻辑**。
+- 新增 `OrderExpiryTask`（`order.expiry`）与 `ReservationReleaseTask`（`inventory.reservation-release`），
+  cron `0 */1 * * * *`，默认**关闭**。
+- **时长参数不进 cron**：`app.reservation.expiry-minutes` 仍是配置项，cron 只决定"多久扫一次"。
+  混在一起会让运维误以为改 cron 就能改超时时长。
+
+| 验证 | 结果 |
+|---|---|
+| 后端测试 | **325 个，全部通过，0 跳过** |
+| 注册断言 | 注册表现在包含 7 个任务（含这两个新任务） |
+| 前置保护 | 上轮的"改 cron 不重复执行"用例仍绿 |
+
+### 踩坑
+
+又遇到一次"`@Component` 与注释块交错"：我把注解放在注释上方，Spring 仍能识别，
+但**可读性上会误导**，且与上轮 `ExportJobScheduler` 的失效问题同源。已统一改为"注释在上、注解紧贴类"。
+
+### 仍未迁移
+
+| 任务 | 原因 |
+|---|---|
+| 拼团过期（`PromotionService` 内部方法） | 逻辑写在服务里，需先抽成独立类再接入 |
+

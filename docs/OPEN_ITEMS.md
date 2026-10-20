@@ -31,7 +31,7 @@
 | B3 | 绑定方式与时机实际执行 | ✅ | ONCE 不抢客、PERMANENT 可接管、REGISTER 时结算不建关系（三条测试） |
 | B4 | `AFTER_SALE_CLOSED` 冻结释放扫描 | ✅ | 订单 `fulfilled_at` + 售后窗口；任务**并集**释放两种来源（有测试） |
 | B5 | 提现：申请人选打款方式 | ✅ | V58 `payout_method`/`payout_account`；须在 `distribution.payout-methods` 白名单内（有测试） |
-| B6 | 提现：一级审核走权限矩阵（非写死 ADMIN） | ⬜ | `AdminDistributionController` 仍是 `hasRole('ADMIN')` 风格 |
+| B6 | 提现：审核走权限矩阵 | ✅ | 新增 `withdrawal.review`（默认仅 ADMIN，可在矩阵授予）；去掉写死角色（有测试） |
 | B7 | 提现：最低金额读配置 | ✅ | 低于 `distribution.min-withdrawal` 直接拒绝（有测试） |
 | B8 | 提现：微信零钱/银行卡真实打款 | ⬜ | 仅记录 `payment_ref` |
 | B9 | 佣金可拆分消耗（提现额大于单条佣金） | ✅ | `consumed_amount` 部分消耗 + 余额扣减；未扣完保持 AVAILABLE（有测试） |
@@ -154,9 +154,9 @@
 
 | 状态 | 数量 |
 |---|---|
-| ✅ 已实现并验证 | 13 |
+| ✅ 已实现并验证 | 14 |
 | ⚠️ 已实现未验证 / 半接线 | 30 |
-| ⬜ 未实现 | 41 |
+| ⬜ 未实现 | 40 |
 | 🚫 有意不做 | 6 |
 | **合计** | **90** |
 

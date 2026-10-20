@@ -3558,3 +3558,20 @@ storefront 结算页需要真正的 OTP 流程：
 | 新增用例 | 一次性不抢客 / 终身可接管 / 注册时机结算不建关系；有上级时二级佣金 500+200 落库 |
 | 接口对齐 | 191 路由 / 18 调用 / 0 未匹配 |
 
+---
+
+## 2026-10-19：提现审核权限化（B6）
+
+- 新增权限 `withdrawal.review`（V61，默认只授 ADMIN，可在权限矩阵里授予任意角色）。
+- `/admin/v1/distribution/withdrawals/**` 单独映射到该权限；其余分销接口仍是 `promotion.manage`。
+- 去掉 `AdminDistributionController` 的 `@PreAuthorize("hasRole('ADMIN')")`——它与矩阵冲突，
+  导致"矩阵里给了权限也不生效"。
+
+| 验证 | 结果 |
+|---|---|
+| 后端测试 | **397 个，全部通过，0 跳过** |
+| 新增用例 | 提现三个路径映射到 `withdrawal.review`；uplink/commissions 仍映射 `promotion.manage` |
+
+> 踩坑：V61 一开始写 `INSERT INTO permission (code, name, ...)`，而表字段是 `label`/`group_name`，
+> 导致 **184 个测试因迁移失败连带报错**。已按真实 schema 修正。
+

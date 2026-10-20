@@ -51,6 +51,8 @@ public class PermissionService {
         if (path.startsWith("/admin/v1/warehouse")) return "warehouse.manage";
         if (path.startsWith("/admin/v1/pos")) return "pos.manage";
         if (path.startsWith("/admin/v1/promotions")) return "promotion.manage";
+        // 提现审核与打款是资金动作，单独授权（默认仅 ADMIN，可在权限矩阵调整）
+        if (path.startsWith("/admin/v1/distribution/withdrawals")) return "withdrawal.review";
         if (path.startsWith("/admin/v1/distribution")) return "promotion.manage";
         if (path.startsWith("/admin/v1/after-sales")) return "order.manage";
         if (path.startsWith("/admin/v1/suppliers")) return "supplier.manage";

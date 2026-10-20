@@ -17,7 +17,6 @@ import java.util.UUID;
 
 @RestController
 @RequestMapping("/admin/v1/distribution")
-@org.springframework.security.access.prepost.PreAuthorize("hasRole('ADMIN')")
 public class AdminDistributionController {
 
     private final ReferralService referralService;

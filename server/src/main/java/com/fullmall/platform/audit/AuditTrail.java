@@ -119,7 +119,8 @@ public class AuditTrail {
     }
 
     /** 库中仍待消费的 outbox 行数（跨进程可靠性的关键指标）。 */
-    private long pendingRows() {
+    /** 当前 PENDING 行数（运维与恢复任务使用）。 */
+    public long pendingRows() {
         Long count = jdbcTemplate.queryForObject(
                 "SELECT COUNT(*) FROM audit_outbox WHERE status = 'PENDING'", Long.class);
         return count == null ? 0 : count;

@@ -97,8 +97,9 @@ class ScheduledTaskServiceTest {
                 "export.worker",
                 "order.expiry",
                 "inventory.reservation-release",
-                "promotion.group-buy-expiry");
-        assertThat(codes).hasSize(8);
+                "promotion.group-buy-expiry",
+                "audit-outbox-recovery");
+        assertThat(codes).hasSize(9);
     }
 
     @Test

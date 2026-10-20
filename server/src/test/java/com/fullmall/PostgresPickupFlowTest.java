@@ -93,7 +93,7 @@ class PostgresPickupFlowTest {
                 "scannedCode", batchId));
         assertEquals("PICKED", picked.get("status").asText());
 
-        JsonNode fulfillments = get("/api/v1/orders/" + orderId + "/fulfillments");
+        JsonNode fulfillments = get("/api/v1/orders/" + orderId + "/fulfillments?phone=13800000000");
         JsonNode fulfillment = fulfillments.get(0);
         assertEquals("READY_FOR_PICKUP", fulfillment.get("status").asText());
         String pickupCode = fulfillment.get("pickupCode").asText();

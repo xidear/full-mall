@@ -25,7 +25,7 @@ test.beforeAll(async ({ request }) => {
   const payment = await request.post(`${API}/api/v1/payments/mock/${orderId}/pay`)
   expect(payment.ok(), await payment.text()).toBeTruthy()
 
-  const fulfillments = await request.get(`${API}/api/v1/orders/${orderId}/fulfillments`)
+  const fulfillments = await request.get(`${API}/api/v1/orders/${orderId}/fulfillments?phone=13800000001`)
   const fulfillmentList = await fulfillments.json()
   fulfillmentId = fulfillmentList[0].id
 })
@@ -41,7 +41,7 @@ test('store console picks by product row and verifies pickup after loading custo
   await card.getByRole('button', { name: '确认拣货' }).click()
   await expect(page.getByText(/已确认拣货/)).toBeVisible()
 
-  const fulfillments = await request.get(`${API}/api/v1/orders/${orderId}/fulfillments`)
+  const fulfillments = await request.get(`${API}/api/v1/orders/${orderId}/fulfillments?phone=13800000001`)
   const fulfillmentList = await fulfillments.json()
   const pickupCode = fulfillmentList[0].pickupCode
   expect(pickupCode).toBeTruthy()

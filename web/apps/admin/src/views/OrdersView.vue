@@ -56,7 +56,7 @@ async function viewOrder(order: OrderSummary) {
   error.value = ''
   try {
     selected.value = await api.get<Order>(`/api/v1/orders/${order.id}`)
-    fulfillments.value = await api.get<Fulfillment[]>(`/api/v1/orders/${order.id}/fulfillments`)
+    fulfillments.value = await api.get<Fulfillment[]>(`/api/v1/orders/${order.id}/fulfillments?phone=${encodeURIComponent(order.contactPhone ?? '')}`)
   } catch (cause) {
     error.value = cause instanceof Error ? cause.message : '订单详情加载失败'
   } finally {

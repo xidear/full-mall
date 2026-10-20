@@ -35,20 +35,25 @@ if (error.value || !order.value) {
 
 interface TrackingEvent { at: string; status: string; location: string }
 const hasShipped = computed(() => (fulfillments.value ?? []).some(item => item.trackingNo))
-const { data: tracking, pending: trackingLoading, error: trackingError } =
-  await useAsyncData<TrackingEvent[]>(`tracking-${route.params.id}`, () =>
-    $fetch<TrackingEvent[]>(`${base}/api/v1/orders/${route.params.id}/tracking`, {
-      headers: authHeaders
-    }), { immediate: false })
+// 显式状态：不用 useAsyncData 的 pending，避免把 data 当对象调用（曾导致按钮卡在"查询中…"）
+const tracking = ref<TrackingEvent[]>([])
+const trackingLoading = ref(false)
+const trackingError = ref('')
 
 async function loadTracking() {
-  if (!hasShipped.value) {
+  if (!hasShipped.value || trackingLoading.value) {
     return
   }
+  trackingLoading.value = true
+  trackingError.value = ''
   try {
-    await tracking.refresh()
-  } catch {
-    // 错误由 trackingError 呈现，页面其它部分继续显示
+    tracking.value = await $fetch<TrackingEvent[]>(
+      `${base}/api/v1/orders/${route.params.id}/tracking`,
+      { headers: authHeaders })
+  } catch (cause) {
+    trackingError.value = cause instanceof Error ? cause.message : '物流查询失败'
+  } finally {
+    trackingLoading.value = false
   }
 }
 

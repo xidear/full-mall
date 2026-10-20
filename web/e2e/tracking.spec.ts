@@ -67,5 +67,7 @@ test('customer sees tracking on order page after shipment', async ({ page, reque
   // D11 验证：硬刷新（SSR）也能拿到会员身份并渲染履约
   await expect(page.getByRole('heading', { name: '履约' })).toBeVisible({ timeout: 15_000 })
   await expect(page.getByText('物流单号：SF-E2E-TRACK-1')).toBeVisible()
-  // 轨迹接口本身已在上一段以会员身份验证；页面内「查看物流轨迹」交互仍未稳定，单独跟踪
+  await page.getByRole('button', { name: '查看物流轨迹' }).click()
+  await expect(page.getByRole('heading', { name: '物流轨迹' })).toBeVisible({ timeout: 10_000 })
+  await expect(page.getByText('已揽收')).toBeVisible()
 })

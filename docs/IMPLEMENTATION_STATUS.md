@@ -3467,3 +3467,22 @@ storefront 结算页需要真正的 OTP 流程：
   不假装成功。拿到 AK 后只需补一段 `RestClient` 调用与响应解析。
 - 短信真实通道同理（目前仍是 mock sender）。
 
+---
+
+## 2026-10-19：演示/生产严格隔离（启动即失败）
+
+按"mock 绝不能污染生产"的要求，审计并堵住三条泄漏路径：
+
+| 泄漏点 | 之前 | 现在 |
+|---|---|---|
+| 通知渠道 sender | **永远注册 mock**，生产会把 SMS 记成 `SENT` | prod 下不注册 mock；未配真实服务商 → `UnconfiguredChannelSender` 抛错 → 通知落 `FAILED` |
+| mock 支付接口 | 仅靠服务层校验 provider | 生产**不注册** `/api/v1/payments/mock/**`（`@ConditionalOnExpression`） |
+| 适配器配置 | 缺省全 mock，prod 也能起 | `ProductionSafetyGuard` 在 prod 下校验支付/物流/短信/存储，**不合规直接启动失败**并列出所有问题 |
+
+新增 `docs/DEMO_PROD_SEPARATION.md`（模式定义、启动校验、渠道隔离、部署检查清单）。
+
+| 验证 | 结果 |
+|---|---|
+| 后端测试 | **381 个，全部通过，0 跳过** |
+| 新增用例 | prod+mock 启动失败（含三处提示）、未知服务商拒绝、空值拒绝、demo/dev 放行；生产下 SMS sender 抛"拒绝伪造发送成功"、`IN_APP` 始终可用 |
+

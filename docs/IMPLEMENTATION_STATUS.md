@@ -2479,3 +2479,21 @@ make verify-fast   # 跳过 E2E
 > 踩坑：我把新方法插在 `@Transactional` 与 `claimNext` 之间，导致两个 `@Transactional` 叠到同一方法上编译失败；
 > 已修正注解位置。
 
+---
+
+## 2026-10-19：审计快照保留清理
+
+- `AuditRetentionService.purgeOlderThan(days)`：按 `jv_commit.commit_date` 判定过期，
+  **按序删除** `jv_snapshot` → `jv_commit_property` → `jv_commit` → 清理孤立 `jv_global_id`。
+- 用 `commit_date`（真实时间戳）而不是 `commit_date_instant`（字符串，格式依赖 JaVers 版本）。
+- 先取 `commit_pk` 列表再按列表删除——`commit_fk` 是 bigint，**不能直接与时间戳比较**。
+
+| 验证 | 结果 |
+|---|---|
+| 后端测试 | **317 个，全部通过，0 跳过** |
+| 新增测试 | 400 天前的 commit + 快照被删；新 commit 与快照保留；`days<=0` 拒绝 |
+
+> 说明：`jv_*` 表之间**没有数据库外键**（V24 只建索引），所以删除顺序靠逻辑保证，
+> 写错顺序不会报错、只会留下脏数据——因此测试必须断言"新数据完好"，而不只是"旧数据被删"。
+> 未接线：尚未加入定时任务（默认手动或由运维调用），也未清理导出文件。
+

@@ -54,6 +54,56 @@ public class AuditEventService {
                 eventType);
     }
 
+    /**
+     * 查询审计事件（后台页面用）。
+     *
+     * <p>返回统一契约 `{items,page,size,total}`；时间范围按 UTC 日期闭区间前端传入。
+     */
+    public java.util.Map<String, Object> search(String eventType, String actor,
+                                               java.time.Instant from, java.time.Instant to,
+                                               int page, int size) {
+        int safeSize = Math.min(Math.max(size, 1), 100);
+        int offset = Math.max(page, 0) * safeSize;
+        String typeFilter = eventType == null || eventType.isBlank() ? null : eventType.trim();
+        String actorFilter = actor == null || actor.isBlank() ? null : actor.trim();
+
+        Long total = jdbcTemplate.queryForObject("""
+                SELECT COUNT(*) FROM audit_event
+                 WHERE (?::text IS NULL OR event_type = ?::text)
+                   AND (?::text IS NULL OR actor ILIKE '%' || ?::text || '%')
+                   AND (?::timestamptz IS NULL OR created_at >= ?::timestamptz)
+                   AND (?::timestamptz IS NULL OR created_at < ?::timestamptz)
+                """, Long.class, typeFilter, typeFilter, actorFilter, actorFilter,
+                ts(from), ts(from), ts(to), ts(to));
+
+        var items = jdbcTemplate.query("""
+                SELECT event_type, actor, resource, resource_id, detail, request_id, created_at
+                  FROM audit_event
+                 WHERE (?::text IS NULL OR event_type = ?::text)
+                   AND (?::text IS NULL OR actor ILIKE '%' || ?::text || '%')
+                   AND (?::timestamptz IS NULL OR created_at >= ?::timestamptz)
+                   AND (?::timestamptz IS NULL OR created_at < ?::timestamptz)
+                 ORDER BY created_at DESC
+                 LIMIT ? OFFSET ?
+                """, (rs, rowNum) -> new java.util.LinkedHashMap<>(java.util.Map.of(
+                "eventType", rs.getString("event_type"),
+                "actor", rs.getString("actor"),
+                "resource", rs.getString("resource"),
+                "resourceId", rs.getString("resource_id") == null ? "" : rs.getString("resource_id"),
+                "detail", rs.getString("detail") == null ? "" : rs.getString("detail"),
+                "requestId", rs.getString("request_id") == null ? "" : rs.getString("request_id"),
+                "createdAt", rs.getTimestamp("created_at").toInstant().toString())),
+                typeFilter, typeFilter, actorFilter, actorFilter, ts(from), ts(from), ts(to), ts(to),
+                safeSize, offset);
+
+        return java.util.Map.of("items", items, "page", Math.max(page, 0),
+                "size", safeSize, "total", total == null ? 0L : total);
+    }
+
+    private java.sql.Timestamp ts(java.time.Instant instant) {
+        return instant == null ? null : java.sql.Timestamp.from(instant);
+    }
+
     /** detail 列宽 1024：超长截断并保留尾部省略标记，而不是静默丢内容。 */
     private String truncate(String detail) {
         if (detail == null || detail.length() <= 1024) {

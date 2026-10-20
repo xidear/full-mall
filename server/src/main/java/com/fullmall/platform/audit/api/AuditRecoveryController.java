@@ -19,9 +19,28 @@ import java.util.Map;
 public class AuditRecoveryController {
 
     private final AuditTrail auditTrail;
+    private final com.fullmall.platform.audit.AuditEventService auditEvents;
 
-    public AuditRecoveryController(AuditTrail auditTrail) {
+    public AuditRecoveryController(AuditTrail auditTrail,
+                                   com.fullmall.platform.audit.AuditEventService auditEvents) {
         this.auditTrail = auditTrail;
+        this.auditEvents = auditEvents;
+    }
+
+    /** 操作审计查询（SEC-003）：按类型/操作人/时间范围。 */
+    @GetMapping("/events")
+    public java.util.Map<String, Object> events(
+            @org.springframework.web.bind.annotation.RequestParam(required = false) String eventType,
+            @org.springframework.web.bind.annotation.RequestParam(required = false) String actor,
+            @org.springframework.web.bind.annotation.RequestParam(required = false)
+            String from,
+            @org.springframework.web.bind.annotation.RequestParam(required = false) String to,
+            @org.springframework.web.bind.annotation.RequestParam(defaultValue = "0") int page,
+            @org.springframework.web.bind.annotation.RequestParam(defaultValue = "20") int size) {
+        return auditEvents.search(eventType, actor,
+                from == null || from.isBlank() ? null : java.time.Instant.parse(from),
+                to == null || to.isBlank() ? null : java.time.Instant.parse(to),
+                page, size);
     }
 
     @GetMapping("/pending")

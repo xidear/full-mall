@@ -52,6 +52,9 @@ class LogisticsTrackingServiceTest {
     @Autowired
     JdbcTemplate jdbc;
 
+    @Autowired
+    com.fullmall.setting.app.SystemSettingService settings;
+
     private UUID seedShippedOrder() {
         UUID orderId = UUID.randomUUID();
         jdbc.update("""
@@ -85,8 +88,27 @@ class LogisticsTrackingServiceTest {
     }
 
     @Test
+    void adminConfiguredKeyIsUsedAndMasked() {
+        setProvider("kuaidi100");
+        jdbc.update("""
+                INSERT INTO system_setting (setting_key, setting_value) VALUES ('logistics_key', 'demo-key-123')
+                ON CONFLICT (setting_key) DO UPDATE SET setting_value = EXCLUDED.setting_value
+                """);
+
+        // 后台读取只能看到掩码，不能回传明文
+        var admin = settings.adminSettings();
+        assertThat(admin.get("logistics_key")).isEqualTo("******");
+        // 内部取值才是明文
+        assertThat(settings.rawValue("logistics_key")).isEqualTo("demo-key-123");
+
+        setProvider("mock");
+    }
+
+    @Test
     void missingProductionConfigAlertsInternallyAndHidesDetailsFromCustomer() {
         setProvider("kuaidi100");
+        // 用例间共享库：清掉上一条用例可能写入的 AK / customer，保证"未配置"前提
+        jdbc.update("DELETE FROM system_setting WHERE setting_key IN ('logistics_key','logistics_customer')");
         jdbc.update("DELETE FROM risk_alert WHERE rule_code = 'LOGISTICS_PROVIDER_UNAVAILABLE'");
         UUID orderId = seedShippedOrder();
 
@@ -99,7 +121,8 @@ class LogisticsTrackingServiceTest {
                 "SELECT detail FROM risk_alert WHERE rule_code = 'LOGISTICS_PROVIDER_UNAVAILABLE'",
                 String.class);
         assertThat(details).isNotEmpty();
-        assertThat(details.get(0)).contains("api-key");
+        // 未配置 AK 时应明确提示"未配置物流服务商 AK"（内部可见，顾客不可见）
+        assertThat(details.get(0)).contains("AK");
 
         setProvider("mock");
     }

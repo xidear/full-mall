@@ -3436,3 +3436,34 @@ storefront 结算页需要真正的 OTP 流程：
 > `promotionPreviewAppliesFullReduction`），脚本却照常打印"added"，是 `grep` 才发现没插进去。
 > 现在流程改为：**每次补丁后必须 grep 命中数 ≥1 才算生效**。
 
+---
+
+## 2026-10-19：第三方服务凭据后台配置 + 演示强制 mock
+
+按需求：**服务商与 AK 在后台配置，拿到 AK 后填入即生效；演示环境无论配置什么都走 mock**。
+
+### 设置层
+
+| 能力 | 说明 |
+|---|---|
+| 新增配置键 | `sms_access_key` / `sms_secret_key` / `sms_sign_name` / `logistics_key` / `logistics_customer` / `map_provider` / `map_key` |
+| 脱敏 | `adminSettings()` 对密钥类字段只回显 `******`；`rawValue()` 才取明文（内部使用） |
+| 保存 | 前端回传 `******` 表示"不修改"，不会把掩码写进库 |
+
+### 物流适配
+
+- `LogisticsTrackingService`：AK 优先取后台 `logistics_key`，环境变量兜底；`app.mode=demo` 时**直接返回 mock**，
+  即使配了真实服务商也不发外网请求。
+- 新增 `Kuaidi100Query`：按官方规则构造请求与签名 `MD5(param+key+customer)` 并大写。
+
+| 验证 | 结果 |
+|---|---|
+| 后端测试 | **371 个，全部通过，0 跳过** |
+| 新增用例 | 后台读只看到掩码、`rawValue` 取明文；签名确定性/不同输入不同签名/参数必填；未配置 AK 时内部告警含 "AK" |
+
+### 仍未做（明确）
+
+- **真实 HTTP 调用未发起**：没有 AK 无法联调，代码在构造好请求后显式失败并写入告警，
+  不假装成功。拿到 AK 后只需补一段 `RestClient` 调用与响应解析。
+- 短信真实通道同理（目前仍是 mock sender）。
+

@@ -25,7 +25,17 @@ public class SystemSettingService {
             "site_name", "company_name", "icp_number", "public_security_record",
             "service_phone", "service_email", "site_status", "maintenance_message",
             "default_locale", "default_currency",
-            "storage_provider", "sms_provider", "payment_provider", "logistics_provider");
+            "storage_provider", "sms_provider", "payment_provider", "logistics_provider",
+            // 第三方服务的凭据（后台填写，读写时脱敏；演示模式不生效）
+            "sms_access_key", "sms_secret_key", "sms_sign_name",
+            "logistics_key", "logistics_customer", "map_provider", "map_key");
+
+    /** 敏感配置：读接口必须脱敏，写接口不得把掩码值写回库。 */
+    private static final Set<String> SECRET_KEYS = Set.of(
+            "sms_access_key", "sms_secret_key", "logistics_key", "map_key");
+
+    /** 掩码占位符：前端原样回传表示"不修改"。 */
+    public static final String SECRET_MASK = "******";
 
     public static final String SITE_STATUS_KEY = "site_status";
     public static final String MAINTENANCE_MESSAGE_KEY = "maintenance_message";
@@ -85,7 +95,22 @@ public class SystemSettingService {
     }
 
     public Map<String, String> adminSettings() {
-        return repository.findAll();
+        Map<String, String> values = new java.util.LinkedHashMap<>(repository.findAll());
+        for (String key : SECRET_KEYS) {
+            String value = values.get(key);
+            if (value != null && !value.isBlank()) {
+                values.put(key, SECRET_MASK);   // 已配置只回显掩码，不回传明文
+            }
+        }
+        return values;
+    }
+
+    /** 内部使用：取真实值（**不要**暴露给接口输出）。 */
+    public String rawValue(String key) {
+        if (!ALLOWED_KEYS.contains(key)) {
+            throw ApiException.badRequest("INVALID_SETTING_KEY", "不支持的配置项: " + key);
+        }
+        return repository.findAll().getOrDefault(key, "");
     }
 
     @Transactional
@@ -95,6 +120,9 @@ public class SystemSettingService {
                 throw ApiException.badRequest("INVALID_SETTING_KEY", "不支持的配置项: " + entry.getKey());
             }
             String value = entry.getValue() == null ? "" : entry.getValue().trim();
+            if (SECRET_KEYS.contains(entry.getKey()) && SECRET_MASK.equals(value)) {
+                continue;   // 前端未修改密钥：保留库中原值
+            }
             if (DEFAULT_LOCALE_KEY.equals(entry.getKey())
                     && !value.matches("^[a-z]{2,3}(-[A-Za-z0-9]{2,8})?$")) {
                 throw ApiException.badRequest("INVALID_DEFAULT_LOCALE",

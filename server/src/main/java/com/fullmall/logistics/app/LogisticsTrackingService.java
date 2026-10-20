@@ -39,14 +39,18 @@ public class LogisticsTrackingService {
     private final RiskAlertService riskAlerts;
     private final JdbcTemplate jdbcTemplate;
     private final String apiKey;
+    /** 演示模式：无论后台配置了什么服务商，一律用 mock（不产生外网调用）。 */
+    private final boolean demoForced;
 
     public LogisticsTrackingService(SystemSettingService settings, RiskAlertService riskAlerts,
                                     JdbcTemplate jdbcTemplate,
-                                    @Value("${app.logistics.api-key:}") String apiKey) {
+                                    @Value("${app.logistics.api-key:}") String apiKey,
+                                    @Value("${app.mode:dev}") String appMode) {
         this.settings = settings;
         this.riskAlerts = riskAlerts;
         this.jdbcTemplate = jdbcTemplate;
         this.apiKey = apiKey;
+        this.demoForced = "demo".equalsIgnoreCase(appMode);
     }
 
     public record Shipment(String carrierCode, String trackingNo) {
@@ -77,7 +81,12 @@ public class LogisticsTrackingService {
 
     @Transactional
     public List<TrackingEvent> track(Shipment shipment) {
-        String provider = settings.adminSettings().getOrDefault(PROVIDER_KEY, "mock").trim().toLowerCase();
+        if (demoForced) {
+            // 演示环境永远 mock：即便后台填了真实服务商与 AK，也不发外网请求
+            return mockEvents(shipment);
+        }
+        String provider = settings.rawValue(PROVIDER_KEY);
+        provider = provider == null || provider.isBlank() ? "mock" : provider.trim().toLowerCase();
         return switch (provider) {
             case "mock" -> mockEvents(shipment);
             case "kuaidi100" -> kuaidi100Events(shipment);
@@ -95,12 +104,24 @@ public class LogisticsTrackingService {
     }
 
     private List<TrackingEvent> kuaidi100Events(Shipment shipment) {
-        if (apiKey == null || apiKey.isBlank()) {
-            return unavailable("kuaidi100", shipment, "缺少 app.logistics.api-key 配置");
+        // AK 由后台填写（logistics_key），环境变量作为兜底
+        String customer = settings.rawValue("logistics_customer");
+        String key = settings.rawValue("logistics_key");
+        if (key == null || key.isBlank()) {
+            key = apiKey;
         }
-        // 真实对接需要快递100的签名与回调参数，本构建未接（无凭据无法验证），显式失败而非假装成功
+        if (key == null || key.isBlank()) {
+            return unavailable("kuaidi100", shipment, "未配置物流服务商 AK（后台「物流 Key」）");
+        }
+        if (customer == null || customer.isBlank()) {
+            return unavailable("kuaidi100", shipment, "未配置快递100 customer（后台「物流 Customer」）");
+        }
+        // 请求体构造已完成并可单测；真正的 HTTP 调用需要 AK 才能联调，这里显式失败而不是假装成功
+        Kuaidi100Query.Form form = Kuaidi100Query.build(customer, key,
+                shipment.carrierCode(), shipment.trackingNo());
         return unavailable("kuaidi100", shipment,
-                "kuaidi100 适配器尚未实现（缺少联调凭据，不能验证）");
+                "快递100 请求已构造（sign=" + form.sign().substring(0, 8) + "…），"
+                        + "但未配置联调环境，未发起网络调用");
     }
 
     /**

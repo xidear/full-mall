@@ -120,4 +120,19 @@ class NotificationRoutingTest {
 
         assertThat(rows).containsExactly("IN_APP", "SMS");
     }
+
+    @Test
+    void guestOrderGetsCreationNotification() {
+        String phone = "137" + String.format("%08d", Math.abs(UUID.randomUUID().hashCode() % 100_000_000));
+        UUID orderId = order(phone, null);
+
+        notifications.notifyOrderEvent(orderId, "ORDER_CREATED", "订单已创建", "内容",
+                List.of("IN_APP", "SMS"));
+
+        assertThat(jdbc.queryForList("""
+                SELECT channel FROM notification
+                 WHERE event_type = 'ORDER_CREATED' AND recipient_type = 'CUSTOMER'
+                   AND recipient_id = ? ORDER BY channel
+                """, String.class, phone)).containsExactly("IN_APP", "SMS");
+    }
 }

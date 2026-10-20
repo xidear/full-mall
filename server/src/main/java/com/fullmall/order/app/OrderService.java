@@ -313,11 +313,10 @@ public class OrderService {
                 ctx.placedByOperator());
         // 绑定会员（手机号唯一匹配时），后续"我的订单"按 member_id 查
         orderRepository.attachMemberByPhone(orderId, request.contact().phone());
-        UUID orderMemberId = orderRepository.memberIdOf(orderId);
-        if (orderMemberId != null) {
-            notificationService.notifyMember(orderMemberId.toString(), "ORDER_CREATED",
-                    "订单已创建", "订单 " + order.orderNo() + " 已创建，请尽快完成支付。");
-        }
+        // 通知走 notifyOrderEvent：会员订单落 MEMBER，未绑定会员（含门店代下单）落 CUSTOMER/手机号。
+        // 此前只通知会员，导致"未绑定会员的订单下单后零通知"。
+        notificationService.notifyOrderEvent(orderId, "ORDER_CREATED", "订单已创建",
+                "订单 " + order.orderNo() + " 已创建，请尽快完成支付。", List.of("IN_APP", "SMS"));
         promotionService.recordCheckout(promotionPricing, orderId, request.contact().phone());
         referralService.attachCheckout(orderId, request.contact().phone(), request.referrerId(), request.referralMode());
 

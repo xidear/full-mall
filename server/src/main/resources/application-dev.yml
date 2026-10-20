@@ -6,6 +6,11 @@ app:
     provider: mock
   logistics:
     provider: mock
+  member:
+    otp:
+      # 开发/演示环境回传验证码，便于本地与 E2E 走通"访客 OTP 下单"。
+      # 生产（application-prod.yml）不得开启：那等于把验证码公开。
+      return-code: true
 
 management:
   health:

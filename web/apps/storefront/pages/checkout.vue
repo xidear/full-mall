@@ -10,6 +10,10 @@ const stores = ref<Store[]>([])
 const selectedStoreId = ref('')
 const contactName = ref('演示用户')
 const contactPhone = ref('13800000000')
+const otpCode = ref('')
+const otpSending = ref(false)
+const devOtpCode = ref('')
+const memberToken = ref<string>(process.client ? (localStorage.getItem('fullmall.memberToken') ?? '') : '')
 const addressDetail = ref('上海市静安区演示路 1 号')
 const legal = ref<LegalDocument | null>(null)
 const legalAccepted = ref(false)
@@ -78,6 +82,48 @@ function requestLocation() {
   )
 }
 
+async function requestOtp() {
+  if (!contactPhone.value.trim()) {
+    errorMessage.value = '请先填写手机号'
+    return
+  }
+  otpSending.value = true
+  errorMessage.value = ''
+  try {
+    const issued = await $fetch<{ phone: string; debugCode?: string }>(
+      `${config.public.apiBase}/api/v1/member/auth/otp`,
+      { method: 'POST', body: { phone: contactPhone.value.trim() } })
+    // 开发/演示环境会回传验证码，直接填入，方便体验；生产不会返回
+    if (issued.debugCode) {
+      devOtpCode.value = issued.debugCode
+      otpCode.value = issued.debugCode
+    }
+    ElMessage.success('验证码已发送')
+  } catch (cause) {
+    errorMessage.value = cause instanceof Error ? cause.message : '获取验证码失败'
+  } finally {
+    otpSending.value = false
+  }
+}
+
+/** 访客下单：用手机号 + 验证码换取会员 token（订单会绑定该会员）。 */
+async function ensureMemberToken(): Promise<string> {
+  if (memberToken.value) {
+    return memberToken.value
+  }
+  if (!otpCode.value.trim()) {
+    throw new Error('请输入短信验证码')
+  }
+  const session = await $fetch<{ token: string }>(
+    `${config.public.apiBase}/api/v1/member/auth/verify`,
+    { method: 'POST', body: { phone: contactPhone.value.trim(), code: otpCode.value.trim() } })
+  memberToken.value = session.token
+  if (process.client) {
+    localStorage.setItem('fullmall.memberToken', session.token)
+  }
+  return session.token
+}
+
 async function submit() {
   errorMessage.value = ''
   if (!cart.value.length) {
@@ -113,9 +159,10 @@ async function submit() {
         method: 'CLICKWRAP'
       }
     })
+    const token = await ensureMemberToken()
     const order = await $fetch<Order>(`${config.public.apiBase}/api/v1/checkout`, {
       method: 'POST',
-      headers: { 'Idempotency-Key': idempotencyKey.value },
+      headers: { 'Idempotency-Key': idempotencyKey.value, Authorization: `Bearer ${token}` },
       body: {
         items: cart.value.map(line => ({ skuId: line.skuId, quantity: line.quantity })),
         fulfillmentMode: mode.value,
@@ -178,7 +225,17 @@ async function submit() {
         </div>
         <div class="field">
           <label>手机号</label>
-          <input v-model="contactPhone" type="tel">
+          <input v-model="contactPhone" type="tel" placeholder="请输入手机号">
+        </div>
+        <div class="field">
+          <label>短信验证码</label>
+          <div class="otp-row">
+            <input v-model="otpCode" type="text" placeholder="请输入验证码">
+            <button type="button" class="location-button" :disabled="otpSending" @click="requestOtp">
+              {{ otpSending ? '发送中…' : '获取验证码' }}
+            </button>
+          </div>
+          <span v-if="devOtpCode" class="muted">演示环境自动填入：{{ devOtpCode }}</span>
         </div>
       </div>
 

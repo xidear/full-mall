@@ -31,6 +31,9 @@ test('storefront can browse and create a pickup order', async ({ page }) => {
   await page.getByRole('link', { name: '去结算' }).click()
 
   await expect(page.getByRole('heading', { name: '结算' })).toBeVisible()
+  // 访客下单需先验证手机号：点「获取验证码」，演示环境会自动回填
+  await page.getByRole('button', { name: '获取验证码' }).click()
+  await expect(page.getByText('演示环境自动填入：')).toBeVisible({ timeout: 10_000 })
   await page.getByRole('button', { name: '门店自提' }).click()
   await page.locator('.field select').selectOption({ index: 0 })
   await page.getByRole('checkbox').check()

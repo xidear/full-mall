@@ -240,7 +240,7 @@ public class AfterSaleService {
         }
         long amount = afterSale.refundAmount().amount();
         if (amount > 0) {
-            paymentService.refund(afterSale.orderId(), amount);
+            paymentService.refund(afterSale.orderId(), amount, false);
             // 落行退款记录：让"退的是哪几件商品"可追溯，并供后续按比例回退使用
             lineRefunds.recordForAfterSale(afterSaleId);
         }

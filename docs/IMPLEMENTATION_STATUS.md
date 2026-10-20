@@ -3661,3 +3661,24 @@ storefront 结算页需要真正的 OTP 流程：
 > 测试踩坑：`fulfillment_type` 的值是 `WAREHOUSE_SHIP` 等，我按 `SHIP` 写导致枚举解析失败。
 > 这提醒：**枚举值必须以代码为准**，不能凭接口里的 `fulfillmentMode=SHIP`（那是另一套枚举）。
 
+---
+
+## 2026-10-19：退款按行分摊落库（A7 部分完成）
+
+- `PaymentService.refund(orderId, amount)` 默认写入行分摊；售后单路径传 `recordLineAllocation=false`
+  （它自己 `recordForAfterSale` 精确到商品与数量），**避免同一笔退款记两次**。
+- 新增 `LineRefundService.allocateAndRecord(...)`：`allocate` 只是**纯计算器**，不写库。
+
+| 验证 | 结果 |
+|---|---|
+| 后端测试 | **403 个，全部通过，0 跳过** |
+| 新增用例 | 直接退 4000 分 → `order_line_refund` 落 1 行、金额 4000 |
+
+### 我这次犯的错（值得记）
+
+第一版我只调了 `allocate(...)` 并把返回值丢掉——**看着像记账，实际一行都没写**。
+是"退 4000 应落 4000"的断言把它抓出来的。教训：**计算函数与持久化函数必须分开命名**，
+调用处只允许调带 `AndRecord` 的那个。
+
+> 仍未做（A7 剩余）：按行分摊结果回退**积分/佣金**的比例计算，目前只做记录与追溯。
+

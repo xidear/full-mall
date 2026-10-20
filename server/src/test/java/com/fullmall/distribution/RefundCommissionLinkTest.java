@@ -68,6 +68,12 @@ class RefundCommissionLinkTest {
                                     discount_amount, total_amount, contact_name, contact_phone, fulfillment_mode)
                 VALUES (?, ?, 'PAID', 'CNY', 10000, 0, 0, 10000, '测试', '13800000000', 'SHIP')
                 """, orderId, "T-" + orderId);
+        // 真实订单必有商品行：退款要按行分摊
+        jdbc.update("""
+                INSERT INTO order_line (id, order_id, sku_id, title_snapshot, sku_code_snapshot, quantity,
+                                        unit_price_amount, currency, fulfillment_type, line_type)
+                VALUES (?, ?, ?, '测试商品', 'T-SKU', 1, 10000, 'CNY', 'WAREHOUSE_SHIP', 'NORMAL')
+                """, UUID.randomUUID(), orderId, UUID.randomUUID());
         jdbc.update("""
                 INSERT INTO payment (id, order_id, provider, status, amount_amount, amount_currency)
                 VALUES (?, ?, 'MOCK', 'PAID', 10000, 'CNY')
@@ -107,5 +113,16 @@ class RefundCommissionLinkTest {
                 "SELECT frozen_until FROM distribution_commission WHERE id = ?",
                 java.sql.Timestamp.class, commissionId).toInstant();
         assertThat(after).isAfter(before);
+    }
+
+    @Test
+    void refundRecordsLineAllocationWithoutDoubleCounting() {
+        // 直接退款（非售后单）：应落行分摊，且合计等于退款金额
+        paymentService.refund(orderId, 4_000);
+
+        var sum = jdbc.queryForObject(
+                "SELECT COALESCE(SUM(amount_amount), 0) FROM order_line_refund WHERE order_id = ?",
+                Long.class, orderId);
+        assertThat(sum).isEqualTo(4_000);
     }
 }

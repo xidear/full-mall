@@ -194,6 +194,37 @@ public class LineRefundService {
      * <p>规则：按各行**剩余未退金额**占比分摊；**尾差分配给最后一个有剩余的行**，
      * 保证分摊之和**恰好等于**退款金额（不出现分币丢失或多出）。
      */
+    /**
+     * 计算并**落库**分摊（无售后单的退款用，例如拼团超时全额退）。
+     *
+     * <p>{@link #allocate} 是纯计算器；直接调用它不会写入任何记录——这一点曾经坑过一次
+     * （调用方以为已经记账，实际一行都没有）。
+     *
+     * <p>数量取该行**剩余可退数量**中的最小值，保证 `quantity > 0` 的约束成立。
+     */
+    @Transactional
+    public List<Refunded> allocateAndRecord(UUID orderId, long totalRefundAmount, String currency) {
+        List<Refunded> allocations = allocate(orderId, totalRefundAmount, currency);
+        List<Refunded> persisted = new ArrayList<>();
+        for (Refunded allocation : allocations) {
+            LineInfo line = lines(orderId).stream()
+                    .filter(candidate -> candidate.id().equals(allocation.orderLineId()))
+                    .findFirst()
+                    .orElseThrow(() -> new IllegalStateException("分摊行不存在: " + allocation.orderLineId()));
+            long refundedAmount = jdbcTemplate.queryForObject("""
+                    SELECT COALESCE(SUM(amount_amount), 0) FROM order_line_refund WHERE order_line_id = ?
+                    """, Long.class, line.id());
+            long lineTotal = Math.multiplyExact(line.unitPrice(), (long) line.quantity());
+            long leftAmount = Math.max(lineTotal - refundedAmount, 0);
+            int quantity = leftAmount > 0
+                    ? (int) Math.max(1, Math.round((double) line.quantity() * allocation.amount() / lineTotal))
+                    : 1;
+            persisted.add(record(orderId, line.id(), Math.min(quantity, line.quantity()),
+                    allocation.amount(), currency, "退款分摊"));
+        }
+        return persisted;
+    }
+
     public List<Refunded> allocate(UUID orderId, long totalRefundAmount, String currency) {
         if (totalRefundAmount <= 0) {
             throw ApiException.badRequest("INVALID_REFUND_AMOUNT", "退款金额必须大于 0");

@@ -31,6 +31,7 @@ public class PaymentService {
     private final com.fullmall.coupon.app.CouponService coupons;
     /** 部分退款积分回退策略：KEEP（默认，现状）或 PROPORTIONAL。 */
     private final String partialPointsMode;
+    private final com.fullmall.order.app.LineRefundService lineRefunds;
     private final com.fullmall.platform.config.ProductionReadinessChecker readiness;
     private final com.fullmall.platform.risk.RiskAlertService riskAlerts;
 
@@ -47,6 +48,7 @@ public class PaymentService {
                           com.fullmall.coupon.app.CouponService coupons,
                           @org.springframework.beans.factory.annotation.Value(
                                   "${app.refund.partial.points-mode:KEEP}") String partialPointsMode,
+                          com.fullmall.order.app.LineRefundService lineRefunds,
                           com.fullmall.platform.config.ProductionReadinessChecker readiness,
                           com.fullmall.platform.risk.RiskAlertService riskAlerts) {
         this.paymentRepository = paymentRepository;
@@ -66,6 +68,7 @@ public class PaymentService {
                     "app.refund.partial.points-mode 只能是 KEEP 或 PROPORTIONAL，实际=" + partialPointsMode);
         }
         this.partialPointsMode = mode;
+        this.lineRefunds = lineRefunds;
         this.readiness = readiness;
         this.riskAlerts = riskAlerts;
     }
@@ -119,6 +122,18 @@ public class PaymentService {
 
     @Transactional
     public Payment refund(UUID orderId, long amount) {
+        return refund(orderId, amount, true);
+    }
+
+    /**
+     * 退款。
+     *
+     * @param recordLineAllocation 是否按行分摊记录退款金额。售后单自己会调
+     *        `LineRefundService.recordForAfterSale`（精确到具体商品与数量），
+     *        此时必须传 false，否则同一笔退款会被记两次。
+     */
+    @Transactional
+    public Payment refund(UUID orderId, long amount, boolean recordLineAllocation) {
         if (!"mock".equalsIgnoreCase(configuredProvider)) {
             throw ApiException.badRequest("PAYMENT_PROVIDER_NOT_MOCK",
                     "当前开源构建只支持 Mock 退款；真实适配器需在正式构建中配置");
@@ -132,6 +147,10 @@ public class PaymentService {
         paymentRepository.update(refunded);
         paymentRepository.insertEvent(payment.id(), "PAYMENT_REFUNDED",
                 "{\"amount\":" + amount + "}");
+        if (recordLineAllocation) {
+            // 无售后单的退款（如拼团超时全额退）：按行分摊，保证"退了哪几件"可追溯
+            lineRefunds.allocateAndRecord(orderId, amount, payment.amount().currency());
+        }
         notifyMember(orderId, "ORDER_REFUNDED", "退款已受理", "退款 " + amount + " 分已受理，请留意到账。");
         applyCommissionPolicy(orderId, amount);
         analyticsService.record("payment_refunded", orderId, null, Map.of(

@@ -5,7 +5,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 
-import java.time.LocalDate;
 
 /**
  * 生日礼积分定时任务（默认每天 00:10 执行，cron 可在后台改）。
@@ -45,7 +44,7 @@ public class BirthdayGiftTask implements ScheduledJob {
 
     @Override
     public void run() {
-        var granted = service.grantForDate(LocalDate.now(BirthdayGiftService.BUSINESS_OFFSET));
+        var granted = service.grantToday();
         if (!granted.isEmpty()) {
             log.info("生日礼积分：本次发放 {} 人", granted.size());
         }

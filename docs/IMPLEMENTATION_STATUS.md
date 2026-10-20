@@ -3956,3 +3956,18 @@ storefront 结算页需要真正的 OTP 流程：
 - I6b（JaVers 快照查询）→ ⚠️（全仓仅 1 个 JPA 实体，价值有限）
 - I9（审计覆盖面）→ ⚠️：支付与退款仍未接入
 
+---
+
+## 2026-10-19：支付与退款接入操作审计（I9 核心部分）
+
+- `PaymentService.payMock` → `PAYMENT_SUCCEEDED`（actor=`customer:<手机号>`，detail 含金额与币种）。
+- `PaymentService.refund` → `PAYMENT_REFUNDED`（actor=`system:refund`，detail 含退款额）。
+
+| 验证 | 结果 |
+|---|---|
+| 后端测试 | **413 个，全部通过，0 跳过** |
+| 新增用例 | 退款后 `audit_event` 出现且仅 1 条 `PAYMENT_REFUNDED`，actor 与金额正确 |
+| 接口对齐 | 201 路由 / 19 调用 / 0 未匹配 |
+
+> 仍未接入：券核销、订单取消、售后审核（已在清单注明，不假装覆盖完整）。
+

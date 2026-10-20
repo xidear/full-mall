@@ -125,4 +125,16 @@ class RefundCommissionLinkTest {
                 Long.class, orderId);
         assertThat(sum).isEqualTo(4_000);
     }
+
+    @Test
+    void refundWritesAuditEvent() {
+        paymentService.refund(orderId, 1_000);
+
+        var events = jdbc.queryForList(
+                "SELECT actor, detail FROM audit_event WHERE event_type = 'PAYMENT_REFUNDED'"
+                        + " AND resource_id = ?", orderId.toString());
+        assertThat(events).hasSize(1);
+        assertThat(events.get(0).get("actor")).isEqualTo("system:refund");
+        assertThat(events.get(0).get("detail").toString()).contains("1000");
+    }
 }

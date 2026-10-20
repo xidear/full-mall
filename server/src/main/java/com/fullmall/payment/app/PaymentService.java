@@ -32,6 +32,7 @@ public class PaymentService {
     /** 部分退款积分回退策略：KEEP（默认，现状）或 PROPORTIONAL。 */
     private final String partialPointsMode;
     private final com.fullmall.order.app.LineRefundService lineRefunds;
+    private final com.fullmall.platform.audit.AuditEventService auditEvents;
     private final com.fullmall.platform.config.ProductionReadinessChecker readiness;
     private final com.fullmall.platform.risk.RiskAlertService riskAlerts;
 
@@ -49,6 +50,7 @@ public class PaymentService {
                           @org.springframework.beans.factory.annotation.Value(
                                   "${app.refund.partial.points-mode:KEEP}") String partialPointsMode,
                           com.fullmall.order.app.LineRefundService lineRefunds,
+                          com.fullmall.platform.audit.AuditEventService auditEvents,
                           com.fullmall.platform.config.ProductionReadinessChecker readiness,
                           com.fullmall.platform.risk.RiskAlertService riskAlerts) {
         this.paymentRepository = paymentRepository;
@@ -69,6 +71,7 @@ public class PaymentService {
         }
         this.partialPointsMode = mode;
         this.lineRefunds = lineRefunds;
+        this.auditEvents = auditEvents;
         this.readiness = readiness;
         this.riskAlerts = riskAlerts;
     }
@@ -153,6 +156,9 @@ public class PaymentService {
         }
         notifyMember(orderId, "ORDER_REFUNDED", "退款已受理", "退款 " + amount + " 分已受理，请留意到账。");
         applyCommissionPolicy(orderId, amount);
+        auditEvents.record(new com.fullmall.platform.audit.AuditEventService.AuditEvent(
+                "PAYMENT_REFUNDED", "system:refund", "order", orderId.toString(),
+                "退款 " + amount + " " + refunded.amount().currency(), null));
         analyticsService.record("payment_refunded", orderId, null, Map.of(
                 "provider", refunded.provider(),
                 "amount", amount,
@@ -189,6 +195,10 @@ public class PaymentService {
         referralService.settleOrder(orderId, paid.amount().amount(), paid.amount().currency());
         // 会员积分与成长值（MEM-002）：匿名订单不产生
         memberRewards.accrue(orderId, order.contactPhone(), paid.amount().amount());
+        auditEvents.record(new com.fullmall.platform.audit.AuditEventService.AuditEvent(
+                "PAYMENT_SUCCEEDED", "customer:" + order.contactPhone(), "order",
+                orderId.toString(), "金额 " + paid.amount().amount() + " " + paid.amount().currency(),
+                null));
         analyticsService.record("payment_succeeded", orderId, null, Map.of(
                 "provider", paid.provider(),
                 "amount", paid.amount().amount(),

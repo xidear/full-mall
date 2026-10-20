@@ -2517,3 +2517,33 @@ make verify-fast   # 跳过 E2E
 > 未做：定时触发（`app.maintenance.retention.enabled` 未实现），当前只能由运维调用接口；
 > 导出磁盘文件仍未清理。
 
+---
+
+## 2026-10-19：图形化定时任务（cron 存库，运行期可改）
+
+对标 CRMEB 的做法：定时任务不该写死在代码里。新增：
+
+- V52 `scheduled_task(code, name, cron, enabled, last_run_at, last_status, last_error, last_duration_ms, updated_at)`
+- `ScheduledJob` 接口：实现类只声明 `code/name/defaultCron/enabledByDefault` 与 `run()`；
+  **cron 与启停以数据库为准**，首次启动灌默认值（`ON CONFLICT DO NOTHING`，不会覆盖后台改动）。
+- `ScheduledTaskService`：用 `ThreadPoolTaskScheduler` 手动 `schedule(CronTrigger)`，
+  改 cron **立即生效**（不需要重启）；`runNow` 可手动触发并记录状态与耗时。
+- 接口：`GET /admin/v1/scheduled-tasks`（含 `nextRunAt`）、`PUT /{code}`（改 cron/启停）、`POST /{code}/run`。
+- 首个接入的任务：`maintenance.retention`（数据保留清理，默认**关闭**）。
+
+| 验证 | 结果 |
+|---|---|
+| 后端测试 | **322 个，全部通过，0 跳过** |
+| 新增测试 | 默认 cron 正确且可改（落库校验）、非法/空 cron 拒绝、未知任务拒绝、手动执行记录 SUCCESS 与耗时 |
+
+### 踩坑（两条都是真问题）
+
+1. `CronExpression.next(Instant)` 对含星期字段的 cron 抛 `UnsupportedTemporalTypeException`，
+   必须用 `ZonedDateTime` 作基准。
+2. 注册表在**未迁移数据库**的上下文（OpenAPI 的 H2 测试）启动即崩，导致 100+ 用例连锁失败。
+   已给注册表加 `app.scheduling.enabled` 条件（与 `SchedulingConfig` 同一开关），
+   控制器加 `@ConditionalOnBean`——**不加就会出现"能跑单测但不能启动"的假象**。
+
+> 未做：现有 7 个 `@Scheduled` 方法（订单超时、库存预留释放、拼团过期、导出 worker、佣金解冻等）
+> 仍在代码里写死 cron，尚未迁移到该注册表。迁移需逐个改造并补回归测试，单独排期。
+

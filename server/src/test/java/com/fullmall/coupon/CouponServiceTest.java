@@ -168,6 +168,21 @@ class CouponServiceTest {
     }
 
     @Test
+    void listTemplatesShowsIssuedCounts() {
+        UUID templateId = activeTemplate("CP-LIST", 5, 2);
+        coupons.claim(templateId, MEMBER);
+
+        var templates = coupons.listTemplates(20);
+
+        assertThat(templates).anySatisfy(view -> {
+            assertThat(view.code()).isEqualTo("CP-LIST");
+            assertThat(view.totalQuantity()).isEqualTo(5);
+            assertThat(view.issuedQuantity()).isEqualTo(1);
+            assertThat(view.status()).isEqualTo("ACTIVE");
+        });
+    }
+
+    @Test
     void expiredCouponShowsAsExpiredEvenWithoutScheduler() {
         UUID templateId = activeTemplate("CP-5", 10, 1);
         coupons.claim(templateId, MEMBER);

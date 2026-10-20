@@ -291,6 +291,24 @@ public class CouponService {
         return returned + expired;
     }
 
+    /** 后台：券模板列表（含已发/总量）。 */
+    public List<TemplateView> listTemplates(int limit) {
+        if (limit <= 0 || limit > 200) {
+            throw ApiException.badRequest("INVALID_LIMIT", "查询条数必须在 1..200，实际=" + limit);
+        }
+        return jdbcTemplate.query("""
+                SELECT id, code, title, type, value, min_order_amount, total_quantity,
+                       issued_quantity, per_member_limit, validity_days, status,
+                       scope, scope_ids
+                  FROM coupon_template ORDER BY created_at DESC LIMIT ?
+                """, (rs, rowNum) -> new TemplateView(
+                rs.getObject("id", UUID.class), rs.getString("code"), rs.getString("title"),
+                rs.getString("type"), rs.getLong("value"), rs.getLong("min_order_amount"),
+                rs.getInt("total_quantity"), rs.getInt("issued_quantity"),
+                rs.getInt("per_member_limit"), rs.getInt("validity_days"), rs.getString("status")),
+                limit);
+    }
+
     public List<Coupon> listMine(UUID memberId, String status, int limit) {
         if (limit <= 0 || limit > 100) {
             throw ApiException.badRequest("INVALID_LIMIT", "查询条数必须在 1..100，实际=" + limit);

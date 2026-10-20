@@ -487,7 +487,13 @@ export class ApiClient {
     if (response.status === 204) {
       return undefined as T
     }
-    return response.json() as Promise<T>
+    // 空响应体（例如 POST /activate 返回 200 但无内容）不能直接 json()，
+    // 否则会抛 "Unexpected end of JSON input"，让调用方误判为失败。
+    const text = await response.text()
+    if (text.trim() === '') {
+      return undefined as T
+    }
+    return JSON.parse(text) as T
   }
 }
 

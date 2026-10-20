@@ -33,6 +33,9 @@ test('admin creates a full-reduction rule through the form', async ({ page }) =>
   await expect(row).toBeVisible()
   await expect(row.getByText('草稿')).toBeVisible()
 
-  // 启停按钮存在（点击启用这一步尚未稳定验证，见 docs/IMPLEMENTATION_STATUS.md）
-  await expect(row.getByRole('button', { name: '启用' })).toBeVisible()
+  // 启用后状态变为进行中
+  await row.getByRole('button', { name: '启用' }).click()
+  await expect(page.getByText('规则已启用')).toBeVisible({ timeout: 5000 })
+  await expect(page.locator('.el-table__row', { hasText: code }).getByText('进行中'))
+    .toBeVisible({ timeout: 5000 })
 })

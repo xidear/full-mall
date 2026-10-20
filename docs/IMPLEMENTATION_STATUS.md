@@ -3161,3 +3161,25 @@ public record CheckoutContext(pointsToUse, couponId, otpCode, placedBy, placedBy
 
 顺带修了规则表状态显示（此前直接显示 `DRAFT` 而非「草稿」）。
 
+---
+
+## 2026-10-19：「启用」按钮点了没反应的真因——api 客户端解析空响应崩溃
+
+上一轮我记录「启用点击没有到达后端」。本轮用**请求日志实测**：请求**确实发出且返回 200**，
+所以问题不在 UI 绑定，而在客户端解析。
+
+真因：`ApiClient.request` 对 `200` 且**空响应体**直接 `response.json()`，
+抛 `Unexpected end of JSON input` → 走进 `catch` → 弹出"启用失败"。
+后端 `POST /rules/{id}/activate` 返回空体，正好命中这个坑。
+
+修复：先读 `text()`，为空则返回 `undefined`，否则 `JSON.parse`。
+
+| 验证 | 结果 |
+|---|---|
+| E2E（Chromium） | ✅ **通过**（创建 → 列表出现草稿 → 启用 → 状态变「进行中」，3.2s） |
+| 前端构建（5 应用，含类型检查） | ✅ |
+| 接口对齐 | 189 条路由 / 16 条调用 / 未匹配 **0** |
+
+> 这个缺陷影响**所有返回空体的接口**（启停类操作），不止促销规则。
+> 之前之所以没暴露，是因为多数页面调用的接口都会返回 JSON。
+

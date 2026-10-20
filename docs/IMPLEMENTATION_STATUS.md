@@ -2375,3 +2375,19 @@ make verify-fast   # 跳过 E2E
 > 已知限制（写入文档）：**按行分摊模型未实现**，因此部分退款无法按商品粒度回退积分/佣金。
 > 在实现前，含券/积分的订单不建议做部分退款。这属于"有意不做"，不是遗漏。
 
+---
+
+## 2026-10-19（PRO-006）：POS 收银接入促销引擎
+
+- `PosService.createSale` 现在用 `PromotionPreviewService.scopedRules("POS", ...)` + `PromotionEngine.chooseScoped`
+  计算促销优惠，写入 `pos_sale.promotion_discount`，应付随之减少。
+- 渠道隔离生效：`rules.channel=POS` 的规则才作用于收银台，线上规则不影响 POS。
+
+| 验证 | 结果 |
+|---|---|
+| 后端测试 | **303 个，全部通过，0 跳过** |
+| 新增用例 | `PostgresPosFlowTest#posAppliesPosChannelPromotion`：POS 满减 100 → 单价 1990 的销售单 `promotionDiscount=100`、`payable=1890` |
+
+> 说明：本轮先删除过一个独立测试文件（测试库里没有门店数据，无法独立建单），
+> 改为在已有的 POS 全流程测试中追加断言，复用其门店/库存/员工种子。
+

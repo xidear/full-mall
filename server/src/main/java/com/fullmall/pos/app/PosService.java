@@ -84,6 +84,7 @@ public class PosService {
     private final boolean requireManagerApproval;
     private final Map<String, PosPaymentProvider> providers;
     private final com.fullmall.platform.audit.AuditEventService auditEvents;
+    private final com.fullmall.promotion.app.PromotionPreviewService promotionPreviews;
 
     public PosService(PosRepository repository,
                       CatalogService catalogService,
@@ -94,7 +95,9 @@ public class PosService {
                       @org.springframework.beans.factory.annotation.Value("${app.pos.require-manager-approval:false}")
                       boolean requireManagerApproval,
                       List<PosPaymentProvider> paymentProviders,
-                      com.fullmall.platform.audit.AuditEventService auditEvents) {
+                      com.fullmall.platform.audit.AuditEventService auditEvents,
+                      com.fullmall.promotion.app.PromotionPreviewService promotionPreviews) {
+        this.promotionPreviews = promotionPreviews;
         this.repository = repository;
         this.auditEvents = auditEvents;
         this.catalogService = catalogService;
@@ -302,6 +305,17 @@ public class PosService {
             subtotal = Math.addExact(subtotal, item.sku().price().amount() * (long) item.quantity());
         }
 
+
+        // POS 渠道促销（PRO-006）：与线上规则隔离，rule.rules.channel=POS 才生效
+        java.util.Map<UUID, Long> subtotalsBySku = new java.util.LinkedHashMap<>();
+        for (ResolvedItem item : resolved) {
+            subtotalsBySku.merge(item.sku().id(),
+                    item.sku().price().amount() * item.quantity(), Long::sum);
+        }
+        long promotionDiscount = com.fullmall.promotion.app.PromotionEngine
+                .chooseScoped(promotionPreviews.scopedRules("POS", subtotalsBySku))
+                .discountAmount();
+
         UUID saleId = Ids.newId();
         String operator = request.cashierName() == null || request.cashierName().isBlank()
                 ? shift.cashierName()
@@ -314,11 +328,11 @@ public class PosService {
                 request.memberId(),
                 currency,
                 new Money(subtotal, currency),
+                new Money(promotionDiscount, currency),
                 Money.zero(currency),
                 Money.zero(currency),
                 Money.zero(currency),
-                Money.zero(currency),
-                new Money(subtotal, currency),
+                new Money(subtotal - promotionDiscount, currency),
                 Money.zero(currency),
                 Money.zero(currency),
                 PosSaleStatus.DRAFT,

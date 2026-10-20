@@ -173,6 +173,38 @@ class PostgresPosFlowTest {
         return response.getBody();
     }
 
+    @org.springframework.beans.factory.annotation.Autowired
+    org.springframework.jdbc.core.JdbcTemplate jdbc;
+
+    /**
+     * POS 渠道促销：`rules.channel=POS` 的满减必须算进 POS 销售单，
+     * 且线上规则不生效（渠道隔离）。
+     */
+    @Test
+    void posAppliesPosChannelPromotion() {
+        loginAsAdmin();
+        jdbc.update("""
+                INSERT INTO promotion (id, code, type, title, status, starts_at, ends_at, rules, priority)
+                VALUES (?, 'POS-FLOW-RULE', 'FULL_REDUCTION', 'POS 满减', 'ACTIVE',
+                        now() - interval '1 hour', now() + interval '1 day',
+                        '{"thresholdAmount":1,"value":100,"channel":"POS"}'::jsonb, 10)
+                """, UUID.randomUUID());
+
+        String cashier = "促销收银员" + UUID.randomUUID().toString().substring(0, 6);
+        JsonNode shift = post("/store/v1/pos/shifts", Map.of(
+                "storeId", STORE_ID, "cashierName", cashier,
+                "openingFloat", 20000, "currency", "CNY"), null);
+        String shiftId = shift.get("shift").get("id").asText();
+
+        JsonNode sale = post("/store/v1/pos/sales", Map.of(
+                "storeId", STORE_ID, "shiftId", shiftId, "cashierName", cashier,
+                "items", List.of(Map.of("skuId", SKU_ID, "quantity", 1))), UUID.randomUUID().toString());
+
+        assertEquals(100, sale.get("sale").get("promotionDiscount").get("amount").asInt());
+        // 单价 1990 - 促销 100 = 1890
+        assertEquals(1890, sale.get("sale").get("payable").get("amount").asInt());
+    }
+
     private JsonNode post(String path, Object body, String idempotencyKey) {
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_JSON);

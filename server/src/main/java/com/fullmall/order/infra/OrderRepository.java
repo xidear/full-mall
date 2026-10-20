@@ -83,6 +83,16 @@ public class OrderRepository {
                 rs.getTimestamp("created_at").toInstant()), memberId, limit);
     }
 
+    /** 记录下单来源与操作员。 */
+    public void updatePlacement(UUID orderId, String placedBy, String operator) {
+        int updated = jdbcTemplate.update("""
+                UPDATE orders SET placed_by = ?, placed_by_operator = ? WHERE id = ?
+                """, placedBy, operator, orderId);
+        if (updated != 1) {
+            throw new IllegalStateException("下单来源更新失败：" + orderId);
+        }
+    }
+
     /** 按手机号查会员（手机号唯一时）；用于下单过程中取券归属。 */
     public UUID findMemberIdByPhone(String phone) {
         if (phone == null || phone.isBlank()) {

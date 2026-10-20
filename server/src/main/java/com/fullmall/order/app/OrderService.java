@@ -294,6 +294,10 @@ public class OrderService {
                 Instant.now(),
                 List.of());
         orderRepository.insertOrder(order);
+        // 记录下单来源与操作员（员工代下单必须可追溯）
+        orderRepository.updatePlacement(orderId,
+                request.placedBy() == null ? "CUSTOMER" : request.placedBy().trim().toUpperCase(),
+                request.placedByOperator());
         // 绑定会员（手机号唯一匹配时），后续"我的订单"按 member_id 查
         orderRepository.attachMemberByPhone(orderId, request.contact().phone());
         UUID orderMemberId = orderRepository.memberIdOf(orderId);
@@ -375,6 +379,13 @@ public class OrderService {
         if (request.contact() == null || request.contact().phone() == null) {
             return; // 由既有参数校验负责报错
         }
+        if (isStaffPlaced(request)) {
+            // 员工代下单（门店面对面/预定）：无法给顾客发验证码，改为**记录操作员**保证可追溯
+            if (request.placedByOperator() == null || request.placedByOperator().isBlank()) {
+                throw ApiException.badRequest("OPERATOR_REQUIRED", "员工代下单必须记录操作员");
+            }
+            return;
+        }
         String phone = request.contact().phone().trim();
         if (orderRepository.findMemberIdByPhone(phone) != null) {
             return; // 已是会员手机号，可直接下单（登录态另行校验）
@@ -385,6 +396,12 @@ public class OrderService {
         }
         // 校验通过会自动创建会员，下单后由 attachMemberByPhone 绑定
         memberAuth.verifyOtp(phone, request.otpCode());
+    }
+
+    private boolean isStaffPlaced(CheckoutRequest request) {
+        return request.placedBy() != null
+                && ("CASHIER".equalsIgnoreCase(request.placedBy())
+                    || "ADMIN".equalsIgnoreCase(request.placedBy()));
     }
 
     /** 订单归属会员（游客订单返回 null）。 */

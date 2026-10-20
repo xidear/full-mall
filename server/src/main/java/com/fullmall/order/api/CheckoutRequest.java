@@ -26,7 +26,11 @@ public record CheckoutRequest(
         @jakarta.validation.constraints.Min(0) Long pointsToUse,
         UUID couponId,
         /** 访客下单必须提供手机验证码（已登录会员可省略）。 */
-        String otpCode
+        String otpCode,
+        /** 下单来源：CUSTOMER（默认）/ CASHIER / ADMIN。 */
+        String placedBy,
+        /** 员工代下单时的操作员（必填）。 */
+        String placedByOperator
 ) {
 
     public record Item(

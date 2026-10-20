@@ -40,7 +40,7 @@ public class CartCheckoutController {
     }
 
     public record Body(UUID addressId, String fulfillmentMode, UUID storeId, Long pointsToUse,
-                       UUID couponId, String otpCode) {
+                       UUID couponId, String otpCode, String placedBy, String placedByOperator) {
     }
 
     @PostMapping("/checkout")
@@ -72,7 +72,9 @@ public class CartCheckoutController {
                 null, null, null,
                 body.pointsToUse(),
                 body.couponId(),
-                body.otpCode());
+                body.otpCode(),
+                body.placedBy(),
+                body.placedByOperator());
 
         var order = orders.checkout(request, idempotencyKey);
         carts.clear(owner);

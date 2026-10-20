@@ -119,7 +119,7 @@ class CouponCheckoutTest {
                 null,
                 new CheckoutRequest.Contact("券结算用户", phone, null),
                 new CheckoutRequest.Address("上海", "上海", "静安", "南京西路 9 号", "200040"),
-                List.of(), null, null, null, null, couponId, null);
+                List.of(), null, null, null, null, couponId, null, null, null);
     }
 
     @Test

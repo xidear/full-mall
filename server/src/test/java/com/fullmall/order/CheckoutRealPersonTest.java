@@ -97,7 +97,7 @@ class CheckoutRealPersonTest {
                 null,
                 new CheckoutRequest.Contact("真人用户", phone, null),
                 new CheckoutRequest.Address("上海", "上海", "静安", "南京西路 1 号", "200040"),
-                List.of(), null, null, null, null, null, otpCode);
+                List.of(), null, null, null, null, null, otpCode, null, null);
     }
 
     @Test
@@ -121,6 +121,42 @@ class CheckoutRealPersonTest {
         assertThat(memberId).isNotNull();
         assertThat(jdbc.queryForObject(
                 "SELECT COUNT(*) FROM member WHERE phone = ?", Integer.class, phone)).isEqualTo(1);
+    }
+
+    @Test
+    void staffPlacementSkipsOtpButRecordsOperator() {
+        var staffRequest = new CheckoutRequest(
+                List.of(new CheckoutRequest.Item(SKU, 1)),
+                FulfillmentMode.SHIP,
+                null,
+                new CheckoutRequest.Contact("到店顾客", phone, null),
+                new CheckoutRequest.Address("上海", "上海", "静安", "南京西路 2 号", "200040"),
+                List.of(), null, null, null, null, null, null,
+                "CASHIER", "收银员张三");
+
+        // 没有 OTP，但因为是员工代下单，允许成单
+        var order = orders.checkout(staffRequest, null);
+
+        assertThat(jdbc.queryForMap(
+                "SELECT placed_by, placed_by_operator FROM orders WHERE id = ?", order.id()))
+                .containsEntry("placed_by", "CASHIER")
+                .containsEntry("placed_by_operator", "收银员张三");
+    }
+
+    @Test
+    void staffPlacementRequiresOperator() {
+        var staffRequest = new CheckoutRequest(
+                List.of(new CheckoutRequest.Item(SKU, 1)),
+                FulfillmentMode.SHIP,
+                null,
+                new CheckoutRequest.Contact("到店顾客", phone, null),
+                new CheckoutRequest.Address("上海", "上海", "静安", "南京西路 2 号", "200040"),
+                List.of(), null, null, null, null, null, null,
+                "CASHIER", null);
+
+        assertThatThrownBy(() -> orders.checkout(staffRequest, null))
+                .isInstanceOf(com.fullmall.platform.error.ApiException.class)
+                .hasMessageContaining("操作员");
     }
 
     @Test

@@ -117,22 +117,33 @@ public class ReferralService {
                 ? java.time.Instant.now().plus(java.time.Duration.ofDays(config.freezeDays()))
                 : null;
 
+        // 出款通道按身份决定：员工 → 工资/绩效（默认不进钱包），会员 → 钱包
+        String channel = config.staffPayout();
+
         long level1 = DistributionConfig.commission(config, 1, orderAmount);
         if (level1 > 0) {
             repository.insertCommission(orderId, promoterId, "STAFF", 1,
                     config.level1().mode().name(), config.level1().value(),
-                    orderAmount, level1, currency, frozenUntil);
+                    orderAmount, level1, currency, frozenUntil, channel);
         }
 
-        if (config.level2Enabled() && config.level2().value() > 0) {
+        // 员工二级（如店长带队）默认关闭：员工的上级激励走组织绩效，不走用户分销链
+        boolean staffChain = "STAFF".equals(promoterTypeOf(promoterId));
+        if (config.level2Enabled() && config.level2().value() > 0
+                && (!staffChain || config.staffLevel2Enabled())) {
             UUID upline = repository.findUpline("STAFF", promoterId);
             long level2 = DistributionConfig.commission(config, 2, orderAmount);
             if (upline != null && level2 > 0) {
                 repository.insertCommission(orderId, upline, "STAFF", 2,
                         config.level2().mode().name(), config.level2().value(),
-                        orderAmount, level2, currency, frozenUntil);
+                        orderAmount, level2, currency, frozenUntil, channel);
             }
         }
+    }
+
+    /** 当前推广员只有员工主体；会员主体接入后按 id 来源区分。 */
+    private String promoterTypeOf(UUID promoterId) {
+        return "STAFF";
     }
 
     public List<CommissionView> listCommissions(UUID promoterId, String status) {

@@ -141,6 +141,7 @@ public class WithdrawalService {
         List<UUID> commissions = jdbcTemplate.query("""
                 SELECT id FROM distribution_commission
                  WHERE promoter_staff_id = ? AND status = 'AVAILABLE'
+                   AND payee_channel = 'WALLET'
                    AND commission_amount > consumed_amount
                  ORDER BY available_at, created_at
                  FOR UPDATE
@@ -205,6 +206,7 @@ public class WithdrawalService {
                 SELECT COALESCE(SUM(commission_amount - consumed_amount), 0)
                   FROM distribution_commission
                  WHERE promoter_staff_id = ? AND status = 'AVAILABLE'
+                   AND payee_channel = 'WALLET'   -- 员工佣金走工资，不进可提现余额
                 """, Long.class, promoterId);
         Long pending = jdbcTemplate.queryForObject("""
                 SELECT COALESCE(SUM(amount_amount), 0) FROM withdrawal

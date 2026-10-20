@@ -113,16 +113,17 @@ public class DistributionRepository {
     public void insertCommission(UUID orderId, UUID promoterId, String promoterType, int level,
                                  String rateMode, long rateValue,
                                  long orderAmount, long commission, String currency,
-                                 java.time.Instant frozenUntil) {
+                                 java.time.Instant frozenUntil, String payeeChannel) {
         jdbcTemplate.update("""
                 INSERT INTO distribution_commission (id, order_id, promoter_staff_id, order_amount,
                                                      commission_amount, currency, status, frozen_until,
-                                                     level, rate_mode, rate_value, promoter_type)
-                VALUES (?, ?, ?, ?, ?, ?, 'FROZEN', ?, ?, ?, ?, ?)
+                                                     level, rate_mode, rate_value, promoter_type,
+                                                     payee_channel)
+                VALUES (?, ?, ?, ?, ?, ?, 'FROZEN', ?, ?, ?, ?, ?, ?)
                 ON CONFLICT (order_id, promoter_staff_id, level) DO NOTHING
                 """, UUID.randomUUID(), orderId, promoterId, orderAmount, commission, currency,
                 frozenUntil == null ? null : java.sql.Timestamp.from(frozenUntil),
-                level, rateMode, rateValue, promoterType);
+                level, rateMode, rateValue, promoterType, payeeChannel);
     }
 
     public List<CommissionView> listCommissions(UUID promoterId, String status) {

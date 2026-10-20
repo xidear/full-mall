@@ -48,6 +48,9 @@ class ReferralBindingPolicyTest {
     @Autowired
     JdbcTemplate jdbc;
 
+    @Autowired
+    com.fullmall.distribution.app.WithdrawalService withdrawals;
+
     private void setting(String key, String value) {
         jdbc.update("INSERT INTO system_setting (setting_key, setting_value) VALUES (?, ?)"
                 + " ON CONFLICT (setting_key) DO UPDATE SET setting_value = EXCLUDED.setting_value", key, value);
@@ -121,6 +124,8 @@ class ReferralBindingPolicyTest {
         setting("distribution.bind-timing", "CART");
         setting("distribution.level1-value", "5");
         setting("distribution.level2-value", "2");
+        // 员工二级（店长带队）默认关闭，需显式开启
+        setting("distribution.staff-level2-enabled", "true");
         String phone = "135" + UUID.randomUUID().toString().substring(0, 8).replaceAll("[^0-9]", "1");
         UUID promoter = UUID.randomUUID();
         UUID upline = UUID.randomUUID();
@@ -139,5 +144,28 @@ class ReferralBindingPolicyTest {
         assertThat(((Number) rows.get(0).get("commission_amount")).longValue()).isEqualTo(500);
         assertThat(rows.get(1).get("promoter_staff_id")).isEqualTo(upline);
         assertThat(((Number) rows.get(1).get("commission_amount")).longValue()).isEqualTo(200);
+    }
+
+    @Test
+    void staffCommissionGoesToPayrollAndIsNotWithdrawable() {
+        setting("distribution.bind-mode", "PERMANENT");
+        setting("distribution.bind-timing", "CART");
+        String phone = "134" + UUID.randomUUID().toString().substring(0, 8).replaceAll("[^0-9]", "1");
+        UUID promoter = UUID.randomUUID();
+
+        UUID orderId = order(phone);
+        referrals.attachCheckout(orderId, phone, promoter, "ORDER");
+        referrals.settleOrder(orderId, 10_000, "CNY");
+
+        var row = jdbc.queryForMap("""
+                SELECT payee_channel, level FROM distribution_commission WHERE order_id = ?
+                """, orderId);
+        assertThat(row.get("payee_channel")).isEqualTo("PAYROLL");   // 员工走工资，不进钱包
+        // 员工二级默认关闭：只有一条一级佣金
+        assertThat(jdbc.queryForObject(
+                "SELECT COUNT(*) FROM distribution_commission WHERE order_id = ?",
+                Integer.class, orderId)).isEqualTo(1);
+
+        assertThat(withdrawals.availableForWithdrawal(promoter)).isZero();  // 不可提现
     }
 }

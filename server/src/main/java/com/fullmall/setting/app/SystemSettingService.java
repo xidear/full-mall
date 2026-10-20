@@ -34,7 +34,8 @@ public class SystemSettingService {
             "distribution.level2-enabled", "distribution.level2-mode", "distribution.level2-value",
             "distribution.bind-mode", "distribution.bind-timing",
             "distribution.freeze-policy", "distribution.after-sale-window-days",
-            "distribution.min-withdrawal", "distribution.payout-methods");
+            "distribution.min-withdrawal", "distribution.payout-methods",
+            "distribution.staff-payout", "distribution.staff-level2-enabled");
 
     /** 敏感配置：读接口必须脱敏，写接口不得把掩码值写回库。 */
     private static final Set<String> SECRET_KEYS = Set.of(

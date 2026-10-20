@@ -24,7 +24,8 @@ public class DistributionConfig {
 
     public record Snapshot(LevelRate level1, LevelRate level2, boolean level2Enabled,
                            long minWithdrawal, List<String> payoutMethods, String freezePolicy,
-                           int freezeDays, String bindMode, String bindTiming) {
+                           int freezeDays, String bindMode, String bindTiming,
+                           String staffPayout, boolean staffLevel2Enabled) {
     }
 
     private final SystemSettingService settings;
@@ -71,8 +72,16 @@ public class DistributionConfig {
                     "绑定时机只能是 REGISTER / CART / VISIT，实际=" + bindTiming);
         }
 
+        // 员工出款通道：PAYROLL=进工资/绩效（默认），WALLET=也进钱包（仅特殊场景）
+        String staffPayout = settingOrDefault("distribution.staff-payout", "PAYROLL").toUpperCase(Locale.ROOT);
+        if (!List.of("PAYROLL", "WALLET").contains(staffPayout)) {
+            throw ApiException.conflict("DISTRIBUTION_INVALID_STAFF_PAYOUT",
+                    "员工出款通道只能是 PAYROLL 或 WALLET，实际=" + staffPayout);
+        }
+        boolean staffLevel2 = bool("distribution.staff-level2-enabled", false);
+
         return new Snapshot(l1, l2, level2Enabled, minWithdrawal, methods, freezePolicy, freezeDays,
-                bindMode, bindTiming);
+                bindMode, bindTiming, staffPayout, staffLevel2);
     }
 
     private LevelRate readRate(int level, String modeKey, String valueKey) {

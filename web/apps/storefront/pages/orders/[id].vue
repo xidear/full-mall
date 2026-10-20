@@ -32,6 +32,25 @@ if (error.value || !order.value) {
   throw createError({ statusCode: 404, statusMessage: '订单不存在' })
 }
 
+interface TrackingEvent { at: string; status: string; location: string }
+const hasShipped = computed(() => (fulfillments.value ?? []).some(item => item.trackingNo))
+const { data: tracking, pending: trackingLoading, error: trackingError } =
+  await useAsyncData<TrackingEvent[]>(`tracking-${route.params.id}`, () =>
+    $fetch<TrackingEvent[]>(`${base}/api/v1/orders/${route.params.id}/tracking`, {
+      headers: authHeaders
+    }), { immediate: false })
+
+async function loadTracking() {
+  if (!hasShipped.value) {
+    return
+  }
+  try {
+    await tracking.refresh()
+  } catch {
+    // 错误由 trackingError 呈现，页面其它部分继续显示
+  }
+}
+
 const { data: afterSales, refresh: refreshAfterSales } = await useFetch<AfterSale[]>(
   `${base}/api/v1/orders/${route.params.id}/after-sales`,
   { query: { phone: order.value.contactPhone } }
@@ -129,8 +148,25 @@ async function submitAfterSale() {
         <p v-if="fulfillment.pickupCode">
           提货码：<strong class="pickup-code">{{ fulfillment.pickupCode }}</strong>
         </p>
-        <p v-if="fulfillment.trackingNo">物流单号：{{ fulfillment.trackingNo }}</p>
+        <p v-if="fulfillment.trackingNo">
+          物流单号：{{ fulfillment.trackingNo }}
+          <button type="button" class="link-button" :disabled="trackingLoading" @click="loadTracking">
+            {{ trackingLoading ? '查询中…' : '查看物流轨迹' }}
+          </button>
+        </p>
       </div>
+    </div>
+
+    <div v-if="tracking?.length || trackingError" class="panel">
+      <h2>物流轨迹</h2>
+      <p v-if="trackingError" class="form-error">物流信息暂时不可用，请稍后再试。</p>
+      <ul v-else class="tracking-list">
+        <li v-for="(event, index) in tracking" :key="index">
+          <span class="tracking-time">{{ new Date(event.at).toLocaleString('zh-CN') }}</span>
+          <strong>{{ event.status }}</strong>
+          <span class="muted">{{ event.location }}</span>
+        </li>
+      </ul>
     </div>
 
     <div v-if="canApply" class="panel after-sale-form">
@@ -249,5 +285,35 @@ async function submitAfterSale() {
 
 .after-sale-record:first-of-type {
   border-top: 0;
+}
+</style>
+
+<style scoped>
+.link-button {
+  margin-left: 8px;
+  padding: 0;
+  border: none;
+  background: none;
+  color: #2563eb;
+  cursor: pointer;
+}
+
+.tracking-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 8px;
+}
+
+.tracking-list li {
+  display: grid;
+  grid-template-columns: 160px 120px 1fr;
+  gap: 8px;
+  font-size: 14px;
+}
+
+.tracking-time {
+  color: #6b7280;
 }
 </style>

@@ -25,10 +25,11 @@ public class TrackingController {
     public List<LogisticsTrackingService.TrackingEvent> track(
             @PathVariable UUID orderId,
             @RequestParam(required = false) String phone,
+            @RequestHeader(value = "X-Order-Token", required = false) String orderToken,
             Authentication authentication) {
         UUID memberId = authentication == null || authentication.getName() == null
                 ? null : UUID.fromString(authentication.getName());
-        ownership.requireAccess(orderId, memberId, phone);
+        ownership.requireAccess(orderId, memberId, phone, orderToken);
         return tracking.trackOrder(orderId);
     }
 }

@@ -103,7 +103,7 @@ public class AfterSaleService {
             repository.insertLine(id, item.orderLineId(), line.skuId(), item.quantity());
         }
         repository.insertEvent(id, "REQUESTED", request.reason().trim(), "顾客");
-        notifyMember(orderId, "AFTER_SALE_CREATED", "售后申请已提交",
+        notifyOrder(orderId, "AFTER_SALE_CREATED", "售后申请已提交",
                 "售后单 " + afterSaleNo + " 已提交，我们会尽快处理。");
         return repository.find(id);
     }
@@ -123,12 +123,49 @@ public class AfterSaleService {
         return repository.listByOrder(orderId, phone.trim());
     }
 
-    /** 给订单归属会员写站内消息（游客订单不通知）。 */
-    private void notifyMember(UUID orderId, String eventType, String title, String content) {
-        UUID memberId = orderService.memberIdOf(orderId);
-        if (memberId != null) {
-            notifications.notifyMember(memberId.toString(), eventType, title, content);
+
+    /**
+     * 换货发货：记录换货商品的承运商与运单号，状态推进到 `EXCHANGE_SHIPPED`，并通知顾客。
+     *
+     * <p>前置：售后类型必须是 `EXCHANGE`，状态必须是 `RECEIVED`（已收到顾客寄回的商品）。
+     * 承运商与运单号必填。
+     *
+     * <p>已知限制：本轮只记录换货物流并通知；**换货商品的库存出库**尚未接入履约模块，
+     * 因此不会生成库存流水。接入前换货不应被视为已完成（状态停在 `EXCHANGE_SHIPPED`）。
+     */
+    @Transactional
+    public AfterSaleView shipExchange(UUID afterSaleId, String carrierCode, String trackingNo) {
+        if (carrierCode == null || carrierCode.isBlank()) {
+            throw ApiException.badRequest("CARRIER_REQUIRED", "必须填写承运商");
         }
+        if (trackingNo == null || trackingNo.isBlank()) {
+            throw ApiException.badRequest("TRACKING_NO_REQUIRED", "必须填写运单号");
+        }
+        AfterSaleView afterSale = require(afterSaleId);
+        if (!"EXCHANGE".equals(afterSale.type())) {
+            throw ApiException.conflict("AFTER_SALE_NOT_EXCHANGE",
+                    "只有换货售后可以发换货商品，当前类型=" + afterSale.type());
+        }
+        if (!"RECEIVED".equals(afterSale.status())) {
+            throw ApiException.conflict("AFTER_SALE_NOT_RECEIVED",
+                    "需先收到顾客寄回的商品才能发出换货，当前状态=" + afterSale.status());
+        }
+        repository.markExchangeShipped(afterSaleId, carrierCode.trim(), trackingNo.trim());
+        repository.insertEvent(afterSaleId, "EXCHANGE_SHIPPED",
+                "换货已发出，承运商 " + carrierCode.trim() + "，运单号 " + trackingNo.trim(), "system");
+        notifyOrder(afterSale.orderId(), "AFTER_SALE_EXCHANGE_SHIPPED", "换货商品已发出",
+                "您的换货商品已发出，承运商 " + carrierCode.trim() + "，运单号 " + trackingNo.trim() + "。");
+        return require(afterSaleId);
+    }
+
+    /**
+     * 售后通知：走 `notifyOrderEvent`，它会按订单归属自动分流——
+     * 会员订单写 `MEMBER/<id>`，游客订单写 `CUSTOMER/<手机号>`。
+     *
+     * <p>此前只通知会员，游客订单的售后消息**一条都收不到**（真缺口，已修）。
+     */
+    private void notifyOrder(UUID orderId, String eventType, String title, String content) {
+        notifications.notifyOrderEvent(orderId, eventType, title, content, List.of("IN_APP"));
     }
 
     @Transactional
@@ -139,7 +176,7 @@ public class AfterSaleService {
         }
         repository.approve(afterSaleId, request.adminNote());
         repository.insertEvent(afterSaleId, "APPROVED", request.adminNote(), operator);
-        notifyMember(afterSale.orderId(), "AFTER_SALE_APPROVED", "售后已通过审核",
+        notifyOrder(afterSale.orderId(), "AFTER_SALE_APPROVED", "售后已通过审核",
                 "售后单 " + afterSale.afterSaleNo() + " 已通过审核，请按提示寄回商品。");
         return require(afterSaleId);
     }
@@ -194,7 +231,7 @@ public class AfterSaleService {
         repository.markRefunded(afterSaleId);
         repository.insertEvent(afterSaleId, "REFUNDED",
                 amount > 0 ? "原路退款 " + amount + " 分" : "换货完成，无退款", operator);
-        notifyMember(afterSale.orderId(), "AFTER_SALE_REFUNDED", "售后已退款",
+        notifyOrder(afterSale.orderId(), "AFTER_SALE_REFUNDED", "售后已退款",
                 amount > 0 ? "退款 " + amount + " 分已原路退回，请留意到账。" : "换货已完成。");
         if (amount > 0) {
             Order order = orderService.getOrder(afterSale.orderId());

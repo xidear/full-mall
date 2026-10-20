@@ -50,6 +50,16 @@ public class AdminAfterSaleController {
         return afterSaleService.receive(afterSaleId, request, "运营后台");
     }
 
+    /** 换货发货：记录承运商与运单号并通知顾客。 */
+    @PostMapping("/{afterSaleId}/exchange-ship")
+    public AfterSaleDtos.AfterSaleView shipExchange(
+            @PathVariable java.util.UUID afterSaleId,
+            @org.springframework.web.bind.annotation.RequestBody AfterSaleDtos.ExchangeShipRequest request,
+            org.springframework.security.core.Authentication authentication) {
+        var view = afterSaleService.shipExchange(afterSaleId, request.carrierCode(), request.trackingNo());
+        return view;
+    }
+
     @PostMapping("/{afterSaleId}/refund")
     public AfterSaleView refund(@PathVariable UUID afterSaleId) {
         return afterSaleService.refund(afterSaleId, "运营后台");

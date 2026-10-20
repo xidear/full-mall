@@ -39,6 +39,19 @@ public class AfterSaleRepository {
                 """, UUID.randomUUID(), afterSaleId, orderLineId, skuId, quantity);
     }
 
+    /** 记录换货发货信息并推进状态。 */
+    public void markExchangeShipped(UUID afterSaleId, String carrierCode, String trackingNo) {
+        int updated = jdbcTemplate.update("""
+                UPDATE after_sale
+                   SET exchange_carrier_code = ?, exchange_tracking_no = ?,
+                       exchange_shipped_at = now(), status = 'EXCHANGE_SHIPPED'
+                 WHERE id = ? AND status = 'RECEIVED'
+                """, carrierCode, trackingNo, afterSaleId);
+        if (updated != 1) {
+            throw new IllegalStateException("换货发货状态更新失败：" + afterSaleId);
+        }
+    }
+
     public void insertEvent(UUID afterSaleId, String eventType, String note, String operatorName) {
         jdbcTemplate.update("""
                 INSERT INTO after_sale_event (id, after_sale_id, event_type, note, operator_name)

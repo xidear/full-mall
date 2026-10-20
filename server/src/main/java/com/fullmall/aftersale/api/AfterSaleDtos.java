@@ -46,6 +46,11 @@ public final class AfterSaleDtos {
     ) {
     }
 
+    public record ExchangeShipRequest(
+            @jakarta.validation.constraints.NotBlank String carrierCode,
+            @jakarta.validation.constraints.NotBlank String trackingNo) {
+    }
+
     public record ApproveAfterSaleRequest(String adminNote) {
     }
 

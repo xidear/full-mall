@@ -2759,3 +2759,27 @@ make verify-fast   # 跳过 E2E
 
 > 现在顾客、门店、后台三条路径各走各的接口，权限模型不再靠"手机号绕过"。
 
+---
+
+## 2026-10-19：换货发货 + 修掉"游客售后收不到通知"
+
+### 换货发货
+
+- V53：`after_sale` 增加 `exchange_carrier_code` / `exchange_tracking_no` / `exchange_shipped_at`。
+- `AfterSaleService.shipExchange(id, carrier, tracking)`：类型必须是 `EXCHANGE`、状态必须是 `RECEIVED`，
+  承运商与运单号必填；写库 + 状态推进 `EXCHANGE_SHIPPED` + 通知顾客。
+- 接口：`POST /admin/v1/after-sales/{id}/exchange-ship`。
+
+**已知限制**：只记录换货物流，**换货商品的库存出库还没接履约模块**（不产生库存流水）。
+在接入前，换货状态停在 `EXCHANGE_SHIPPED` 而不算完成。
+
+### 顺带修掉的真缺口
+
+测试发现：售后通知只发给**会员**，**游客订单的售后消息一条都收不到**（第 100 轮引入的疏漏）。
+已改为统一走 `notifyOrderEvent`：会员订单写 `MEMBER/<id>`、游客订单写 `CUSTOMER/<手机号>`。
+
+| 验证 | 结果 |
+|---|---|
+| 后端测试 | **336 个，全部通过，0 跳过** |
+| 新增用例 | 换货发货写单号并通知；`RETURN` 类型不可发换货；未收货不可发；承运商/运单号必填 |
+

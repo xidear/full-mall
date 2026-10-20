@@ -35,7 +35,8 @@ public class SystemSettingService {
             "distribution.bind-mode", "distribution.bind-timing",
             "distribution.freeze-policy", "distribution.after-sale-window-days",
             "distribution.min-withdrawal", "distribution.payout-methods",
-            "distribution.staff-payout", "distribution.staff-level2-enabled");
+            "distribution.staff-payout", "distribution.staff-level2-enabled",
+            "setup_completed", "member.points.expiry-mode", "member.points.expiry-days");
 
     /** 敏感配置：读接口必须脱敏，写接口不得把掩码值写回库。 */
     private static final Set<String> SECRET_KEYS = Set.of(

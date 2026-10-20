@@ -63,6 +63,8 @@ public class PermissionService {
         if (path.startsWith("/admin/v1/staff")) return "staff.manage";
         if (path.startsWith("/admin/v1/stores")) return "staff.manage";
         if (path.startsWith("/admin/v1/settings")) return "settings.manage";
+        // 首次配置引导属于系统设置
+        if (path.startsWith("/admin/v1/setup")) return "settings.manage";
         if (path.startsWith("/admin/v1/permissions")) return "permission.manage";
         // 审计恢复属于事故处置，要求最高配置权限
         if (path.startsWith("/admin/v1/audit")) return "settings.manage";

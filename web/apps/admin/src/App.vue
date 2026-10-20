@@ -2,10 +2,12 @@
 import { computed, reactive, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
+import { api } from './api'
 import { auth, changePassword, logout } from './auth'
 
 const route = useRoute()
 const router = useRouter()
+router.afterEach((to) => { if (to.name !== 'login') { void loadSetupStatus() } })
 const passwordDialog = ref(false)
 const passwordSaving = ref(false)
 const passwordError = ref('')
@@ -15,6 +17,23 @@ const passwordForm = reactive({
   confirmPassword: ''
 })
 
+const setupMissing = ref<string[]>([])
+// 登录后进入任意页面时刷新一次（避免在路由守卫里做请求）
+
+// 首次配置提示：只提示不阻断（可稍后继续）
+interface SetupItem { key: string; configured: boolean; hint: string }
+async function loadSetupStatus() {
+  if (route.name === 'login' || !auth.token) {
+    return
+  }
+  try {
+    const status = await api.get<{ completed: boolean; items: SetupItem[] }>('/admin/v1/setup/status')
+    setupMissing.value = status.items.filter(item => !item.configured).map(item => item.hint)
+  } catch {
+    // 提示失败不影响使用，也不弹错误（避免登录后骚扰）
+    setupMissing.value = []
+  }
+}
 const isLoginPage = computed(() => route.name === 'login')
 const activeMenu = computed(() => {
   if (route.path.startsWith('/products')) return '/products'
@@ -119,6 +138,18 @@ async function submitPassword() {
         </div>
       </el-header>
       <el-main class="admin-main">
+        <el-alert
+          v-if="setupMissing.length"
+          type="warning"
+          show-icon
+          :closable="false"
+          style="margin-bottom: 12px"
+          title="首次配置尚未完成">
+          <template #default>
+            <span>还差 {{ setupMissing.length }} 项（如 {{ setupMissing[0] }}）。可稍后继续，不影响使用。</span>
+            <el-button link type="primary" @click="$router.push('/settings')">去系统设置</el-button>
+          </template>
+        </el-alert>
         <router-view />
       </el-main>
     </el-container>

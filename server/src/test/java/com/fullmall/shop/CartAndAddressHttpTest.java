@@ -448,6 +448,23 @@ class CartAndAddressHttpTest {
     }
 
     @Test
+    void promotionsListSurvivesRuleOnlyPromotions() {
+        // 回归：满减规则没有 skuId，曾导致顾客促销列表整体 404
+        jdbc.update("""
+                INSERT INTO promotion (id, code, type, title, status, starts_at, ends_at, rules, priority)
+                VALUES (?, 'HTTP-RULE-ONLY', 'FULL_REDUCTION', '仅规则促销', 'ACTIVE',
+                        now() - interval '1 hour', now() + interval '1 day',
+                        '{"thresholdAmount":1000,"value":100}'::jsonb, 10)
+                """, UUID.randomUUID());
+
+        var response = http.exchange("/api/v1/promotions", HttpMethod.GET,
+                new HttpEntity<>(guestHeaders()), String.class);
+
+        assertThat(response.getStatusCode().value()).isEqualTo(200);
+        assertThat(response.getBody()).doesNotContain("HTTP-RULE-ONLY");
+    }
+
+    @Test
     void promotionPreviewAppliesFullReduction() {
         jdbc.update("DELETE FROM promotion WHERE code = 'HTTP-FULL-20'");
         jdbc.update("""

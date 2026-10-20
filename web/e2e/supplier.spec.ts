@@ -24,11 +24,22 @@ test('supplier portal signs requests, accepts and ships a dropship order', async
   expect(credentialResponse.ok()).toBeTruthy()
   const credential = await credentialResponse.json()
 
+  // 下单要求"真人"：先走 OTP 拿会员身份（dev 环境回传验证码）
+  const phone = '13800000007'
+  const issued = await request.post(`${API}/api/v1/member/auth/otp`, { data: { phone } })
+  expect(issued.ok(), await issued.text()).toBeTruthy()
+  const code = (await issued.json()).debugCode
+  const session = await request.post(`${API}/api/v1/member/auth/verify`,
+    { data: { phone, code } })
+  expect(session.ok(), await session.text()).toBeTruthy()
+  const token = (await session.json()).token
+
   const checkoutResponse = await request.post(`${API}/api/v1/checkout`, {
+    headers: { Authorization: `Bearer ${token}` },
     data: {
       items: [{ skuId: SUPPLIER_SKU, quantity: 1 }],
       fulfillmentMode: 'SHIP',
-      contact: { name: '供应商 E2E 顾客', phone: '13800000007' },
+      contact: { name: '供应商 E2E 顾客', phone },
       address: { province: '上海市', city: '上海市', district: '静安区', detail: '供应商测试路 7 号' },
       legalAcceptanceIds: []
     }
@@ -56,6 +67,7 @@ test('supplier portal signs requests, accepts and ships a dropship order', async
   await acceptedCard.getByRole('button', { name: '确认发货' }).click()
   await expect(page.getByText(`订单 ${order.orderNo} 已发货`)).toBeVisible()
 
-  const finalOrder = await (await request.get(`${API}/api/v1/orders/${order.id}`)).json()
+  const finalOrder = await (await request.get(`${API}/api/v1/orders/${order.id}`,
+    { headers: { Authorization: `Bearer ${token}` } })).json()
   expect(finalOrder.status).toBe('FULFILLED')
 })

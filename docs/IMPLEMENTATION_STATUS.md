@@ -3078,3 +3078,36 @@ REQUESTED → APPROVED → RECEIVED → [出库扣减] → EXCHANGE_SHIPPED → 
 写断言时忘了 GOLD 级 **2 倍积分倍率**：2000 分实付 → 40 积分而非 20。
 测试直接把我拉回实现，说明"算一遍再断言"不能只算基数。
 
+---
+
+## 2026-10-19：`CheckoutRequest` 参数收敛（14 → 10）
+
+把尾部 5 个散字段（`pointsToUse` / `couponId` / `otpCode` / `placedBy` / `placedByOperator`）
+收成一个 `CheckoutContext`：
+
+```java
+public record CheckoutRequest(items, fulfillmentMode, storeId, contact, address,
+                              legalAcceptanceIds, referrerId, referralMode, groupBuyId,
+                              CheckoutContext context)
+public record CheckoutContext(pointsToUse, couponId, otpCode, placedBy, placedByOperator) {
+    public static CheckoutContext none() { ... }
+}
+```
+
+- 未提供 context 视为 `none()`，调用方无需构造空对象；
+- **对外 HTTP 契约不变**：购物车结算的 `Body` 仍是扁平字段，由控制器组装成 context；
+- 服务内部统一用 `ctx.xxx()` 访问。
+
+| 验证 | 结果 |
+|---|---|
+| 后端测试 | **361 个，全部通过，0 跳过** |
+| 接口对齐 | 后端 188 条路由 / 前端 16 条调用 / 未匹配 **0** |
+
+### 为什么做这个
+
+上一轮我因为位置传参把 `couponId` 放错位置，导致"券根本没提交"却以为是业务缺陷，白查一轮。
+参数从 14 降到 10，且同组字段聚在一起，同类错误显著更难发生。
+
+> 未做：其余 10 个参数仍可进一步分组（如 `OrderInfo` / `Delivery`），但当前风险已可控，
+> 继续拆会牵动所有调用点，收益递减。
+

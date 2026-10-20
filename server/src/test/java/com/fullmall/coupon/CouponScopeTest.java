@@ -123,7 +123,7 @@ class CouponScopeTest {
                 new CheckoutRequest.Contact("范围券用户", phone, null),
                 new CheckoutRequest.Address("上海", "上海", "静安", "南京西路 1 号", "200040"),
                 // legalAcceptance, referrerId, referralMode, groupBuyId, pointsToUse, couponId, otp, placedBy, operator
-                List.of(), null, null, null, null, couponId, null, null, null);
+                List.of(), null, null, null, new CheckoutRequest.CheckoutContext(null, couponId, null, null, null));
     }
 
     @Test

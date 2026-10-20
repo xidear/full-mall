@@ -238,12 +238,14 @@ public class OrderService {
         discount = discount.plus(memberDiscount);
 
 
-        requireVerifiedCustomer(request);
+        CheckoutRequest.CheckoutContext ctx = request.context() == null
+                ? CheckoutRequest.CheckoutContext.none() : request.context();
+        requireVerifiedCustomer(request, ctx);
 
         UUID orderId = Ids.newId();
 
         // 优惠券（默认 EXCLUSIVE：与促销互斥，取优惠更大者；STACKABLE 则叠加）
-        if (request.couponId() != null) {
+        if (ctx.couponId() != null) {
             UUID couponMemberId = request.contact() == null ? null
                     : orderRepository.findMemberIdByPhone(request.contact().phone());
             if (couponMemberId == null) {
@@ -255,12 +257,12 @@ public class OrderService {
                 couponSubtotals.merge(item.sku().id(),
                         item.sku().price().amount() * item.quantity(), Long::sum);
             }
-            long eligibleAmount = coupons.eligibleAmount(request.couponId(), couponSubtotals);
+            long eligibleAmount = coupons.eligibleAmount(ctx.couponId(), couponSubtotals);
             if (eligibleAmount <= 0) {
                 throw ApiException.conflict("COUPON_NOT_APPLICABLE",
                         "购物车中没有该券可用的商品");
             }
-            var eligibility = coupons.checkUsable(request.couponId(), couponMemberId, eligibleAmount);
+            var eligibility = coupons.checkUsable(ctx.couponId(), couponMemberId, eligibleAmount);
             if (!eligibility.usable()) {
                 throw ApiException.conflict("COUPON_NOT_USABLE", eligibility.reason());
             }
@@ -275,13 +277,13 @@ public class OrderService {
                 total = new Money(Math.max(total.amount() - eligibility.discountAmount(), 0), currency);
                 discount = discount.plus(new Money(eligibility.discountAmount(), currency));
             }
-            coupons.consume(request.couponId(), couponMemberId, orderId);
+            coupons.consume(ctx.couponId(), couponMemberId, orderId);
         }
 
         // 积分抵扣（MEM-003）：1 积分 = 1 分，最多抵到应付为 0
-        if (request.pointsToUse() != null && request.pointsToUse() > 0) {
+        if (ctx.pointsToUse() != null && ctx.pointsToUse() > 0) {
             var redemption = memberPoints.redeem(request.contact().phone(), orderId,
-                    request.pointsToUse(), total.amount());
+                    ctx.pointsToUse(), total.amount());
             if (redemption.pointsUsed() > 0) {
                 total = new Money(total.amount() - redemption.amount(), currency);
                 discount = discount.plus(new Money(redemption.amount(), currency));
@@ -307,8 +309,8 @@ public class OrderService {
         orderRepository.insertOrder(order);
         // 记录下单来源与操作员（员工代下单必须可追溯）
         orderRepository.updatePlacement(orderId,
-                request.placedBy() == null ? "CUSTOMER" : request.placedBy().trim().toUpperCase(),
-                request.placedByOperator());
+                ctx.placedBy() == null ? "CUSTOMER" : ctx.placedBy().trim().toUpperCase(),
+                ctx.placedByOperator());
         // 绑定会员（手机号唯一匹配时），后续"我的订单"按 member_id 查
         orderRepository.attachMemberByPhone(orderId, request.contact().phone());
         UUID orderMemberId = orderRepository.memberIdOf(orderId);
@@ -386,13 +388,14 @@ public class OrderService {
      * <p>背景：中国大陆线上交易必须可追溯到自然人；不允许"填个手机号就下单"的匿名订单。
      * 访客下单仍然允许——但必须先通过 OTP 校验，由 `verifyOtp` 自动创建会员。
      */
-    private void requireVerifiedCustomer(CheckoutRequest request) {
+    private void requireVerifiedCustomer(CheckoutRequest request,
+                                        CheckoutRequest.CheckoutContext ctx) {
         if (request.contact() == null || request.contact().phone() == null) {
             return; // 由既有参数校验负责报错
         }
-        if (isStaffPlaced(request)) {
+        if (isStaffPlaced(ctx)) {
             // 员工代下单（门店面对面/预定）：无法给顾客发验证码，改为**记录操作员**保证可追溯
-            if (request.placedByOperator() == null || request.placedByOperator().isBlank()) {
+            if (ctx.placedByOperator() == null || ctx.placedByOperator().isBlank()) {
                 throw ApiException.badRequest("OPERATOR_REQUIRED", "员工代下单必须记录操作员");
             }
             return;
@@ -401,18 +404,18 @@ public class OrderService {
         if (orderRepository.findMemberIdByPhone(phone) != null) {
             return; // 已是会员手机号，可直接下单（登录态另行校验）
         }
-        if (request.otpCode() == null || request.otpCode().isBlank()) {
+        if (ctx.otpCode() == null || ctx.otpCode().isBlank()) {
             throw ApiException.badRequest("CHECKOUT_OTP_REQUIRED",
                     "该手机号尚未注册，请先获取并填写短信验证码");
         }
         // 校验通过会自动创建会员，下单后由 attachMemberByPhone 绑定
-        memberAuth.verifyOtp(phone, request.otpCode());
+        memberAuth.verifyOtp(phone, ctx.otpCode());
     }
 
-    private boolean isStaffPlaced(CheckoutRequest request) {
-        return request.placedBy() != null
-                && ("CASHIER".equalsIgnoreCase(request.placedBy())
-                    || "ADMIN".equalsIgnoreCase(request.placedBy()));
+    private boolean isStaffPlaced(CheckoutRequest.CheckoutContext ctx) {
+        return ctx.placedBy() != null
+                && ("CASHIER".equalsIgnoreCase(ctx.placedBy())
+                    || "ADMIN".equalsIgnoreCase(ctx.placedBy()));
     }
 
     /** 订单归属会员（游客订单返回 null）。 */

@@ -46,8 +46,9 @@ public class StoreOrderController {
                 new CheckoutRequest.Contact(body.contactName(), body.contactPhone(), null),
                 new CheckoutRequest.Address(body.province(), body.city(), body.district(),
                         body.detail(), null),
-                List.of(), null, null, null, null, null, null,
-                "CASHIER", authentication.getName());
+                List.of(), null, null, null,
+                new CheckoutRequest.CheckoutContext(null, null, null,
+                        "CASHIER", authentication.getName()));
         return orders.checkout(request, null);
     }
 }

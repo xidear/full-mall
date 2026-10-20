@@ -70,11 +70,9 @@ public class CartCheckoutController {
                         address.detail(), address.postalCode()),
                 List.of(),
                 null, null, null,
-                body.pointsToUse(),
-                body.couponId(),
-                body.otpCode(),
-                body.placedBy(),
-                body.placedByOperator());
+                new CheckoutRequest.CheckoutContext(
+                        body.pointsToUse(), body.couponId(), body.otpCode(),
+                        body.placedBy(), body.placedByOperator()));
 
         var order = orders.checkout(request, idempotencyKey);
         carts.clear(owner);

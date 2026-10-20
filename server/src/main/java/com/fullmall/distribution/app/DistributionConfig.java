@@ -24,7 +24,7 @@ public class DistributionConfig {
 
     public record Snapshot(LevelRate level1, LevelRate level2, boolean level2Enabled,
                            long minWithdrawal, List<String> payoutMethods, String freezePolicy,
-                           int freezeDays) {
+                           int freezeDays, String bindMode, String bindTiming) {
     }
 
     private final SystemSettingService settings;
@@ -60,7 +60,19 @@ public class DistributionConfig {
         }
         int freezeDays = (int) positiveLong("distribution.after-sale-window-days", 7);
 
-        return new Snapshot(l1, l2, level2Enabled, minWithdrawal, methods, freezePolicy, freezeDays);
+        String bindMode = settingOrDefault("distribution.bind-mode", "PERMANENT").toUpperCase(Locale.ROOT);
+        if (!List.of("ONCE", "PERMANENT").contains(bindMode)) {
+            throw ApiException.conflict("DISTRIBUTION_INVALID_BIND_MODE",
+                    "绑定方式只能是 ONCE 或 PERMANENT，实际=" + bindMode);
+        }
+        String bindTiming = settingOrDefault("distribution.bind-timing", "CART").toUpperCase(Locale.ROOT);
+        if (!List.of("REGISTER", "CART", "VISIT").contains(bindTiming)) {
+            throw ApiException.conflict("DISTRIBUTION_INVALID_BIND_TIMING",
+                    "绑定时机只能是 REGISTER / CART / VISIT，实际=" + bindTiming);
+        }
+
+        return new Snapshot(l1, l2, level2Enabled, minWithdrawal, methods, freezePolicy, freezeDays,
+                bindMode, bindTiming);
     }
 
     private LevelRate readRate(int level, String modeKey, String valueKey) {
@@ -79,6 +91,11 @@ public class DistributionConfig {
                     valueKey + " 作为百分比必须在 1..100，实际=" + value);
         }
         return new LevelRate(level, mode, value);
+    }
+
+    private String settingOrDefault(String key, String fallback) {
+        String raw = settings.rawValue(key);
+        return raw == null || raw.isBlank() ? fallback : raw.trim();
     }
 
     private long positiveLong(String key, long fallback) {

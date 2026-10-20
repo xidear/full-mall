@@ -26,8 +26,8 @@
 | # | 事项 | 状态 | 依据 |
 |---|---|---|---|
 | B1 | 分销比例后台表单（UI） | ⬜ | 配置键已开放、`DistributionConfig` 已读；后台无表单 |
-| B2 | 二级分佣的上级关系维护（后台/客服侧） | ⚠️ | `promoter_link` 表已建，`findUpline` 已用；**无写入入口** |
-| B3 | 绑定方式（ONCE/PERMANENT）与时机的实际执行 | ⚠️ | 配置键可读，`attachCheckout` 仍按固定逻辑绑定 |
+| B2 | 二级分佣的上级关系维护 | ✅ | `POST /admin/v1/distribution/promoters/{id}/upline`；二级佣金有测试（500/200） |
+| B3 | 绑定方式与时机实际执行 | ✅ | ONCE 不抢客、PERMANENT 可接管、REGISTER 时结算不建关系（三条测试） |
 | B4 | `AFTER_SALE_CLOSED` 冻结释放扫描 | ✅ | 订单 `fulfilled_at` + 售后窗口；任务**并集**释放两种来源（有测试） |
 | B5 | 提现：申请人选打款方式 | ✅ | V58 `payout_method`/`payout_account`；须在 `distribution.payout-methods` 白名单内（有测试） |
 | B6 | 提现：一级审核走权限矩阵（非写死 ADMIN） | ⬜ | `AdminDistributionController` 仍是 `hasRole('ADMIN')` 风格 |
@@ -153,8 +153,8 @@
 
 | 状态 | 数量 |
 |---|---|
-| ✅ 已实现并验证 | 10 |
-| ⚠️ 已实现未验证 / 半接线 | 32 |
+| ✅ 已实现并验证 | 12 |
+| ⚠️ 已实现未验证 / 半接线 | 30 |
 | ⬜ 未实现 | 41 |
 | 🚫 有意不做 | 6 |
 | **合计** | **89** |

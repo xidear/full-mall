@@ -18,6 +18,9 @@ import java.util.UUID;
 @Service
 public class ReferralService {
 
+    private static final org.slf4j.Logger log =
+            org.slf4j.LoggerFactory.getLogger(ReferralService.class);
+
     private final DistributionRepository repository;
     private final DistributionConfig distributionConfig;
 
@@ -40,22 +43,57 @@ public class ReferralService {
         return repository.findActiveBinding(phone);
     }
 
+    /** 后台维护推广员上级（二级分佣依据）。 */
+    @Transactional
+    public void linkUpline(String promoterType, UUID promoterId, String uplineType, UUID uplineId) {
+        if (promoterId == null || uplineId == null) {
+            throw com.fullmall.platform.error.ApiException.badRequest(
+                    "PROMOTER_REQUIRED", "推广员与上级都不能为空");
+        }
+        repository.linkUpline(
+                promoterType == null ? "STAFF" : promoterType.trim().toUpperCase(),
+                promoterId,
+                uplineType == null ? "STAFF" : uplineType.trim().toUpperCase(),
+                uplineId);
+    }
+
+    /**
+     * 结算时绑定/归属：**绑定策略与时机会真正生效**（后台配置 `distribution.bind-mode` / `bind-timing`）。
+     *
+     * <ul>
+     *   <li>`bind-timing=REGISTER`：结算不新建绑定，只沿用注册时已有的关系；</li>
+     *   <li>`bind-timing=CART` 或 `VISIT`：结算可按推广链接新建绑定；</li>
+     *   <li>`bind-mode=ONCE`：已有活跃绑定时不覆盖（一次性绑定）；</li>
+     *   <li>`bind-mode=PERMANENT`：新推广员覆盖旧关系（终身绑定）。</li>
+     * </ul>
+     */
     @Transactional
     public void attachCheckout(UUID orderId, String phone, UUID referrerId, String modeValue) {
-        if (referrerId != null) {
+        var config = distributionConfig.load();
+        String timing = config.bindTiming();
+        boolean once = "ONCE".equals(config.bindMode());
+        ReferralBindingView existing = repository.findActiveBinding(phone);
+
+        if (referrerId != null && !"REGISTER".equals(timing) && !(once && existing != null)) {
             ReferralMode mode = parseMode(modeValue == null || modeValue.isBlank()
                     ? "ORDER" : modeValue);
             Instant expiresAt = mode == ReferralMode.VISIT ? Instant.now().plus(Duration.ofDays(30)) : null;
-            if (mode == ReferralMode.PERMANENT || mode == ReferralMode.REGISTER) {
+            if (!once) {
                 repository.deactivateBindings(phone);
             }
             repository.insertBinding(phone, referrerId, mode.name(), "CHECKOUT", expiresAt);
             repository.attachOrder(orderId, referrerId, mode.name());
             return;
         }
-        ReferralBindingView binding = repository.findActiveBinding(phone);
-        if (binding != null) {
-            repository.attachOrder(orderId, binding.promoterId(), binding.mode());
+
+        if (existing != null) {
+            repository.attachOrder(orderId, existing.promoterId(), existing.mode());
+            return;
+        }
+
+        // 配置为"注册时绑定"且没有历史关系：本单不归属任何推广员（不给不存在的上级发佣金）
+        if (referrerId != null) {
+            log.info("结算绑定被策略拒绝：timing={}，orderId={}，referrer={}", timing, orderId, referrerId);
         }
     }
 

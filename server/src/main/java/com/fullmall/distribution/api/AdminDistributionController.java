@@ -4,6 +4,7 @@ import com.fullmall.distribution.api.DistributionDtos.CommissionView;
 import com.fullmall.distribution.api.DistributionDtos.ReferralBindingView;
 import com.fullmall.distribution.app.ReferralService;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -11,6 +12,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 @RestController
@@ -25,6 +27,21 @@ public class AdminDistributionController {
                                        com.fullmall.distribution.app.WithdrawalService withdrawalService) {
         this.referralService = referralService;
         this.withdrawalService = withdrawalService;
+    }
+
+    /** 维护推广员上级（二级分佣）。 */
+    @PostMapping("/promoters/{promoterId}/upline")
+    public Map<String, Object> linkUpline(@PathVariable UUID promoterId,
+                                          @RequestBody Map<String, String> body) {
+        String uplineId = body.get("uplineId");
+        if (uplineId == null || uplineId.isBlank()) {
+            throw com.fullmall.platform.error.ApiException.badRequest(
+                    "UPLINE_REQUIRED", "缺少上级 ID（uplineId）");
+        }
+        referralService.linkUpline(
+                body.getOrDefault("promoterType", "STAFF"), promoterId,
+                body.getOrDefault("uplineType", "STAFF"), UUID.fromString(uplineId));
+        return Map.of("promoterId", promoterId.toString(), "uplineId", uplineId);
     }
 
     /** 提现单列表。 */

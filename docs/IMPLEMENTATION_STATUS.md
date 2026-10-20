@@ -3541,3 +3541,20 @@ storefront 结算页需要真正的 OTP 流程：
 | 后端测试 | **387 个，全部通过，0 跳过** |
 | 新增用例 | 低于最低额被拒；不支持的方式被拒；后台开启 WECHAT 后可申请并落库 |
 
+---
+
+## 2026-10-19：绑定策略真正生效 + 上级关系可维护（B3 / B2）
+
+- `attachCheckout` 现在读取 `distribution.bind-mode`（ONCE/PERMANENT）与 `bind-timing`（REGISTER/CART/VISIT）：
+  - `ONCE`：已有活跃绑定则不覆盖，订单归属首个推广员；
+  - `PERMANENT`：新推广员接管；
+  - `REGISTER`：结算不新建绑定（只沿用注册关系），无关系则本单不归属。
+- 新增 `POST /admin/v1/distribution/promoters/{id}/upline`（维护二级上级；禁止自己指向自己）。
+- `DistributionConfig` 校验绑定枚举，非法值明确报错（不再静默取默认）。
+
+| 验证 | 结果 |
+|---|---|
+| 后端测试 | **394 个，全部通过，0 跳过** |
+| 新增用例 | 一次性不抢客 / 终身可接管 / 注册时机结算不建关系；有上级时二级佣金 500+200 落库 |
+| 接口对齐 | 191 路由 / 18 调用 / 0 未匹配 |
+

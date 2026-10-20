@@ -89,6 +89,19 @@ public class DistributionRepository {
      * <p>`frozenUntil` 为 null 表示"按策略冻结"——由释放任务在售后窗口结束后置为可提现，
      * 而不是在这里写死天数。
      */
+    /** 建立/更新推广员上级关系（二级分佣依据）。 */
+    public void linkUpline(String promoterType, UUID promoterId, String uplineType, UUID uplineId) {
+        if (promoterType.equals(uplineType) && promoterId.equals(uplineId)) {
+            throw new IllegalArgumentException("推广员不能把自己设为上级");
+        }
+        jdbcTemplate.update("""
+                INSERT INTO promoter_link (promoter_type, promoter_id, upline_type, upline_id)
+                VALUES (?, ?, ?, ?)
+                ON CONFLICT (promoter_type, promoter_id)
+                DO UPDATE SET upline_type = EXCLUDED.upline_type, upline_id = EXCLUDED.upline_id
+                """, promoterType, promoterId, uplineType, uplineId);
+    }
+
     /** 推广员的上级（用于二级分佣）；没有则返回 null。 */
     public UUID findUpline(String promoterType, UUID promoterId) {
         var rows = jdbcTemplate.queryForList("""

@@ -2909,3 +2909,15 @@ make verify-fast   # 跳过 E2E
 > 收窄到顾客后又变 2 条——因为会员订单的站内消息落在 `MEMBER` 而非 `CUSTOMER`。
 > 最终按"非员工"统计，与身份分流规则一致。
 
+---
+
+## 2026-10-19：通知身份分流规则固化为测试
+
+- 新增 `NotificationRoutingTest`：会员订单与游客订单各一条用例，断言收件人与渠道的对应关系。
+- `PROJECT_MEMORY §13` 记录规则表与三个推论（我这十几轮里在此处记错过两次）。
+
+| 验证 | 结果 |
+|---|---|
+| 后端测试 | **346 个，全部通过，0 跳过** |
+| 断言内容 | 会员单：`MEMBER:<id>:IN_APP`、`CUSTOMER:<手机>:SMS`、`STAFF:ALL:IN_APP`，且**不含** `CUSTOMER:<手机>:IN_APP`；游客单：`CUSTOMER` 同时收 `IN_APP` 与 `SMS` |
+

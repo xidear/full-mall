@@ -29,14 +29,17 @@ public class AfterSaleService {
     private final OrderService orderService;
     private final PaymentService paymentService;
     private final com.fullmall.order.app.LineRefundService lineRefunds;
+    private final com.fullmall.notification.app.NotificationService notifications;
 
     public AfterSaleService(AfterSaleRepository repository, OrderService orderService,
                             PaymentService paymentService,
-                            com.fullmall.order.app.LineRefundService lineRefunds) {
+                            com.fullmall.order.app.LineRefundService lineRefunds,
+                            com.fullmall.notification.app.NotificationService notifications) {
         this.repository = repository;
         this.orderService = orderService;
         this.paymentService = paymentService;
         this.lineRefunds = lineRefunds;
+        this.notifications = notifications;
     }
 
     @Transactional
@@ -100,6 +103,8 @@ public class AfterSaleService {
             repository.insertLine(id, item.orderLineId(), line.skuId(), item.quantity());
         }
         repository.insertEvent(id, "REQUESTED", request.reason().trim(), "顾客");
+        notifyMember(orderId, "AFTER_SALE_CREATED", "售后申请已提交",
+                "售后单 " + afterSaleNo + " 已提交，我们会尽快处理。");
         return repository.find(id);
     }
 
@@ -118,6 +123,14 @@ public class AfterSaleService {
         return repository.listByOrder(orderId, phone.trim());
     }
 
+    /** 给订单归属会员写站内消息（游客订单不通知）。 */
+    private void notifyMember(UUID orderId, String eventType, String title, String content) {
+        UUID memberId = orderService.memberIdOf(orderId);
+        if (memberId != null) {
+            notifications.notifyMember(memberId.toString(), eventType, title, content);
+        }
+    }
+
     @Transactional
     public AfterSaleView approve(UUID afterSaleId, ApproveAfterSaleRequest request, String operator) {
         AfterSaleView afterSale = require(afterSaleId);
@@ -126,6 +139,8 @@ public class AfterSaleService {
         }
         repository.approve(afterSaleId, request.adminNote());
         repository.insertEvent(afterSaleId, "APPROVED", request.adminNote(), operator);
+        notifyMember(afterSale.orderId(), "AFTER_SALE_APPROVED", "售后已通过审核",
+                "售后单 " + afterSale.afterSaleNo() + " 已通过审核，请按提示寄回商品。");
         return require(afterSaleId);
     }
 
@@ -179,6 +194,8 @@ public class AfterSaleService {
         repository.markRefunded(afterSaleId);
         repository.insertEvent(afterSaleId, "REFUNDED",
                 amount > 0 ? "原路退款 " + amount + " 分" : "换货完成，无退款", operator);
+        notifyMember(afterSale.orderId(), "AFTER_SALE_REFUNDED", "售后已退款",
+                amount > 0 ? "退款 " + amount + " 分已原路退回，请留意到账。" : "换货已完成。");
         if (amount > 0) {
             Order order = orderService.getOrder(afterSale.orderId());
             long refunded = repository.sumRefunded(afterSale.orderId());

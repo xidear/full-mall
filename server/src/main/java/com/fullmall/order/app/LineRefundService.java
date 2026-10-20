@@ -160,12 +160,10 @@ public class LineRefundService {
         }
         for (int i = 0; i < lines.size(); i++) {
             long left = remaining.get(i);
-            if (left <= 0) {
+            if (left <= 0 || i == lastIndex) {
                 continue;
             }
-            long share = (i == lastIndex)
-                    ? sale.refundAmount() - allocated
-                    : Math.floorDiv(sale.refundAmount() * left, totalRemaining);
+            long share = Math.floorDiv(sale.refundAmount() * left, totalRemaining);
             if (share <= 0) {
                 continue;
             }
@@ -173,6 +171,10 @@ public class LineRefundService {
             written.add(record(sale.orderId(), lines.get(i).orderLineId(),
                     lines.get(i).quantity(), share, sale.currency(), "after-sale:" + afterSaleId));
         }
+        written.add(record(sale.orderId(), lines.get(lastIndex).orderLineId(),
+                lines.get(lastIndex).quantity(), sale.refundAmount() - allocated,
+                sale.currency(), "after-sale:" + afterSaleId));
+        allocated = sale.refundAmount();
         if (allocated != sale.refundAmount()) {
             throw new IllegalStateException("售后分摊金额不一致：allocated=" + allocated
                     + ", expected=" + sale.refundAmount());
@@ -232,20 +234,21 @@ public class LineRefundService {
                 lastIndex = i;
             }
         }
+        // 先给"非尾差行"按比例分配，再把剩余额度整体给尾差行（避免重复分配）
         for (int i = 0; i < lines.size(); i++) {
             long left = remaining.get(i);
-            if (left <= 0) {
+            if (left <= 0 || i == lastIndex) {
                 continue;
             }
-            long share = (i == lastIndex)
-                    ? totalRefundAmount - allocated
-                    : Math.floorDiv(totalRefundAmount * left, remainingTotal);
+            long share = Math.floorDiv(totalRefundAmount * left, remainingTotal);
             if (share <= 0) {
                 continue;
             }
             allocated += share;
             result.add(new Refunded(null, lines.get(i).id(), 0, share));
         }
+        result.add(new Refunded(null, lines.get(lastIndex).id(), 0, totalRefundAmount - allocated));
+        allocated = totalRefundAmount;
         if (allocated != totalRefundAmount) {
             throw new IllegalStateException(
                     "分摊后金额不一致：allocated=" + allocated + ", expected=" + totalRefundAmount);

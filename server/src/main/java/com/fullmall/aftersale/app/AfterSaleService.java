@@ -30,16 +30,22 @@ public class AfterSaleService {
     private final PaymentService paymentService;
     private final com.fullmall.order.app.LineRefundService lineRefunds;
     private final com.fullmall.notification.app.NotificationService notifications;
+    private final com.fullmall.inventory.app.InventoryService inventoryService;
+    private final org.springframework.jdbc.core.JdbcTemplate jdbcTemplate;
 
     public AfterSaleService(AfterSaleRepository repository, OrderService orderService,
                             PaymentService paymentService,
                             com.fullmall.order.app.LineRefundService lineRefunds,
-                            com.fullmall.notification.app.NotificationService notifications) {
+                            com.fullmall.notification.app.NotificationService notifications,
+                            com.fullmall.inventory.app.InventoryService inventoryService,
+                            org.springframework.jdbc.core.JdbcTemplate jdbcTemplate) {
         this.repository = repository;
         this.orderService = orderService;
         this.paymentService = paymentService;
         this.lineRefunds = lineRefunds;
         this.notifications = notifications;
+        this.inventoryService = inventoryService;
+        this.jdbcTemplate = jdbcTemplate;
     }
 
     @Transactional
@@ -150,6 +156,7 @@ public class AfterSaleService {
             throw ApiException.conflict("AFTER_SALE_NOT_RECEIVED",
                     "需先收到顾客寄回的商品才能发出换货，当前状态=" + afterSale.status());
         }
+        dispatchExchangeStock(afterSale, afterSaleId);
         repository.markExchangeShipped(afterSaleId, carrierCode.trim(), trackingNo.trim());
         repository.insertEvent(afterSaleId, "EXCHANGE_SHIPPED",
                 "换货已发出，承运商 " + carrierCode.trim() + "，运单号 " + trackingNo.trim(), "system");
@@ -239,6 +246,46 @@ public class AfterSaleService {
             orderService.markAfterSaleRefunded(afterSale.orderId(), refunded >= order.total().amount());
         }
         return require(afterSaleId);
+    }
+
+    /**
+     * 换货出库：为售后涉及的行**再次预留**并立即发货（预留表没有 (order,line) 唯一键，支持多轮）。
+     *
+     * <p>只发货本次新增的预留（`shipReservations` 只处理 `CONFIRMED` 状态，历史已发货的不会重复扣减）。
+     */
+    private void dispatchExchangeStock(AfterSaleView afterSale, UUID afterSaleId) {
+        if (afterSale.lines().isEmpty()) {
+            // 没有行明细无法确定换货商品，跳过出库（历史数据/异常数据），不阻断发货
+            org.slf4j.LoggerFactory.getLogger(AfterSaleService.class)
+                    .warn("换货售后没有商品行，跳过库存出库 afterSaleId={}", afterSaleId);
+            return;
+        }
+        List<UUID> lineIds = afterSale.lines().stream()
+                .map(com.fullmall.aftersale.api.AfterSaleDtos.AfterSaleLineView::orderLineId)
+                .toList();
+        for (var line : afterSale.lines()) {
+            inventoryService.reserveForOrderLine(afterSale.orderId(), line.orderLineId(),
+                    line.skuId(), line.quantity(),
+                    com.fullmall.inventory.domain.LocationType.WAREHOUSE,
+                    warehouseIdFor(afterSale.orderId()),
+                    com.fullmall.catalog.domain.ShelfLifePolicy.none());
+        }
+        inventoryService.confirmOrderReservations(afterSale.orderId());
+        inventoryService.shipReservationsForLines(afterSale.orderId(), lineIds);
+    }
+
+    /** 取订单首个履约仓；没有仓（如门店自提）时退回门店仓。 */
+    private UUID warehouseIdFor(UUID orderId) {
+        var ids = jdbcTemplate.queryForList("""
+                SELECT location_id FROM inventory_batch b
+                 WHERE b.location_type = 'WAREHOUSE'
+                 ORDER BY b.created_at LIMIT 1
+                """, UUID.class);
+        if (ids.isEmpty()) {
+            throw ApiException.conflict("NO_WAREHOUSE_LOCATION",
+                    "没有可用的仓库位置，无法为换货出库：" + orderId);
+        }
+        return ids.get(0);
     }
 
     private AfterSaleView require(UUID afterSaleId) {

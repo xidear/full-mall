@@ -86,6 +86,79 @@ class ExchangeShippingTest {
                 """, String.class, phone)).isNotEmpty();
     }
 
+    private UUID batchId;
+
+    @Test
+    void exchangeShippingDeductsStock() {
+        String phone = "1390000" + (1000 + Math.abs(UUID.randomUUID().hashCode() % 9000));
+        UUID afterSaleId = seedExchangeWithStock(phone);
+
+        int before = jdbc.queryForObject(
+                "SELECT quantity FROM inventory_batch WHERE id = ?", Integer.class, batchId);
+
+        afterSales.shipExchange(afterSaleId, "SF", "SF-DEDUCT-1");
+
+        int after = jdbc.queryForObject(
+                "SELECT quantity FROM inventory_batch WHERE id = ?", Integer.class, batchId);
+        assertThat(after).isEqualTo(before - 1);
+        assertThat(jdbc.queryForObject(
+                "SELECT COUNT(*) FROM stock_move WHERE batch_id = ? AND move_type = 'SHIP'",
+                Integer.class, batchId)).isEqualTo(1);
+    }
+
+    /** 造一条"有商品行 + 有仓库库存"的换货售后。 */
+    private UUID seedExchangeWithStock(String phone) {
+        UUID orderId = UUID.randomUUID();
+        jdbc.update("""
+                INSERT INTO orders (id, order_no, status, currency, subtotal_amount, shipping_fee_amount,
+                                    discount_amount, total_amount, contact_name, contact_phone, fulfillment_mode)
+                VALUES (?, ?, 'PAID', 'CNY', 1000, 0, 0, 1000, '换货用户', ?, 'SHIP')
+                """, orderId, "EX2-" + orderId, phone);
+
+        jdbc.update("""
+                INSERT INTO market (code, name, currency, default_locale, active)
+                VALUES ('EX2', '换货市场', 'CNY', 'zh-CN', TRUE) ON CONFLICT (code) DO NOTHING
+                """);
+        String marketCode = "EX2";
+        UUID warehouseId = UUID.randomUUID();
+        jdbc.update("""
+                INSERT INTO warehouse (id, market_code, name, type, active)
+                VALUES (?, ?, '换货仓', 'SELF', TRUE)
+                """, warehouseId, marketCode);
+        UUID productId = UUID.randomUUID();
+        UUID skuId = UUID.randomUUID();
+        jdbc.update("INSERT INTO product (id, title, status) VALUES (?, '换货商品', 'ACTIVE')", productId);
+        jdbc.update("""
+                INSERT INTO sku (id, product_id, sku_code, price_amount, price_currency)
+                VALUES (?, ?, ?, 1000, 'CNY')
+                """, skuId, productId, "SKU-EX-" + skuId.toString().substring(0, 8));
+        batchId = UUID.randomUUID();
+        jdbc.update("""
+                INSERT INTO inventory_batch (id, sku_id, location_type, location_id, batch_no,
+                                            quantity, reserved_quantity, status)
+                VALUES (?, ?, 'WAREHOUSE', ?, ?, 10, 0, 'AVAILABLE')
+                """, batchId, skuId, warehouseId, "EX-B-" + batchId.toString().substring(0, 8));
+
+        UUID orderLineId = UUID.randomUUID();
+        jdbc.update("""
+                INSERT INTO order_line (id, order_id, sku_id, title_snapshot, sku_code_snapshot,
+                                        quantity, unit_price_amount, currency, fulfillment_type)
+                VALUES (?, ?, ?, '换货商品', 'SKU-EX', 1, 1000, 'CNY', 'WAREHOUSE_SHIP')
+                """, orderLineId, orderId, skuId);
+
+        UUID afterSaleId = UUID.randomUUID();
+        jdbc.update("""
+                INSERT INTO after_sale (id, after_sale_no, order_id, type, status, reason,
+                                        contact_phone, refund_amount, currency)
+                VALUES (?, ?, ?, 'EXCHANGE', 'RECEIVED', '质量问题', ?, 0, 'CNY')
+                """, afterSaleId, "AS-" + afterSaleId, orderId, phone);
+        jdbc.update("""
+                INSERT INTO after_sale_line (id, after_sale_id, order_line_id, sku_id, quantity)
+                VALUES (?, ?, ?, ?, 1)
+                """, UUID.randomUUID(), afterSaleId, orderLineId, skuId);
+        return afterSaleId;
+    }
+
     @Test
     void returnAfterSaleCannotShipExchange() {
         String phone = "1390000" + (1000 + Math.abs(UUID.randomUUID().hashCode() % 9000));

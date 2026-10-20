@@ -106,6 +106,18 @@ class CouponScopeTest {
     }
 
     @Test
+    void scopedCouponHasZeroEligibleWhenNoMatchingSku() {
+        UUID couponId = claimScopedCoupon("SC-4", "SKU", List.of(SKU_A));
+
+        long eligible = coupons.eligibleAmount(couponId, Map.of(SKU_B, 2_000L));
+
+        assertThat(eligible).isZero();
+        // 注意：门槛为 0 的券对 0 金额仍判"可用"（折扣自然为 0），
+        // 因此结算层必须显式拒绝 `eligible == 0`，否则会出现"用了券但没优惠"的静默失败。
+        assertThat(coupons.checkUsable(couponId, MEMBER, eligible).discountAmount()).isZero();
+    }
+
+    @Test
     void nonAllScopeRequiresIds() {
         assertThatThrownBy(() -> coupons.createTemplate("SC-3", "范围券", "AMOUNT", 500, 0, 10, 1, 30,
                 Instant.now(), Instant.now().plusSeconds(60), "SKU", List.of()))

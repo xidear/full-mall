@@ -249,7 +249,18 @@ public class OrderService {
             if (couponMemberId == null) {
                 throw ApiException.badRequest("COUPON_REQUIRES_MEMBER", "优惠券只对会员订单可用");
             }
-            var eligibility = coupons.checkUsable(request.couponId(), couponMemberId, total.amount());
+            // 券的门槛按"命中范围的金额"判断，而不是整单金额
+            java.util.Map<UUID, Long> couponSubtotals = new java.util.LinkedHashMap<>();
+            for (ResolvedItem item : resolved) {
+                couponSubtotals.merge(item.sku().id(),
+                        item.sku().price().amount() * item.quantity(), Long::sum);
+            }
+            long eligibleAmount = coupons.eligibleAmount(request.couponId(), couponSubtotals);
+            if (eligibleAmount <= 0) {
+                throw ApiException.conflict("COUPON_NOT_APPLICABLE",
+                        "购物车中没有该券可用的商品");
+            }
+            var eligibility = coupons.checkUsable(request.couponId(), couponMemberId, eligibleAmount);
             if (!eligibility.usable()) {
                 throw ApiException.conflict("COUPON_NOT_USABLE", eligibility.reason());
             }

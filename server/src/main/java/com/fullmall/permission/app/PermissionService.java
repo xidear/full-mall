@@ -45,6 +45,8 @@ public class PermissionService {
         }
         if (path.startsWith("/admin/v1/dashboard")) return "dashboard.view";
         if (path.startsWith("/admin/v1/products")) return "product.manage";
+        // 评价审核属于商品运营
+        if (path.startsWith("/admin/v1/reviews")) return "product.manage";
         if (path.startsWith("/admin/v1/orders")) return "order.manage";
         if (path.startsWith("/admin/v1/customers")) return "customer.view";
         if (path.startsWith("/admin/v1/inventory")) return "inventory.view";

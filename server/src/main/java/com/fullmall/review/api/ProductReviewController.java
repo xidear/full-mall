@@ -32,6 +32,28 @@ public class ProductReviewController {
         return reviews.listForSku(skuId, limit);
     }
 
+    /** 后台评价列表（含已隐藏）。 */
+    @GetMapping("/admin/v1/reviews")
+    public Map<String, Object> adminList(@RequestParam(required = false) String status,
+                                         @RequestParam(defaultValue = "0") int page,
+                                         @RequestParam(defaultValue = "20") int size) {
+        return Map.of(
+                "items", reviews.listForAdmin(status, page, size),
+                "page", Math.max(page, 0),
+                "size", size,
+                "total", reviews.countForAdmin(status));
+    }
+
+    public record ModerateReview(@NotNull String status) {
+    }
+
+    /** 隐藏或恢复评价（PUBLISHED ↔ HIDDEN）。 */
+    @PostMapping("/admin/v1/reviews/{reviewId}/status")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void moderate(@PathVariable UUID reviewId, @RequestBody ModerateReview request) {
+        reviews.moderate(reviewId, request.status());
+    }
+
     @PostMapping("/api/v1/products/reviews")
     @ResponseStatus(HttpStatus.CREATED)
     public Map<String, UUID> create(@RequestBody CreateReview body, Authentication authentication) {

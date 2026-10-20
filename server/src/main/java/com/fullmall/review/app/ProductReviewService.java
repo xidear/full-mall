@@ -89,6 +89,66 @@ public class ProductReviewService {
                 rs.getTimestamp("created_at").toInstant()), skuId, limit);
     }
 
+    /** 后台评价列表（含已隐藏），用于审核。 */
+    public java.util.List<AdminReview> listForAdmin(String status, int page, int size) {
+        int safeSize = Math.min(Math.max(size, 1), 100);
+        int offset = Math.max(page, 0) * safeSize;
+        String filter = normalStatus(status);
+        return jdbcTemplate.query("""
+                SELECT r.id, r.sku_id, r.order_id, r.member_id, r.rating, r.content, r.status, r.created_at
+                  FROM product_review r
+                 WHERE (?::text IS NULL OR r.status = ?::text)
+                 ORDER BY r.created_at DESC
+                 LIMIT ? OFFSET ?
+                """, (rs, rowNum) -> new AdminReview(
+                rs.getObject("id", UUID.class), rs.getObject("sku_id", UUID.class),
+                rs.getObject("order_id", UUID.class), rs.getObject("member_id", UUID.class),
+                rs.getInt("rating"), rs.getString("content"), rs.getString("status"),
+                rs.getTimestamp("created_at").toInstant()), filter, filter, safeSize, offset);
+    }
+
+    public long countForAdmin(String status) {
+        String filter = normalStatus(status);
+        Long count = jdbcTemplate.queryForObject("""
+                SELECT COUNT(*) FROM product_review WHERE (?::text IS NULL OR status = ?::text)
+                """, Long.class, filter, filter);
+        return count == null ? 0 : count;
+    }
+
+    /**
+     * 隐藏/恢复评价。
+     *
+     * <p>只允许 PUBLISHED / HIDDEN 之间切换：删除评价会破坏顾客信任，隐藏可逆且可审计。
+     */
+    public void moderate(UUID reviewId, String status) {
+        String target = normalStatus(status);
+        if (target == null) {
+            throw ApiException.badRequest("INVALID_REVIEW_STATUS", "评价状态只能是 PUBLISHED 或 HIDDEN");
+        }
+        int updated = jdbcTemplate.update(
+                "UPDATE product_review SET status = ? WHERE id = ?", target, reviewId);
+        if (updated != 1) {
+            throw ApiException.notFound("REVIEW_NOT_FOUND", "评价不存在: " + reviewId);
+        }
+    }
+
+    private String normalStatus(String status) {
+        if (status == null || status.isBlank()) {
+            return null;
+        }
+        String normalized = status.trim().toUpperCase(java.util.Locale.ROOT);
+        if (!normalized.equals("PUBLISHED") && !normalized.equals("HIDDEN")) {
+            throw ApiException.badRequest("INVALID_REVIEW_STATUS",
+                    "评价状态只能是 PUBLISHED 或 HIDDEN，实际=" + status);
+        }
+        return normalized;
+    }
+
+    public record AdminReview(UUID id, UUID skuId, UUID orderId, UUID memberId,
+                              int rating, String content, String status,
+                              java.time.Instant createdAt) {
+    }
+
     /** 平均分（无评价返回 null，不返回 0 冒充满分）。 */
     public Double averageRating(UUID skuId) {
         return jdbcTemplate.queryForObject("""

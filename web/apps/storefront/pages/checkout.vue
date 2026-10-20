@@ -119,7 +119,9 @@ async function ensureMemberToken(): Promise<string> {
     { method: 'POST', body: { phone: contactPhone.value.trim(), code: otpCode.value.trim() } })
   memberToken.value = session.token
   if (process.client) {
+    // 同时写 cookie：订单页在服务端渲染时读不到 localStorage，只能靠 cookie 带身份
     localStorage.setItem('fullmall.memberToken', session.token)
+    document.cookie = `fullmall_member_token=${session.token}; path=/; max-age=2592000; samesite=lax`
   }
   return session.token
 }

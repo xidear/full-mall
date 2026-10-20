@@ -11,7 +11,8 @@ const route = useRoute()
 const config = useRuntimeConfig()
 const base = import.meta.server ? config.apiInternalBase : config.public.apiBase
 // 会员/访客下单后都需要带 token 才能查看自己的订单（服务端按归属校验）
-const memberToken = process.client ? (localStorage.getItem('fullmall.memberToken') ?? '') : ''
+// 服务端渲染读 cookie、客户端也读 cookie（localStorage 在 SSR 取不到，曾导致硬刷新 404）
+const memberToken = useCookie<string | null>('fullmall_member_token').value ?? ''
 const guestToken = process.client
   ? (localStorage.getItem(`fullmall.orderToken.${route.params.id}`) ?? '')
   : ''

@@ -74,3 +74,15 @@ app.storage.provider=<真实存储>
 ```
 
 任一项不满足，服务**起不来**——这是有意设计。
+
+### 实测输出（本地带 PG 跑 prod 模式）
+
+```
+Caused by: java.lang.IllegalStateException: 生产模式禁止使用 mock/未配置适配器，启动中止：
+  - app.payment.provider=mock（生产禁止 mock，会伪造成功报文）
+  - app.logistics.provider=mock（生产禁止 mock，会伪造成功报文）
+  - app.sms.provider=mock（生产禁止 mock，会伪造成功报文）
+```
+
+> 注意：验证时必须用**新打出的 jar**。我第一次用旧 jar 跑，应用居然起来了——
+> 因为 `mvn test` 只编译不打包。这与第 134 轮踩的是同一个坑。

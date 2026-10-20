@@ -3971,3 +3971,24 @@ storefront 结算页需要真正的 OTP 流程：
 
 > 仍未接入：券核销、订单取消、售后审核（已在清单注明，不假装覆盖完整）。
 
+---
+
+## 2026-10-19：后台退款接口（D7 后端部分）
+
+`POST /admin/v1/orders/{orderId}/refunds`，body `{amount, reason}`：
+
+- 金额 > 0、原因必填；
+- 写 `ORDER_REFUND_REQUESTED` 审计（actor=`staff:<用户名>`）；
+- 调用 `PaymentService.refund`，**按行分摊自动完成**（不重复记录）。
+
+**为什么放 payment 模块**：第一版放在 `AdminOrderController`，Modulith 立刻报
+`Cycle detected: Slice order -> ...`——payment 已依赖 order，反向依赖构成循环。
+移到 `payment/api/AdminRefundController` 后通过。
+
+| 验证 | 结果 |
+|---|---|
+| 后端测试 | **413 个全绿**（含模块边界测试） |
+| 接口对齐 | **202** 路由 / 19 调用 / 0 未匹配 |
+
+> 未做：前端退款按钮、行级勾选（按行分摊已自动完成，界面暂不需要选行）。
+

@@ -17,6 +17,8 @@ const stores = ref<Store[]>([])
 const storeId = ref('')
 const tasks = ref<PickTask[]>([])
 const loading = ref(false)
+// 正在核销/拣货的标识：防止重复提交（重复核销=重复给货）
+const verifying = ref(false)
 const error = ref('')
 const success = ref('')
 const showAll = ref(false)
@@ -160,6 +162,10 @@ async function verifyPickup(method: 'PICKUP_CODE' | 'PHONE') {
   const value = method === 'PHONE' ? pickupDetail.value.customerPhone : code
   error.value = ''
   success.value = ''
+  if (verifying.value) {
+    return
+  }
+  verifying.value = true
   try {
     const updated = await api.post<{ status: string; usedCount: number; totalUses: number }>(
       `/store/v1/pickups/${code}/verify`,
@@ -171,6 +177,8 @@ async function verifyPickup(method: 'PICKUP_CODE' | 'PHONE') {
     pickupDetail.value = await api.get<PickupDetail>(`/store/v1/pickups/${code}`)
   } catch (cause) {
     error.value = cause instanceof Error ? cause.message : '核销失败'
+  } finally {
+    verifying.value = false
   }
 }
 
@@ -290,12 +298,14 @@ function remainingLabel(detail: PickupDetail) {
         <el-button
           type="primary"
           :disabled="appMode === 'demo' || pickupDetail.remainingUses === 0"
+          :loading="verifying"
           @click="verifyPickup('PICKUP_CODE')"
         >
           按提货码核销
         </el-button>
         <el-button
           :disabled="appMode === 'demo' || pickupDetail.remainingUses === 0"
+          :loading="verifying"
           @click="verifyPickup('PHONE')"
         >
           按手机号核销

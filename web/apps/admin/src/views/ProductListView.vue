@@ -18,6 +18,8 @@ const error = ref('')
 const page = ref(0)
 const size = ref(20)
 const total = ref(0)
+// 正在切换状态的商品 ID：避免重复点击导致上下架抖动
+const actionId = ref('')
 
 onMounted(load)
 
@@ -53,13 +55,17 @@ async function load() {
 }
 
 async function toggleStatus(product: Product) {
+  if (actionId.value) return
   const next = product.status === 'ACTIVE' ? 'DRAFT' : 'ACTIVE'
+  actionId.value = product.id
   try {
     await api.patch(`/admin/v1/products/${product.id}/status`, { status: next })
     ElMessage.success(next === 'ACTIVE' ? '商品已上架' : '商品已下架')
     await load()
   } catch (cause) {
     ElMessage.error(cause instanceof Error ? cause.message : '操作失败')
+  } finally {
+    actionId.value = ''
   }
 }
 
@@ -121,6 +127,7 @@ function price(product: Product) {
           <el-button
             link
             :type="row.status === 'ACTIVE' ? 'warning' : 'success'"
+            :loading="actionId === row.id"
             @click="toggleStatus(row)"
           >
             {{ row.status === 'ACTIVE' ? '下架' : '上架' }}

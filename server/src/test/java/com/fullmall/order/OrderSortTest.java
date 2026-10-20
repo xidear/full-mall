@@ -77,4 +77,26 @@ class OrderSortTest {
         var summary = (com.fullmall.order.api.OrderSummary) items.get(0);
         return summary.total().amount();
     }
+
+    @Test
+    void adminDetailReturnsLinesWithoutOwnershipCheck() {
+        // 后台详情不能依赖会员归属：客服/运营需要能查任意订单
+        UUID orderId = UUID.randomUUID();
+        jdbc.update("""
+                INSERT INTO orders (id, order_no, status, currency, subtotal_amount, shipping_fee_amount,
+                                    discount_amount, total_amount, contact_name, contact_phone, fulfillment_mode)
+                VALUES (?, ?, 'PAID', 'CNY', 5000, 0, 0, 5000, '客服查询', '13900004444', 'SHIP')
+                """, orderId, "ADM-" + orderId.toString().substring(0, 8));
+        jdbc.update("""
+                INSERT INTO order_line (id, order_id, sku_id, title_snapshot, sku_code_snapshot, quantity,
+                                        unit_price_amount, currency, fulfillment_type, line_type)
+                VALUES (?, ?, ?, '后台查询商品', 'ADM-SKU', 2, 2500, 'CNY', 'WAREHOUSE_SHIP', 'NORMAL')
+                """, UUID.randomUUID(), orderId, UUID.randomUUID());
+
+        var order = orders.getOrder(orderId);
+
+        assertThat(order.lines()).hasSize(1);
+        assertThat(order.lines().get(0).quantity()).isEqualTo(2);
+        assertThat(order.total().amount()).isEqualTo(5000);
+    }
 }

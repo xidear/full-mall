@@ -79,7 +79,7 @@ async function viewOrder(order: OrderSummary) {
   detailLoading.value = true
   error.value = ''
   try {
-    selected.value = await api.get<Order>(`/api/v1/orders/${order.id}`)
+    selected.value = await api.get<Order>(`/admin/v1/orders/${order.id}`)
     fulfillments.value = await api.get<Fulfillment[]>(`/admin/v1/orders/${order.id}/fulfillments`)
   } catch (cause) {
     error.value = cause instanceof Error ? cause.message : '订单详情加载失败'

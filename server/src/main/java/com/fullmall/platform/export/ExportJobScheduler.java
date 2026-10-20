@@ -2,8 +2,6 @@ package com.fullmall.platform.export;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
-import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
 /**
@@ -14,8 +12,13 @@ import org.springframework.stereotype.Component;
  *
  * <p>单次最多处理 {@code batches} 个任务，避免长时间占用线程；处理不完下一轮继续。
  */
+/**
+ * 导出任务执行器（纯逻辑，不含调度）。
+ *
+ * <p>调度由 `ExportWorkerTask` 通过图形化注册表驱动；本类只负责"跑一批"，
+ * 便于直接单测与手动触发。
+ */
 @Component
-@ConditionalOnProperty(prefix = "app.export.worker", name = "enabled", havingValue = "true")
 public class ExportJobScheduler {
 
     private static final Logger log = LoggerFactory.getLogger(ExportJobScheduler.class);
@@ -32,9 +35,6 @@ public class ExportJobScheduler {
         this.worker = worker;
         this.batches = batches;
     }
-
-    @Scheduled(fixedDelayString = "${app.export.worker.interval-ms:5000}",
-            initialDelayString = "${app.export.worker.initial-delay-ms:10000}")
     public void run() {
         for (int i = 0; i < batches; i++) {
             try {

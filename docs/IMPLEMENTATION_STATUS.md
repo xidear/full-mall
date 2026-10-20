@@ -2570,3 +2570,31 @@ make verify-fast   # 跳过 E2E
 | 库存预留释放 `ReservationExpiryJob` | 高 | 影响可售库存 |
 | 拼团过期（`PromotionService` 内） | 高 | 在服务内部方法上，需要先抽出来 |
 
+---
+
+## 2026-10-19：佣金解冻 + 导出 worker 迁入注册表
+
+- `CommissionReleaseScheduler` → **`CommissionReleaseTask`**（code `distribution.commission-release`，cron `0 */5 * * * *`，默认关闭）
+- `ExportJobScheduler` 去掉 `@Scheduled` / `@ConditionalOnProperty`，变成**纯执行器**；
+  调度交给新的 **`ExportWorkerTask`**（code `export.worker`，cron `*/10 * * * * *`，默认关闭）
+- 两个类都支持后台改 cron、改启停、手动触发。
+
+| 验证 | 结果 |
+|---|---|
+| 后端测试 | **324 个，全部通过，0 跳过** |
+| 既有用例 | `CommissionReleaseSchedulerTest`、`ExportSchedulerTest` 改为直接驱动任务/执行器，仍全绿 |
+
+### 踩坑
+
+去掉依赖类上的 `@ConditionalOnProperty` 后，`@Component` 与注释块顺序被打乱，
+导致 `ExportJobScheduler` 不再被注册成 bean，进而 `ExportWorkerTask` 注入失败、上下文起不来。
+已修正注解位置——这类"注解被注释块隔开"的问题编译不报错，只在启动时暴露。
+
+### 仍未迁移（高风险，单独一轮）
+
+| 任务 | 原因 |
+|---|---|
+| 订单超时 `OrderExpiryJob` | 改变订单状态，需补回归 |
+| 库存预留释放 `ReservationExpiryJob` | 影响可售库存 |
+| 拼团过期（`PromotionService` 内部方法） | 需先抽出可调度方法 |
+

@@ -29,6 +29,8 @@ const loading = ref(false)
 const error = ref('')
 const statusFilter = ref('')
 const detail = ref<AfterSaleView | null>(null)
+// 正在执行的售后单：按钮显示 loading，避免重复点击导致重复退款
+const actionId = ref('')
 const detailDialog = ref(false)
 const receiveDialog = ref(false)
 const receiveTarget = ref<AfterSaleView | null>(null)
@@ -70,6 +72,7 @@ async function load() {
     error.value = cause instanceof Error ? cause.message : '售后单加载失败'
   } finally {
     loading.value = false
+    actionId.value = ''
   }
 }
 
@@ -79,7 +82,7 @@ function openDetail(afterSale: AfterSaleView) {
 }
 
 async function approve(afterSale: AfterSaleView) {
-  loading.value = true
+  actionId.value = afterSale.id
   try {
     await api.post(`/admin/v1/after-sales/${afterSale.id}/approve`, { adminNote: '审核通过' })
     ElMessage.success('售后已同意')
@@ -88,6 +91,7 @@ async function approve(afterSale: AfterSaleView) {
     error.value = cause instanceof Error ? cause.message : '审核失败'
   } finally {
     loading.value = false
+    actionId.value = ''
   }
 }
 
@@ -108,6 +112,7 @@ async function reject(afterSale: AfterSaleView) {
     error.value = cause instanceof Error ? cause.message : '拒绝失败'
   } finally {
     loading.value = false
+    actionId.value = ''
   }
 }
 
@@ -137,6 +142,7 @@ async function receive() {
     error.value = cause instanceof Error ? cause.message : '退货入库失败'
   } finally {
     loading.value = false
+    actionId.value = ''
   }
 }
 
@@ -156,6 +162,7 @@ async function refund(afterSale: AfterSaleView) {
     error.value = cause instanceof Error ? cause.message : '退款失败'
   } finally {
     loading.value = false
+    actionId.value = ''
   }
 }
 
@@ -206,10 +213,13 @@ function money(value?: { amount: number; currency: string }) {
         <el-table-column label="操作" width="280">
           <template #default="{ row }">
             <el-button size="small" @click="openDetail(row)">详情</el-button>
-            <el-button v-if="row.status === 'REQUESTED'" size="small" type="primary" @click="approve(row)">同意</el-button>
-            <el-button v-if="row.status === 'REQUESTED' || row.status === 'APPROVED'" size="small" type="danger" plain @click="reject(row)">拒绝</el-button>
+            <el-button v-if="row.status === 'REQUESTED'" size="small" type="primary"
+                       :loading="actionId === row.id" @click="approve(row)">同意</el-button>
+            <el-button v-if="row.status === 'REQUESTED' || row.status === 'APPROVED'" size="small" type="danger" plain
+                       :loading="actionId === row.id" @click="reject(row)">拒绝</el-button>
             <el-button v-if="row.status === 'APPROVED'" size="small" type="warning" @click="openReceive(row)">退货入库</el-button>
-            <el-button v-if="row.status === 'RECEIVED'" size="small" type="success" @click="refund(row)">退款</el-button>
+            <el-button v-if="row.status === 'RECEIVED'" size="small" type="success"
+                       :loading="actionId === row.id" @click="refund(row)">退款</el-button>
           </template>
         </el-table-column>
       </el-table>

@@ -31,6 +31,8 @@ public class PaymentService {
     private final com.fullmall.coupon.app.CouponService coupons;
     /** 部分退款积分回退策略：KEEP（默认，现状）或 PROPORTIONAL。 */
     private final String partialPointsMode;
+    private final com.fullmall.platform.config.ProductionReadinessChecker readiness;
+    private final com.fullmall.platform.risk.RiskAlertService riskAlerts;
 
     public PaymentService(PaymentRepository paymentRepository,
                           OrderService orderService,
@@ -44,7 +46,9 @@ public class PaymentService {
                           com.fullmall.notification.app.NotificationService notifications,
                           com.fullmall.coupon.app.CouponService coupons,
                           @org.springframework.beans.factory.annotation.Value(
-                                  "${app.refund.partial.points-mode:KEEP}") String partialPointsMode) {
+                                  "${app.refund.partial.points-mode:KEEP}") String partialPointsMode,
+                          com.fullmall.platform.config.ProductionReadinessChecker readiness,
+                          com.fullmall.platform.risk.RiskAlertService riskAlerts) {
         this.paymentRepository = paymentRepository;
         this.orderService = orderService;
         this.mockPaymentConnector = mockPaymentConnector;
@@ -62,12 +66,29 @@ public class PaymentService {
                     "app.refund.partial.points-mode 只能是 KEEP 或 PROPORTIONAL，实际=" + partialPointsMode);
         }
         this.partialPointsMode = mode;
+        this.readiness = readiness;
+        this.riskAlerts = riskAlerts;
     }
 
     /**
      * 退款对佣金的处理（分销金融正确性）：
      * 整单退款 → 佣金回冲；部分退款 → 佣金延长冻结（比例回冲尚未实现，绝不提前解冻）。
      */
+    /**
+     * 生产环境必须已配置真实支付服务商：否则拒绝支付并写告警。
+     *
+     * <p>为什么不在启动时拦：服务商由管理员在后台配置，启动即失败会让后台无法进入。
+     */
+    private void requireRealProviderInProduction() {
+        if (!readiness.usableInProduction("payment")) {
+            riskAlerts.raise("PAYMENT_PROVIDER_NOT_CONFIGURED", com.fullmall.platform.risk.RiskAlertService.Severity.HIGH,
+                    "payment", "生产环境未配置真实支付服务商，支付请求被拒绝", java.time.Duration.ofMinutes(5));
+            throw new com.fullmall.platform.error.ApiException(
+                    org.springframework.http.HttpStatus.SERVICE_UNAVAILABLE,
+                    "PAYMENT_UNAVAILABLE", "支付暂不可用，请稍后再试");
+        }
+    }
+
     private void notifyMember(UUID orderId, String eventType, String title, String content) {
         UUID memberId = orderService.memberIdOf(orderId);
         if (memberId != null) {
@@ -122,6 +143,7 @@ public class PaymentService {
 
     @Transactional
     public Payment payMock(UUID orderId) {
+        requireRealProviderInProduction();
         if (!"mock".equalsIgnoreCase(configuredProvider)) {
             throw ApiException.badRequest("PAYMENT_PROVIDER_NOT_MOCK",
                     "Mock payment endpoint is disabled because payment.provider=" + configuredProvider);

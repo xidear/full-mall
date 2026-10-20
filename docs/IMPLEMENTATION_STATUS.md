@@ -3506,3 +3506,22 @@ storefront 结算页需要真正的 OTP 流程：
 
 > `PROFIT`（按毛利分佣）**未实现**：`order_line` 没有成本快照，做不了真实毛利，不做假实现。
 
+---
+
+## 2026-10-19：纠正"缺配置拒绝启动"的错误做法
+
+用户指出：**生产缺配置不应该阻断启动**——否则管理员进不了后台就无法配置，形成死锁。
+
+- 删除 `ProductionSafetyGuard`（fail-fast），改为 `ProductionReadinessChecker`：
+  - 启动**永远成功**，缺失项以 WARN 列出；
+  - 新增 `GET /admin/v1/system/readiness` 供后台查看各能力配置状态；
+  - 设置表不可读时也只告警（不阻断）。
+- 运行时按能力拒绝：生产未配真实支付 → `payMock` 返回 **503**「支付暂不可用」并写风控
+  告警 `PAYMENT_PROVIDER_NOT_CONFIGURED`（顾客看不到内部原因）。
+
+| 验证 | 结果 |
+|---|---|
+| 后端测试 | **385 个，全部通过，0 跳过** |
+| 真实启动（prod + mock 服务商） | ✅ **Started FullMallApplication**，并输出未配置清单 WARN |
+| 新增用例 | 缺配置只报告不抛错；真实服务商判定就绪；mock 在生产不可用；demo 一律可用 |
+

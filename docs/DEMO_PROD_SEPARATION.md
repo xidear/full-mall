@@ -11,24 +11,29 @@
 | `demo` | 公开演示站（只读） | 允许，且**强制** mock（即使后台配了真实 AK 也不发外网） |
 | `prod` | 生产 | **禁止**，启动即失败 |
 
-## 2. 生产启动校验（`ProductionSafetyGuard`）
+## 2. 生产就绪检查（**只报告，不阻断启动**）
 
-`app.mode=prod` 时启动即校验，任一项不合规则**中止启动**并列出所有问题：
+> 之前的实现是"缺配置就拒绝启动"，这是错的：**服务商与 AK 由管理员在后台配置**，
+> 启动即失败会导致根本进不了后台。策略已改为：
 
-| 配置 | 生产要求 |
+| 时机 | 行为 |
 |---|---|
-| `app.payment.provider` | 真实支付（wechat/alipay/stripe…），不得为 `mock` |
-| `app.logistics.provider` | 真实物流（kuaidi100/kuaidiniao/aftership），不得为 `mock` |
-| `app.sms.provider` | 真实短信（aliyun/tencent/yunpian），不得为 `mock` |
-| `app.storage.provider` | 必须显式配置，不得留空 |
+| 启动 | **永远成功**；缺失项以 WARN 列出（见下） |
+| 后台 | `GET /admin/v1/system/readiness` 展示 payment/logistics/sms 是否已配真实服务商 |
+| 运行时 | 真正调用该能力时才拒绝（**不伪造成功**），并写风控告警 + 日志 |
 
-错误信息示例：
+实测启动日志（prod + mock 服务商）：
 
 ```
-生产模式禁止使用 mock/未配置适配器，启动中止：
-  - app.payment.provider=mock（生产禁止 mock，会伪造成功报文）
-  - app.sms.provider=aliyun 不是已知的真实适配器（白名单：[...]）
+Started FullMallApplication in 11.034 seconds
+WARN 生产环境存在未配置的服务商（不影响启动，请在后台「系统设置」中补齐）：
+  - payment = mock（未配置或仍为 mock，真实调用会被拒绝并记录告警…）
 ```
+
+### 运行时拒绝示例
+
+生产环境未配置真实支付时，`POST /api/v1/payments/mock/{id}/pay` 返回 **503**「支付暂不可用，请稍后再试」，
+同时写入风控告警 `PAYMENT_PROVIDER_NOT_CONFIGURED`（客户看不到内部原因，维护人员能看到）。
 
 ## 3. 通知渠道隔离
 
@@ -62,18 +67,18 @@
 | `ProductionSafetyGuardTest` | prod + mock → 启动失败；prod + 未知服务商 → 失败；demo/dev + mock → 通过 |
 | `ChannelSenderModeTest` | 生产下 SMS sender 被调用 → 抛"拒绝伪造发送成功"；`IN_APP` 始终可用 |
 
-## 7. 部署检查清单
+## 7. 上线检查清单（不阻断启动，但必须补齐）
 
 ```bash
-# 生产部署前必须确认
-app.mode=prod
-app.payment.provider=<真实渠道>
-app.logistics.provider=<真实物流>
-app.sms.provider=<真实短信>
-app.storage.provider=<真实存储>
+# 部署后进后台「系统设置」确认（或直接查就绪接口）
+GET /admin/v1/system/readiness
+
+payment   = wechat|alipay|stripe
+logistics = kuaidi100|kuaidiniao|aftership
+sms       = aliyun|tencent|yunpian
 ```
 
-任一项不满足，服务**起不来**——这是有意设计。
+未补齐时：系统可正常登录后台、可浏览与配置，但**相关真实调用会被拒绝并告警**，不会伪造成功。
 
 ### 实测输出（本地带 PG 跑 prod 模式）
 

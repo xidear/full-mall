@@ -18,6 +18,8 @@ interface CouponTemplate {
 }
 
 const templates = ref<CouponTemplate[]>([])
+// 正在启用的券模板 ID：避免重复点击
+const actionId = ref('')
 const loading = ref(false)
 const saving = ref(false)
 const error = ref('')
@@ -114,12 +116,16 @@ async function submit() {
 }
 
 async function activate(template: CouponTemplate) {
+  if (actionId.value) return
+  actionId.value = template.id
   try {
     await api.post(`/admin/v1/coupons/templates/${template.id}/activate`)
     ElMessage.success('券模板已启用')
     await load()
   } catch (cause) {
     ElMessage.error(cause instanceof Error ? cause.message : '启用失败')
+  } finally {
+    actionId.value = ''
   }
 }
 
@@ -170,7 +176,7 @@ onMounted(load)
       <el-table-column label="操作" width="120">
         <template #default="{ row }">
           <el-button v-if="row.status === 'DRAFT'" size="small" type="primary"
-                     @click="activate(row)">启用</el-button>
+                     :loading="actionId === row.id" @click="activate(row)">启用</el-button>
         </template>
       </el-table-column>
     </el-table>

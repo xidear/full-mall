@@ -19,6 +19,8 @@ const tasks = ref<PickTask[]>([])
 const loading = ref(false)
 // 正在核销/拣货的标识：防止重复提交（重复核销=重复给货）
 const verifying = ref(false)
+// 正在拣货的任务 ID：避免重复确认
+const pickingId = ref('')
 const error = ref('')
 const success = ref('')
 const showAll = ref(false)
@@ -111,6 +113,9 @@ function pendingLines(task: PickTask) {
 }
 
 async function confirmPick(task: PickTask, line: PickTaskLine) {
+  if (pickingId.value) return
+  pickingId.value = task.id
+  try {
   if (!line.suggestedBatchId) {
     error.value = '该任务缺少建议批次，请检查库存分配'
     return
@@ -126,6 +131,9 @@ async function confirmPick(task: PickTask, line: PickTaskLine) {
     await loadTasks()
   } catch (cause) {
     error.value = cause instanceof Error ? cause.message : '确认拣货失败'
+  }
+  } finally {
+    pickingId.value = ''
   }
 }
 
@@ -237,6 +245,7 @@ function remainingLabel(detail: PickupDetail) {
             v-else
             type="primary"
             :disabled="task.status === 'CANCELLED'"
+            :loading="pickingId === task.id"
             @click="confirmPick(task, line)"
           >
             确认拣货

@@ -24,6 +24,8 @@ const filters = reactive({
 })
 const notifications = ref<Notification[]>([])
 const loading = ref(false)
+// 正在标记已读的通知：避免重复请求
+const markingId = ref('')
 const error = ref('')
 
 const channelLabels: Record<string, string> = {
@@ -68,12 +70,16 @@ async function load() {
 }
 
 async function markRead(notification: Notification) {
+  if (markingId.value) return
+  markingId.value = notification.id
   try {
     await api.post(`/admin/v1/notifications/${notification.id}/read`)
     ElMessage.success('已标记为已读')
     await load()
   } catch (cause) {
     ElMessage.error(cause instanceof Error ? cause.message : '操作失败')
+  } finally {
+    markingId.value = ''
   }
 }
 

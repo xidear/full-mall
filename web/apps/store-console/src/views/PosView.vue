@@ -57,6 +57,9 @@ const pointsInput = ref(0)
 const tenderAmountYuan = ref(0)
 
 const busy = ref(false)
+// 会员查询/解锁：单独状态，避免与收银主流程互斥
+const memberLooking = ref(false)
+const unlocking = ref(false)
 const refundDialog = ref(false)
 const refundSale = ref<PosSale | null>(null)
 const refundReason = ref('')
@@ -333,11 +336,13 @@ async function createSale() {
 }
 
 async function lookupMember() {
+  if (memberLooking.value) return
   if (!memberQuery.value.trim()) {
     ElMessage.warning('请输入会员手机号或会员编号')
     return
   }
   clearFeedback()
+  memberLooking.value = true
   try {
     memberView.value = await api.get<PosMemberView>('/store/v1/pos/members', {
       query: memberQuery.value.trim()
@@ -353,6 +358,8 @@ async function lookupMember() {
   } catch (cause) {
     memberView.value = null
     error.value = messageOf(cause, '会员识别失败')
+  } finally {
+    memberLooking.value = false
   }
 }
 
@@ -492,7 +499,9 @@ async function voidSale() {
 }
 
 async function unlock() {
+  if (unlocking.value) return
   lockError.value = ''
+  unlocking.value = true
   try {
     await api.post('/store/v1/pos/auth/manager', {
       username: lockForm.username.trim(),
@@ -502,6 +511,8 @@ async function unlock() {
     lockForm.pin = ''
   } catch (cause) {
     lockError.value = messageOf(cause, '解锁失败')
+  } finally {
+    unlocking.value = false
   }
 }
 
@@ -780,7 +791,7 @@ function messageOf(cause: unknown, fallback: string) {
               :disabled="!isDraft || isDemo"
               @keyup.enter="lookupMember"
             />
-            <el-button :disabled="!isDraft || isDemo" @click="lookupMember">识别会员</el-button>
+            <el-button :disabled="!isDraft || isDemo" :loading="memberLooking" @click="lookupMember">识别会员</el-button>
           </div>
           <div v-if="memberView" class="member-card">
             <div>
@@ -983,7 +994,7 @@ function messageOf(cause: unknown, fallback: string) {
         <el-input v-model="lockForm.username" placeholder="账号" />
         <el-input v-model="lockForm.pin" type="password" show-password placeholder="PIN" @keyup.enter="unlock" />
         <el-alert v-if="lockError" :title="lockError" type="error" show-icon :closable="false" />
-        <el-button type="primary" :loading="busy" @click="unlock">解锁</el-button>
+        <el-button type="primary" :loading="unlocking" @click="unlock">解锁</el-button>
       </div>
     </div>
 

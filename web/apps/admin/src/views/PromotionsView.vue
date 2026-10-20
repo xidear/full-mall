@@ -139,12 +139,16 @@ async function submit() {
 }
 
 async function changeStatus(promotion: PromotionView, status: 'ACTIVE' | 'ENDED') {
+  if (actionId.value) return
+  actionId.value = promotion.id
   try {
     await api.post<PromotionView>(`/admin/v1/promotions/${promotion.id}/status?status=${status}`)
     ElMessage.success(status === 'ACTIVE' ? '活动已启用' : '活动已结束')
     await load()
   } catch (cause) {
     ElMessage.error(cause instanceof Error ? cause.message : '操作失败')
+  } finally {
+    actionId.value = ''
   }
 }
 
@@ -176,6 +180,8 @@ interface PromotionRule {
 }
 
 const rules = ref<PromotionRule[]>([])
+// 正在执行启停的 ID：避免重复点击
+const actionId = ref('')
 const ruleDialog = ref(false)
 const ruleSaving = ref(false)
 const scopeOptions = ref<ScopeOption[]>([])
@@ -266,22 +272,30 @@ async function submitRule() {
 }
 
 async function activateRule(rule: PromotionRule) {
+  if (actionId.value) return
+  actionId.value = rule.id
   try {
     await api.post(`/admin/v1/promotions/rules/${rule.id}/activate`)
     ElMessage.success('规则已启用')
     await loadRules()
   } catch (cause) {
     ElMessage.error(cause instanceof Error ? cause.message : '启用失败')
+  } finally {
+    actionId.value = ''
   }
 }
 
 async function endRule(rule: PromotionRule) {
+  if (actionId.value) return
+  actionId.value = rule.id
   try {
     await api.post(`/admin/v1/promotions/rules/${rule.id}/end`)
     ElMessage.success('规则已结束')
     await loadRules()
   } catch (cause) {
     ElMessage.error(cause instanceof Error ? cause.message : '结束失败')
+  } finally {
+    actionId.value = ''
   }
 }
 
@@ -342,9 +356,9 @@ function windowLabel(promotion: PromotionView) {
       <el-table-column label="操作" width="160">
         <template #default="{ row }">
           <el-button v-if="row.status === 'DRAFT'" size="small" type="primary"
-                     @click="activateRule(row)">启用</el-button>
+                     :loading="actionId === row.id" @click="activateRule(row)">启用</el-button>
           <el-button v-if="row.status === 'ACTIVE'" size="small"
-                     @click="endRule(row)">结束</el-button>
+                     :loading="actionId === row.id" @click="endRule(row)">结束</el-button>
         </template>
       </el-table-column>
     </el-table>

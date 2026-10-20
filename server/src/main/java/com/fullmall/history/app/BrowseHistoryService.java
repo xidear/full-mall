@@ -22,7 +22,9 @@ public class BrowseHistoryService {
         this.jdbcTemplate = jdbcTemplate;
     }
 
-    public record Entry(UUID skuId, Instant viewedAt, int viewCount) {
+    /** 足迹项：带上商品与价格，顾客端才能渲染（否则只有 skuId）。 */
+    public record Entry(UUID skuId, UUID productId, String title, long priceAmount,
+                        String currency, Instant viewedAt, int viewCount) {
     }
 
     @Transactional
@@ -47,10 +49,24 @@ public class BrowseHistoryService {
             throw ApiException.badRequest("INVALID_LIMIT", "查询条数必须在 1..100，实际=" + limit);
         }
         return jdbcTemplate.query("""
-                SELECT sku_id, viewed_at, view_count FROM member_browse_history
-                 WHERE member_id = ? ORDER BY viewed_at DESC LIMIT ?
+                SELECT h.sku_id, h.viewed_at, h.view_count, s.product_id,
+                       s.price_amount, s.price_currency,
+                       COALESCE(t.title, p.title) AS title
+                  FROM member_browse_history h
+                  JOIN sku s ON s.id = h.sku_id
+                  JOIN product p ON p.id = s.product_id
+                  LEFT JOIN product_translation t
+                         ON t.product_id = p.id AND t.locale = 'zh-CN' AND t.status = 'PUBLISHED'
+                 WHERE h.member_id = ?
+                 ORDER BY h.viewed_at DESC
+                 LIMIT ?
                 """, (rs, rowNum) -> new Entry(
-                rs.getObject("sku_id", UUID.class), rs.getTimestamp("viewed_at").toInstant(),
+                rs.getObject("sku_id", UUID.class),
+                rs.getObject("product_id", UUID.class),
+                rs.getString("title"),
+                rs.getLong("price_amount"),
+                rs.getString("price_currency"),
+                rs.getTimestamp("viewed_at").toInstant(),
                 rs.getInt("view_count")), memberId, limit);
     }
 

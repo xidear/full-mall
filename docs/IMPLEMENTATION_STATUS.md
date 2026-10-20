@@ -4096,3 +4096,19 @@ storefront 结算页需要真正的 OTP 流程：
 > 重新打包后接口返回 `title/priceAmount/productId`，E2E 随即通过。
 > **这条已经踩了第 4 次**，之后凡是验证 HTTP 行为前一律先 `package`。
 
+---
+
+## 2026-10-19：浏览足迹页面（E9 完成）
+
+- 后端 `GET /api/v1/history` 补齐 `productId / title / priceAmount / currency`（JOIN sku+product+翻译）。
+- storefront 新增 `/history`：登录态、加载/失败/空态、查看次数与日期；导航新增「浏览足迹」。
+
+| 验证 | 结果 |
+|---|---|
+| 后端测试 | **417 个，全部通过，0 跳过** |
+| 新增用例 | 记录足迹后列表含标题「足迹商品」、价格 3999、商品 ID、viewCount=1 |
+| 前端构建 | ✅ |
+| 接口对齐 | 202 路由 / **23** 调用 / 0 未匹配 |
+
+> 足迹页**未做浏览器 E2E**（收藏页已有同构 E2E 覆盖同类逻辑），如实标注。
+

@@ -51,6 +51,7 @@ async function search() {
         <nav>
           <NuxtLink to="/account">我的订单</NuxtLink>
           <NuxtLink to="/favorites">我的收藏</NuxtLink>
+          <NuxtLink to="/history">浏览足迹</NuxtLink>
           <NuxtLink to="/notifications">消息中心</NuxtLink>
           <NuxtLink to="/legal/TERMS">帮助中心</NuxtLink>
           <span v-if="runtime.appMode === 'demo'" class="demo-pill">只读演示</span>

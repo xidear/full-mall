@@ -77,6 +77,36 @@ class NotificationRecipientTest {
     }
 
     @Test
+    void purgesOnlyOldMessages() {
+        UUID oldId = UUID.randomUUID();
+        jdbc.update("""
+                INSERT INTO notification (id, recipient_type, recipient_id, event_type, channel,
+                                          title, content, status, created_at)
+                VALUES (?, 'MEMBER', 'member-old', 'ORDER_PAID', 'IN_APP', '旧消息', '内容', 'SENT',
+                        now() - interval '200 days')
+                """, oldId);
+        jdbc.update("""
+                INSERT INTO notification (id, recipient_type, recipient_id, event_type, channel,
+                                          title, content, status)
+                VALUES (?, 'MEMBER', 'member-new', 'ORDER_PAID', 'IN_APP', '新消息', '内容', 'SENT')
+                """, UUID.randomUUID());
+
+        int removed = notifications.purgeOlderThan(180);
+
+        assertThat(removed).isGreaterThanOrEqualTo(1);
+        assertThat(jdbc.queryForObject(
+                "SELECT COUNT(*) FROM notification WHERE id = ?", Integer.class, oldId)).isZero();
+        assertThat(notifications.findForRecipient("MEMBER", "member-new", 10)).hasSize(1);
+    }
+
+    @Test
+    void purgeRejectsNonPositiveDays() {
+        org.assertj.core.api.Assertions.assertThatThrownBy(() -> notifications.purgeOlderThan(0))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("保留天数");
+    }
+
+    @Test
     void memberSeesOnlyOwnMessages() {
         var mine = notifications.findForRecipient("MEMBER", "member-a", 10);
 

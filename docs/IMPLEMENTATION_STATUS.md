@@ -2445,3 +2445,20 @@ make verify-fast   # 跳过 E2E
 |---|---|
 | 后端测试 | **311 个，全部通过，0 跳过** |
 
+---
+
+## 2026-10-19：消息保留清理（默认关闭）
+
+- `NotificationService.purgeOlderThan(days)`：删除超过保留期的消息，`days <= 0` 直接抛错。
+- `NotificationRetentionJob`：`@ConditionalOnProperty(app.notification.retention.enabled)`，
+  **默认关闭**；天数字段 `app.notification.retention.days`（默认 180），Cron `0 30 4 * * *`。
+- 关闭状态下不做任何删除——"消息只增不减"有代价，但**默认不做破坏性操作**更重要。
+
+| 验证 | 结果 |
+|---|---|
+| 后端测试 | **313 个，全部通过，0 跳过** |
+| 新增测试 | 只删过期消息（200 天前的删、新的留）；天数 <= 0 拒绝 |
+
+> 说明：定时任务本机未触发（默认关闭，且测试环境 `app.scheduling.enabled=false`），
+> 验证的是清理**逻辑**本身，不是调度触发。
+

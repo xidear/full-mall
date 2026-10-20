@@ -76,6 +76,22 @@ public class NotificationService {
         deliver("MEMBER", memberId, eventType, "IN_APP", title, content);
     }
 
+    /**
+     * 清理旧消息（保留策略）。
+     *
+     * @param days 保留天数，必须 &gt; 0
+     * @return 删除条数
+     */
+    @org.springframework.transaction.annotation.Transactional
+    public int purgeOlderThan(int days) {
+        if (days <= 0) {
+            throw new IllegalArgumentException("保留天数必须大于 0，实际=" + days);
+        }
+        return jdbcTemplate.update("""
+                DELETE FROM notification WHERE created_at < now() - make_interval(days => ?)
+                """, days);
+    }
+
     /** 顾客侧消息列表（按收件人）。 */
     public List<Notification> findForRecipient(String recipientType, String recipientId, int limit) {
         if (recipientId == null || recipientId.isBlank()) {

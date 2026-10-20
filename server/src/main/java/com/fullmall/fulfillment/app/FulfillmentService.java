@@ -281,8 +281,11 @@ public class FulfillmentService {
             if (fulfillment.type() == FulfillmentType.STORE_PICKUP) {
                 repository.updateStatus(fulfillment.id(), FulfillmentStatus.READY_FOR_PICKUP);
                 repository.updatePickupStatusByFulfillmentId(fulfillment.id(), PickupStatus.READY);
+                // 消息里必须带自提码：顾客收到短信却没有码，等于没通知
+                String pickupCodeForNotice = fulfillment.pickupCode() == null ? "" : fulfillment.pickupCode();
                 notificationService.notifyOrderEvent(fulfillment.orderId(), "PICKUP_READY", "备货完成，请到店自提",
-                        "您的订单已备货完成，请携带提货码到门店自提。", List.of("IN_APP", "SMS", "WECHAT"));
+                        "您的订单已备货完成，请携带提货码 " + pickupCodeForNotice + " 到门店自提。",
+                        List.of("IN_APP", "SMS", "WECHAT"));
             } else {
                 repository.updateShipment(fulfillment.id(), "MOCK", "MOCK" + System.currentTimeMillis());
                 repository.updateStatus(fulfillment.id(), FulfillmentStatus.SHIPPED);

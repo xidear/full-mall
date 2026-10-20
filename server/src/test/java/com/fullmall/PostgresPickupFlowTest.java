@@ -113,6 +113,16 @@ class PostgresPickupFlowTest {
         String pickupCode = fulfillment.get("pickupCode").asText();
         assertNotNull(pickupCode);
 
+        // 备货完成通知必须带自提码，且三个渠道都投递
+        var notices = jdbc.queryForList(
+                // 会员订单：IN_APP 落 MEMBER、SMS/WECHAT 落 CUSTOMER，因此按"非员工"统计
+                "SELECT content FROM notification WHERE event_type = 'PICKUP_READY'"
+                        + " AND recipient_type <> 'STAFF' ORDER BY channel",
+                String.class);
+        assertEquals(3, notices.size());
+        assertTrue(notices.stream().allMatch(content -> content.contains(pickupCode)),
+                "自提通知必须包含提货码");
+
         JsonNode pickup = post("/store/v1/pickups/" + pickupCode + "/verify", Map.of(
                 "verificationType", "PICKUP_CODE",
                 "verificationValue", pickupCode));

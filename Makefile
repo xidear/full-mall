@@ -71,3 +71,10 @@ e2e:
 fmt:
 	cd server && mvn -q spotless:apply
 	cd web && npm run format
+
+
+verify: ## 后端测试 + 打包 + 前端构建 + 接口对齐 + E2E
+	scripts/verify.sh
+
+verify-fast: ## 同上但跳过 E2E
+	scripts/verify.sh --no-e2e

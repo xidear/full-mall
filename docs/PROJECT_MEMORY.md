@@ -554,3 +554,15 @@ cd ../web && NUXT_PUBLIC_API_BASE=http://localhost:8080 PORT=3099 \
   启动失败会明确报 `Port 8080 was already in use`，比静默跑旧代码好得多。
 - 判断是否新代码：看启动日志时间、`ps -eo pid,etime,args | grep java`、或直接请求刚改过的接口。
 
+## 12. 一键验证
+
+```bash
+make verify        # 后端测试 + 打包 + 前端构建 + 接口对齐 + E2E
+make verify-fast   # 跳过 E2E
+```
+
+- 脚本：`scripts/verify.sh`；E2E 需要 Chromium（`npx playwright install chromium`）。
+- 容器内**无 `curl`**，脚本用 `python3 urllib` 探测端口。
+- **不要用 `ps | grep <模式> | xargs kill`**：命令行本身含该模式时会把自己杀掉（已踩）。
+  用 `awk '/模式/ && !/awk/ {print $1}'` 或按 PID 文件清理。
+

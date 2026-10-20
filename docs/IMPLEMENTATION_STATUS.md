@@ -2497,3 +2497,23 @@ make verify-fast   # 跳过 E2E
 > 写错顺序不会报错、只会留下脏数据——因此测试必须断言"新数据完好"，而不只是"旧数据被删"。
 > 未接线：尚未加入定时任务（默认手动或由运维调用），也未清理导出文件。
 
+---
+
+## 2026-10-19：数据保留清理统一入口
+
+此前 notification / export_job / jv_snapshot 三套清理**各自为政且没有触发入口**，等于没做。现在统一：
+
+- `MaintenanceService.runRetention(notificationDays, exportDays, auditDays)`：一次调用三件事，
+  返回结构化报告（各类删除条数）；任何一项失败即抛错（不静默跳过，避免"以为清完了"）。
+- `POST /admin/v1/maintenance/retention`：运维入口，参数可省略（默认 180 / 7 / 365 天）。
+  这是**破坏性操作**，只暴露 POST；权限由 `StaffAuthFilter` 判定（`/admin/v1/**` 未知路径回落
+  `permission.manage`，仅 ADMIN）。
+
+| 验证 | 结果 |
+|---|---|
+| 后端测试 | **318 个，全部通过，0 跳过** |
+| 新增测试 | 一次调用清掉 400 天前的消息与 30 天前的导出记录，**新消息保留** |
+
+> 未做：定时触发（`app.maintenance.retention.enabled` 未实现），当前只能由运维调用接口；
+> 导出磁盘文件仍未清理。
+

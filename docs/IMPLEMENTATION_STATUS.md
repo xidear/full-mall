@@ -4064,3 +4064,19 @@ storefront 结算页需要真正的 OTP 流程：
 
 > 收藏页在 E2E 中只断言"标题可见 + 空态/加载"，**未验证带数据的渲染**（需造收藏数据）。
 
+---
+
+## 2026-10-19：生日礼积分（E3）
+
+- `BirthdayGiftService.grantForDate(date)`：按等级 `member_level.birthday_points` 发放；
+  **业务时区固定 UTC+8**（服务器 UTC 会让生日错一天）。
+- 幂等两道：`member.birthday_gift_year` + `points_ledger.business_key = birthday:<member>:<year>`。
+- `BirthdayGiftTask` 注册进调度表（`member.birthday-gift`，默认每天 00:10，**默认开启**）。
+
+| 验证 | 结果 |
+|---|---|
+| 后端测试 | **416 个，全部通过，0 跳过** |
+| 新增用例 | 生日当天会员发放、非当天不发；**再次执行不重复发放**（余额不变） |
+
+> 调度注册表测试再次拦下我：新任务没登记到断言里导致 `hasSize(9)` 失败，已更新为 10。
+

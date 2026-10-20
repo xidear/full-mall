@@ -3486,3 +3486,23 @@ storefront 结算页需要真正的 OTP 流程：
 | 后端测试 | **381 个，全部通过，0 跳过** |
 | 新增用例 | prod+mock 启动失败（含三处提示）、未知服务商拒绝、空值拒绝、demo/dev 放行；生产下 SMS sender 抛"拒绝伪造发送成功"、`IN_APP` 始终可用 |
 
+---
+
+## 2026-10-19：分销比例配置化 + 二级分佣（纠正写死 5%）
+
+按明确口径重做（详见 `docs/DISTRIBUTION_REDESIGN.md`）：
+
+- V57：`distribution_commission` 增加 `level` / `rate_mode` / `rate_value` / `promoter_type`，
+  唯一键改为 `(order_id, promoter_staff_id, level)`；新增 `promoter_link`（推广员上级关系）。
+- `DistributionConfig`：比例方式（`GROSS` 百分比 / `FIXED` 固定额）、二级开关、冻结策略、
+  最低提现、打款方式全部来自**后台设置且不缓存**（保存即生效）；非法值明确报错。
+- `ReferralService.settleOrder`：一级 = 订单归属推广员，二级 = 其上级（存在才发）；
+  买家**永不参与分佣**。
+
+| 验证 | 结果 |
+|---|---|
+| 后端测试 | **386 个，全部通过，0 跳过** |
+| 新增用例 | 默认 5%/2% 二级；`FIXED` 模式算 800 分；百分比越界拒绝；非法模式/冻结策略拒绝；二级可关 |
+
+> `PROFIT`（按毛利分佣）**未实现**：`order_line` 没有成本快照，做不了真实毛利，不做假实现。
+

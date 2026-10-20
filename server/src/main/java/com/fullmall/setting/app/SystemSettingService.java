@@ -28,7 +28,13 @@ public class SystemSettingService {
             "storage_provider", "sms_provider", "payment_provider", "logistics_provider",
             // 第三方服务的凭据（后台填写，读写时脱敏；演示模式不生效）
             "sms_access_key", "sms_secret_key", "sms_sign_name",
-            "logistics_key", "logistics_customer", "map_provider", "map_key");
+            "logistics_key", "logistics_customer", "map_provider", "map_key",
+            // 分销：比例/等级/冻结/提现全部可配，保存即生效
+            "distribution.level1-mode", "distribution.level1-value",
+            "distribution.level2-enabled", "distribution.level2-mode", "distribution.level2-value",
+            "distribution.bind-mode", "distribution.bind-timing",
+            "distribution.freeze-policy", "distribution.after-sale-window-days",
+            "distribution.min-withdrawal", "distribution.payout-methods");
 
     /** 敏感配置：读接口必须脱敏，写接口不得把掩码值写回库。 */
     private static final Set<String> SECRET_KEYS = Set.of(

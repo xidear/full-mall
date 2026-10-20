@@ -19,12 +19,12 @@ import java.util.UUID;
 public class ReferralService {
 
     private final DistributionRepository repository;
-    private final int commissionRate;
+    private final DistributionConfig distributionConfig;
 
     public ReferralService(DistributionRepository repository,
-                           @Value("${app.distribution.commission-rate:5}") int commissionRate) {
+                           DistributionConfig distributionConfig) {
         this.repository = repository;
-        this.commissionRate = commissionRate;
+        this.distributionConfig = distributionConfig;
     }
 
     @Transactional
@@ -59,17 +59,42 @@ public class ReferralService {
         }
     }
 
+    /**
+     * 结算佣金：**二级分销 + 后台配置比例**。
+     *
+     * <p>一级：买家绑定的推广员；二级：该推广员的上级（`promoter_link` 里有才发）。
+     * 买家和客服是两类账号，**买家永远不参与分佣**，只作为分佣的计算依据。
+     *
+     * <p>冻结：`distribution.freeze-policy=AFTER_SALE_CLOSED`（默认）时 `frozen_until` 留空，
+     * 由释放任务在"订单完成 + 售后窗口"后置为可提现；`FIXED_DAYS` 时按配置天数。
+     */
     @Transactional
     public void settleOrder(UUID orderId, long orderAmount, String currency) {
         UUID promoterId = repository.orderReferrer(orderId);
         if (promoterId == null || orderAmount <= 0) {
             return;
         }
-        long commission = (orderAmount * commissionRate + 50) / 100;
-        if (commission <= 0) {
-            return;
+        var config = distributionConfig.load();
+        java.time.Instant frozenUntil = "FIXED_DAYS".equals(config.freezePolicy())
+                ? java.time.Instant.now().plus(java.time.Duration.ofDays(config.freezeDays()))
+                : null;
+
+        long level1 = DistributionConfig.commission(config, 1, orderAmount);
+        if (level1 > 0) {
+            repository.insertCommission(orderId, promoterId, "STAFF", 1,
+                    config.level1().mode().name(), config.level1().value(),
+                    orderAmount, level1, currency, frozenUntil);
         }
-        repository.insertCommission(orderId, promoterId, orderAmount, commission, currency);
+
+        if (config.level2Enabled() && config.level2().value() > 0) {
+            UUID upline = repository.findUpline("STAFF", promoterId);
+            long level2 = DistributionConfig.commission(config, 2, orderAmount);
+            if (upline != null && level2 > 0) {
+                repository.insertCommission(orderId, upline, "STAFF", 2,
+                        config.level2().mode().name(), config.level2().value(),
+                        orderAmount, level2, currency, frozenUntil);
+            }
+        }
     }
 
     public List<CommissionView> listCommissions(UUID promoterId, String status) {

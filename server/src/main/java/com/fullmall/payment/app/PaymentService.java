@@ -29,6 +29,8 @@ public class PaymentService {
     private final com.fullmall.member.app.MemberPointsService memberPoints;
     private final com.fullmall.notification.app.NotificationService notifications;
     private final com.fullmall.coupon.app.CouponService coupons;
+    /** 部分退款积分回退策略：KEEP（默认，现状）或 PROPORTIONAL。 */
+    private final String partialPointsMode;
 
     public PaymentService(PaymentRepository paymentRepository,
                           OrderService orderService,
@@ -40,7 +42,9 @@ public class PaymentService {
                           com.fullmall.member.app.MemberRewardService memberRewards,
                           com.fullmall.member.app.MemberPointsService memberPoints,
                           com.fullmall.notification.app.NotificationService notifications,
-                          com.fullmall.coupon.app.CouponService coupons) {
+                          com.fullmall.coupon.app.CouponService coupons,
+                          @org.springframework.beans.factory.annotation.Value(
+                                  "${app.refund.partial.points-mode:KEEP}") String partialPointsMode) {
         this.paymentRepository = paymentRepository;
         this.orderService = orderService;
         this.mockPaymentConnector = mockPaymentConnector;
@@ -52,6 +56,12 @@ public class PaymentService {
         this.memberPoints = memberPoints;
         this.notifications = notifications;
         this.coupons = coupons;
+        String mode = partialPointsMode == null ? "KEEP" : partialPointsMode.trim().toUpperCase();
+        if (!java.util.List.of("KEEP", "PROPORTIONAL").contains(mode)) {
+            throw new IllegalArgumentException(
+                    "app.refund.partial.points-mode 只能是 KEEP 或 PROPORTIONAL，实际=" + partialPointsMode);
+        }
+        this.partialPointsMode = mode;
     }
 
     /**
@@ -78,6 +88,11 @@ public class PaymentService {
             coupons.returnForOrder(orderId);
         } else {
             commissionLedger.extendFreezeByOrder(orderId, java.time.Duration.ofDays(7), "部分退款，延长冻结");
+            // 积分/成长值：默认 KEEP（不回退）；PROPORTIONAL 时按退款比例回退
+            if ("PROPORTIONAL".equals(partialPointsMode)) {
+                memberRewards.rollbackProportional(orderId, order.contactPhone(),
+                        refundedAmount, orderTotal);
+            }
         }
     }
 

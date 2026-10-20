@@ -132,6 +132,73 @@ public class MemberRewardService {
         return new Reward(reversePoints, reverseGrowth, member.tier());
     }
 
+    /**
+     * 部分退款按比例回退赚取的积分/成长值（**可选策略**，默认不启用）。
+     *
+     * <p>比例 = 本次退款金额 / 订单实付金额，**向下取整**（不多退）；仍受"不产生负数"保护。
+     * 是否启用由 `app.refund.partial.points-mode` 决定：`KEEP`（默认，现状）或 `PROPORTIONAL`。
+     */
+    @Transactional
+    public Reward rollbackProportional(UUID orderId, String phone, long refundedAmount, long orderTotal) {
+        if (orderTotal <= 0 || refundedAmount <= 0) {
+            throw new IllegalArgumentException(
+                    "按比例回退需要正的退款额与订单额：refunded=" + refundedAmount + ", total=" + orderTotal);
+        }
+        if (refundedAmount > orderTotal) {
+            throw new IllegalArgumentException(
+                    "退款额不能超过订单额：refunded=" + refundedAmount + ", total=" + orderTotal);
+        }
+        List<MemberRow> members = jdbcTemplate.query("""
+                SELECT m.id, m.tier, m.points_balance, m.growth_value, l.points_multiplier
+                  FROM member m JOIN member_level l ON l.code = m.tier
+                 WHERE m.phone = ?
+                """, (rs, rowNum) -> new MemberRow(
+                rs.getObject("id", UUID.class), rs.getString("tier"),
+                rs.getLong("points_balance"), rs.getLong("growth_value"),
+                rs.getInt("points_multiplier")), phone.trim());
+        if (members.isEmpty()) {
+            return new Reward(0, 0, null);
+        }
+        MemberRow member = members.get(0);
+
+        long earnedPoints = earned("points_ledger", "points", orderId);
+        long earnedGrowth = earned("growth_ledger", "growth", orderId);
+        long proportionalPoints = earnedPoints * refundedAmount / orderTotal;
+        long proportionalGrowth = earnedGrowth * refundedAmount / orderTotal;
+        long reversePoints = Math.min(proportionalPoints, member.points());
+        long reverseGrowth = Math.min(proportionalGrowth, member.growth());
+
+        if (reversePoints > 0) {
+            int inserted = jdbcTemplate.update("""
+                    INSERT INTO points_ledger (id, member_id, sale_id, entry_type, points,
+                                               balance_after, reason, business_key)
+                    VALUES (?, ?, NULL, 'REVERSE', ?, ?, ?, ?)
+                    ON CONFLICT (business_key) DO NOTHING
+                    """, UUID.randomUUID(), member.id(), -reversePoints,
+                    member.points() - reversePoints, "部分退款按比例回退积分",
+                    "order:" + orderId + ":points-partial:" + refundedAmount);
+            if (inserted == 1) {
+                jdbcTemplate.update("UPDATE member SET points_balance = points_balance - ? WHERE id = ?",
+                        reversePoints, member.id());
+            }
+        }
+        if (reverseGrowth > 0) {
+            int inserted = jdbcTemplate.update("""
+                    INSERT INTO growth_ledger (id, member_id, sale_id, entry_type, growth,
+                                               balance_after, reason, business_key)
+                    VALUES (?, ?, NULL, 'REVERSE', ?, ?, ?, ?)
+                    ON CONFLICT (business_key) DO NOTHING
+                    """, UUID.randomUUID(), member.id(), -reverseGrowth,
+                    member.growth() - reverseGrowth, "部分退款按比例回退成长值",
+                    "order:" + orderId + ":growth-partial:" + refundedAmount);
+            if (inserted == 1) {
+                jdbcTemplate.update("UPDATE member SET growth_value = growth_value - ? WHERE id = ?",
+                        reverseGrowth, member.id());
+            }
+        }
+        return new Reward(reversePoints, reverseGrowth, member.tier());
+    }
+
     private long earned(String table, String column, UUID orderId) {
         List<Long> rows = jdbcTemplate.queryForList(
                 "SELECT " + column + " FROM " + table + " WHERE business_key = ?",

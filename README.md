@@ -10,10 +10,10 @@
 
 ## 技术栈
 
-- 后端：Java 21、Spring Boot 3、Spring Modulith、PostgreSQL、Valkey、RabbitMQ
+- 后端：Java 21、**Spring Boot 4.1（Spring Framework 7）**、Spring Modulith、PostgreSQL、Valkey、RabbitMQ
 - 搜索：OpenSearch（轻量开发可用 Meilisearch）
 - 存储：SeaweedFS（S3 兼容）
-- 前端：Nuxt 3、Vue 3、uni-app
+- 前端：Nuxt 3、Vue 3、uni-app（5 个 Web 应用已实测可构建）
 - 开发环境：Docker Compose、Dev Container
 
 ## 快速开始
@@ -37,6 +37,30 @@ docker compose --profile core --profile app --profile tools up -d
 - OpenSearch Dashboards：http://localhost:5601
 - pgAdmin：http://localhost:5050
 - Grafana（可选）：`docker compose --profile obs up -d`，http://localhost:3001
+
+### 容器内/无 Docker 时
+
+容器内没有 Docker 时，可用测试依赖起一个真实 PostgreSQL 再跑后端与前端：
+
+```bash
+cd server && mvn -q -DskipTests test-compile
+mvn -q dependency:build-classpath -Dmdep.outputFile=/tmp/cp.txt -Dmdep.includeScope=test
+java -cp "target/test-classes:target/classes:$(cat /tmp/cp.txt)" com.fullmall.test.EmbeddedPgServer
+# 另开终端（用上一步打印的 PG_URL）
+SPRING_PROFILES_ACTIVE=dev mvn -q -DskipTests spring-boot:run
+```
+
+> 容器内 **没有 `curl`**，端口探测请用 `python3 -c "import urllib.request; ..."`。
+> `npm ci` 需 `--cache /tmp/npm-cache`（`~/.npm` 在容器内不可写）。
+
+## 一键验证
+
+```bash
+make verify        # 后端测试 → 打包 → 前端构建 → 接口对齐 → 真浏览器 E2E
+make verify-fast   # 跳过 E2E
+```
+
+当前基线：后端 **366 个测试全绿**、前端 5 应用构建通过、接口对齐 **0 未匹配**、E2E **12/12**。
 
 轻量模式（低内存）：
 
@@ -78,6 +102,10 @@ docker compose -f compose.lite.yaml up -d
 - 客服工作台：会话领取、转单、商品卡片、帮助链接、数据权限。
 - 门店锁屏与店长 PIN 授权。
 - 促销引擎：秒杀（活动价/库存/限购）、买赠（零价赠品行+真实库存）、拼团（成团/过期自动退款）。
+- **满减/满折规则**：后台表单创建（门槛/减免或折扣/渠道/适用范围），取最优、与秒杀买赠互斥，支持 SKU/类目/品牌范围。
+- **优惠券**：后台建券（面额或折扣、总量、每人限领、有效天数、适用范围）→ 会员领取（原子防超发）→ 下单按命中金额抵扣 → 整单退款退券。
+- **物流轨迹**：演示用 mock，生产按后台配置的物流服务查询；不可用时顾客只看到通用提示，具体原因进内部告警。
+- **换货**：审核 → 收货 → 出库扣减 → 发货（带运单）→ 确认完成，全链路可追溯。
 - 数据权限：门店只看绑定门店，供应商只看自身，客服只看分配会话。
 - 演示模式：门店工作台显示试用提货码 `654321`，可拉取演示顾客/订单/商品信息，但不会执行真实核销。
 - 商城商品使用本地 SVG 图片；后台商品列表显示缩略图。金额后端存分，前台按当地币种格式化显示。

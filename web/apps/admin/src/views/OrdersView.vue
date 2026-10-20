@@ -9,6 +9,7 @@ import {
   type Order,
   type OrderSummary
 } from '@fullmall/api-client'
+import { ElMessage } from 'element-plus'
 import { api } from '../api'
 
 const orders = ref<OrderSummary[]>([])
@@ -41,6 +42,11 @@ const status = ref('')
 const selected = ref<Order | null>(null)
 const fulfillments = ref<Fulfillment[]>([])
 const detailLoading = ref(false)
+// 退款：金额按元输入，提交换算成分；原因必填（后端强制）
+const refundDialog = ref(false)
+const refundYuan = ref(0)
+const refundReason = ref('')
+const refundSaving = ref(false)
 
 const statusOptions = [
   { value: '', label: '全部状态' },
@@ -72,6 +78,36 @@ async function load() {
     error.value = cause instanceof Error ? cause.message : '订单加载失败'
   } finally {
     loading.value = false
+  }
+}
+
+function openRefund() {
+  if (!selected.value) return
+  refundYuan.value = selected.value.total.amount / 100
+  refundReason.value = ''
+  refundDialog.value = true
+}
+
+async function submitRefund() {
+  if (!selected.value || refundSaving.value) return
+  if (!refundReason.value.trim()) {
+    ElMessage.error('请填写退款原因')
+    return
+  }
+  refundSaving.value = true
+  try {
+    await api.post(`/admin/v1/orders/${selected.value.id}/refunds`, {
+      amount: Math.round(refundYuan.value * 100),
+      reason: refundReason.value.trim()
+    })
+    ElMessage.success('退款已提交')
+    refundDialog.value = false
+    await viewOrder(selected.value)
+    await load()
+  } catch (cause) {
+    ElMessage.error(cause instanceof Error ? cause.message : '退款失败')
+  } finally {
+    refundSaving.value = false
   }
 }
 
@@ -116,7 +152,9 @@ function money(amount: number, currency: string) {
           <el-tag :type="row.status === 'FULFILLED' ? 'success' : row.status === 'CANCELLED' ? 'danger' : 'warning'">
             {{ orderStatusLabel(row.status) }}
           </el-tag>
-        </template>
+        
+
+</template>
       </el-table-column>
       <el-table-column label="履约方式" width="120">
         <template #default="{ row }">{{ fulfillmentModeLabel(row.fulfillmentMode) }}</template>
@@ -181,8 +219,29 @@ function money(amount: number, currency: string) {
         <el-table-column prop="pickupCode" label="提货码" width="120" />
         <el-table-column prop="trackingNo" label="物流单号" min-width="160" />
       </el-table>
-    </div>
+    
+      <div class="header-actions" style="margin-top: 12px">
+        <el-button type="danger" plain @click="openRefund">发起退款</el-button>
+      </div>
+</div>
   </div>
+    <el-dialog v-model="refundDialog" title="发起退款" width="420px">
+      <el-form label-width="90px">
+        <el-form-item label="订单金额">
+          <span>{{ selected ? money(selected.total.amount, selected.total.currency) : '' }}</span>
+        </el-form-item>
+        <el-form-item label="退款金额（元）">
+          <el-input-number v-model="refundYuan" :min="0.01" :precision="2" style="width: 100%" />
+        </el-form-item>
+        <el-form-item label="退款原因">
+          <el-input v-model="refundReason" placeholder="必填，会写入审计" />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="refundDialog = false">取消</el-button>
+        <el-button type="danger" :loading="refundSaving" @click="submitRefund">确认退款</el-button>
+      </template>
+    </el-dialog>
 </template>
 
 <style scoped>

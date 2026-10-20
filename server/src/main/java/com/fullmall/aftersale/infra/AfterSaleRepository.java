@@ -63,7 +63,8 @@ public class AfterSaleRepository {
         List<AfterSaleView> rows = jdbcTemplate.query("""
                 SELECT a.id, a.after_sale_no, a.order_id, o.order_no, a.type, a.status, a.reason,
                        a.description, a.contact_phone, a.refund_amount, a.currency, a.admin_note,
-                       a.created_at, a.approved_at, a.received_at, a.refunded_at, a.rejected_at
+                       a.created_at, a.approved_at, a.received_at, a.refunded_at, a.rejected_at,
+                       a.exchange_carrier_code, a.exchange_tracking_no, a.exchange_shipped_at
                 FROM after_sale a JOIN orders o ON o.id = a.order_id
                 WHERE a.id = ?
                 """, (rs, rowNum) -> map(rs), afterSaleId);
@@ -75,7 +76,8 @@ public class AfterSaleRepository {
         return jdbcTemplate.query("""
                 SELECT a.id, a.after_sale_no, a.order_id, o.order_no, a.type, a.status, a.reason,
                        a.description, a.contact_phone, a.refund_amount, a.currency, a.admin_note,
-                       a.created_at, a.approved_at, a.received_at, a.refunded_at, a.rejected_at
+                       a.created_at, a.approved_at, a.received_at, a.refunded_at, a.rejected_at,
+                       a.exchange_carrier_code, a.exchange_tracking_no, a.exchange_shipped_at
                 FROM after_sale a JOIN orders o ON o.id = a.order_id
                 WHERE (? = '' OR a.status = ?)
                 ORDER BY a.created_at DESC LIMIT ?
@@ -86,7 +88,8 @@ public class AfterSaleRepository {
         return jdbcTemplate.query("""
                 SELECT a.id, a.after_sale_no, a.order_id, o.order_no, a.type, a.status, a.reason,
                        a.description, a.contact_phone, a.refund_amount, a.currency, a.admin_note,
-                       a.created_at, a.approved_at, a.received_at, a.refunded_at, a.rejected_at
+                       a.created_at, a.approved_at, a.received_at, a.refunded_at, a.rejected_at,
+                       a.exchange_carrier_code, a.exchange_tracking_no, a.exchange_shipped_at
                 FROM after_sale a JOIN orders o ON o.id = a.order_id
                 WHERE a.order_id = ? AND a.contact_phone = ?
                 ORDER BY a.created_at DESC
@@ -175,7 +178,9 @@ public class AfterSaleRepository {
         return new AfterSaleView(view.id(), view.afterSaleNo(), view.orderId(), view.orderNo(),
                 view.type(), view.status(), view.reason(), view.description(), view.contactPhone(),
                 view.refundAmount(), view.adminNote(), view.createdAt(), view.approvedAt(),
-                view.receivedAt(), view.refundedAt(), view.rejectedAt(), lines, events);
+                view.receivedAt(), view.refundedAt(), view.rejectedAt(),
+                view.exchangeCarrierCode(), view.exchangeTrackingNo(), view.exchangeShippedAt(),
+                lines, events);
     }
 
     private AfterSaleView map(ResultSet rs) throws SQLException {
@@ -187,6 +192,8 @@ public class AfterSaleRepository {
                 new Money(rs.getLong("refund_amount"), rs.getString("currency")),
                 rs.getString("admin_note"), instant(rs, "created_at"), instant(rs, "approved_at"),
                 instant(rs, "received_at"), instant(rs, "refunded_at"), instant(rs, "rejected_at"),
+                rs.getString("exchange_carrier_code"), rs.getString("exchange_tracking_no"),
+                instant(rs, "exchange_shipped_at"),
                 List.of(), List.of());
     }
 

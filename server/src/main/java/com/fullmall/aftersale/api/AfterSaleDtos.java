@@ -41,8 +41,9 @@ public final class AfterSaleDtos {
             UUID id, String afterSaleNo, UUID orderId, String orderNo, String type, String status,
             String reason, String description, String contactPhone, Money refundAmount,
             String adminNote, Instant createdAt, Instant approvedAt, Instant receivedAt,
-            Instant refundedAt, Instant rejectedAt, List<AfterSaleLineView> lines,
-            List<AfterSaleEventView> events
+            Instant refundedAt, Instant rejectedAt,
+            String exchangeCarrierCode, String exchangeTrackingNo, Instant exchangeShippedAt,
+            List<AfterSaleLineView> lines, List<AfterSaleEventView> events
     ) {
     }
 

@@ -72,6 +72,10 @@ class ExchangeShippingTest {
         var view = afterSales.shipExchange(afterSaleId, "SF", "SF987654321");
 
         assertThat(view.status()).isEqualTo("EXCHANGE_SHIPPED");
+        // 读接口必须能看到刚写入的物流信息（否则页面拿不到）
+        assertThat(view.exchangeCarrierCode()).isEqualTo("SF");
+        assertThat(view.exchangeTrackingNo()).isEqualTo("SF987654321");
+        assertThat(view.exchangeShippedAt()).isNotNull();
         assertThat(jdbc.queryForObject(
                 "SELECT exchange_tracking_no FROM after_sale WHERE id = ?", String.class, afterSaleId))
                 .isEqualTo("SF987654321");

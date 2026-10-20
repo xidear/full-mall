@@ -101,6 +101,91 @@ public class LineRefundService {
         return new Refunded(id, orderLineId, quantity, amount);
     }
 
+
+    /**
+     * 售后单退款时落行退款记录：把售后单的退款金额按**售后涉及的行的剩余金额**分摊后写入，
+     * 使按行分摊模型在真实流程中被使用（而不是只存在于测试里）。
+     *
+     * @return 写入的行退款记录（金额之和等于售后单退款金额）
+     */
+    @Transactional
+    public List<Refunded> recordForAfterSale(UUID afterSaleId) {
+        List<AfterSaleRow> sales = jdbcTemplate.query("""
+                SELECT order_id, refund_amount, currency FROM after_sale WHERE id = ?
+                """, (rs, rowNum) -> new AfterSaleRow(
+                rs.getObject("order_id", UUID.class), rs.getLong("refund_amount"),
+                rs.getString("currency")), afterSaleId);
+        if (sales.isEmpty()) {
+            throw ApiException.notFound("AFTER_SALE_NOT_FOUND", "售后单不存在：" + afterSaleId);
+        }
+        AfterSaleRow sale = sales.get(0);
+        if (sale.refundAmount() <= 0) {
+            return List.of();
+        }
+
+        List<AfterSaleLine> lines = jdbcTemplate.query("""
+                SELECT l.order_line_id, l.quantity, ol.unit_price_amount
+                  FROM after_sale_line l JOIN order_line ol ON ol.id = l.order_line_id
+                 WHERE l.after_sale_id = ? ORDER BY l.order_line_id
+                """, (rs, rowNum) -> new AfterSaleLine(
+                rs.getObject("order_line_id", UUID.class), rs.getInt("quantity"),
+                rs.getLong("unit_price_amount")), afterSaleId);
+        if (lines.isEmpty()) {
+            throw ApiException.conflict("AFTER_SALE_LINES_MISSING",
+                    "售后单没有商品行，无法分摊退款：" + afterSaleId);
+        }
+
+        long totalRemaining = 0;
+        List<Long> remaining = new ArrayList<>();
+        for (AfterSaleLine line : lines) {
+            long refunded = jdbcTemplate.queryForObject("""
+                    SELECT COALESCE(SUM(amount_amount), 0) FROM order_line_refund WHERE order_line_id = ?
+                    """, Long.class, line.orderLineId());
+            long left = Math.max(Math.multiplyExact(line.unitPrice(), (long) line.quantity()) - refunded, 0);
+            remaining.add(left);
+            totalRemaining += left;
+        }
+        if (sale.refundAmount() > totalRemaining) {
+            throw ApiException.conflict("AFTER_SALE_REFUND_EXCEEDS_LINES",
+                    "售后退款 " + sale.refundAmount() + " 超过涉及行可退 " + totalRemaining);
+        }
+
+        List<Refunded> written = new ArrayList<>();
+        long allocated = 0;
+        int lastIndex = -1;
+        for (int i = 0; i < lines.size(); i++) {
+            if (remaining.get(i) > 0) {
+                lastIndex = i;
+            }
+        }
+        for (int i = 0; i < lines.size(); i++) {
+            long left = remaining.get(i);
+            if (left <= 0) {
+                continue;
+            }
+            long share = (i == lastIndex)
+                    ? sale.refundAmount() - allocated
+                    : Math.floorDiv(sale.refundAmount() * left, totalRemaining);
+            if (share <= 0) {
+                continue;
+            }
+            allocated += share;
+            written.add(record(sale.orderId(), lines.get(i).orderLineId(),
+                    lines.get(i).quantity(), share, sale.currency(), "after-sale:" + afterSaleId));
+        }
+        if (allocated != sale.refundAmount()) {
+            throw new IllegalStateException("售后分摊金额不一致：allocated=" + allocated
+                    + ", expected=" + sale.refundAmount());
+        }
+        return written;
+    }
+
+    private record AfterSaleRow(UUID orderId, long refundAmount, String currency) {
+    }
+
+    private record AfterSaleLine(UUID orderLineId, int quantity, long unitPrice) {
+    }
+
     /**
      * 把一笔退款金额按行分摊到各商品（用于按比例回退积分/佣金）。
      *
@@ -142,7 +227,10 @@ public class LineRefundService {
             if (remaining.get(i) <= 0) {
                 continue;
             }
-            lastIndex = i;
+            // 尾差给**剩余金额最大**的行（而不是"id 最大"），保证同一订单分摊结果可复现
+            if (lastIndex < 0 || remaining.get(i) > remaining.get(lastIndex)) {
+                lastIndex = i;
+            }
         }
         for (int i = 0; i < lines.size(); i++) {
             long left = remaining.get(i);

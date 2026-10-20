@@ -59,6 +59,10 @@ class LineRefundServiceTest {
     @BeforeEach
     void seed() {
         UUID existingOrder = UUID.randomUUID();
+        // 清库按外键顺序：售后行 → 售后台账 → 行退款 → 商品行 → 订单
+        jdbc.update("DELETE FROM after_sale_line WHERE after_sale_id IN (SELECT id FROM after_sale WHERE order_id IN (SELECT id FROM orders WHERE order_no LIKE 'LR-%'))");
+        jdbc.update("DELETE FROM after_sale_event WHERE after_sale_id IN (SELECT id FROM after_sale WHERE order_id IN (SELECT id FROM orders WHERE order_no LIKE 'LR-%'))");
+        jdbc.update("DELETE FROM after_sale WHERE order_id IN (SELECT id FROM orders WHERE order_no LIKE 'LR-%')");
         jdbc.update("DELETE FROM order_line_refund WHERE order_id IN (SELECT id FROM orders WHERE order_no LIKE 'LR-%')");
         jdbc.update("DELETE FROM order_line WHERE order_id IN (SELECT id FROM orders WHERE order_no LIKE 'LR-%')");
         jdbc.update("DELETE FROM orders WHERE order_no LIKE 'LR-%'");
@@ -138,9 +142,50 @@ class LineRefundServiceTest {
         // 关键性质：分摊之和**恰好**等于退款额（不丢分、不多出）
         assertThat(allocation.stream().mapToLong(LineRefundService.Refunded::amount).sum())
                 .isEqualTo(1000);
-        // 2:1 分成 666 / 334（尾差给最后一个有剩余的行），顺序依行 id
+        // 2:1 分摊；尾差固定给**剩余金额最大**的行 → 结果是可复现的 667 / 333
         assertThat(allocation.stream().map(LineRefundService.Refunded::amount))
-                .containsExactlyInAnyOrder(666L, 334L);
+                .containsExactlyInAnyOrder(667L, 333L);
+    }
+
+    @Test
+    void afterSaleRefundWritesLineRecords() {
+        // 售后单：退 1 件 A 行（1000 分），整单退 1000
+        UUID afterSaleId = UUID.randomUUID();
+        jdbc.update("""
+                INSERT INTO after_sale (id, after_sale_no, order_id, type, status, reason,
+                                        contact_phone, refund_amount, currency)
+                VALUES (?, ?, ?, 'REFUND', 'RECEIVED', '破损', '13900001234', 1000, 'CNY')
+                """, afterSaleId, "AS-" + afterSaleId, orderId);
+        jdbc.update("""
+                INSERT INTO after_sale_line (id, after_sale_id, order_line_id, sku_id, quantity)
+                VALUES (?, ?, ?, ?, 1)
+                """, UUID.randomUUID(), afterSaleId, lineA, SKU_A);
+
+        var written = refunds.recordForAfterSale(afterSaleId);
+
+        assertThat(written).hasSize(1);
+        assertThat(written.get(0).amount()).isEqualTo(1000);
+        assertThat(jdbc.queryForObject(
+                "SELECT COALESCE(SUM(amount_amount),0) FROM order_line_refund WHERE order_line_id = ?",
+                Long.class, lineA)).isEqualTo(1000);
+    }
+
+    @Test
+    void afterSaleRefundExceedingLinesIsRejected() {
+        UUID afterSaleId = UUID.randomUUID();
+        jdbc.update("""
+                INSERT INTO after_sale (id, after_sale_no, order_id, type, status, reason,
+                                        contact_phone, refund_amount, currency)
+                VALUES (?, ?, ?, 'REFUND', 'RECEIVED', '破损', '13900001234', 5000, 'CNY')
+                """, afterSaleId, "AS-" + afterSaleId, orderId);
+        jdbc.update("""
+                INSERT INTO after_sale_line (id, after_sale_id, order_line_id, sku_id, quantity)
+                VALUES (?, ?, ?, ?, 1)
+                """, UUID.randomUUID(), afterSaleId, lineA, SKU_A);
+
+        assertThatThrownBy(() -> refunds.recordForAfterSale(afterSaleId))
+                .isInstanceOf(com.fullmall.platform.error.ApiException.class)
+                .hasMessageContaining("超过涉及行可退");
     }
 
     @Test

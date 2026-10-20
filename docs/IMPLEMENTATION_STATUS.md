@@ -2411,3 +2411,22 @@ make verify-fast   # 跳过 E2E
 > 踩坑：`order_line` 没有 `created_at` 列（我用它排序导致 SQL 报错）；两个测试 SKU 的 UUID 前缀相同，
 > 用 `substring` 生成 sku_code 会撞唯一约束，已改为固定编码。
 
+---
+
+## 2026-10-19：售后 → 行退款打通 + 分摊策略改为可复现
+
+- `AfterSaleService.refund` 在退款成功后调用 `LineRefundService.recordForAfterSale(afterSaleId)`：
+  按售后单涉及的 `after_sale_line` 把退款金额分摊写入 `order_line_refund`，
+  **售后涉及行可退金额不足时直接拒绝**（`AFTER_SALE_REFUND_EXCEEDS_LINES`）。
+- 分摊尾差策略从"id 最大的行"改为**剩余金额最大的行**。
+  原策略依赖随机 UUID 排序，同一订单两次分摊结果可能不同——这不是可接受的资金行为。
+
+| 验证 | 结果 |
+|---|---|
+| 后端测试 | **311 个，全部通过，0 跳过** |
+| 新增用例 | 售后退款写行记录（1000 分落到 A 行）、售后金额超出行可退时拒绝、分摊 2:1 → 667/333 且总和精确 |
+
+> 踩坑：清库必须按外键顺序（`after_sale_line` → `after_sale_event` → `after_sale` → `order_line_refund` → `order_line`），
+> 否则删订单行会撞 `after_sale_line_order_line_id_fkey`。
+> 另：分摊结果曾因"按 UUID 排序决定尾差"而两次运行不同，已修正为确定性策略。
+

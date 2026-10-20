@@ -36,6 +36,35 @@ public class CommissionLedgerService {
     public static final Duration DEFAULT_FREEZE = Duration.ofDays(7);
 
     /**
+     * 售后关闭策略：订单完成（`fulfilled_at`）后再过 `windowDays` 天才解冻。
+     *
+     * <p>为什么要这条：默认策略下佣金写入时 `frozen_until` 为空，如果只跑 {@link #releaseDue}，
+     * 佣金会**永远停在 FROZEN**，等于没人能提现。
+     *
+     * @param windowDays 售后窗口天数（含 7 天无理由）
+     * @return 本次解冻条数
+     */
+    @Transactional
+    public int releaseAfterSaleClosed(int windowDays, Instant now) {
+        if (windowDays < 0) {
+            throw new IllegalArgumentException("售后窗口天数不能为负: " + windowDays);
+        }
+        Instant cutOff = now.minus(Duration.ofDays(windowDays));
+        List<Commission> due = jdbcTemplate.query("""
+                SELECT c.id, c.order_id, c.promoter_staff_id, c.commission_amount, c.currency,
+                       c.status, c.frozen_until
+                  FROM distribution_commission c
+                  JOIN orders o ON o.id = c.order_id
+                 WHERE c.status = 'FROZEN' AND c.frozen_until IS NULL
+                   AND o.status = 'FULFILLED' AND o.fulfilled_at IS NOT NULL
+                   AND o.fulfilled_at <= ?
+                 ORDER BY o.fulfilled_at
+                 LIMIT 500
+                """, (rs, rowNum) -> map(rs), Timestamp.from(cutOff));
+        return release(due, now, "after-sale window closed");
+    }
+
+    /**
      * 处理到期的冻结佣金：FROZEN → AVAILABLE。
      *
      * @return 本次解冻条数
@@ -49,6 +78,10 @@ public class CommissionLedgerService {
                  ORDER BY frozen_until
                  LIMIT 500
                 """, (rs, rowNum) -> map(rs), Timestamp.from(now));
+        return release(due, now, "freeze expired");
+    }
+
+    private int release(List<Commission> due, Instant now, String reason) {
         if (due.isEmpty()) {
             return 0;
         }
@@ -60,7 +93,7 @@ public class CommissionLedgerService {
                      WHERE id = ? AND status = 'FROZEN'
                     """, Timestamp.from(now), commission.id());
             if (updated == 1) {
-                writeLedger(commission, "FROZEN", "AVAILABLE", "freeze expired");
+                writeLedger(commission, "FROZEN", "AVAILABLE", reason);
                 released++;
             }
         }

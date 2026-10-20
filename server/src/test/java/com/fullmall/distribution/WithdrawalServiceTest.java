@@ -152,4 +152,38 @@ class WithdrawalServiceTest {
 
         jdbc.update("DELETE FROM system_setting WHERE setting_key = 'distribution.payout-methods'");
     }
+
+    @Test
+    void consumesSingleLargeCommissionPartially() {
+        // 只有一条 200.00 的大额佣金，申请 120.00：余额不凭空消失，剩余 80 仍可提现
+        availableCommission(20_000);
+        UUID id = withdrawals.request(promoter, 12_000, "CNY");
+        withdrawals.approve(id, "reviewer");
+
+        withdrawals.markPaid(id, "ref-partial", "payer");
+
+        var row = jdbc.queryForMap("""
+                SELECT status, commission_amount, consumed_amount
+                  FROM distribution_commission WHERE promoter_staff_id = ?
+                """, promoter);
+        assertThat(((Number) row.get("consumed_amount")).longValue()).isEqualTo(12_000);
+        assertThat(row.get("status")).isEqualTo("AVAILABLE");       // 未扣完，仍可用
+        assertThat(withdrawals.availableForWithdrawal(promoter)).isEqualTo(8_000);
+    }
+
+    @Test
+    void fullyConsumedCommissionBecomesWithdrawn() {
+        availableCommission(20_000);
+        UUID id = withdrawals.request(promoter, 20_000, "CNY");
+        withdrawals.approve(id, "reviewer");
+
+        withdrawals.markPaid(id, "ref-full", "payer");
+
+        var row = jdbc.queryForMap("""
+                SELECT status, consumed_amount FROM distribution_commission WHERE promoter_staff_id = ?
+                """, promoter);
+        assertThat(row.get("status")).isEqualTo("WITHDRAWN");
+        assertThat(((Number) row.get("consumed_amount")).longValue()).isEqualTo(20_000);
+        assertThat(withdrawals.availableForWithdrawal(promoter)).isZero();
+    }
 }

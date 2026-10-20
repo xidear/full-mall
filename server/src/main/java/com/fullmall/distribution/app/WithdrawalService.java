@@ -141,6 +141,7 @@ public class WithdrawalService {
         List<UUID> commissions = jdbcTemplate.query("""
                 SELECT id FROM distribution_commission
                  WHERE promoter_staff_id = ? AND status = 'AVAILABLE'
+                   AND commission_amount > consumed_amount
                  ORDER BY available_at, created_at
                  FOR UPDATE
                 """, (rs, rowNum) -> rs.getObject("id", UUID.class), withdrawal.promoterId());
@@ -149,29 +150,37 @@ public class WithdrawalService {
             if (remaining <= 0) {
                 break;
             }
-            Long commissionAmount = jdbcTemplate.queryForObject(
-                    "SELECT commission_amount FROM distribution_commission WHERE id = ?",
-                    Long.class, commissionId);
-            if (commissionAmount == null) {
-                throw new IllegalStateException("佣金记录丢失: " + commissionId);
-            }
-            if (commissionAmount > remaining) {
-                // 部分消耗不支持（佣金不可拆分），跳过这条，继续找更小的
+            var row = jdbcTemplate.queryForMap("""
+                    SELECT commission_amount, consumed_amount FROM distribution_commission WHERE id = ?
+                    """, commissionId);
+            long commissionAmount = ((Number) row.get("commission_amount")).longValue();
+            long consumed = ((Number) row.get("consumed_amount")).longValue();
+            long leftOnCommission = commissionAmount - consumed;
+            if (leftOnCommission <= 0) {
                 continue;
             }
+            // 部分消耗：提现额大于单条佣金时整条扣完；小于时只扣需要的部分
+            long take = Math.min(leftOnCommission, remaining);
+            long newConsumed = consumed + take;
+            boolean fullyConsumed = newConsumed >= commissionAmount;
+
             int updated = jdbcTemplate.update("""
-                    UPDATE distribution_commission SET status = 'WITHDRAWN'
-                     WHERE id = ? AND status = 'AVAILABLE'
-                    """, commissionId);
-            if (updated == 1) {
-                jdbcTemplate.update("""
-                        INSERT INTO commission_ledger (id, commission_id, from_status, to_status,
-                                                       amount_amount, currency, reason)
-                        VALUES (?, ?, 'AVAILABLE', 'WITHDRAWN', ?, ?, ?)
-                        """, UUID.randomUUID(), commissionId, commissionAmount,
-                        withdrawal.currency(), "withdrawal " + withdrawalId);
-                remaining -= commissionAmount;
+                    UPDATE distribution_commission
+                       SET consumed_amount = ?, status = CASE WHEN ? THEN 'WITHDRAWN' ELSE status END
+                     WHERE id = ? AND status = 'AVAILABLE' AND consumed_amount = ?
+                    """, newConsumed, fullyConsumed, commissionId, consumed);
+            if (updated != 1) {
+                throw ApiException.conflict("COMMISSION_CONCURRENT_MODIFIED",
+                        "佣金记录被并发修改，请重试: " + commissionId);
             }
+            jdbcTemplate.update("""
+                    INSERT INTO commission_ledger (id, commission_id, from_status, to_status,
+                                                   amount_amount, currency, reason)
+                    VALUES (?, ?, 'AVAILABLE', ?, ?, ?, ?)
+                    """, UUID.randomUUID(), commissionId,
+                    fullyConsumed ? "WITHDRAWN" : "AVAILABLE", take,
+                    withdrawal.currency(), "withdrawal " + withdrawalId);
+            remaining -= take;
         }
 
         if (remaining > 0) {
@@ -190,9 +199,11 @@ public class WithdrawalService {
     }
 
     /** 可提现 = AVAILABLE 合计 − 处理中提现合计。 */
+    /** 可提现余额 = 已解冻佣金 − 已被提现消耗的部分。 */
     public long availableForWithdrawal(UUID promoterId) {
         Long available = jdbcTemplate.queryForObject("""
-                SELECT COALESCE(SUM(commission_amount), 0) FROM distribution_commission
+                SELECT COALESCE(SUM(commission_amount - consumed_amount), 0)
+                  FROM distribution_commission
                  WHERE promoter_staff_id = ? AND status = 'AVAILABLE'
                 """, Long.class, promoterId);
         Long pending = jdbcTemplate.queryForObject("""

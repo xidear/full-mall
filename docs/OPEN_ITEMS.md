@@ -28,12 +28,12 @@
 | B1 | 分销比例后台表单（UI） | ⬜ | 配置键已开放、`DistributionConfig` 已读；后台无表单 |
 | B2 | 二级分佣的上级关系维护（后台/客服侧） | ⚠️ | `promoter_link` 表已建，`findUpline` 已用；**无写入入口** |
 | B3 | 绑定方式（ONCE/PERMANENT）与时机的实际执行 | ⚠️ | 配置键可读，`attachCheckout` 仍按固定逻辑绑定 |
-| B4 | `AFTER_SALE_CLOSED` 冻结释放扫描 | ⬜ | 释放任务只处理 `frozen_until <= now()` |
+| B4 | `AFTER_SALE_CLOSED` 冻结释放扫描 | ✅ | 订单 `fulfilled_at` + 售后窗口；任务**并集**释放两种来源（有测试） |
 | B5 | 提现：申请人选打款方式 | ✅ | V58 `payout_method`/`payout_account`；须在 `distribution.payout-methods` 白名单内（有测试） |
 | B6 | 提现：一级审核走权限矩阵（非写死 ADMIN） | ⬜ | `AdminDistributionController` 仍是 `hasRole('ADMIN')` 风格 |
 | B7 | 提现：最低金额读配置 | ✅ | 低于 `distribution.min-withdrawal` 直接拒绝（有测试） |
 | B8 | 提现：微信零钱/银行卡真实打款 | ⬜ | 仅记录 `payment_ref` |
-| B9 | 佣金可拆分消耗（提现额大于单条佣金） | ⚠️ | 现为"跳过该条继续找更小的"，凑不齐整笔失败 |
+| B9 | 佣金可拆分消耗（提现额大于单条佣金） | ✅ | `consumed_amount` 部分消耗 + 余额扣减；未扣完保持 AVAILABLE（有测试） |
 | B10 | 客服聊天内发送商品 → 建上下级关系 | ⚠️ | 商品卡片已有；绑定规则（ONCE/PERMANENT）未接 |
 | B11 | 分销报表（按推广员/时间/订单） | ⬜ | 只有列表接口 |
 
@@ -153,9 +153,9 @@
 
 | 状态 | 数量 |
 |---|---|
-| ✅ 已实现并验证 | 8 |
-| ⚠️ 已实现未验证 / 半接线 | 33 |
-| ⬜ 未实现 | 42 |
+| ✅ 已实现并验证 | 10 |
+| ⚠️ 已实现未验证 / 半接线 | 32 |
+| ⬜ 未实现 | 41 |
 | 🚫 有意不做 | 6 |
 | **合计** | **89** |
 

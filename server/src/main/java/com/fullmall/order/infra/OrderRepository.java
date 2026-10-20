@@ -180,7 +180,15 @@ public class OrderRepository {
     }
 
     public void updateStatus(UUID orderId, OrderStatus status) {
-        int updated = jdbcTemplate.update("UPDATE orders SET status = ? WHERE id = ?", status.name(), orderId);
+        // 完成时间只写一次：佣金"售后关闭"策略以它为起算点
+        int updated = jdbcTemplate.update("""
+                UPDATE orders
+                   SET status = ?,
+                       fulfilled_at = CASE WHEN ? = 'FULFILLED'
+                                          THEN COALESCE(fulfilled_at, now())
+                                          ELSE fulfilled_at END
+                 WHERE id = ?
+                """, status.name(), status.name(), orderId);
         if (updated != 1) {
             throw new IllegalStateException("Order not found while updating status: " + orderId);
         }

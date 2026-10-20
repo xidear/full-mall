@@ -50,8 +50,8 @@
 
 整单退款仍直接 `REVERSED`（回冲）。
 
-> 待实现：`AFTER_SALE_CLOSED` 的释放任务（按"订单完成时间 + 窗口"扫描 FROZEN 佣金）。
-> 当前释放任务只处理 `frozen_until <= now()`；策略为 `AFTER_SALE_CLOSED` 时需要补这条扫描。
+已实现：`CommissionLedgerService.releaseAfterSaleClosed(windowDays, now)` 按"订单 `fulfilled_at` + 窗口"
+解冻；释放任务**同时**处理 `frozen_until <= now()` 与售后关闭两种来源（只跑一种会漏解冻）。
 
 ## 4. 提现
 
@@ -73,7 +73,7 @@
 |---|---|
 | 二级佣金落库 + 配置读取 | ✅ 本轮 |
 | 后台设置页填写分销配置 | ⬜（键已开放，前端表单待加） |
-| `AFTER_SALE_CLOSED` 释放扫描（订单完成 + 窗口） | ⬜ |
-| 提现：申请人选择打款方式 + 一级审核权限化 + 最低额读配置 | ⬜ |
+| `AFTER_SALE_CLOSED` 释放扫描（订单完成 + 窗口） | ✅ 第 145 轮 |
+| 提现：申请人选打款方式 + 最低额读配置 | ✅ 第 144 轮；审批权限化仍 ⬜ |
 | `PROFIT`（毛利分佣） | ⬜ 阻塞：缺成本快照 |
 | 客服聊天内发送商品建关系 | ⬜（已有客服会话与商品卡片能力，需接绑定规则） |

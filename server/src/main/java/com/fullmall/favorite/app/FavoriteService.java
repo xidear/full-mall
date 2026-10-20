@@ -19,7 +19,9 @@ public class FavoriteService {
         this.jdbcTemplate = jdbcTemplate;
     }
 
-    public record Favorite(UUID skuId, Instant createdAt) {
+    /** 收藏项：带上商品与价格，顾客端才能直接渲染（否则页面只有 skuId）。 */
+    public record Favorite(UUID skuId, UUID productId, String title, long priceAmount,
+                           String currency, Instant createdAt) {
     }
 
     /** @return true 表示新收藏，false 表示原本已收藏（幂等，不报错）。 */
@@ -52,10 +54,24 @@ public class FavoriteService {
             throw ApiException.badRequest("INVALID_LIMIT", "查询条数必须在 1..100，实际=" + limit);
         }
         return jdbcTemplate.query("""
-                SELECT sku_id, created_at FROM member_favorite
-                 WHERE member_id = ? ORDER BY created_at DESC LIMIT ?
+                SELECT f.sku_id, f.created_at, s.product_id, s.sku_code,
+                       s.price_amount, s.price_currency,
+                       COALESCE(t.title, p.title) AS title
+                  FROM member_favorite f
+                  JOIN sku s ON s.id = f.sku_id
+                  JOIN product p ON p.id = s.product_id
+                  LEFT JOIN product_translation t
+                         ON t.product_id = p.id AND t.locale = 'zh-CN' AND t.status = 'PUBLISHED'
+                 WHERE f.member_id = ?
+                 ORDER BY f.created_at DESC
+                 LIMIT ?
                 """, (rs, rowNum) -> new Favorite(
-                rs.getObject("sku_id", UUID.class), rs.getTimestamp("created_at").toInstant()),
+                rs.getObject("sku_id", UUID.class),
+                rs.getObject("product_id", UUID.class),
+                rs.getString("title"),
+                rs.getLong("price_amount"),
+                rs.getString("price_currency"),
+                rs.getTimestamp("created_at").toInstant()),
                 memberId, limit);
     }
 }

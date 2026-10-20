@@ -27,14 +27,34 @@ public class OrderOwnershipGuard {
         this.jdbcTemplate = jdbcTemplate;
     }
 
-    private record OrderOwner(UUID memberId, String contactPhone) {
+    private record OrderOwner(UUID memberId, String contactPhone, String accessTokenHash) {
+    }
+
+    /** 游客订单令牌的哈希（明文只在下单响应里返回一次）。 */
+    public static String hashToken(String token) {
+        try {
+            var digest = java.security.MessageDigest.getInstance("SHA-256");
+            byte[] bytes = digest.digest((token + ":fullmall-order").getBytes(java.nio.charset.StandardCharsets.UTF_8));
+            return java.util.HexFormat.of().formatHex(bytes);
+        } catch (java.security.NoSuchAlgorithmException error) {
+            throw new IllegalStateException("SHA-256 不可用", error);
+        }
     }
 
     public void requireAccess(UUID orderId, UUID memberId, String phone) {
+        requireAccess(orderId, memberId, phone, null);
+    }
+
+    /**
+     * @param accessToken 游客订单令牌（下单时下发）；与库中哈希匹配即通过。
+     *                    未绑定会员的订单，**令牌或手机号至少一个正确**才放行。
+     */
+    public void requireAccess(UUID orderId, UUID memberId, String phone, String accessToken) {
         List<OrderOwner> rows = jdbcTemplate.query("""
-                SELECT member_id, contact_phone FROM orders WHERE id = ?
+                SELECT member_id, contact_phone, access_token_hash FROM orders WHERE id = ?
                 """, (rs, rowNum) -> new OrderOwner(
-                rs.getObject("member_id", UUID.class), rs.getString("contact_phone")), orderId);
+                rs.getObject("member_id", UUID.class), rs.getString("contact_phone"),
+                rs.getString("access_token_hash")), orderId);
 
         if (rows.isEmpty()) {
             throw ApiException.notFound("ORDER_NOT_FOUND", "订单不存在: " + orderId);
@@ -45,6 +65,15 @@ public class OrderOwnershipGuard {
             if (memberId == null || !owner.memberId().equals(memberId)) {
                 throw ApiException.notFound("ORDER_NOT_FOUND", "订单不存在: " + orderId);
             }
+            return;
+        }
+
+        boolean tokenMatches = accessToken != null && !accessToken.isBlank()
+                && owner.accessTokenHash() != null
+                && java.security.MessageDigest.isEqual(
+                        hashToken(accessToken).getBytes(java.nio.charset.StandardCharsets.UTF_8),
+                        owner.accessTokenHash().getBytes(java.nio.charset.StandardCharsets.UTF_8));
+        if (tokenMatches) {
             return;
         }
 

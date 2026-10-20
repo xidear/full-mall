@@ -160,9 +160,14 @@ async function submit() {
       }
     })
     const token = await ensureMemberToken()
+    // 游客订单会返回访问令牌（响应头），保存后用于查看订单/履约
+    let guestToken = ''
     const order = await $fetch<Order>(`${config.public.apiBase}/api/v1/checkout`, {
       method: 'POST',
       headers: { 'Idempotency-Key': idempotencyKey.value, Authorization: `Bearer ${token}` },
+      onResponse: ({ response }) => {
+        guestToken = response.headers.get('x-order-token') ?? ''
+      },
       body: {
         items: cart.value.map(line => ({ skuId: line.skuId, quantity: line.quantity })),
         fulfillmentMode: mode.value,
@@ -176,6 +181,9 @@ async function submit() {
       }
     })
     await $fetch(`${config.public.apiBase}/api/v1/payments/mock/${order.id}/pay`, { method: 'POST' })
+    if (guestToken) {
+      localStorage.setItem(`fullmall.orderToken.${order.id}`, guestToken)
+    }
     remember(order.id)
     clear()
     localStorage.removeItem('fullmall.groupBuyId')

@@ -24,7 +24,14 @@ public class CheckoutController {
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
     public Order checkout(@Valid @RequestBody CheckoutRequest request,
-                          @RequestHeader(value = "Idempotency-Key", required = false) String idempotencyKey) {
-        return orderService.checkout(request, idempotencyKey);
+                          @RequestHeader(value = "Idempotency-Key", required = false) String idempotencyKey,
+                          jakarta.servlet.http.HttpServletResponse response) {
+        Order order = orderService.checkout(request, idempotencyKey);
+        // 游客订单：令牌只在此处返回一次，客户端需保存；后续访问要带 X-Order-Token
+        String token = orderService.takeIssuedGuestToken();
+        if (token != null) {
+            response.setHeader("X-Order-Token", token);
+        }
+        return order;
     }
 }

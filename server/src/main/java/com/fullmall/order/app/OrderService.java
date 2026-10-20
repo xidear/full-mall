@@ -313,6 +313,10 @@ public class OrderService {
                 ctx.placedByOperator());
         // 绑定会员（手机号唯一匹配时），后续"我的订单"按 member_id 查
         orderRepository.attachMemberByPhone(orderId, request.contact().phone());
+        // 未绑定会员的订单下发访问令牌：仅凭订单号不能再看到地址/电话/自提码
+        if (orderRepository.memberIdOf(orderId) == null) {
+            issueGuestToken(orderId);
+        }
         // 通知走 notifyOrderEvent：会员订单落 MEMBER，未绑定会员（含门店代下单）落 CUSTOMER/手机号。
         // 此前只通知会员，导致"未绑定会员的订单下单后零通知"。
         notificationService.notifyOrderEvent(orderId, "ORDER_CREATED", "订单已创建",
@@ -418,6 +422,24 @@ public class OrderService {
     }
 
     /** 订单归属会员（游客订单返回 null）。 */
+    /** 已下发但尚未消费的游客令牌（请求线程内传递，响应头回传给客户端一次）。 */
+    private final ThreadLocal<String> issuedGuestToken = new ThreadLocal<>();
+
+    private void issueGuestToken(UUID orderId) {
+        String token = UUID.randomUUID().toString().replace("-", "")
+                + UUID.randomUUID().toString().replace("-", "");
+        orderRepository.storeAccessTokenHash(orderId,
+                com.fullmall.platform.identity.OrderOwnershipGuard.hashToken(token));
+        issuedGuestToken.set(token);
+    }
+
+    /** 取出并清除本次请求下发的游客令牌（控制器写入响应头）。 */
+    public String takeIssuedGuestToken() {
+        String token = issuedGuestToken.get();
+        issuedGuestToken.remove();
+        return token;
+    }
+
     public UUID memberIdOf(UUID orderId) {
         return orderRepository.memberIdOf(orderId);
     }

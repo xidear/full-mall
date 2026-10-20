@@ -120,6 +120,11 @@ public class OrderRepository {
     }
 
     /** @return 订单归属的会员 ID；游客订单返回 null。 */
+    /** 写入游客订单令牌哈希（明文只在响应里返回一次）。 */
+    public void storeAccessTokenHash(UUID orderId, String hash) {
+        jdbcTemplate.update("UPDATE orders SET access_token_hash = ? WHERE id = ?", hash, orderId);
+    }
+
     public UUID memberIdOf(UUID orderId) {
         List<UUID> rows = jdbcTemplate.queryForList(
                 "SELECT member_id FROM orders WHERE id = ?", UUID.class, orderId);

@@ -12,7 +12,13 @@ const config = useRuntimeConfig()
 const base = import.meta.server ? config.apiInternalBase : config.public.apiBase
 // 会员/访客下单后都需要带 token 才能查看自己的订单（服务端按归属校验）
 const memberToken = process.client ? (localStorage.getItem('fullmall.memberToken') ?? '') : ''
-const authHeaders = memberToken ? { Authorization: `Bearer ${memberToken}` } : {}
+const guestToken = process.client
+  ? (localStorage.getItem(`fullmall.orderToken.${route.params.id}`) ?? '')
+  : ''
+const authHeaders: Record<string, string> = {
+  ...(memberToken ? { Authorization: `Bearer ${memberToken}` } : {}),
+  ...(guestToken ? { 'X-Order-Token': guestToken } : {})
+}
 const { data: order, error, refresh: refreshOrder } = await useFetch<Order>(
   `${base}/api/v1/orders/${route.params.id}`,
   { headers: authHeaders }

@@ -3,6 +3,7 @@ package com.fullmall.fulfillment.api;
 import com.fullmall.fulfillment.app.FulfillmentService;
 import com.fullmall.fulfillment.domain.FulfillmentOrder;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -33,10 +34,12 @@ public class CustomerFulfillmentController {
     @GetMapping
     public List<FulfillmentOrder> list(@PathVariable UUID orderId,
                                        @RequestParam(required = false) String phone,
+                                       @RequestHeader(value = "X-Order-Token", required = false)
+                                       String orderToken,
                                        org.springframework.security.core.Authentication authentication) {
         UUID memberId = authentication == null || authentication.getName() == null
                 ? null : UUID.fromString(authentication.getName());
-        ownership.requireAccess(orderId, memberId, phone);
+        ownership.requireAccess(orderId, memberId, phone, orderToken);
         return fulfillmentService.findFulfillments(orderId);
     }
 }

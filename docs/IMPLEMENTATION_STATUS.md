@@ -3264,3 +3264,31 @@ public record CheckoutContext(pointsToUse, couponId, otpCode, placedBy, placedBy
 | P0 | `DemoDataSeeder` 改为**按表幂等**（商品/促销/门店各自判空），而不是"商品非空就整段跳过" |
 | P1 | 修 `pickup` E2E 的启动竞态（等待 console 就绪再跑） |
 
+---
+
+## 2026-10-19：修掉促销列表被规则污染（真缺陷）+ 演示促销幂等补齐
+
+### 真缺陷：满减规则让顾客/后台促销列表整体失效
+
+第 63 轮我加了满减/满折规则（无 `skuId`），它们会出现在 `PromotionService.listActive/listAll` 的
+结果里，而视图映射要求 `skuId` → 一条满减规则就足以让 `/api/v1/promotions` 返回 **404 SKU_NOT_FOUND**。
+
+修复：列表只保留**有 SKU 的活动型促销**（秒杀/买赠/拼团）；满减/满折走独立规则接口。
+
+### 演示数据：促销种子改为幂等补齐
+
+`DemoDataSeeder` 原先"商品非空就整段跳过 `seed.sql`"，导致促销缺失。新增
+`db/demo/promotions.sql`（`ON CONFLICT DO NOTHING`）在每次启动时补齐促销。
+
+| 验证 | 结果 |
+|---|---|
+| 后端测试 | **365 个，全部通过，0 跳过** |
+| 新增用例 | 满减规则不出现在 `listActive` / `listAll` |
+| 运行时 | `/api/v1/promotions` 返回 3 条（马克杯秒杀/买赠/拼团） |
+| **E2E 复跑** | `admin.spec` ✅、`promotions.spec` 2 条 ✅ |
+
+### 仍未修
+
+`storefront` 的"浏览→加购→自提下单"仍失败：**请求根本没到后端**（日志无 `/api/v1/checkout` 记录），
+说明卡在页面侧。下一步查前端结算页（很可能与第 117 轮新增的 OTP 要求有关，页面未做处理）。
+

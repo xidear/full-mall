@@ -52,14 +52,29 @@ public class PromotionService {
         this.eventPublisher = eventPublisher;
     }
 
+    /**
+     * 顾客端促销列表只包含**有 SKU 的活动型促销**（秒杀/买赠/拼团）。
+     *
+     * <p>满减/满折规则走独立的规则接口（`/admin/v1/promotions/rules`），它们没有 skuId，
+     * 混进这里会让视图映射失败（实测：一条满减规则就足以让整个列表 404）。
+     */
+    private static final java.util.Set<com.fullmall.promotion.domain.PromotionType> CLASSIC_TYPES =
+            java.util.EnumSet.of(com.fullmall.promotion.domain.PromotionType.FLASH_SALE,
+                    com.fullmall.promotion.domain.PromotionType.BUY_GIFT,
+                    com.fullmall.promotion.domain.PromotionType.GROUP_BUY);
+
     public List<PromotionView> listActive() {
         Instant now = Instant.now();
-        return repository.findActive(now).stream().map(promotion -> view(promotion, now)).toList();
+        return repository.findActive(now).stream()
+                .filter(promotion -> CLASSIC_TYPES.contains(promotion.type()))
+                .map(promotion -> view(promotion, now)).toList();
     }
 
     public List<PromotionView> listAll() {
         Instant now = Instant.now();
-        return repository.findAll().stream().map(promotion -> view(promotion, now)).toList();
+        return repository.findAll().stream()
+                .filter(promotion -> CLASSIC_TYPES.contains(promotion.type()))
+                .map(promotion -> view(promotion, now)).toList();
     }
 
     @Transactional

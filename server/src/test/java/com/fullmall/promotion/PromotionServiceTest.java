@@ -116,4 +116,15 @@ class PromotionServiceTest {
     private Sku sku(UUID id, long price) {
         return new Sku(id, PRODUCT_ID, "SKU-" + id, null, new Money(price, "CNY"), null, Map.of(), null, null);
     }
+
+    @Test
+    void fullReductionRulesAreExcludedFromCustomerLists() {
+        // 满减规则没有 skuId：混进顾客/后台列表会让视图映射失败（真实缺陷）
+        Promotion rule = promotion(PromotionType.FULL_REDUCTION, null, null, null, null, 0, 0);
+        when(repository.findActive(any())).thenReturn(List.of(rule));
+        when(repository.findAll()).thenReturn(List.of(rule));
+
+        assertThat(service.listActive()).isEmpty();
+        assertThat(service.listAll()).isEmpty();
+    }
 }

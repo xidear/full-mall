@@ -56,6 +56,10 @@ public class DemoDataSeeder {
             execute("db/demo/staff.sql");
         }
         execute("db/demo/images.sql");
+
+        // 促销演示数据单独幂等补齐：商品由迁移插入时，上面的整段 seed 会被跳过，
+        // 但促销/拼团等演示数据仍需要存在（E2E 与本地演示都依赖它们）。
+        execute("db/demo/promotions.sql");
         log.info("Demo seed completed");
     }
 

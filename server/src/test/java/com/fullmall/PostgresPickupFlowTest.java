@@ -18,6 +18,7 @@ import com.fullmall.test.PostgresTestDatabase;
 
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -60,8 +61,16 @@ class PostgresPickupFlowTest {
     @Autowired
     ObjectMapper objectMapper;
 
+    @Autowired
+    org.springframework.jdbc.core.JdbcTemplate jdbc;
+
     @Test
     void pickupOrderCanBePaidPickedAndCollected() {
+        // 下单要求"真人"：为测试手机号建立会员（线上访客下单会经 OTP 自动建会员）
+        jdbc.update("INSERT INTO member (id, member_no, name, phone, tier, points_balance,"
+                + " stored_value_balance, currency) VALUES (?, 'M-PICKUP-1', '自提顾客', '13800000000',"
+                + " 'STANDARD', 0, 0, 'CNY') ON CONFLICT (phone) DO NOTHING", UUID.randomUUID());
+
         String adminToken = loginAsAdmin();
 
         JsonNode products = get("/api/v1/products?locale=zh-CN&size=20");
@@ -98,7 +107,7 @@ class PostgresPickupFlowTest {
         assertEquals(1, adminView.size());
         assertNotNull(adminView.get(0).get("pickupCode").asText());
 
-        JsonNode fulfillments = get("/api/v1/orders/" + orderId + "/fulfillments?phone=13800000000");
+        JsonNode fulfillments = get("/admin/v1/orders/" + orderId + "/fulfillments", adminToken);
         JsonNode fulfillment = fulfillments.get(0);
         assertEquals("READY_FOR_PICKUP", fulfillment.get("status").asText());
         String pickupCode = fulfillment.get("pickupCode").asText();
@@ -109,8 +118,9 @@ class PostgresPickupFlowTest {
                 "verificationValue", pickupCode));
         assertEquals("COMPLETED", pickup.get("status").asText());
 
-        JsonNode finalOrder = get("/api/v1/orders/" + orderId);
-        assertEquals("FULFILLED", finalOrder.get("status").asText());
+        // 订单已绑定会员：顾客接口要求会员身份，这里直接查库断言最终状态
+        assertEquals("FULFILLED", jdbc.queryForObject(
+                "SELECT status FROM orders WHERE id = ?::uuid", String.class, orderId));
 
         JsonNode batches = get("/admin/v1/inventory/batches?locationType=STORE&locationId="
                 + STORE_ID + "&skuId=" + SKU_ID, adminToken);

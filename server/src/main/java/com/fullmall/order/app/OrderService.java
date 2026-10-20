@@ -58,6 +58,7 @@ public class OrderService {
     private final com.fullmall.promotion.app.PromotionPreviewService promotionPreviews;
     private final com.fullmall.coupon.app.CouponService coupons;
     private final String couponMode;
+    private final com.fullmall.member.auth.MemberAuthService memberAuth;
 
     private static final long FLAT_SHIPPING_FEE = 0L;
 
@@ -89,7 +90,8 @@ public class OrderService {
                         com.fullmall.member.app.MemberPointsService memberPoints,
                         com.fullmall.promotion.app.PromotionPreviewService promotionPreviews,
                         com.fullmall.coupon.app.CouponService coupons,
-                        @org.springframework.beans.factory.annotation.Value("${app.promotion.coupon.mode:EXCLUSIVE}") String couponMode) {
+                        @org.springframework.beans.factory.annotation.Value("${app.promotion.coupon.mode:EXCLUSIVE}") String couponMode,
+                        com.fullmall.member.auth.MemberAuthService memberAuth) {
         this.orderRepository = orderRepository;
         this.catalogService = catalogService;
         this.inventoryService = inventoryService;
@@ -106,6 +108,7 @@ public class OrderService {
         this.memberPoints = memberPoints;
         this.promotionPreviews = promotionPreviews;
         this.coupons = coupons;
+        this.memberAuth = memberAuth;
         this.couponMode = couponMode == null ? "EXCLUSIVE" : couponMode.trim().toUpperCase();
         if (!java.util.List.of("EXCLUSIVE", "STACKABLE").contains(this.couponMode)) {
             throw new IllegalArgumentException(
@@ -235,6 +238,8 @@ public class OrderService {
         discount = discount.plus(memberDiscount);
 
 
+        requireVerifiedCustomer(request);
+
         UUID orderId = Ids.newId();
 
         // 优惠券（默认 EXCLUSIVE：与促销互斥，取优惠更大者；STACKABLE 则叠加）
@@ -358,6 +363,28 @@ public class OrderService {
         }
 
         return getOrder(orderId);
+    }
+
+    /**
+     * 下单前校验"真人"：手机号要么已绑定会员，要么必须携带有效验证码（验证后自动建会员）。
+     *
+     * <p>背景：中国大陆线上交易必须可追溯到自然人；不允许"填个手机号就下单"的匿名订单。
+     * 访客下单仍然允许——但必须先通过 OTP 校验，由 `verifyOtp` 自动创建会员。
+     */
+    private void requireVerifiedCustomer(CheckoutRequest request) {
+        if (request.contact() == null || request.contact().phone() == null) {
+            return; // 由既有参数校验负责报错
+        }
+        String phone = request.contact().phone().trim();
+        if (orderRepository.findMemberIdByPhone(phone) != null) {
+            return; // 已是会员手机号，可直接下单（登录态另行校验）
+        }
+        if (request.otpCode() == null || request.otpCode().isBlank()) {
+            throw ApiException.badRequest("CHECKOUT_OTP_REQUIRED",
+                    "该手机号尚未注册，请先获取并填写短信验证码");
+        }
+        // 校验通过会自动创建会员，下单后由 attachMemberByPhone 绑定
+        memberAuth.verifyOtp(phone, request.otpCode());
     }
 
     /** 订单归属会员（游客订单返回 null）。 */

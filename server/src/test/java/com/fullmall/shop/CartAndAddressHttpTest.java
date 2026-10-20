@@ -292,6 +292,7 @@ class CartAndAddressHttpTest {
                         '{"thresholdAmount":2000,"value":500}'::jsonb, 10)
                 """, UUID.randomUUID());
 
+        seedMemberFor("13800000077");
         http.exchange("/api/v1/cart/items", HttpMethod.POST,
                 new HttpEntity<>(Map.of("skuId", SKU.toString(), "quantity", 2), guestHeaders()), String.class);
         var address = http.exchange("/api/v1/addresses", HttpMethod.POST,
@@ -349,6 +350,7 @@ class CartAndAddressHttpTest {
                         Map.of("skuId", SKU.toString(), "quantity", 2))), guestHeaders()), String.class);
         assertThat(preview.getBody()).doesNotContain("HTTP-SCOPED");
 
+        seedMemberFor("13800000088");
         http.exchange("/api/v1/cart/items", HttpMethod.POST,
                 new HttpEntity<>(Map.of("skuId", SKU.toString(), "quantity", 2), guestHeaders()), String.class);
         var address = http.exchange("/api/v1/addresses", HttpMethod.POST,
@@ -464,6 +466,13 @@ class CartAndAddressHttpTest {
                 .contains("\"discountAmount\":500");
 
         jdbc.update("DELETE FROM promotion WHERE code = 'HTTP-FULL-20'");
+    }
+
+    /** 下单要求"真人"：为测试手机号建立会员。 */
+    private void seedMemberFor(String phone) {
+        jdbc.update("INSERT INTO member (id, member_no, name, phone, tier, points_balance,"
+                + " stored_value_balance, currency) VALUES (?, ?, '测试会员', ?, 'STANDARD', 0, 0, 'CNY')"
+                + " ON CONFLICT (phone) DO NOTHING", UUID.randomUUID(), "M-" + phone, phone);
     }
 
     @Test

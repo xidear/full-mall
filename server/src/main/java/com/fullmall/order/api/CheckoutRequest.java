@@ -24,7 +24,9 @@ public record CheckoutRequest(
         String referralMode,
         UUID groupBuyId,
         @jakarta.validation.constraints.Min(0) Long pointsToUse,
-        UUID couponId
+        UUID couponId,
+        /** 访客下单必须提供手机验证码（已登录会员可省略）。 */
+        String otpCode
 ) {
 
     public record Item(

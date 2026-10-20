@@ -3525,3 +3525,19 @@ storefront 结算页需要真正的 OTP 流程：
 | 真实启动（prod + mock 服务商） | ✅ **Started FullMallApplication**，并输出未配置清单 WARN |
 | 新增用例 | 缺配置只报告不抛错；真实服务商判定就绪；mock 在生产不可用；demo 一律可用 |
 
+---
+
+## 2026-10-19：提现规则落地（OPEN_ITEMS B5 / B7 关闭）
+
+- V58：`withdrawal` 增加 `payout_method`（ALIPAY/BANK/WECHAT，DB CHECK）与 `payout_account`。
+- `WithdrawalService.request(..., payoutMethod, payoutAccount)`：
+  - 金额低于 `distribution.min-withdrawal` → 拒绝（不再写死 0）；
+  - 打款方式必须在 `distribution.payout-methods` 白名单内（后台配置决定可选集合）；
+  - 记录申请人选择的收款方式与账号。
+- 旧签名保留：未指定方式时取配置里的第一个允许方式。
+
+| 验证 | 结果 |
+|---|---|
+| 后端测试 | **387 个，全部通过，0 跳过** |
+| 新增用例 | 低于最低额被拒；不支持的方式被拒；后台开启 WECHAT 后可申请并落库 |
+

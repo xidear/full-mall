@@ -77,27 +77,27 @@ class WithdrawalServiceTest {
 
     @Test
     void cannotRequestMoreThanAvailable() {
-        availableCommission(100);
+        availableCommission(20_000);
 
-        assertThatThrownBy(() -> withdrawals.request(promoter, 101, "CNY"))
+        assertThatThrownBy(() -> withdrawals.request(promoter, 20_001, "CNY"))
                 .isInstanceOf(com.fullmall.platform.error.ApiException.class)
                 .hasMessageContaining("余额不足");
     }
 
     @Test
     void pendingWithdrawalReducesWithdrawableBalance() {
-        availableCommission(100);
-        withdrawals.request(promoter, 80, "CNY");
+        availableCommission(20_000);
+        withdrawals.request(promoter, 15_000, "CNY");
 
-        assertThat(withdrawals.availableForWithdrawal(promoter)).isEqualTo(20);
-        assertThatThrownBy(() -> withdrawals.request(promoter, 30, "CNY"))
+        assertThat(withdrawals.availableForWithdrawal(promoter)).isEqualTo(5_000);
+        assertThatThrownBy(() -> withdrawals.request(promoter, 20_000, "CNY"))
                 .isInstanceOf(com.fullmall.platform.error.ApiException.class);
     }
 
     @Test
     void payingOutMarksCommissionWithdrawnAndWritesLedger() {
-        UUID commissionId = availableCommission(100);
-        UUID id = withdrawals.request(promoter, 100, "CNY");
+        UUID commissionId = availableCommission(20_000);
+        UUID id = withdrawals.request(promoter, 20_000, "CNY");
         withdrawals.approve(id, "admin");
         withdrawals.markPaid(id, "WX-REF-1", "admin");
 
@@ -112,11 +112,44 @@ class WithdrawalServiceTest {
 
     @Test
     void rejectionRequiresReason() {
-        availableCommission(100);
-        UUID id = withdrawals.request(promoter, 50, "CNY");
+        availableCommission(20_000);
+        UUID id = withdrawals.request(promoter, 12_000, "CNY");
 
         assertThatThrownBy(() -> withdrawals.reject(id, " ", "admin"))
                 .isInstanceOf(com.fullmall.platform.error.ApiException.class)
                 .hasMessageContaining("原因");
+    }
+
+    @Test
+    void rejectsBelowMinimumAndUnsupportedMethod() {
+        availableCommission(20_000);
+
+        // 低于后台默认最低提现额（10000 分）
+        assertThatThrownBy(() -> withdrawals.request(promoter, 9_999, "CNY"))
+                .isInstanceOf(com.fullmall.platform.error.ApiException.class)
+                .hasMessageContaining("最低提现额");
+
+        // 不在允许集合内的打款方式
+        assertThatThrownBy(() -> withdrawals.request(promoter, 12_000, "CNY", "PAYPAL", null))
+                .isInstanceOf(com.fullmall.platform.error.ApiException.class)
+                .hasMessageContaining("不支持的打款方式");
+    }
+
+    @Test
+    void recordsChosenPayoutMethod() {
+        // 后台开启微信提现后，申请人才可选
+        jdbc.update("INSERT INTO system_setting (setting_key, setting_value)"
+                + " VALUES ('distribution.payout-methods', 'ALIPAY,WECHAT')"
+                + " ON CONFLICT (setting_key) DO UPDATE SET setting_value = EXCLUDED.setting_value");
+        availableCommission(20_000);
+
+        UUID id = withdrawals.request(promoter, 12_000, "CNY", "WECHAT", "wx-openid-1");
+
+        var row = jdbc.queryForMap(
+                "SELECT payout_method, payout_account FROM withdrawal WHERE id = ?", id);
+        assertThat(row.get("payout_method")).isEqualTo("WECHAT");
+        assertThat(row.get("payout_account")).isEqualTo("wx-openid-1");
+
+        jdbc.update("DELETE FROM system_setting WHERE setting_key = 'distribution.payout-methods'");
     }
 }

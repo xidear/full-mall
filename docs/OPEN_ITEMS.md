@@ -29,9 +29,9 @@
 | B2 | 二级分佣的上级关系维护（后台/客服侧） | ⚠️ | `promoter_link` 表已建，`findUpline` 已用；**无写入入口** |
 | B3 | 绑定方式（ONCE/PERMANENT）与时机的实际执行 | ⚠️ | 配置键可读，`attachCheckout` 仍按固定逻辑绑定 |
 | B4 | `AFTER_SALE_CLOSED` 冻结释放扫描 | ⬜ | 释放任务只处理 `frozen_until <= now()` |
-| B5 | 提现：申请人选打款方式 | ⬜ | `withdrawal` 无 payout_method 字段 |
+| B5 | 提现：申请人选打款方式 | ✅ | V58 `payout_method`/`payout_account`；须在 `distribution.payout-methods` 白名单内（有测试） |
 | B6 | 提现：一级审核走权限矩阵（非写死 ADMIN） | ⬜ | `AdminDistributionController` 仍是 `hasRole('ADMIN')` 风格 |
-| B7 | 提现：最低金额读配置 | ⚠️ | `WithdrawalService` 未接 `distribution.min-withdrawal` |
+| B7 | 提现：最低金额读配置 | ✅ | 低于 `distribution.min-withdrawal` 直接拒绝（有测试） |
 | B8 | 提现：微信零钱/银行卡真实打款 | ⬜ | 仅记录 `payment_ref` |
 | B9 | 佣金可拆分消耗（提现额大于单条佣金） | ⚠️ | 现为"跳过该条继续找更小的"，凑不齐整笔失败 |
 | B10 | 客服聊天内发送商品 → 建上下级关系 | ⚠️ | 商品卡片已有；绑定规则（ONCE/PERMANENT）未接 |

@@ -25,23 +25,54 @@ public class WithdrawalService {
 
     private final JdbcTemplate jdbcTemplate;
     private final AuditEventService auditEvents;
+    private final DistributionConfig distributionConfig;
 
-    public WithdrawalService(JdbcTemplate jdbcTemplate, AuditEventService auditEvents) {
+    public WithdrawalService(JdbcTemplate jdbcTemplate, AuditEventService auditEvents,
+                             DistributionConfig distributionConfig) {
         this.jdbcTemplate = jdbcTemplate;
         this.auditEvents = auditEvents;
+        this.distributionConfig = distributionConfig;
     }
 
-    public record Withdrawal(UUID id, UUID promoterId, long amount, String currency, String status) {
+    public record Withdrawal(UUID id, UUID promoterId, long amount, String currency, String status,
+                             String payoutMethod, String payoutAccount) {
     }
 
+    /** 兼容旧调用：不选打款方式时按配置的第一个方式。 */
     @Transactional
     public UUID request(UUID promoterId, long amount, String currency) {
+        var config = distributionConfig.load();
+        return request(promoterId, amount, currency,
+                config.payoutMethods().get(0), null);
+    }
+
+    /**
+     * 提现申请：金额不得低于后台配置的最低提现额，打款方式必须是后台允许的集合之一。
+     *
+     * @param payoutMethod ALIPAY / BANK / WECHAT（由申请人选择）
+     * @param payoutAccount 收款账号（支付宝账号/银行卡号；微信可为空）
+     */
+    @Transactional
+    public UUID request(UUID promoterId, long amount, String currency,
+                        String payoutMethod, String payoutAccount) {
         if (promoterId == null) {
             throw ApiException.badRequest("PROMOTER_REQUIRED", "缺少提现人");
         }
         if (amount <= 0) {
             throw ApiException.badRequest("INVALID_WITHDRAWAL_AMOUNT", "提现金额必须大于 0");
         }
+        var config = distributionConfig.load();
+        if (amount < config.minWithdrawal()) {
+            throw ApiException.badRequest("WITHDRAWAL_BELOW_MINIMUM",
+                    "低于最低提现额 " + config.minWithdrawal() + " 分，当前申请 " + amount);
+        }
+
+        String method = payoutMethod == null ? "" : payoutMethod.trim().toUpperCase(java.util.Locale.ROOT);
+        if (!config.payoutMethods().contains(method)) {
+            throw ApiException.badRequest("WITHDRAWAL_METHOD_NOT_SUPPORTED",
+                    "不支持的打款方式 " + payoutMethod + "，可选：" + config.payoutMethods());
+        }
+
         long available = availableForWithdrawal(promoterId);
         if (amount > available) {
             throw ApiException.conflict("INSUFFICIENT_WITHDRAWABLE_BALANCE",
@@ -49,9 +80,11 @@ public class WithdrawalService {
         }
         UUID id = UUID.randomUUID();
         int inserted = jdbcTemplate.update("""
-                INSERT INTO withdrawal (id, promoter_id, amount_amount, currency, status)
-                VALUES (?, ?, ?, ?, 'PENDING')
-                """, id, promoterId, amount, currency);
+                INSERT INTO withdrawal (id, promoter_id, amount_amount, currency, status,
+                                        payout_method, payout_account)
+                VALUES (?, ?, ?, ?, 'PENDING', ?, ?)
+                """, id, promoterId, amount, currency, method,
+                payoutAccount == null || payoutAccount.isBlank() ? null : payoutAccount.trim());
         if (inserted != 1) {
             throw new IllegalStateException("提现申请写入失败");
         }
@@ -178,21 +211,25 @@ public class WithdrawalService {
         }
         String filter = status == null || status.isBlank() ? null : status.trim().toUpperCase();
         return jdbcTemplate.query("""
-                SELECT id, promoter_id, amount_amount, currency, status FROM withdrawal
+                SELECT id, promoter_id, amount_amount, currency, status, payout_method, payout_account
+                  FROM withdrawal
                  WHERE (?::text IS NULL OR status = ?::text)
                  ORDER BY requested_at DESC LIMIT ?
                 """, (rs, rowNum) -> new Withdrawal(
                 rs.getObject("id", UUID.class), rs.getObject("promoter_id", UUID.class),
-                rs.getLong("amount_amount"), rs.getString("currency"), rs.getString("status")),
+                rs.getLong("amount_amount"), rs.getString("currency"), rs.getString("status"),
+                rs.getString("payout_method"), rs.getString("payout_account")),
                 filter, filter, limit);
     }
 
     public Withdrawal find(UUID id) {
         return jdbcTemplate.query("""
-                SELECT id, promoter_id, amount_amount, currency, status FROM withdrawal WHERE id = ?
+                SELECT id, promoter_id, amount_amount, currency, status, payout_method, payout_account
+                  FROM withdrawal WHERE id = ?
                 """, (rs, rowNum) -> new Withdrawal(
                 rs.getObject("id", UUID.class), rs.getObject("promoter_id", UUID.class),
-                rs.getLong("amount_amount"), rs.getString("currency"), rs.getString("status")), id)
+                rs.getLong("amount_amount"), rs.getString("currency"), rs.getString("status"),
+                rs.getString("payout_method"), rs.getString("payout_account")), id)
                 .stream().findFirst()
                 .orElseThrow(() -> ApiException.notFound("WITHDRAWAL_NOT_FOUND", "提现单不存在: " + id));
     }

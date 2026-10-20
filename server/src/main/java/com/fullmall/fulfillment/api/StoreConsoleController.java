@@ -71,6 +71,13 @@ public class StoreConsoleController {
                 fulfillmentOrderId, request.carrierCode(), request.trackingNo());
     }
 
+    /** 门店工作台查看订单履约（员工身份，无需顾客手机号）。 */
+    @GetMapping("/orders/{orderId}/fulfillments")
+    public java.util.List<com.fullmall.fulfillment.domain.FulfillmentOrder> orderFulfillments(
+            @PathVariable java.util.UUID orderId) {
+        return fulfillmentService.findFulfillments(orderId);
+    }
+
     @GetMapping("/pickups/{pickupCode}")
     public PickupDetail pickup(@PathVariable String pickupCode) {
         storeAccessService.requireStore(currentStaff(), fulfillmentService.findPickup(pickupCode).storeId());

@@ -2743,3 +2743,19 @@ make verify-fast   # 跳过 E2E
 > 注：`carrierCode` / `trackingNo` 本来就在 DTO 里，顾客侧无需新增字段；本轮重点是**堵住泄露**。
 > 待办：后台客服查看履约更应走 `/store|/admin` 接口（带员工身份），而不是沿用顾客接口 + 手机号。
 
+---
+
+## 2026-10-19：后台/门店履约接口（收拾权限模型）
+
+- 新增 `GET /admin/v1/orders/{orderId}/fulfillments`（客服/后台，凭员工身份，`order.manage`）
+- 新增 `GET /store/v1/orders/{orderId}/fulfillments`（门店工作台）
+- 后台页面 `OrdersView.vue` 改用它，**不再借用顾客接口 + 手机号**
+
+| 验证 | 结果 |
+|---|---|
+| 后端测试 | **332 个，全部通过，0 跳过** |
+| 新增断言 | `PostgresPickupFlowTest` 用 admin token 调后台接口，返回履约含自提码，**无需手机号** |
+| 接口对齐 | 后端 184 条路由 / 前端 16 条调用 / 未匹配 **0** |
+
+> 现在顾客、门店、后台三条路径各走各的接口，权限模型不再靠"手机号绕过"。
+

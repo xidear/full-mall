@@ -93,6 +93,11 @@ class PostgresPickupFlowTest {
                 "scannedCode", batchId));
         assertEquals("PICKED", picked.get("status").asText());
 
+        // 后台/客服接口：凭员工身份查看履约，无需顾客手机号
+        JsonNode adminView = get("/admin/v1/orders/" + orderId + "/fulfillments", adminToken);
+        assertEquals(1, adminView.size());
+        assertNotNull(adminView.get(0).get("pickupCode").asText());
+
         JsonNode fulfillments = get("/api/v1/orders/" + orderId + "/fulfillments?phone=13800000000");
         JsonNode fulfillment = fulfillments.get(0);
         assertEquals("READY_FOR_PICKUP", fulfillment.get("status").asText());

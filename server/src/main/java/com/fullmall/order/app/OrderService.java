@@ -390,6 +390,8 @@ public class OrderService {
         }
         inventoryService.releaseOrder(orderId);
         promotionService.releaseOrder(orderId);
+        notificationService.notifyOrderEvent(orderId, "ORDER_CANCELLED", "订单已取消",
+                "订单因超时未支付已取消，库存与优惠已释放。", List.of("IN_APP", "SMS"));
         return true;
     }
 
@@ -447,6 +449,13 @@ public class OrderService {
             throw new IllegalStateException("FulfillmentCompletedEvent without a completed fulfillment: " + event.orderId());
         }
         orderRepository.updateStatus(event.orderId(), allComplete ? OrderStatus.FULFILLED : OrderStatus.PARTIALLY_FULFILLED);
+        if (allComplete) {
+            notificationService.notifyOrderEvent(event.orderId(), "ORDER_FULFILLED", "订单已完成",
+                    "订单已全部发货/履约完成，感谢您的购买。", List.of("IN_APP", "SMS"));
+        } else {
+            notificationService.notifyOrderEvent(event.orderId(), "ORDER_PARTIALLY_FULFILLED",
+                    "订单部分发货", "订单已部分发货，剩余商品会尽快安排。", List.of("IN_APP"));
+        }
     }
 
     private FulfillmentType toType(com.fullmall.inventory.domain.LocationType locationType, FulfillmentMode mode) {

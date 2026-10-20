@@ -29,8 +29,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 class OrderNotificationFlowTest {
 
     private static final EmbeddedPostgres POSTGRES;
-    private static final String PHONE = "13966660001";
-    private static final UUID MEMBER = UUID.fromString("dddddddd-0000-0000-0000-0000000000aa");
+    private UUID memberId;
+    private String phone;
     private static final UUID PRODUCT = UUID.fromString("dddddddd-0000-0000-0000-0000000000bb");
     private static final UUID SKU = UUID.fromString("dddddddd-0000-0000-0000-0000000000cc");
     private static final UUID WAREHOUSE = UUID.fromString("dddddddd-0000-0000-0000-0000000000ee");
@@ -60,10 +60,15 @@ class OrderNotificationFlowTest {
     @Autowired
     JdbcTemplate jdbc;
 
+    private UUID batchId;
+
     private void seed() {
         jdbc.update("DELETE FROM notification");
-        jdbc.update("DELETE FROM inventory_batch WHERE id = 'dddddddd-0000-0000-0000-0000000000ff'");
-        jdbc.update("DELETE FROM member WHERE id = ?", MEMBER);
+        // 批次 id 改为每条用例随机：固定 id 会与 stock_move / reservation 的外键打架
+        batchId = java.util.UUID.randomUUID();
+        memberId = java.util.UUID.randomUUID();
+        phone = "139" + String.format("%08d", Math.abs(memberId.hashCode() % 100_000_000));
+
         jdbc.update("""
                 INSERT INTO market (code, name, currency, default_locale, active)
                 VALUES ('CN-NOTI', '通知测试市场', 'CNY', 'zh-CN', TRUE) ON CONFLICT (code) DO NOTHING
@@ -83,13 +88,37 @@ class OrderNotificationFlowTest {
         jdbc.update("""
                 INSERT INTO inventory_batch (id, sku_id, location_type, location_id, batch_no,
                                             quantity, reserved_quantity, status)
-                VALUES ('dddddddd-0000-0000-0000-0000000000ff', ?, 'WAREHOUSE', ?, 'NOTI-B1', 50, 0, 'AVAILABLE')
-                ON CONFLICT (id) DO NOTHING
-                """, SKU, WAREHOUSE);
+                VALUES (?, ?, 'WAREHOUSE', ?, ?, 50, 0, 'AVAILABLE')
+                """, batchId, SKU, WAREHOUSE, "NOTI-" + batchId);
         jdbc.update("""
                 INSERT INTO member (id, member_no, name, phone, tier, points_balance, stored_value_balance, currency)
-                VALUES (?, 'M-NOTI-1', '通知用户', ?, 'GOLD', 0, 0, 'CNY')
-                """, MEMBER, PHONE);
+                VALUES (?, ?, '通知用户', ?, 'GOLD', 0, 0, 'CNY')
+                """, memberId, "M-NOTI-" + memberId.toString().substring(0, 8), phone);
+    }
+
+    @Test
+    void cancelWritesMemberNotification() {
+        seed();
+        var order = orders.checkout(new CheckoutRequest(
+                List.of(new CheckoutRequest.Item(SKU, 1)),
+                FulfillmentMode.SHIP,
+                null,
+                new CheckoutRequest.Contact("通知用户", phone, null),
+                new CheckoutRequest.Address("上海", "上海", "静安", "南京西路 9 号", "200040"),
+                List.of(), null, null, null, null, null), null);
+
+        boolean cancelled = orders.cancelUnpaidOrder(order.id());
+
+        assertThat(cancelled).isTrue();
+        // 身份统一：站内消息写 MEMBER，短信写 CUSTOMER/手机号
+        assertThat(jdbc.queryForList("""
+                SELECT channel FROM notification
+                 WHERE recipient_type = 'MEMBER' AND recipient_id = ? AND event_type = 'ORDER_CANCELLED'
+                """, String.class, memberId.toString())).containsExactly("IN_APP");
+        assertThat(jdbc.queryForList("""
+                SELECT channel FROM notification
+                 WHERE recipient_type = 'CUSTOMER' AND recipient_id = ? AND event_type = 'ORDER_CANCELLED'
+                """, String.class, phone)).containsExactly("SMS");
     }
 
     @Test
@@ -100,7 +129,7 @@ class OrderNotificationFlowTest {
                 List.of(new CheckoutRequest.Item(SKU, 1)),
                 FulfillmentMode.SHIP,
                 null,
-                new CheckoutRequest.Contact("通知用户", PHONE, null),
+                new CheckoutRequest.Contact("通知用户", phone, null),
                 new CheckoutRequest.Address("上海", "上海", "静安", "南京西路 9 号", "200040"),
                 List.of(), null, null, null, null, null), null);
 
@@ -108,7 +137,7 @@ class OrderNotificationFlowTest {
         assertThat(jdbc.queryForObject("""
                 SELECT COUNT(*) FROM notification
                  WHERE recipient_type = 'MEMBER' AND recipient_id = ? AND event_type = 'ORDER_CREATED'
-                """, Integer.class, MEMBER.toString())).isEqualTo(1);
+                """, Integer.class, memberId.toString())).isEqualTo(1);
 
         payments.payMock(order.id());
 
@@ -117,23 +146,23 @@ class OrderNotificationFlowTest {
                 SELECT channel FROM notification
                  WHERE recipient_type = 'CUSTOMER' AND recipient_id = ? AND event_type = 'ORDER_PAID'
                  ORDER BY channel
-                """, String.class, PHONE)).containsExactly("SMS");
+                """, String.class, phone)).containsExactly("SMS");
         assertThat(jdbc.queryForList("""
                 SELECT channel FROM notification
                  WHERE recipient_type = 'MEMBER' AND recipient_id = ? AND event_type = 'ORDER_PAID'
-                """, String.class, MEMBER.toString())).containsExactly("IN_APP");
+                """, String.class, memberId.toString())).containsExactly("IN_APP");
 
         // 支付：恰好一条会员消息
         assertThat(jdbc.queryForObject("""
                 SELECT COUNT(*) FROM notification
                  WHERE recipient_type = 'MEMBER' AND recipient_id = ? AND event_type = 'ORDER_PAID'
-                """, Integer.class, MEMBER.toString())).isEqualTo(1);
+                """, Integer.class, memberId.toString())).isEqualTo(1);
 
         // 退款：会员收到一条站内消息，且只一条
         payments.refund(order.id(), order.total().amount());
         assertThat(jdbc.queryForList("""
                 SELECT channel FROM notification
                  WHERE recipient_type = 'MEMBER' AND recipient_id = ? AND event_type = 'ORDER_REFUNDED'
-                """, String.class, MEMBER.toString())).containsExactly("IN_APP");
+                """, String.class, memberId.toString())).containsExactly("IN_APP");
     }
 }

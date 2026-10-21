@@ -54,6 +54,22 @@ public class LineRefundService {
         if (quantity <= 0) {
             throw ApiException.badRequest("INVALID_REFUND_QUANTITY", "退款数量必须大于 0");
         }
+        return recordInternal(orderId, orderLineId, Integer.valueOf(quantity), amount, currency, reason);
+    }
+
+    /**
+     * 记录"只按金额、不按件"的退款（数量为 null）。
+     *
+     * <p>为什么允许 null：部分退款按金额分摊时并不总能换算成整件（例如 100 元商品退 40 元）；
+     * 强行反推数量会让"累计退款数量"超过行数量，进而**阻断后续合法退款**。
+     */
+    public Refunded recordAmountOnly(UUID orderId, UUID orderLineId, long amount,
+                                     String currency, String reason) {
+        return recordInternal(orderId, orderLineId, null, amount, currency, reason);
+    }
+
+    private Refunded recordInternal(UUID orderId, UUID orderLineId, Integer quantity, long amount,
+                                    String currency, String reason) {
         if (amount <= 0) {
             throw ApiException.badRequest("INVALID_REFUND_AMOUNT", "退款金额必须大于 0");
         }
@@ -77,11 +93,12 @@ public class LineRefundService {
 
         int refundedQty = jdbcTemplate.queryForObject("""
                 SELECT COALESCE(SUM(quantity), 0) FROM order_line_refund WHERE order_line_id = ?
-                """, Integer.class, orderLineId);
+                """, Integer.class, orderLineId);   // quantity 为 NULL 的行不计入
         long refundedAmount = jdbcTemplate.queryForObject("""
                 SELECT COALESCE(SUM(amount_amount), 0) FROM order_line_refund WHERE order_line_id = ?
                 """, Long.class, orderLineId);
-        if (refundedQty + quantity > line.quantity()) {
+        // 只有明确写了数量才校验件数；按金额分摊（quantity=null）不受件数限制，但仍受金额上限约束
+        if (quantity != null && refundedQty + quantity > line.quantity()) {
             throw ApiException.conflict("REFUND_QUANTITY_EXCEEDS_LINE",
                     "累计退款数量 " + (refundedQty + quantity) + " 超过该行数量 " + line.quantity());
         }
@@ -98,7 +115,7 @@ public class LineRefundService {
                 VALUES (?, ?, ?, ?, ?, ?, ?)
                 """, id, orderId, orderLineId, quantity, amount, currency,
                 reason == null ? null : reason.trim());
-        return new Refunded(id, orderLineId, quantity, amount);
+        return new Refunded(id, orderLineId, quantity == null ? 0 : quantity, amount);
     }
 
 
@@ -216,11 +233,17 @@ public class LineRefundService {
                     """, Long.class, line.id());
             long lineTotal = Math.multiplyExact(line.unitPrice(), (long) line.quantity());
             long leftAmount = Math.max(lineTotal - refundedAmount, 0);
-            int quantity = leftAmount > 0
-                    ? (int) Math.max(1, Math.round((double) line.quantity() * allocation.amount() / lineTotal))
-                    : 1;
-            persisted.add(record(orderId, line.id(), Math.min(quantity, line.quantity()),
-                    allocation.amount(), currency, "退款分摊"));
+            // 只有"整件退款"才写数量：金额能被单价整除且件数在剩余范围内
+            boolean wholeUnits = allocation.amount() % line.unitPrice() == 0
+                    && allocation.amount() / line.unitPrice() <= line.quantity();
+            if (wholeUnits) {
+                persisted.add(record(orderId, line.id(),
+                        (int) (allocation.amount() / line.unitPrice()),
+                        allocation.amount(), currency, "退款分摊"));
+            } else {
+                persisted.add(recordAmountOnly(orderId, line.id(), allocation.amount(),
+                        currency, "退款分摊"));
+            }
         }
         return persisted;
     }

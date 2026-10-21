@@ -70,9 +70,42 @@ public class MemberPointsService {
             throw ApiException.conflict("POINTS_ALREADY_REDEEMED",
                     "该订单已使用过积分抵扣: " + orderId);
         }
+        consumeFifo(member.id(), used);
         jdbcTemplate.update("UPDATE member SET points_balance = points_balance - ? WHERE id = ?",
                 used, member.id());
         return new Redemption(used, amount, member.points() - used);
+    }
+
+    /**
+     * 按 FIFO 从最早的 EARN 行扣减逐笔余额（过期计算的基础）。
+     *
+     * <p>为什么必须逐笔：只记总余额时无法判断"哪一笔过期了"，过期任务只能按总额猜，会账面不平。
+     *
+     * <p>余量不足时**抛错**而不是少扣：说明账本与余额已不一致，必须暴露。
+     */
+    private void consumeFifo(UUID memberId, long points) {
+        long remaining = points;
+        var rows = jdbcTemplate.query("""
+                SELECT id, remaining_points FROM points_ledger
+                 WHERE member_id = ? AND entry_type = 'EARN' AND remaining_points > 0
+                 ORDER BY created_at, id
+                 FOR UPDATE
+                """, (rs, rowNum) -> new java.util.AbstractMap.SimpleEntry<>(
+                rs.getObject("id", UUID.class), rs.getLong("remaining_points")), memberId);
+        for (var row : rows) {
+            if (remaining <= 0) {
+                break;
+            }
+            long take = Math.min(row.getValue(), remaining);
+            jdbcTemplate.update(
+                    "UPDATE points_ledger SET remaining_points = remaining_points - ? WHERE id = ?",
+                    take, row.getKey());
+            remaining -= take;
+        }
+        if (remaining > 0) {
+            throw new IllegalStateException("积分账本不一致：余额不足以扣减，缺口 " + remaining
+                    + "，会员=" + memberId);
+        }
     }
 
     /** 退款/取消：把该订单抵扣的积分退回（幂等）。 */

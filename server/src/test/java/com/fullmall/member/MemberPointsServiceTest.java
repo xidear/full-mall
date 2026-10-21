@@ -54,10 +54,17 @@ class MemberPointsServiceTest {
     void seed() {
         jdbc.update("DELETE FROM points_ledger WHERE member_id IN (SELECT id FROM member WHERE phone = ?)", PHONE);
         jdbc.update("DELETE FROM member WHERE phone = ?", PHONE);
+        UUID memberId = UUID.randomUUID();
         jdbc.update("""
                 INSERT INTO member (id, member_no, name, phone, tier, points_balance, stored_value_balance, currency)
                 VALUES (?, 'M-PTS-1', '积分用户', ?, 'GOLD', 500, 0, 'CNY')
-                """, UUID.randomUUID(), PHONE);
+                """, memberId, PHONE);
+        // 逐笔余额须与总额一致：FIFO 扣减发现账本缺行会直接拒绝（有意的账目校验）
+        jdbc.update("""
+                INSERT INTO points_ledger (id, member_id, sale_id, entry_type, points,
+                                           balance_after, reason, business_key, remaining_points)
+                VALUES (?, ?, NULL, 'EARN', 500, 500, '测试初始积分', 'test:init', 500)
+                """, UUID.randomUUID(), memberId);
     }
 
     @Test

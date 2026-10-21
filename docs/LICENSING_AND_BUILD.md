@@ -85,6 +85,19 @@
 - **私钥绝不入库**；`.gitignore` 覆盖 `*.pem`、`license-private*`；
 - 构建产物附 SHA-256 与签名，交付单列明。
 
+## 6.1 公开分叉导出规则（重要）
+
+企业版源码保存在 Gitea 的 `server/src-enterprise/`，**不得进入 GitHub/Gitee 公开分叉**。
+导出公开版本时必须执行（脚本 `scripts/export-community.sh` 待实现）：
+
+```bash
+rm -rf server/src-enterprise
+rm -f docs/LICENSING_AND_BUILD.md docs/AI_SERVICE_MODULE.md
+# 然后按 community profile 构建并核对 jar 内无 com/fullmall/ai
+```
+
+验收：公开分叉 `git grep -l "com.fullmall.ai"` 结果为空，且构建产物 `/admin/v1/ai/**` 404。
+
 ## 7. 验收标准
 
 | 编号 | 验收 |

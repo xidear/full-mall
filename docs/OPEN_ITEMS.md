@@ -121,7 +121,7 @@
 | H1b | 未注册加载器的实体恢复 | ⬜ | 无加载器时仍退回反序列化（可能失败并计 FAILED）；目前仅 asset 注册 |
 | H2 | 导出文件对象存储（S3/OSS）与签名 URL | ⬜ | 只有 `LocalExportStorage`；**导出流水线本身已 E2E 验证**（发起→处理→下载） |
 | H20 | 后台帮助体系 + 覆盖率检查 | ✅ | 22 个页面帮助（步骤/运营建议/常见错误）+ 顶栏帮助抽屉 + `docs/HELP_INDEX.md`；`check-help-coverage.py` 已接入 verify，**新增页面不写帮助即失败**（已反证） |
-| H21 | 订单行批次引用 | ⚠️ | V81 加 `order_line.batch_id`（可空）+ 只写一次（防覆盖）；**拣货路径尚未写入**，退货回冲仍缺入参 |
+| H21 | 订单行批次引用 | ⚠️ | V81 列已加（只写一次）；**接线点已定位**：`pick_task_line` 有 `sku_id`/`suggested_batch_id` 但**没有 `order_line_id`**，无法把拣货批次映射回订单行——需 V82 补列后再接 `recordLineBatch` |
 | H19 | 文档路径契约测试 | ✅ | `DocumentedPathsExistTest` 扫描本清单中出现的接口路径并与真实路由比对；**防止"文档说做了、接口不存在"**（有测试） |
 | H18 | 通知渠道连通性自检 | ✅ | 独立 `NotificationAdminController`；系统设置页「渠道自检」按钮；**E2E 验证**（发送→SENT 提示）；未知渠道 400 |
 | H17 | 通知失败重试 | ✅ | 接口 + **后台通知页「重试」按钮**（仅 FAILED 显示、`:loading` 互斥）；已 SENT 拒绝重试（有测试）；页面未做浏览器验证 |

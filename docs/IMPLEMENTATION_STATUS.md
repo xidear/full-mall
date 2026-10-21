@@ -5593,3 +5593,28 @@ RAG 改库即生效、能回溯、无命中就说不知道。训练留给"风格
 > 仍缺（H21 ⚠️）：**拣货路径写入**（POS/仓库拣货知道批次，需在那里调用 `recordLineBatch`），
 > 之后售后收货才能安全调用 `returnFromBatch`。
 
+---
+
+## 2026-10-19：拣货批次回填的精确阻塞点
+
+为把 `recordLineBatch` 接到拣货路径，查了拣货表结构：
+
+```sql
+CREATE TABLE pick_task_line (
+    id, pick_task_id, sku_id, quantity,
+    suggested_batch_id UUID REFERENCES inventory_batch(id),
+    suggested_expiry_date, picked_quantity
+);
+```
+
+**没有 `order_line_id`** —— 拣货行只有 SKU，无法确定"这一拣对应订单的哪一行"，
+因此也无法把批次写到正确的 `order_line.batch_id` 上。
+
+| 结论 | 说明 |
+|---|---|
+| 不能硬接 | 同 SKU 多行订单会写错行，退货按错批次回冲 |
+| 需要 | V82 给 `pick_task_line` 加 `order_line_id`（生成拣货任务时写入） |
+| 之后再 | 拣货确认 → `recordLineBatch(orderLineId, batchId)` → 售后可精确回冲 |
+
+> 本轮只做结构核查与登记，没有写"看起来能跑"的代码。
+

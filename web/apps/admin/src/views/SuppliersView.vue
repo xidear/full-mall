@@ -9,6 +9,64 @@ const suppliers = ref<SupplierCredentialView[]>([])
 const loading = ref(false)
 const error = ref('')
 const credentialDialog = ref(false)
+// 供应商结算：周期内生成结算单，已结算退货会从应付中扣减
+interface SettlementRow {
+  id: string
+  periodStart: string
+  periodEnd: string
+  grossAmount: number
+  refundAmount: number
+  commissionAmount: number
+  payableAmount: number
+  status: string
+}
+const settlementDialog = ref(false)
+const settlementLoading = ref(false)
+const settlementSaving = ref(false)
+const settlementSupplier = ref<SupplierCredentialView | null>(null)
+const settlements = ref<SettlementRow[]>([])
+const settlementRange = ref<Date[] | null>(null)
+
+async function openSettlements(row: SupplierCredentialView) {
+  settlementSupplier.value = row
+  settlementDialog.value = true
+  settlementRange.value = null
+  await loadSettlements()
+}
+
+async function loadSettlements() {
+  if (!settlementSupplier.value) return
+  settlementLoading.value = true
+  try {
+    settlements.value = await api.get<SettlementRow[]>(
+      `/admin/v1/suppliers/${settlementSupplier.value.supplierId}/settlements`, { limit: 20 })
+  } catch (cause) {
+    ElMessage.error(cause instanceof Error ? cause.message : '结算单加载失败')
+  } finally {
+    settlementLoading.value = false
+  }
+}
+
+async function generateSettlement() {
+  if (!settlementSupplier.value || settlementSaving.value) return
+  if (!settlementRange.value || settlementRange.value.length !== 2) {
+    ElMessage.error('请选择结算周期')
+    return
+  }
+  settlementSaving.value = true
+  try {
+    await api.post(
+      `/admin/v1/suppliers/${settlementSupplier.value.supplierId}/settlements`
+        + `?periodStart=${encodeURIComponent(new Date(settlementRange.value[0]).toISOString())}`
+        + `&periodEnd=${encodeURIComponent(new Date(settlementRange.value[1]).toISOString())}`)
+    ElMessage.success('结算单已生成')
+    await loadSettlements()
+  } catch (cause) {
+    ElMessage.error(cause instanceof Error ? cause.message : '生成失败')
+  } finally {
+    settlementSaving.value = false
+  }
+}
 const created = ref<{ supplierId: string; accessKey: string; secret: string } | null>(null)
 
 onMounted(load)
@@ -91,10 +149,39 @@ async function copy(text: string, label: string) {
             <el-button size="small" type="primary" plain @click="rotate(row)">
               {{ row.hasCredential ? '轮换凭证' : '生成凭证' }}
             </el-button>
+            <el-button size="small" plain @click="openSettlements(row)">结算</el-button>
           </template>
         </el-table-column>
       </el-table>
     </div>
+
+    <el-dialog v-model="settlementDialog" title="供应商结算" width="720px" v-loading="settlementLoading">
+      <div class="header-actions" style="margin-bottom: 12px">
+        <span class="muted">周期</span>
+        <el-date-picker v-model="settlementRange" type="datetimerange" style="width: 340px" />
+        <el-button type="primary" :loading="settlementSaving" @click="generateSettlement">生成结算单</el-button>
+      </div>
+      <el-table :data="settlements" size="small" empty-text="暂无结算单">
+        <el-table-column label="周期" min-width="220">
+          <template #default="{ row }">
+            {{ formatDateTime(row.periodStart) }} ~ {{ formatDateTime(row.periodEnd) }}
+          </template>
+        </el-table-column>
+        <el-table-column label="毛额" width="100">
+          <template #default="{ row }">{{ (row.grossAmount / 100).toFixed(2) }}</template>
+        </el-table-column>
+        <el-table-column label="退货扣减" width="110">
+          <template #default="{ row }">{{ (row.refundAmount / 100).toFixed(2) }}</template>
+        </el-table-column>
+        <el-table-column label="佣金" width="100">
+          <template #default="{ row }">{{ (row.commissionAmount / 100).toFixed(2) }}</template>
+        </el-table-column>
+        <el-table-column label="应付" width="110">
+          <template #default="{ row }"><strong>{{ (row.payableAmount / 100).toFixed(2) }}</strong></template>
+        </el-table-column>
+        <el-table-column prop="status" label="状态" width="90" />
+      </el-table>
+    </el-dialog>
 
     <el-dialog v-model="credentialDialog" title="供应商凭证（仅显示一次）" width="620px">
       <el-alert

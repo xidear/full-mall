@@ -169,6 +169,17 @@ public class BargainService {
         return new Quote(sessionId, row.skuId(), row.price(), row.currency());
     }
 
+    /** 结算侧按手机号校验归属（下单上下文通常只有手机号）。 */
+    public Quote quoteForPhone(UUID sessionId, String phone) {
+        var memberIds = jdbc.query("""
+                SELECT id FROM member WHERE phone = ?
+                """, (rs, rowNum) -> rs.getObject("id", UUID.class), phone);
+        if (memberIds.isEmpty()) {
+            throw ApiException.conflict("BARGAIN_NOT_OWNER", "该手机号没有会员，无法使用砍价价");
+        }
+        return quote(sessionId, memberIds.get(0));
+    }
+
     public Session find(UUID sessionId) {
         var rows = jdbc.query("""
                 SELECT bs.id, bs.activity_id, bs.member_id, bs.current_price, bs.helper_count,

@@ -23,7 +23,9 @@ public record CheckoutRequest(
         UUID referrerId,
         String referralMode,
         UUID groupBuyId,
-        @Valid CheckoutContext context
+        @Valid CheckoutContext context,
+        /** 可选：砍价场次 id（READY 时按锁定价结算） */
+        UUID bargainSessionId
 ) {
 
     /**

@@ -54,6 +54,7 @@ public class OrderService {
 
     private final com.fullmall.platform.media.MediaUrlResolver mediaUrls;
     private final MemberDiscountLookup memberDiscounts;
+    private final com.fullmall.bargain.app.BargainService bargainService;
     private final com.fullmall.member.app.MemberPointsService memberPoints;
     private final com.fullmall.promotion.app.PromotionPreviewService promotionPreviews;
     private final com.fullmall.coupon.app.CouponService coupons;
@@ -89,6 +90,7 @@ public class OrderService {
                         ObjectMapper objectMapper,
                         com.fullmall.platform.media.MediaUrlResolver mediaUrls,
                         MemberDiscountLookup memberDiscounts,
+                        com.fullmall.bargain.app.BargainService bargainService,
                         com.fullmall.member.app.MemberPointsService memberPoints,
                         com.fullmall.promotion.app.PromotionPreviewService promotionPreviews,
                         com.fullmall.coupon.app.CouponService coupons,
@@ -108,6 +110,7 @@ public class OrderService {
         this.objectMapper = objectMapper;
         this.mediaUrls = mediaUrls;
         this.memberDiscounts = memberDiscounts;
+        this.bargainService = bargainService;
         this.memberPoints = memberPoints;
         this.promotionPreviews = promotionPreviews;
         this.coupons = coupons;
@@ -161,6 +164,16 @@ public class OrderService {
         for (Map.Entry<UUID, Integer> entry : quantities.entrySet()) {
             Sku sku = catalogService.getSku(entry.getKey());
             Money unitPrice = promotionPricing.priceOverrides().getOrDefault(sku.id(), sku.price());
+            if (request.bargainSessionId() != null) {
+                // 砍价价优先：本人 + READY 由 quote 校验，失败直接报错，不回落原价
+                var quote = bargainService.quoteForPhone(request.bargainSessionId(),
+                        request.contact().phone());
+                if (!quote.skuId().equals(sku.id())) {
+                    throw ApiException.conflict("BARGAIN_SKU_MISMATCH",
+                            "砍价场次对应商品与下单商品不一致");
+                }
+                unitPrice = new Money(quote.unitPrice(), quote.currency());
+            }
             if (currency == null) {
                 currency = sku.price().currency();
                 promoSubtotal = Money.zero(currency);

@@ -48,7 +48,8 @@ public class StoreOrderController {
                         body.detail(), null),
                 List.of(), null, null, null,
                 new CheckoutRequest.CheckoutContext(null, null, null,
-                        "CASHIER", authentication.getName()));
+                        "CASHIER", authentication.getName()),
+                null);
         return orders.checkout(request, null);
     }
 }

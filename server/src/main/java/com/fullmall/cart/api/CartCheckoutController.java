@@ -72,7 +72,8 @@ public class CartCheckoutController {
                 null, null, null,
                 new CheckoutRequest.CheckoutContext(
                         body.pointsToUse(), body.couponId(), body.otpCode(),
-                        body.placedBy(), body.placedByOperator()));
+                        body.placedBy(), body.placedByOperator()),
+                null);
 
         var order = orders.checkout(request, idempotencyKey);
         carts.clear(owner);

@@ -97,7 +97,7 @@ class CheckoutRealPersonTest {
                 null,
                 new CheckoutRequest.Contact("真人用户", phone, null),
                 new CheckoutRequest.Address("上海", "上海", "静安", "南京西路 1 号", "200040"),
-                List.of(), null, null, null, new CheckoutRequest.CheckoutContext(null, null, otpCode, null, null));
+                List.of(), null, null, null, new CheckoutRequest.CheckoutContext(null, null, otpCode, null, null), null);
     }
 
     @Test
@@ -132,7 +132,7 @@ class CheckoutRealPersonTest {
                 new CheckoutRequest.Contact("到店顾客", phone, null),
                 new CheckoutRequest.Address("上海", "上海", "静安", "南京西路 2 号", "200040"),
                 List.of(), null, null, null,
-                new CheckoutRequest.CheckoutContext(null, null, null, "CASHIER", "收银员张三"));
+                new CheckoutRequest.CheckoutContext(null, null, null, "CASHIER", "收银员张三"), null);
 
         // 没有 OTP，但因为是员工代下单，允许成单
         var order = orders.checkout(staffRequest, null);
@@ -152,7 +152,7 @@ class CheckoutRealPersonTest {
                 new CheckoutRequest.Contact("到店顾客", phone, null),
                 new CheckoutRequest.Address("上海", "上海", "静安", "南京西路 2 号", "200040"),
                 List.of(), null, null, null,
-                new CheckoutRequest.CheckoutContext(null, null, null, "CASHIER", null));
+                new CheckoutRequest.CheckoutContext(null, null, null, "CASHIER", null), null);
 
         assertThatThrownBy(() -> orders.checkout(staffRequest, null))
                 .isInstanceOf(com.fullmall.platform.error.ApiException.class)

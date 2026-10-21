@@ -118,6 +118,27 @@ public class NotificationService {
         return repository.findById(id).orElseThrow();
     }
 
+    /**
+     * 渠道连通性自检：往 STAFF 发一条测试消息，返回投递结果。
+     *
+     * <p>为什么需要：运营改了短信/邮件配置后无法确认是否真的能发出去。
+     * 该接口**不伪造成功**——渠道未配置或发送失败时返回 FAILED 与原因。
+     */
+    public Notification sendTest(String channel, String title, String content) {
+        String normalized = channel == null ? "" : channel.trim().toUpperCase(java.util.Locale.ROOT);
+        if (!senders.containsKey(normalized)) {
+            throw com.fullmall.platform.error.ApiException.badRequest(
+                    "NOTIFICATION_CHANNEL_INVALID",
+                    "未知渠道 " + channel + "，可选：" + senders.keySet());
+        }
+        deliver("STAFF", "ALL", "CHANNEL_TEST", normalized,
+                title == null || title.isBlank() ? "渠道连通性测试" : title.trim(),
+                content == null || content.isBlank() ? "这是一条测试消息" : content.trim());
+        return repository.findRecent(1, normalized, "STAFF").stream()
+                .findFirst()
+                .orElseThrow(() -> new IllegalStateException("测试消息未落库: " + normalized));
+    }
+
     public int purgeOlderThan(int days) {
         if (days <= 0) {
             throw new IllegalArgumentException("保留天数必须大于 0，实际=" + days);

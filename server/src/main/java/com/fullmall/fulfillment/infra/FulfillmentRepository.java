@@ -139,8 +139,8 @@ public class FulfillmentRepository {
     public void insertPickTaskLine(PickTaskLine line) {
         jdbcTemplate.update("""
                 INSERT INTO pick_task_line (id, pick_task_id, sku_id, quantity, suggested_batch_id,
-                                            suggested_expiry_date, picked_quantity)
-                VALUES (?, ?, ?, ?, ?, ?, ?)
+                                            suggested_expiry_date, picked_quantity, order_line_id)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 line.id(),
                 line.pickTaskId(),
@@ -148,7 +148,8 @@ public class FulfillmentRepository {
                 line.quantity(),
                 line.suggestedBatchId(),
                 line.suggestedExpiryDate() == null ? null : java.sql.Date.valueOf(line.suggestedExpiryDate()),
-                line.pickedQuantity());
+                line.pickedQuantity(),
+                line.orderLineId());
     }
 
     public PickTask findPickTask(UUID taskId) {
@@ -194,7 +195,7 @@ public class FulfillmentRepository {
                 SELECT ptl.id, ptl.pick_task_id, ptl.sku_id,
                        COALESCE(pt.title, p.title, ptl.sku_id::text) AS title,
                        ptl.quantity, ptl.suggested_batch_id, b.batch_no AS suggested_batch_no,
-                       ptl.suggested_expiry_date, ptl.picked_quantity
+                       ptl.suggested_expiry_date, ptl.picked_quantity, ptl.order_line_id
                 FROM pick_task_line ptl
                 JOIN sku s ON s.id = ptl.sku_id
                 JOIN product p ON p.id = s.product_id
@@ -211,7 +212,8 @@ public class FulfillmentRepository {
                 rs.getObject("suggested_batch_id", UUID.class),
                 rs.getString("suggested_batch_no"),
                 rs.getDate("suggested_expiry_date") == null ? null : rs.getDate("suggested_expiry_date").toLocalDate(),
-                rs.getInt("picked_quantity")), taskId);
+                rs.getInt("picked_quantity"),
+                rs.getObject("order_line_id", UUID.class)), taskId);
     }
 
     public boolean markPickLinePicked(UUID lineId, int quantity) {

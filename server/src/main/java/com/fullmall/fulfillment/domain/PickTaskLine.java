@@ -12,6 +12,8 @@ public record PickTaskLine(
         UUID suggestedBatchId,
         String suggestedBatchNo,
         LocalDate suggestedExpiryDate,
-        int pickedQuantity
+        int pickedQuantity,
+        /** 唯一来源订单行；多行合并时为空（无法唯一定位）。 */
+        UUID orderLineId
 ) {
 }

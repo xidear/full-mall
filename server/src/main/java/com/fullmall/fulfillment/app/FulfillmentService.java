@@ -103,7 +103,8 @@ public class FulfillmentService {
                 String key = allocation.skuId() + "|" + reservation.batchId();
                 merged.merge(key,
                         new MergedPickLine(allocation.skuId(), reservation.batchId(),
-                                reservation.expiryDate(), reservation.quantity()),
+                                reservation.expiryDate(), reservation.quantity(),
+                                java.util.Set.of(allocation.orderLineId())),
                         MergedPickLine::plus);
             }
         }
@@ -117,7 +118,9 @@ public class FulfillmentService {
                     line.batchId(),
                     null,
                     line.expiryDate(),
-                    0));
+                    0,
+                    // 只有一条来源订单行时才回填；多行合并留空（需先拆分辨率）
+                    line.orderLineIds().size() == 1 ? line.orderLineIds().iterator().next() : null));
         }
 
         if (type == FulfillmentType.STORE_PICKUP) {
@@ -417,10 +420,14 @@ public class FulfillmentService {
     }
 
     private record MergedPickLine(java.util.UUID skuId, java.util.UUID batchId,
-                                  java.time.LocalDate expiryDate, int quantity) {
+                                  java.time.LocalDate expiryDate, int quantity,
+                                  java.util.Set<java.util.UUID> orderLineIds) {
 
         private MergedPickLine plus(MergedPickLine other) {
-            return new MergedPickLine(skuId, batchId, expiryDate, quantity + other.quantity);
+            var ids = new java.util.LinkedHashSet<>(orderLineIds);
+            ids.addAll(other.orderLineIds());
+            return new MergedPickLine(skuId, batchId, expiryDate,
+                    quantity + other.quantity(), ids);
         }
     }
 }

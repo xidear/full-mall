@@ -56,6 +56,23 @@ public class GlobalExceptionHandler {
                 .body(new ErrorResponse("VALIDATION_FAILED", "Request validation failed", requestId(request), details));
     }
 
+    /**
+     * 请求体无法解析（字段缺失、类型不匹配、非法 UUID）→ **400**，不是 500。
+     *
+     * <p>为什么重要：这类错误此前落到兜底处理器返回 500，让"客户端传错参数"看起来像"服务端崩了"，
+     * 排查时会把时间浪费在错误的方向。
+     */
+    @ExceptionHandler(org.springframework.http.converter.HttpMessageNotReadableException.class)
+    public ResponseEntity<ErrorResponse> onUnreadableBody(
+            org.springframework.http.converter.HttpMessageNotReadableException error,
+            HttpServletRequest request) {
+        String detail = error.getMostSpecificCause().getMessage();
+        return ResponseEntity.badRequest().body(new ErrorResponse(
+                "INVALID_REQUEST_BODY",
+                "请求体无法解析（字段缺失或类型错误）：" + detail,
+                requestId(request), List.of()));
+    }
+
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ErrorResponse> handleUnexpected(Exception exception, HttpServletRequest request) {
         String requestId = requestId(request);

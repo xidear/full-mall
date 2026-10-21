@@ -4565,3 +4565,28 @@ ERROR: column f.supplier_id does not exist
 **公开接口不接受 staff token**：`/api/v1/**` 的会员过滤器会把无效会员 token 当未登录 → 401。
 前端如果同时带两种 token 会踩坑，已写入 `docs/PITFALLS.md`。
 
+---
+
+## 2026-10-19：写接口冒烟，修复"非法输入返回 500"（H13 扩展）
+
+`api-smoke-write.spec.ts`：8 个写接口用**明显无效参数**调用，断言 4xx（不会改数据）。
+
+### 抓到的真实缺陷
+
+| 接口 | 现象 | 根因 |
+|---|---|---|
+| 促销规则 / 券模板 / 供应商退货 | 缺字段 → **500** | `HttpMessageNotReadableException` 落到兜底处理器 |
+| 代发起提现 | 非法 UUID → **500** | 控制器里 `UUID.fromString` 未捕获 |
+
+修复：
+
+1. `GlobalExceptionHandler` 新增 `HttpMessageNotReadableException → 400 INVALID_REQUEST_BODY`（带具体解析原因）；
+2. `AdminDistributionController.requestWithdrawal` 显式校验参数，抛 `400 INVALID_WITHDRAWAL_REQUEST`。
+
+| 验证 | 结果 |
+|---|---|
+| 写接口冒烟 | ✅ 8 个接口全部 4xx（676ms） |
+| 后端测试 | **436 个全绿** |
+
+> 意义：以前"客户端传错参数"会显示成"服务端崩了"，排查方向被带偏。现在错误归位到 400。
+

@@ -66,9 +66,18 @@ public class AdminDistributionController {
     public org.springframework.http.ResponseEntity<java.util.Map<String, java.util.UUID>> requestWithdrawal(
             @org.springframework.web.bind.annotation.RequestBody java.util.Map<String, Object> body,
             org.springframework.security.core.Authentication authentication) {
-        java.util.UUID id = withdrawalService.request(
-                java.util.UUID.fromString(String.valueOf(body.get("promoterId"))),
-                Long.parseLong(String.valueOf(body.get("amount"))),
+        // 手工解析必须给出**明确的 400**：非法 UUID/金额不是"服务端错误"
+        java.util.UUID promoterId;
+        long amount;
+        try {
+            promoterId = java.util.UUID.fromString(String.valueOf(body.get("promoterId")));
+            amount = Long.parseLong(String.valueOf(body.get("amount")));
+        } catch (IllegalArgumentException error) {
+            throw com.fullmall.platform.error.ApiException.badRequest(
+                    "INVALID_WITHDRAWAL_REQUEST",
+                    "promoterId 必须是 UUID，amount 必须是整数：" + error.getMessage());
+        }
+        java.util.UUID id = withdrawalService.request(promoterId, amount,
                 String.valueOf(body.getOrDefault("currency", "CNY")));
         return org.springframework.http.ResponseEntity.ok(java.util.Map.of("id", id));
     }

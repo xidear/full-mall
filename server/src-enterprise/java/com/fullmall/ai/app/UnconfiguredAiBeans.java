@@ -29,6 +29,8 @@ public class UnconfiguredAiBeans {
     }
 
     @Bean
+    @org.springframework.boot.autoconfigure.condition.ConditionalOnProperty(
+            name = "app.ai.mode", havingValue = "prod", matchIfMissing = true)
     KnowledgeRetriever knowledgeRetriever() {
         return new KnowledgeRetriever() {
             @Override
@@ -48,6 +50,8 @@ public class UnconfiguredAiBeans {
     }
 
     @Bean
+    @org.springframework.boot.autoconfigure.condition.ConditionalOnProperty(
+            name = "app.ai.mode", havingValue = "prod", matchIfMissing = true)
     ChatModel chatModel() {
         return new ChatModel() {
             @Override

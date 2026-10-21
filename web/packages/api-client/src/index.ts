@@ -448,6 +448,20 @@ export class ApiClient {
     })
   }
 
+  /**
+   * multipart 上传。
+   *
+   * <p>不能复用 post()：它会强制 `Content-Type: application/json`，
+   * 手工设 `multipart/form-data` 又会丢 boundary，必须让浏览器自己带。
+   */
+  postForm<T>(path: string, form: FormData): Promise<T> {
+    return this.request<T>(new URL(path, this.baseUrl).toString(), {
+      method: 'POST',
+      body: form,
+      headers: {}
+    })
+  }
+
   patch<T>(path: string, body?: unknown, headers?: Record<string, string>): Promise<T> {
     return this.request<T>(new URL(path, this.baseUrl).toString(), {
       method: 'PATCH',
@@ -468,7 +482,8 @@ export class ApiClient {
       ...init,
       headers: {
         Accept: 'application/json',
-        'Content-Type': 'application/json',
+        // FormData 必须让浏览器自动设置带 boundary 的 Content-Type
+        ...(init?.body instanceof FormData ? {} : { 'Content-Type': 'application/json' }),
         ...(init?.headers ?? {}),
         ...(this.token ? { Authorization: `Bearer ${this.token}` } : {})
       }

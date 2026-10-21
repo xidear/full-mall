@@ -64,7 +64,10 @@ com.fullmall.ai
    - 历史会话与工单结论（客服最终确认的答复）。
 2. **切分与嵌入**：按语义段切分（商品一个 chunk = 标题+参数+卖点，≤512 token），
    `EmbeddingProvider` 接口：`HttpEmbeddingProvider`（OpenAI 兼容）/`UnconfiguredEmbeddingProvider`（明确拒绝）。
-3. **存储**：PostgreSQL + **pgvector**（`knowledge_chunk(embedding vector(1024), content, source_type, source_id, version, updated_at)`），
+3. **存储/检索**：见 `docs/AI_VECTOR_STORAGE_DECISION.md`（ADR-001）。
+   当前实现：`knowledge_chunk` 存 float32 字节 + 关键词候选 + 应用内余弦重排；
+   超过 20 万块或语义召回不达标时切 Lucene HNSW（纯 Java，测试环境可跑）。
+   历史写法（已废弃）：PostgreSQL + **pgvector**（`knowledge_chunk(embedding vector(1024), content, source_type, source_id, version, updated_at)`），
    HNSW 索引；同源更新**先删旧 chunk 再写新**，保证"最新参数"不被旧知识污染。
 4. **检索**：向量 top-k + 关键词（`tsvector` 中文用 pg_bigm 或 trigram 兜底）+ 元数据过滤（类目/品牌/在售状态）。
 5. **生成**：LLM 仅允许基于检索片段作答；无命中→"我没查到，转人工"，**不得编造**；

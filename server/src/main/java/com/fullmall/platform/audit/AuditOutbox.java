@@ -66,7 +66,8 @@ public class AuditOutbox {
         }
     }
 
-    public record Pending(UUID id, String entityType, String author, String payload, int attempts) {
+    public record Pending(UUID id, String entityType, String entityId, String author,
+                          String payload, int attempts) {
     }
 
     public List<Pending> claimPending(int limit) {
@@ -74,13 +75,14 @@ public class AuditOutbox {
             throw new IllegalArgumentException("批量必须 1..200，实际=" + limit);
         }
         return jdbcTemplate.query("""
-                SELECT id, entity_type, author, payload::text AS payload, attempts
+                SELECT id, entity_type, entity_id, author, payload::text AS payload, attempts
                   FROM audit_outbox WHERE status = 'PENDING'
                  ORDER BY created_at LIMIT ?
                  FOR UPDATE SKIP LOCKED
                 """, (rs, rowNum) -> new Pending(
                 rs.getObject("id", UUID.class), rs.getString("entity_type"),
-                rs.getString("author"), rs.getString("payload"), rs.getInt("attempts")), limit);
+                rs.getString("entity_id"), rs.getString("author"),
+                rs.getString("payload"), rs.getInt("attempts")), limit);
     }
 
     public void markDone(UUID id) {

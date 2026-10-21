@@ -53,6 +53,9 @@ class AuditRecoveryRealRunTest {
     com.fullmall.platform.audit.AuditOutbox auditOutbox;
 
     @Autowired
+    com.fullmall.asset.infra.AssetRepository assetRepository;
+
+    @Autowired
     JdbcTemplate jdbc;
 
     @Test
@@ -60,6 +63,10 @@ class AuditRecoveryRealRunTest {
         // 用系统自己写出的 payload：先入队（PENDING），再走恢复路径消费
         var entity = new com.fullmall.asset.domain.AssetEntity(
                 "恢复测试", "http://example.com/a.png", "IMAGE", "tester");
+        entity.setId(UUID.randomUUID());   // 该实体 id 需手工赋值（无 @GeneratedValue）
+        entity.setCreatedAt(java.time.Instant.now());
+        entity.setUpdatedAt(java.time.Instant.now());
+        entity = assetRepository.saveAndFlush(entity);
         auditOutbox.enqueue("test:recovery", entity);
         UUID outboxId = jdbc.queryForObject(
                 "SELECT id FROM audit_outbox WHERE status = 'PENDING' ORDER BY created_at DESC LIMIT 1",
@@ -73,11 +80,9 @@ class AuditRecoveryRealRunTest {
         var row = jdbc.queryForMap(
                 "SELECT status, attempts, last_error FROM audit_outbox WHERE id = ?", outboxId);
 
-        // 实测结论：恢复会尝试消费并记录失败原因，但**当前无法把快照真正提交**
-        // （attempts 递增、last_error 有值、状态仍 PENDING）。这是已知缺陷，登记为 OPEN_ITEMS H1b。
-        assertThat(row.get("attempts")).isEqualTo(1);
-        assertThat(row.get("last_error")).asString().isNotBlank();
-        assertThat(row.get("status")).isEqualTo("PENDING");
-        assertThat(auditTrail.pendingRows()).isEqualTo(before);
+        // 按 id 重载实体后，恢复应真正提交成功
+        assertThat(row.get("status")).isEqualTo("DONE");
+        assertThat(row.get("last_error")).isNull();
+        assertThat(auditTrail.pendingRows()).isLessThan(before);
     }
 }

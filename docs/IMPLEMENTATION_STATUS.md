@@ -4641,3 +4641,31 @@ ERROR: column f.supplier_id does not exist
 |---|---|
 | 后端测试 | **437 个，全部通过**（含这条记录现状的用例） |
 
+---
+
+## 2026-10-19：修复崩溃恢复（H1 真正可用）
+
+上轮实测：恢复只记录失败、从不成功。根因是**靠反序列化 payload 还原实体**。
+
+### 修复
+
+1. 新增 `AuditEntityLoaders`：模块按实体注册"按 id 重载"函数；
+2. 恢复时**优先按 id 从库里重载当前实体**再提交 JaVers，未注册才退回反序列化；
+3. `AuditOutbox.Pending` 增加 `entityId`；asset 模块注册 `AssetEntity` 加载器。
+
+### 过程中踩的两个坑（同源）
+
+| 坑 | 现象 |
+|---|---|
+| 注册键用模块别名 `asset`，outbox 存全类名 | `find` 查不到 → 静默退回旧路径 |
+| 先 `toLowerCase` 再取简单类名 | `AssetEntity` → `assetentity`，仍然查不到 |
+
+最终 `registerClass(Class, alias, loader)`：同时登记全类名、简单类名与别名。
+
+| 验证 | 结果 |
+|---|---|
+| 后端测试 | **437 个，全部通过** |
+| 恢复实测 | 造 PENDING 行 → 恢复 → **status=DONE**、`last_error` 为空、待处理数下降 |
+
+> 仍有限制（H1b）：只有注册了加载器的实体能可靠恢复；目前仅 asset。
+

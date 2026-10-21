@@ -9,6 +9,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
@@ -39,6 +40,7 @@ public class AuditTrail {
 
     private final Javers javers;
     private final AuditOutbox outbox;
+    private final AuditEntityLoaders loaders;
     private final org.springframework.jdbc.core.JdbcTemplate jdbcTemplate;
     private final BlockingQueue<Runnable> queue = new ArrayBlockingQueue<>(QUEUE_CAPACITY);
     private final Thread worker;
@@ -50,10 +52,12 @@ public class AuditTrail {
     private volatile boolean running = true;
 
     public AuditTrail(Javers javers, AuditOutbox outbox,
-                      org.springframework.jdbc.core.JdbcTemplate jdbcTemplate) {
+                      org.springframework.jdbc.core.JdbcTemplate jdbcTemplate,
+                      AuditEntityLoaders loaders) {
         this.javers = javers;
         this.outbox = outbox;
         this.jdbcTemplate = jdbcTemplate;
+        this.loaders = loaders;
         this.worker = new Thread(this::consume, "audit-writer");
         this.worker.setDaemon(true);
         this.worker.start();
@@ -84,12 +88,30 @@ public class AuditTrail {
     public void recoverOrphans() {
         for (AuditOutbox.Pending row : outbox.claimPending(50)) {
             try {
-                javers.commit(row.author(), outbox.materialize(row));
+                javers.commit(row.author(), recoverTarget(row));
                 outbox.markDone(row.id());
             } catch (RuntimeException error) {
                 outbox.markFailure(row.id(), error.getMessage());
             }
         }
+    }
+
+    /**
+     * 恢复时的提交对象：**优先按 id 重载当前实体**（可靠），
+     * 没有注册加载器时才退回反序列化 payload（旧路径，可能失败）。
+     */
+    private Object recoverTarget(AuditOutbox.Pending row) {
+        var loader = loaders.find(row.entityType());
+        if (loader != null) {
+            String entityId = row.entityId() == null ? "" : row.entityId().toString();
+            Optional<Object> loaded = loader.apply(UUID.fromString(entityId));
+            if (loaded.isEmpty()) {
+                throw new IllegalStateException(
+                        "实体已不存在，无法恢复审计：" + row.entityType() + " id=" + entityId);
+            }
+            return loaded.get();
+        }
+        return outbox.materialize(row);
     }
 
 

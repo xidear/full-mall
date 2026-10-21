@@ -7,7 +7,12 @@ import org.springframework.stereotype.Component;
 @Component
 public class AssetAuditRegistration {
 
-    public AssetAuditRegistration(AuditTypeRegistry registry) {
+    public AssetAuditRegistration(AuditTypeRegistry registry,
+                                  com.fullmall.platform.audit.AuditEntityLoaders loaders,
+                                  com.fullmall.asset.infra.AssetRepository repository) {
         registry.register("asset", com.fullmall.asset.domain.AssetEntity.class);
+        // 崩溃恢复按 id 重载当前实体，避免反序列化旧 payload 失败
+        loaders.registerClass(com.fullmall.asset.domain.AssetEntity.class, "asset",
+                id -> repository.findById(id).map(e -> (Object) e));
     }
 }

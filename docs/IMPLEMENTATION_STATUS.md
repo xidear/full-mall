@@ -4742,3 +4742,26 @@ ERROR: column f.supplier_id does not exist
 
 > 这是本阶段第 4 个"默认关闭/配置错位导致功能从未生效"的案例（前三个：结算 SQL、审计恢复、验收放宽）。
 
+---
+
+## 2026-10-19：清理接口的 dryRun 会静默删数据（H16）
+
+核查运维入口时发现：`POST /admin/v1/maintenance/retention?dryRun=true` —— **`dryRun` 是未知参数，
+Spring 静默忽略**，接口照常执行**真实删除**。
+
+### 后果
+
+运维以为自己做了"预览"，实际清掉了通知/导出记录/审计数据。这类"看起来安全、实际破坏"的接口
+比直接报错危险得多。
+
+### 修复
+
+控制器接收全部参数并校验白名单：只允许 `notificationDays / exportDays / auditDays`，
+其它参数（含 `dryRun`）返回 **400 `UNSUPPORTED_PARAMETER`**，并明确说明"该接口会真实删除数据，不提供 dryRun"。
+
+| 验证 | 结果 |
+|---|---|
+| 后端测试 | **438 个全绿** |
+| 新增用例 | 传 `dryRun` → 400 且提示包含 `dryRun` |
+| 接口对齐 | **209** 路由 / 24 调用 / 0 未匹配 |
+

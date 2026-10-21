@@ -70,6 +70,16 @@ public class PaymentRepository {
         }
     }
 
+    /** 该订单最近一次支付记录（退款按它记录的渠道原路退回）。 */
+    public Payment findLatestByOrderId(UUID orderId) {
+        List<Payment> payments = jdbcTemplate.query("""
+                SELECT id, order_id, provider, status, amount_amount, amount_currency,
+                       provider_transaction_id, paid_at, created_at
+                  FROM payment WHERE order_id = ? ORDER BY created_at DESC LIMIT 1
+                """, (rs, rowNum) -> map(rs), orderId);
+        return payments.stream().findFirst().orElse(null);
+    }
+
     public Payment findByOrderIdAndProvider(UUID orderId, String provider) {
         List<Payment> payments = jdbcTemplate.query("""
                 SELECT id, order_id, provider, status, amount_amount, amount_currency,

@@ -137,11 +137,9 @@ public class PaymentService {
      */
     @Transactional
     public Payment refund(UUID orderId, long amount, boolean recordLineAllocation) {
-        if (!"mock".equalsIgnoreCase(configuredProvider)) {
-            throw ApiException.badRequest("PAYMENT_PROVIDER_NOT_MOCK",
-                    "当前开源构建只支持 Mock 退款；真实适配器需在正式构建中配置");
-        }
-        Payment payment = paymentRepository.findByOrderIdAndProvider(orderId, "MOCK");
+        // 原路退回：按**下单时实际使用的支付渠道**退款，而不是按"当前配置的渠道"。
+        // 否则中途换过支付配置后，已经收过钱的订单会退不回去（或退到错误渠道）。
+        Payment payment = paymentRepository.findLatestByOrderId(orderId);
         if (payment == null || (payment.status() != PaymentStatus.PAID
                 && payment.status() != PaymentStatus.PARTIALLY_REFUNDED)) {
             throw ApiException.conflict("PAYMENT_NOT_REFUNDABLE", "订单没有可退款的支付记录");
@@ -153,6 +151,12 @@ public class PaymentService {
             throw ApiException.conflict("REFUND_EXCEEDS_REMAINING",
                     "退款超过可退金额：已退 " + alreadyRefunded + "，本次 " + amount
                             + "，可退 " + payableRefund);
+        }
+        if (!"MOCK".equalsIgnoreCase(payment.provider())) {
+            // 真实渠道退款适配器未接入：明确拒绝，绝不回落到 Mock（会造成账实不符）
+            throw ApiException.conflict("REFUND_PROVIDER_UNAVAILABLE",
+                    "该订单原支付渠道为 " + payment.provider()
+                            + "，当前构建未配置该渠道的退款适配器，无法原路退回");
         }
         Payment refunded = mockPaymentConnector.refund(payment, amount);
         paymentRepository.addRefundedAmount(payment.id(), amount);

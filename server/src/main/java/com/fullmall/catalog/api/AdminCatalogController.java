@@ -21,12 +21,38 @@ import java.util.UUID;
 public class AdminCatalogController {
 
     private final CatalogService catalogService;
+    private final com.fullmall.catalog.app.SkuCostService skuCostService;
     private final com.fullmall.catalog.app.ProductTranslationWorkflowService translationWorkflow;
 
     public AdminCatalogController(CatalogService catalogService,
-                                  com.fullmall.catalog.app.ProductTranslationWorkflowService translationWorkflow) {
+                                  com.fullmall.catalog.app.ProductTranslationWorkflowService translationWorkflow,
+                                  com.fullmall.catalog.app.SkuCostService skuCostService) {
         this.catalogService = catalogService;
         this.translationWorkflow = translationWorkflow;
+        this.skuCostService = skuCostService;
+    }
+
+    /**
+     * 成本只读视图（仅 ADMIN）：均价 + 最近批次成本 + 来源。
+     *
+     * <p>无成本记录时 `unknown=true`，**不返回 0**，避免毛利被算成 100%。
+     */
+    @org.springframework.web.bind.annotation.GetMapping("/skus/{skuId}/cost-view")
+    @org.springframework.security.access.prepost.PreAuthorize("hasRole('ADMIN')")
+    public java.util.Map<String, Object> costView(@PathVariable UUID skuId) {
+        var snapshot = skuCostService.current(skuId);
+        var batches = skuCostService.latestBatch(skuId);
+        java.util.Map<String, Object> body = new java.util.LinkedHashMap<>();
+        body.put("skuId", skuId);
+        body.put("unknown", snapshot == null);
+        if (snapshot != null) {
+            body.put("quantity", snapshot.quantity());
+            body.put("amount", snapshot.amount());
+            body.put("avgCost", snapshot.avgCost());
+            body.put("stale", snapshot.stale());
+        }
+        body.put("latestBatch", batches);
+        return body;
     }
 
     /** 译文送审（I18N-003）。 */

@@ -24,6 +24,25 @@ public class SkuCostService {
     public record Snapshot(long quantity, long amount, long avgCost, boolean stale) {
     }
 
+    /** 最近一个有成本的批次（来源可追溯）；没有返回 null。 */
+    public java.util.Map<String, Object> latestBatch(UUID skuId) {
+        var rows = jdbc.query("""
+                SELECT batch_no, quantity, unit_cost_amount, unit_cost_currency, received_at
+                  FROM inventory_batch
+                 WHERE sku_id = ? AND unit_cost_amount IS NOT NULL
+                 ORDER BY received_at DESC LIMIT 1
+                """, (rs, rowNum) -> {
+            java.util.Map<String, Object> row = new java.util.LinkedHashMap<>();
+            row.put("batchNo", rs.getString("batch_no"));
+            row.put("quantity", rs.getLong("quantity"));
+            row.put("unitCost", rs.getLong("unit_cost_amount"));
+            row.put("currency", rs.getString("unit_cost_currency"));
+            row.put("receivedAt", rs.getTimestamp("received_at").toInstant());
+            return row;
+        }, skuId);
+        return rows.isEmpty() ? null : rows.get(0);
+    }
+
     /** 读取当前成本；从未入库过返回 null。 */
     public Snapshot current(UUID skuId) {
         var rows = jdbc.query("""

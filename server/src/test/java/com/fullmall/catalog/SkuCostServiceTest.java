@@ -131,4 +131,24 @@ class SkuCostServiceTest {
                 .isInstanceOf(com.fullmall.platform.error.ApiException.class)
                 .hasMessageContaining("没有成本记录");
     }
+
+    /** 只读视图：无成本时 unknown=true；有成本时返回最近批次来源。 */
+    @Test
+    void latestBatchProvidesTraceableSource() {
+        UUID skuId = sku();
+        assertThat(costs.latestBatch(skuId)).isNull();
+
+        UUID batchId = UUID.randomUUID();
+        jdbc.update("""
+                INSERT INTO inventory_batch (id, sku_id, location_type, location_id, batch_no,
+                                             quantity, unit_cost_amount, unit_cost_currency)
+                VALUES (?, ?, 'WAREHOUSE', ?, 'PO-TRACE-1', 12, 880, 'CNY')
+                """, batchId, skuId, UUID.randomUUID());
+        costs.receive(skuId, 12, 880, "PURCHASE_RECEIPT", "PO-TRACE-1");
+
+        var latest = costs.latestBatch(skuId);
+        assertThat(latest).isNotNull();
+        assertThat(latest.get("batchNo")).isEqualTo("PO-TRACE-1");
+        assertThat(((Number) latest.get("unitCost")).longValue()).isEqualTo(880);
+    }
 }

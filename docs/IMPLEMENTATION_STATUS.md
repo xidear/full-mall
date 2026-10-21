@@ -4424,3 +4424,22 @@ storefront 结算页需要真正的 OTP 流程：
 
 > 未做：`SETTLED` 后自动从供应商应付扣减（结算联动）。K5 仍 ⚠️。
 
+---
+
+## 2026-10-19：供应商退货扣减结算金额（K5 收口）
+
+- `SupplierReturnService.settledAmount(supplierId, periodStart, periodEnd, currency)`：
+  统计周期内 **SETTLED** 的退货金额（按 `closed_at` 落期）。
+- `SupplierSettlementService.generate` 用该金额作为 `refundAmount` 入参，
+  应付 = 毛额 − 退货扣减 − 佣金（公式不变，只替换原先写死的 0）。
+
+**未结算（ACCEPTED）的退货不扣**——避免"还没谈定就先扣钱"。
+
+| 验证 | 结果 |
+|---|---|
+| 后端测试 | **436 个，全部通过，0 跳过** |
+| 新增用例 | 一张 SETTLED(2000) + 一张 ACCEPTED(3000) → 扣减仅 2000 |
+
+> 说明：断言直接验证扣减口径函数；未构造"供应商代发订单 + 生成结算单"的完整夹具（成本高），
+> 该链路仍属未被 E2E 覆盖的部分。
+

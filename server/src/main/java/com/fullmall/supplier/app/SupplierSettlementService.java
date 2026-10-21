@@ -24,13 +24,16 @@ public class SupplierSettlementService {
     private final SupplierSettlementRepository repository;
     private final AuditEventService auditEvents;
     private final BigDecimal commissionRate;
+    private final SupplierReturnService returns;
 
     public SupplierSettlementService(SupplierSettlementRepository repository,
                                      AuditEventService auditEvents,
-                                     @Value("${app.supplier.settlement.commission-rate:0}") BigDecimal commissionRate) {
+                                     @Value("${app.supplier.settlement.commission-rate:0}") BigDecimal commissionRate,
+                                     SupplierReturnService returns) {
         this.repository = repository;
         this.auditEvents = auditEvents;
         this.commissionRate = commissionRate;
+        this.returns = returns;
     }
 
     @Transactional
@@ -57,8 +60,11 @@ public class SupplierSettlementService {
         }
 
         var aggregate = aggregates.get(0);
-        // 退款暂按 0；待售后/退货对账接入后替换该入参，公式不变。
-        var amounts = SettlementCalculator.calculate(aggregate.grossAmount(), 0L, commissionRate);
+        // 退货扣减：已结算（SETTLED）的供应商退货从应付中扣除；未结算的不扣
+        long returnDeduction = returns.settledAmount(supplierId, periodStart, periodEnd,
+                aggregate.currency());
+        var amounts = SettlementCalculator.calculate(aggregate.grossAmount(), returnDeduction,
+                commissionRate);
 
         UUID id = UUID.randomUUID();
         repository.insert(id, supplierId, periodStart, periodEnd, aggregate.orderCount(),

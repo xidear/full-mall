@@ -102,6 +102,23 @@ public class SupplierReturnService {
         transition(returnId, target, note);
     }
 
+    /**
+     * 结算扣减：该供应商在周期内**已结算（SETTLED）**的退货金额合计。
+     *
+     * <p>按 `closed_at` 落在周期内计算；未结算的单不扣，避免"还没谈定就先扣钱"。
+     */
+    public long settledAmount(UUID supplierId, java.time.Instant periodStart,
+                              java.time.Instant periodEnd, String currency) {
+        Long value = jdbcTemplate.queryForObject("""
+                SELECT COALESCE(SUM(amount_amount), 0) FROM supplier_return
+                 WHERE supplier_id = ? AND status = 'SETTLED'
+                   AND currency = ?
+                   AND closed_at >= ? AND closed_at < ?
+                """, Long.class, supplierId, currency,
+                java.sql.Timestamp.from(periodStart), java.sql.Timestamp.from(periodEnd));
+        return value == null ? 0 : value;
+    }
+
     public Map<String, Object> list(UUID supplierId, String status, int page, int size) {
         int safeSize = Math.min(Math.max(size, 1), 100);
         int offset = Math.max(page, 0) * safeSize;

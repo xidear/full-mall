@@ -2,6 +2,8 @@ import { expect, test } from '@playwright/test'
 
 const API = 'http://localhost:8080'
 
+test.skip(process.env.APP_EDITION !== 'enterprise', '仅企业版构建运行')
+
 test('enterprise ai imports knowledge and answers with citations', async ({ request }) => {
   const captcha = await (await request.get(`${API}/admin/v1/auth/captcha`)).json()
   const operands = (captcha.question.match(/\d+/g) ?? []).map(Number)

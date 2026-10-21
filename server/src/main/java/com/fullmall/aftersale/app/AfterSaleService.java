@@ -264,11 +264,16 @@ public class AfterSaleService {
             // 成本回冲：必须按**原批次**，没有批次信息就明确拒绝（不按均价猜）
             UUID originalBatch = repository.findOrderLineBatch(line.orderLineId());
             if (originalBatch == null) {
-                throw ApiException.conflict("RETURN_BATCH_UNKNOWN",
-                        "订单行没有记录出库批次，无法按原批次回冲成本（需人工指定）："
-                                + line.orderLineId());
+                // 缺批次不阻断售后（顾客退货不能被内部数据缺失卡住），
+                // 但**必须留下可见待办**，由人工核对批次后补做成本回冲。
+                repository.insertEvent(afterSaleId, "COST_REVERSAL_PENDING",
+                        "订单行未记录出库批次，成本回冲待人工处理：" + line.orderLineId(), operator);
+                org.slf4j.LoggerFactory.getLogger(AfterSaleService.class).warn(
+                        "成本回冲待处理：afterSale={} orderLine={} sku={}",
+                        afterSaleId, line.orderLineId(), line.skuId());
+            } else {
+                skuCostService.returnFromBatch(line.skuId(), originalBatch, line.quantity());
             }
-            skuCostService.returnFromBatch(line.skuId(), originalBatch, line.quantity());
         }
         repository.markReceived(afterSaleId);
         repository.insertEvent(afterSaleId, "RECEIVED", "退货入库，批次状态 QUARANTINE", operator);

@@ -5132,3 +5132,25 @@ RAG 改库即生效、能回溯、无命中就说不知道。训练留给"风格
 | 契约测试在社区版误报 `/admin/v1/ai` | 按 `APP_EDITION` 跳过企业版前缀 |
 | 取货用例在共享测试库下假失败 | 改为**增量断言**（下单前记录批次基线），不再假设绝对库存 |
 
+---
+
+## 2026-10-19：许可内核 M1/M2/M4（到期只读）
+
+按确认口径实现：**本地证书 + 到期只读（GET 可用，写 402）**。
+
+| 组件 | 说明 |
+|---|---|
+| `LicenseVerifier` | Ed25519 验签（签名覆盖 payload 原始字节）、域名通配、宽限期、永久（`expiresAt=null`） |
+| `LicenseService` | 60 秒缓存、到期/域名不符/时钟回拨 → `readOnly=true`；`license_state.last_seen_at` 只前进 |
+| `LicenseReadOnlyFilter` | 只读时写请求 **402 `LICENSE_EXPIRED`**；放行登录、许可上传、**支付回调** |
+| `LicenseController` | `GET /admin/v1/license/status`、`POST /admin/v1/license/upload`（写入即重验，失败如实返回 INVALID） |
+| V73 | `license_state` 表 |
+
+| 验证 | 结果 |
+|---|---|
+| 后端全量 | ✅ **461 个全绿**（新增 9 条许可用例） |
+| 验签用例 | 篡改 payload 拒绝、错公钥拒绝、畸形内容抛错（不是静默通过）、宽限期、域名通配与 localhost 放行 |
+| 只读用例 | 过期时 GET 200 / POST 402；登录与支付回调仍 200；有效许可证写请求 200 |
+
+> 未做：打包预设（7 天/30 天）、后台许可页、公网许可服务端。已登记 M3/M5/M6。
+

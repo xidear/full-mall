@@ -61,6 +61,14 @@ class DocumentedPathsExistTest {
     @Autowired
     org.springframework.context.ApplicationContext context;
 
+    /** 企业版专有前缀：社区版打包时这些类根本不存在，文档里出现是正常的。 */
+    private static final List<String> ENTERPRISE_ONLY = List.of("/admin/v1/ai");
+
+    private boolean communityEdition() {
+        String edition = System.getenv("APP_EDITION");
+        return edition == null || edition.isBlank() || "community".equalsIgnoreCase(edition.trim());
+    }
+
     @Test
     void everyDocumentedPathIsRegistered() throws Exception {
         RequestMappingHandlerMapping handlerMapping = context.getBean(
@@ -83,6 +91,10 @@ class DocumentedPathsExistTest {
                 String documented = normalize(matcher.group(1));
                 if (isPlaceholderOrPartial(documented)) {
                     continue;
+                }
+                if (communityEdition()
+                        && ENTERPRISE_ONLY.stream().anyMatch(documented::startsWith)) {
+                    continue;   // 社区版不含 AI 模块
                 }
                 if (!registered.contains(documented)) {
                     missing.add(documented + "  （来自 " + doc.getFileName() + "）");

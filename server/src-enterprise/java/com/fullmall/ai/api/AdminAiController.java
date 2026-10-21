@@ -20,9 +20,44 @@ import java.util.Map;
 public class AdminAiController {
 
     private final AiProperties properties;
+    private final com.fullmall.ai.app.AnswerService answerService;
 
-    public AdminAiController(AiProperties properties) {
+    public AdminAiController(AiProperties properties, com.fullmall.ai.app.AnswerService answerService) {
         this.properties = properties;
+        this.answerService = answerService;
+    }
+
+    public record AskRequest(String question) {
+    }
+
+    /**
+     * 问答入口（企业版）。未启用或未配置模型时返回 503，由客服台明确提示"AI 不可用"。
+     */
+    @org.springframework.web.bind.annotation.PostMapping("/ask")
+    public ResponseEntity<Map<String, Object>> ask(@org.springframework.web.bind.annotation.RequestBody AskRequest body) {
+        ResponseEntity<Map<String, Object>> notReady = readiness();
+        if (notReady != null) {
+            return notReady;
+        }
+        var answer = answerService.ask(body == null ? null : body.question());
+        Map<String, Object> result = new LinkedHashMap<>();
+        result.put("answer", answer.text());
+        result.put("fallback", answer.fallback());
+        result.put("violations", answer.violations());
+        result.put("citations", answer.citations().stream()
+                .map(chunk -> Map.of(
+                        "sourceType", chunk.sourceType(),
+                        "sourceId", chunk.sourceId(),
+                        "title", chunk.title()))
+                .toList());
+        return ResponseEntity.ok(result);
+    }
+
+    private ResponseEntity<Map<String, Object>> readiness() {
+        if (properties.isReady()) {
+            return null;
+        }
+        return status();
     }
 
     @GetMapping("/status")

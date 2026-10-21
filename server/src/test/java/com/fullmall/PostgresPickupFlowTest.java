@@ -76,6 +76,10 @@ class PostgresPickupFlowTest {
         JsonNode products = get("/api/v1/products?locale=zh-CN&size=20");
         assertFalse(products.get("items").isEmpty(), "Seed data must expose at least one product");
 
+        JsonNode baselineBatch = findMilkBatch(adminToken);
+        int quantityBefore = baselineBatch.get("quantity").asInt();
+        int reservedBefore = baselineBatch.get("reservedQuantity").asInt();
+
         JsonNode order = post("/api/v1/checkout", Map.of(
                 "items", List.of(Map.of("skuId", SKU_ID, "quantity", 2)),
                 "fulfillmentMode", "PICKUP",
@@ -132,19 +136,25 @@ class PostgresPickupFlowTest {
         assertEquals("FULFILLED", jdbc.queryForObject(
                 "SELECT status FROM orders WHERE id = ?::uuid", String.class, orderId));
 
+        JsonNode storeBatch = findMilkBatch(adminToken);
+        assertNotNull(storeBatch, "Store milk batch must exist");
+        // 买 2 件鲜奶自动触发"买二赠一"：付费行 2 件 + 赠品行 1 件，共从该批次出库 3 件。
+        // 测试库是**跨用例共享**的（PostgresTestDatabase 单例），同批次可能被其它用例占用过，
+        // 因此这里断言"本单造成的增量"，而不是绝对库存——绝对断言会在不同用例顺序下假失败。
+        assertEquals(-3, storeBatch.get("quantity").asInt() - quantityBefore);
+        assertEquals(reservedBefore, storeBatch.get("reservedQuantity").asInt());
+    }
+
+    /** 取共享测试库里"鲜奶"批次的当前快照（用于增量断言）。 */
+    private JsonNode findMilkBatch(String adminToken) {
         JsonNode batches = get("/admin/v1/inventory/batches?locationType=STORE&locationId="
                 + STORE_ID + "&skuId=" + SKU_ID, adminToken);
-        JsonNode storeBatch = null;
         for (JsonNode batch : batches) {
             if ("MILK-SH-20261012".equals(batch.get("batchNo").asText())) {
-                storeBatch = batch;
-                break;
+                return batch;
             }
         }
-        assertNotNull(storeBatch, "Store milk batch must exist");
-        // 买 2 件鲜奶自动触发"买二赠一"：付费行 2 件 + 赠品行 1 件，共从该批次出库 3 件
-        assertEquals(2, storeBatch.get("quantity").asInt());
-        assertEquals(0, storeBatch.get("reservedQuantity").asInt());
+        throw new IllegalStateException("测试库缺少鲜奶批次 MILK-SH-20261012，无法做增量断言");
     }
 
     private String loginAsAdmin() {

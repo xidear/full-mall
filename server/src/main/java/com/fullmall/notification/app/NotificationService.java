@@ -7,6 +7,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
 import java.util.List;
@@ -82,7 +83,41 @@ public class NotificationService {
      * @param days 保留天数，必须 &gt; 0
      * @return 删除条数
      */
-    @org.springframework.transaction.annotation.Transactional
+    /**
+     * 重试投递（仅限 FAILED）。
+     *
+     * <p>为什么要重试：外部渠道偶发失败（网络/限流）不该让运营只能"删了重发"；
+     * 但**已 SENT 的不允许再发**——重复投递等于给顾客重复发短信。
+     */
+    @Transactional
+    public Notification retry(UUID id) {
+        Notification existing = repository.findById(id)
+                .orElseThrow(() -> com.fullmall.platform.error.ApiException.notFound(
+                        "NOTIFICATION_NOT_FOUND", "通知不存在: " + id));
+        if (!"FAILED".equals(existing.status())) {
+            throw com.fullmall.platform.error.ApiException.conflict(
+                    "NOTIFICATION_NOT_RETRYABLE",
+                    "只有 FAILED 的通知可以重试，当前=" + existing.status());
+        }
+        NotificationChannelSender sender = senders.get(existing.channel());
+        if (sender == null) {
+            repository.updateDelivery(id, "FAILED", null,
+                    "No sender configured for " + existing.channel());
+            throw com.fullmall.platform.error.ApiException.conflict(
+                    "NOTIFICATION_CHANNEL_UNAVAILABLE",
+                    "渠道 " + existing.channel() + " 未配置发送器，重试仍会失败");
+        }
+        try {
+            sender.send(existing);
+            repository.updateDelivery(id, "SENT", Instant.now(), null);
+        } catch (RuntimeException error) {
+            repository.updateDelivery(id, "FAILED", null, error.getMessage());
+            throw com.fullmall.platform.error.ApiException.conflict(
+                    "NOTIFICATION_RETRY_FAILED", "重试失败：" + error.getMessage());
+        }
+        return repository.findById(id).orElseThrow();
+    }
+
     public int purgeOlderThan(int days) {
         if (days <= 0) {
             throw new IllegalArgumentException("保留天数必须大于 0，实际=" + days);

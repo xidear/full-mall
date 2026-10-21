@@ -38,6 +38,22 @@ public class NotificationRepository {
         return notification;
     }
 
+    /** 按 id 读取（重试等运维操作需要原记录）。 */
+    public java.util.Optional<Notification> findById(UUID id) {
+        return jdbcTemplate.query("""
+                SELECT id, recipient_type, recipient_id, event_type, channel, title, content,
+                       status, read_at, sent_at, error_message, created_at
+                  FROM notification WHERE id = ?
+                """, (rs, rowNum) -> new Notification(
+                rs.getObject("id", UUID.class), rs.getString("recipient_type"),
+                rs.getString("recipient_id"), rs.getString("event_type"), rs.getString("channel"),
+                rs.getString("title"), rs.getString("content"), rs.getString("status"),
+                rs.getTimestamp("read_at") == null ? null : rs.getTimestamp("read_at").toInstant(),
+                rs.getTimestamp("sent_at") == null ? null : rs.getTimestamp("sent_at").toInstant(),
+                rs.getString("error_message"),
+                rs.getTimestamp("created_at").toInstant()), id).stream().findFirst();
+    }
+
     public void updateDelivery(UUID id, String status, Instant sentAt, String errorMessage) {
         int updated = jdbcTemplate.update("""
                 UPDATE notification SET status = ?, sent_at = ?, error_message = ? WHERE id = ?

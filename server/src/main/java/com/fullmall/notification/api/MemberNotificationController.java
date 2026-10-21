@@ -40,6 +40,12 @@ public class MemberNotificationController {
         return Map.of("unread", notifications.unreadCount(RECIPIENT_TYPE, member(authentication)));
     }
 
+    /** 后台重试失败通知（运营排障用）。路由放在 admin 命名空间由控制器注解决定。 */
+    @PostMapping("/admin/v1/notifications/{id}/retry")
+    public com.fullmall.notification.domain.Notification retry(@PathVariable UUID id) {
+        return notifications.retry(id);
+    }
+
     @PostMapping("/{id}/read")
     public Map<String, Boolean> markRead(@PathVariable UUID id, Authentication authentication) {
         return Map.of("read", notifications.markRead(RECIPIENT_TYPE, member(authentication), id));

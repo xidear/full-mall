@@ -1,7 +1,7 @@
 # 交接说明（截至第 252 轮）
 
 > 目标：任何人拿到这个仓库，能在 10 分钟内知道**哪些能用、哪些没做、下一步改哪里**。
-> 详细台账：`docs/OPEN_ITEMS.md`（142 条）；计划：`docs/DEVELOPMENT_PLAN_V3.md`。
+> 详细台账：`docs/OPEN_ITEMS.md`（143 条：✅79 / ⚠️19 / ⬜38 / 🚫7）；计划：`docs/DEVELOPMENT_PLAN_V3.md`。
 
 ## 1. 当前验证状态（`scripts/verify.sh --no-e2e`）
 

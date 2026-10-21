@@ -18,6 +18,28 @@ interface CouponTemplate {
 }
 
 const templates = ref<CouponTemplate[]>([])
+interface CouponStats {
+  templateId: string; code: string; totalQuantity: number; claimed: number
+  used: number; expired: number; unused: number
+  claimRate: number; redemptionRate: number
+}
+const statsDialog = ref(false)
+const statsLoading = ref(false)
+const stats = ref<CouponStats | null>(null)
+
+async function openStats(template: CouponTemplate) {
+  statsDialog.value = true
+  statsLoading.value = true
+  stats.value = null
+  try {
+    stats.value = await api.get<CouponStats>(`/admin/v1/coupons/templates/${template.id}/stats`)
+  } catch (cause) {
+    ElMessage.error(cause instanceof Error ? cause.message : '统计加载失败')
+    statsDialog.value = false
+  } finally {
+    statsLoading.value = false
+  }
+}
 // 正在启用的券模板 ID：避免重复点击
 const actionId = ref('')
 const loading = ref(false)
@@ -156,7 +178,24 @@ onMounted(load)
       <el-table-column prop="code" label="编码" width="160" />
       <el-table-column prop="title" label="名称" min-width="160" />
       <el-table-column label="面额" width="120">
-        <template #default="{ row }">{{ valueLabel(row) }}</template>
+        <template #default="{ row }">{{ valueLabel(row) }}  <el-dialog v-model="statsDialog" title="券效果统计" width="460px" v-loading="statsLoading">
+    <el-descriptions v-if="stats" :column="2" border>
+      <el-descriptions-item label="模板编码">{{ stats.code }}</el-descriptions-item>
+      <el-descriptions-item label="发放总量">{{ stats.totalQuantity }}</el-descriptions-item>
+      <el-descriptions-item label="已领取">{{ stats.claimed }}</el-descriptions-item>
+      <el-descriptions-item label="已核销">{{ stats.used }}</el-descriptions-item>
+      <el-descriptions-item label="未使用">{{ stats.unused }}</el-descriptions-item>
+      <el-descriptions-item label="已过期">{{ stats.expired }}</el-descriptions-item>
+      <el-descriptions-item label="领取率">
+        {{ (stats.claimRate * 100).toFixed(1) }}%
+      </el-descriptions-item>
+      <el-descriptions-item label="核销率">
+        <strong>{{ (stats.redemptionRate * 100).toFixed(1) }}%</strong>
+      </el-descriptions-item>
+    </el-descriptions>
+    <p class="muted">领取率 = 已领取 / 发放总量；核销率 = 已核销 / 已领取。</p>
+  </el-dialog>
+</template>
       </el-table-column>
       <el-table-column label="门槛" width="120">
         <template #default="{ row }">
@@ -173,10 +212,12 @@ onMounted(load)
           {{ { DRAFT: '草稿', ACTIVE: '发放中', ENDED: '已结束' }[row.status as string] ?? row.status }}
         </template>
       </el-table-column>
-      <el-table-column label="操作" width="120">
+      <el-table-column label="操作" width="200">
         <template #default="{ row }">
           <el-button v-if="row.status === 'DRAFT'" size="small" type="primary"
                      :loading="actionId === row.id" @click="activate(row)">启用</el-button>
+            <el-button v-if="row.status === 'DRAFT' || row.status === 'ACTIVE'" size="small" plain
+                       @click="openStats(row)">统计</el-button>
         </template>
       </el-table-column>
     </el-table>

@@ -135,6 +135,44 @@ public class CouponService {
         }
     }
 
+    /**
+     * 券模板效果统计。
+     *
+     * <p>口径（与 `member_coupon.status` 严格一致）：
+     * <ul>
+     *   <li>`claimRate` = 已领取 / 发放总量（投放被领走的比例）；</li>
+     *   <li>`redemptionRate` = 已核销 / 已领取（领了有没有用，才是活动效果）；</li>
+     *   <li>过期单独计数，不并入"未使用"，否则会高估余量。</li>
+     * </ul>
+     */
+    public record CouponStats(UUID templateId, String code, int totalQuantity, int claimed,
+                              int used, int expired, int unused, double claimRate,
+                              double redemptionRate) {
+    }
+
+    public CouponStats stats(UUID templateId) {
+        var row = jdbcTemplate.queryForMap("""
+                SELECT t.id, t.code, t.total_quantity,
+                       COUNT(c.id) AS claimed,
+                       COUNT(c.id) FILTER (WHERE c.status = 'USED') AS used,
+                       COUNT(c.id) FILTER (WHERE c.status = 'EXPIRED') AS expired,
+                       COUNT(c.id) FILTER (WHERE c.status = 'UNUSED') AS unused
+                  FROM coupon_template t
+                  LEFT JOIN member_coupon c ON c.template_id = t.id
+                 WHERE t.id = ?
+                 GROUP BY t.id, t.code, t.total_quantity
+                """, templateId);
+        int total = ((Number) row.get("total_quantity")).intValue();
+        int claimed = ((Number) row.get("claimed")).intValue();
+        int used = ((Number) row.get("used")).intValue();
+        int expired = ((Number) row.get("expired")).intValue();
+        int unused = ((Number) row.get("unused")).intValue();
+        double claimRate = total == 0 ? 0 : Math.min(1.0, (double) claimed / total);
+        double redemptionRate = claimed == 0 ? 0 : (double) used / claimed;
+        return new CouponStats(templateId, (String) row.get("code"), total, claimed, used,
+                expired, unused, claimRate, redemptionRate);
+    }
+
     /** 会员领券：校验模板生效、时间窗、库存、每人限领。 */
     @Transactional
     public UUID claim(UUID templateId, UUID memberId) {

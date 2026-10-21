@@ -55,6 +55,13 @@ public class CouponController {
         coupons.activate(id);
     }
 
+    /** 券模板效果统计（领取率 / 核销率）。 */
+    @GetMapping("/admin/v1/coupons/templates/{id}/stats")
+    @PreAuthorize("hasRole('ADMIN')")
+    public CouponService.CouponStats stats(@PathVariable UUID id) {
+        return coupons.stats(id);
+    }
+
     public record UpdateTemplate(String title, long value, long minOrderAmount,
                                  int totalQuantity, int perMemberLimit, int validityDays) {
     }

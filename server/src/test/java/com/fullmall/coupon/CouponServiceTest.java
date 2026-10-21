@@ -241,4 +241,27 @@ class CouponServiceTest {
         assertThatThrownBy(() -> coupons.claim(active, MEMBER2))
                 .isInstanceOf(com.fullmall.platform.error.ApiException.class);
     }
+
+    /** 统计口径：领取率=已领/总量；核销率=已用/已领；过期单列不并入未使用。 */
+    @Test
+    void statsCountClaimAndRedemptionRates() {
+        UUID templateId = activeTemplate("CP-STAT-1", 3, 1);
+        UUID first = coupons.claim(templateId, MEMBER);
+        coupons.claim(templateId, MEMBER2);
+        // 人工把一张标记为已用、另一张标记为过期
+        jdbc.update("UPDATE member_coupon SET status = 'USED', used_at = now() WHERE id = ?", first);
+        jdbc.update("""
+                UPDATE member_coupon SET status = 'EXPIRED'
+                 WHERE template_id = ? AND status = 'UNUSED'
+                """, templateId);
+
+        var stats = coupons.stats(templateId);
+
+        assertThat(stats.claimed()).isEqualTo(2);
+        assertThat(stats.used()).isEqualTo(1);
+        assertThat(stats.expired()).isEqualTo(1);
+        assertThat(stats.unused()).isZero();
+        assertThat(stats.claimRate()).isCloseTo(2.0 / 3, org.assertj.core.data.Offset.offset(0.001));
+        assertThat(stats.redemptionRate()).isCloseTo(0.5, org.assertj.core.data.Offset.offset(0.001));
+    }
 }

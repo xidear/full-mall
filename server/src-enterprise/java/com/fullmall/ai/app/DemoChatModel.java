@@ -14,7 +14,7 @@ import java.util.regex.Pattern;
  * 这一点在演示时必须说明，不能包装成"模型很聪明"。
  */
 @Component
-@ConditionalOnProperty(name = "app.ai.mode", havingValue = "demo")
+@ConditionalOnProperty(name = "app.ai.mode", havingValue = "demo", matchIfMissing = true)
 public class DemoChatModel implements ChatModel {
 
     private static final Pattern QUESTION = Pattern.compile("【问题】\\s*(.+)", Pattern.DOTALL);
@@ -27,12 +27,15 @@ public class DemoChatModel implements ChatModel {
 
         Matcher first = FIRST_PARA.matcher(user == null ? "" : user);
         if (!first.find()) {
-            return "没有可用资料，建议转人工。";
+            return "{\"answer\":\"这个问题我查到的资料不足以确认\",\"grounded\":false,"
+                    + "\"needsHuman\":true,\"citationIds\":[]}";
         }
         String content = first.group(2).replaceAll("\\s+", " ").trim();
         if (content.length() > 200) {
             content = content.substring(0, 200) + "……";
         }
-        return "根据资料：" + content;
+        // 演示模式也遵守同一 JSON 契约，前端/解析逻辑不分叉
+        return "{\"answer\":\"根据资料：" + content.replace("\"", "\\\"")
+                + "\",\"grounded\":true,\"needsHuman\":false,\"citationIds\":[1]}";
     }
 }

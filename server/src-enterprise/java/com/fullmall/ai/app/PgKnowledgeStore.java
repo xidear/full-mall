@@ -72,10 +72,23 @@ public class PgKnowledgeStore implements KnowledgeStore {
         if (query == null || query.isBlank() || topK <= 0) {
             return List.of();
         }
+        // 中文没有空格：整句直接 LIKE 几乎必然落空，用"整段 + 二元组"组合召回。
+        // 这不是语义检索，但能把"鲜奶未开封能退货吗"召回"鲜奶…未开封…退货"的资料。
         List<String> terms = new ArrayList<>();
-        for (String raw : query.toLowerCase().split("[\\s,，。？?！!；;：:]+")) {
-            if (raw.length() >= 2) {
-                terms.add("%" + raw + "%");
+        java.util.LinkedHashSet<String> seen = new java.util.LinkedHashSet<>();
+        for (String raw : query.toLowerCase().split("[\\s,，。？?！!；;：:、]+")) {
+            String segment = raw.trim();
+            if (segment.length() < 2) {
+                continue;
+            }
+            if (seen.add(segment)) {
+                terms.add("%" + segment + "%");
+            }
+            for (int i = 0; i + 2 <= segment.length(); i++) {
+                String bigram = segment.substring(i, i + 2);
+                if (seen.add(bigram)) {
+                    terms.add("%" + bigram + "%");
+                }
             }
         }
         if (terms.isEmpty()) {

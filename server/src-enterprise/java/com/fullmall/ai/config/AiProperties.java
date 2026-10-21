@@ -18,6 +18,12 @@ public class AiProperties {
     /** OpenAI 兼容的对话服务地址，例如 http://192.168.1.15:8000/v1 */
     private String chatBaseUrl;
     private String chatModel;
+    /** 模型 API Key（走环境变量注入，不写进仓库） */
+    private String chatApiKey;
+    private int chatTimeoutSeconds = 60;
+    private int chatMaxTokens = 600;
+    /** 召回方式：vector（需嵌入服务）或 keyword（无嵌入时显式选择） */
+    private String retrieval = "vector";
     /** OpenAI 兼容的嵌入服务地址（可与对话相同） */
     private String embeddingBaseUrl;
     private String embeddingModel;
@@ -38,6 +44,42 @@ public class AiProperties {
 
     public void setChatBaseUrl(String chatBaseUrl) {
         this.chatBaseUrl = chatBaseUrl;
+    }
+
+    public String getChatApiKey() {
+        return chatApiKey;
+    }
+
+    public void setChatApiKey(String chatApiKey) {
+        this.chatApiKey = chatApiKey;
+    }
+
+    public int getChatTimeoutSeconds() {
+        return chatTimeoutSeconds;
+    }
+
+    public void setChatTimeoutSeconds(int chatTimeoutSeconds) {
+        this.chatTimeoutSeconds = chatTimeoutSeconds;
+    }
+
+    public int getChatMaxTokens() {
+        return chatMaxTokens;
+    }
+
+    public void setChatMaxTokens(int chatMaxTokens) {
+        this.chatMaxTokens = chatMaxTokens;
+    }
+
+    public String getRetrieval() {
+        return retrieval;
+    }
+
+    public void setRetrieval(String retrieval) {
+        this.retrieval = retrieval;
+    }
+
+    public boolean isVectorRetrieval() {
+        return "vector".equalsIgnoreCase(retrieval == null ? "" : retrieval.trim());
     }
 
     public String getChatModel() {
@@ -82,13 +124,21 @@ public class AiProperties {
     }
 
     public boolean isReady() {
-        if (enabled && "demo".equalsIgnoreCase(mode == null ? "" : mode.trim())) {
+        if (!enabled) {
+            return false;
+        }
+        if ("demo".equalsIgnoreCase(mode == null ? "" : mode.trim())) {
             return true;   // 演示模式不依赖外部模型
         }
-        return enabled
-                && chatBaseUrl != null && !chatBaseUrl.isBlank()
-                && chatModel != null && !chatModel.isBlank()
-                && embeddingBaseUrl != null && !embeddingBaseUrl.isBlank()
+        boolean chatReady = chatBaseUrl != null && !chatBaseUrl.isBlank()
+                && chatModel != null && !chatModel.isBlank();
+        if (!chatReady) {
+            return false;
+        }
+        if (!isVectorRetrieval()) {
+            return true;   // keyword 召回不需要嵌入服务
+        }
+        return embeddingBaseUrl != null && !embeddingBaseUrl.isBlank()
                 && embeddingModel != null && !embeddingModel.isBlank();
     }
 }

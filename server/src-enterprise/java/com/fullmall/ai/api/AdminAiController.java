@@ -24,17 +24,20 @@ public class AdminAiController {
     private final com.fullmall.ai.app.DocumentIngestionService ingestion;
     private final com.fullmall.ai.app.KnowledgeStore knowledgeStore;
     private final com.fullmall.ai.app.ProductKnowledgeSyncService productSync;
+    private final com.fullmall.ai.app.KnowledgeBackfillService backfill;
 
     public AdminAiController(AiProperties properties,
                              com.fullmall.ai.app.AnswerService answerService,
                              com.fullmall.ai.app.DocumentIngestionService ingestion,
                              com.fullmall.ai.app.KnowledgeStore knowledgeStore,
-                             com.fullmall.ai.app.ProductKnowledgeSyncService productSync) {
+                             com.fullmall.ai.app.ProductKnowledgeSyncService productSync,
+                             com.fullmall.ai.app.KnowledgeBackfillService backfill) {
         this.properties = properties;
         this.answerService = answerService;
         this.ingestion = ingestion;
         this.knowledgeStore = knowledgeStore;
         this.productSync = productSync;
+        this.backfill = backfill;
     }
 
     public record AskRequest(String question) {
@@ -102,6 +105,21 @@ public class AdminAiController {
                 "totalChunks", knowledgeStore.size()));
     }
 
+    /** 全量重建商品知识（在售 SKU 全部索引），用于首次部署或批量改价后。 */
+    @org.springframework.web.bind.annotation.PostMapping("/knowledge/rebuild")
+    public ResponseEntity<Map<String, Object>> rebuildKnowledge() {
+        ResponseEntity<Map<String, Object>> notReady = readiness();
+        if (notReady != null) {
+            return notReady;
+        }
+        var result = backfill.rebuildProducts();
+        return ResponseEntity.ok(Map.of(
+                "products", result.products(),
+                "chunks", result.chunks(),
+                "totalChunks", result.totalChunks(),
+                "retrieval", properties.getRetrieval()));
+    }
+
     private ResponseEntity<Map<String, Object>> readiness() {
         if (properties.isReady()) {
             return null;
@@ -128,10 +146,12 @@ public class AdminAiController {
             if (properties.getChatModel() == null || properties.getChatModel().isBlank()) {
                 missing.add("app.ai.chat-model");
             }
-            if (properties.getEmbeddingBaseUrl() == null || properties.getEmbeddingBaseUrl().isBlank()) {
+            if (properties.isVectorRetrieval()
+                    && (properties.getEmbeddingBaseUrl() == null || properties.getEmbeddingBaseUrl().isBlank())) {
                 missing.add("app.ai.embedding-base-url");
             }
-            if (properties.getEmbeddingModel() == null || properties.getEmbeddingModel().isBlank()) {
+            if (properties.isVectorRetrieval()
+                    && (properties.getEmbeddingModel() == null || properties.getEmbeddingModel().isBlank())) {
                 missing.add("app.ai.embedding-model");
             }
             body.put("missing", missing);

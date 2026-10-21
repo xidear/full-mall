@@ -22,43 +22,10 @@ public class UnconfiguredAiBeans {
      */
     @Bean
     @org.springframework.boot.autoconfigure.condition.ConditionalOnProperty(
-            name = "app.ai.mode", havingValue = "demo")
+            name = "app.ai.mode", havingValue = "demo", matchIfMissing = true)
     KnowledgeRetriever demoKnowledgeRetriever(InMemoryKnowledgeStore store,
                                               com.fullmall.ai.config.AiProperties properties) {
         return (query, topK) -> store.search(query, topK > 0 ? topK : properties.getTopK());
     }
 
-    @Bean
-    @org.springframework.boot.autoconfigure.condition.ConditionalOnProperty(
-            name = "app.ai.mode", havingValue = "prod", matchIfMissing = true)
-    KnowledgeRetriever knowledgeRetriever() {
-        return new KnowledgeRetriever() {
-            @Override
-            public List<KnowledgeChunk> retrieve(String query, int topK) {
-                throw ApiException.conflict("AI_NOT_CONFIGURED",
-                        "AI 未配置向量检索（app.ai.embedding-* 缺失或索引未建立），无法检索知识库");
-            }
-        };
-    }
-
-    /** 生产模式才有嵌入客户端；调用失败会抛错，不返回零向量。 */
-    @Bean
-    @org.springframework.boot.autoconfigure.condition.ConditionalOnProperty(
-            name = "app.ai.mode", havingValue = "prod")
-    EmbeddingClient embeddingClient(com.fullmall.ai.config.AiProperties properties) {
-        return new EmbeddingClient(properties);
-    }
-
-    @Bean
-    @org.springframework.boot.autoconfigure.condition.ConditionalOnProperty(
-            name = "app.ai.mode", havingValue = "prod", matchIfMissing = true)
-    ChatModel chatModel() {
-        return new ChatModel() {
-            @Override
-            public String complete(String system, String user) {
-                throw ApiException.conflict("AI_NOT_CONFIGURED",
-                        "AI 未配置对话模型（app.ai.chat-* 缺失），无法生成回答");
-            }
-        };
-    }
 }

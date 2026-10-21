@@ -37,7 +37,7 @@ class AnswerServiceTest {
                 (query, topK) -> List.of(),
                 (system, user) -> {
                     called[0] = true;
-                    return "随便编一个答案";
+                    return "{\"answer\":\"编的\",\"grounded\":true,\"needsHuman\":false,\"citationIds\":[1]}";
                 });
 
         var answer = service.ask("这个商品多少钱？");
@@ -52,7 +52,7 @@ class AnswerServiceTest {
     void hallucinatedPriceIsRejected() {
         AnswerService service = service(
                 (query, topK) -> List.of(product),
-                (system, user) -> "这个商品现在只要 19.90 元。");
+                (system, user) -> "{\"answer\":\"这个商品现在只要 19.90 元。\",\"grounded\":true,\"needsHuman\":false,\"citationIds\":[1]}");
 
         var answer = service.ask("这个商品多少钱？");
 
@@ -65,7 +65,7 @@ class AnswerServiceTest {
     void forbiddenPromiseIsRejected() {
         AnswerService service = service(
                 (query, topK) -> List.of(product),
-                (system, user) -> "39.90 元，我保证一定能退，已为您退款。");
+                (system, user) -> "{\"answer\":\"39.90 元，我保证一定能退，已为您退款。\",\"grounded\":true,\"needsHuman\":false,\"citationIds\":[1]}");
 
         var answer = service.ask("不合口味能退吗？");
 
@@ -75,10 +75,35 @@ class AnswerServiceTest {
     }
 
     @Test
+    void nonJsonOutputIsRejectedInsteadOfGuessed() {
+        AnswerService service = service(
+                (query, topK) -> List.of(product),
+                (system, user) -> "这个商品 39.90 元，可以直接买。");   // 纯文本，不符合契约
+
+        var answer = service.ask("多少钱？");
+
+        assertThat(answer.fallback()).isTrue();
+        assertThat(answer.violations()).anySatisfy(v -> assertThat(v).contains("未按 JSON 契约"));
+    }
+
+    @Test
+    void modelSayingNotGroundedMarksFallback() {
+        AnswerService service = service(
+                (query, topK) -> List.of(product),
+                (system, user) -> "{\"answer\":\"资料不足以确认是否支持货到付款\",\"grounded\":false,\"needsHuman\":true,\"citationIds\":[]}");
+
+        var answer = service.ask("支持货到付款吗");
+
+        assertThat(answer.fallback())
+                .as("模型自报 grounded=false 时必须标记为需要人工，而不是当正常回答")
+                .isTrue();
+    }
+
+    @Test
     void groundedAnswerPassesWithCitations() {
         AnswerService service = service(
                 (query, topK) -> List.of(product),
-                (system, user) -> "售价 39.90 元，规格 500ml，保质期 12 个月。");
+                (system, user) -> "{\"answer\":\"售价 39.90 元，规格 500ml，保质期 12 个月。\",\"grounded\":true,\"needsHuman\":false,\"citationIds\":[1]}");
 
         var answer = service.ask("多少钱？");
 

@@ -79,7 +79,7 @@
 | E2 | 微信订阅消息 / 公众号模板消息 | ⬜ | 只有 mock channel `WECHAT` |
 | E3 | 生日礼积分 | ✅ | 按等级 `birthday_points` 发放；业务时区 UTC+8；`birthday_gift_year` + `points_ledger.business_key` 双幂等（有测试）；定时任务默认开启 |
 | E4 | 会员等级后台配置 | ✅ | **原本就有**（门店收银 → 会员等级 Tab，GET/PUT `/admin/v1/pos/member-levels`）；**E2E 验证改折扣并落库** |
-| E5 | 积分有效期/过期清零 | ⬜ | 只有账本，无过期策略 |
+| E5 | 积分过期 | ✅ | 已由 K3 实现（后台可配 NEVER/ROLLING_DAYS/FIFO，默认永不过期） |
 | E6 | 储值充值支付对接 | ⚠️ | POS 支持储值扣款；充值走什么渠道未接 |
 | E7 | 评价审核 | ✅ | `GET /admin/v1/reviews` + `POST /admin/v1/reviews/{id}/status`（PUBLISHED↔HIDDEN，权限 `product.manage`，有测试）；后台页面已做并 E2E 验证 |
 | E8 | 评价图片/晒单 | ⬜ | 只有文本 |
@@ -206,11 +206,12 @@
 
 | 状态 | 数量 |
 |---|---|
-| ✅ 已实现并验证 | 71 |
+| ✅ 已实现并验证 | 72 |
 | ⚠️ 已实现未验证 / 半接线 | 16 |
-| ⬜ 未实现 | 39 |
+| ⬜ 未实现 | 38 |
 | 🚫 有意不做 | 6 |
 | **合计** | **132** |
 | 另：接口冒烟覆盖 | 43 个接口（读 33 / 写 10） |
+| 另：后续批次计划 | 见 `docs/REMAINING_WORK_PLAN.md` |
 
 > 注：本表是当前代码与文档的真实汇总，不是"挑选重点"。后续每轮完成若干条即更新对应行。

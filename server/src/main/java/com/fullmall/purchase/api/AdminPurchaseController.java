@@ -37,7 +37,10 @@ public class AdminPurchaseController {
 
     @PostMapping("/{purchaseId}/receive")
     @PreAuthorize("hasAnyRole('ADMIN','OPERATOR')")
-    public PurchaseService.ReceiptResult receive(@PathVariable UUID purchaseId) {
-        return purchases.receive(purchaseId);
+    public PurchaseService.ReceiptResult receive(
+            @PathVariable UUID purchaseId,
+            @org.springframework.web.bind.annotation.RequestParam String locationType,
+            @org.springframework.web.bind.annotation.RequestParam UUID locationId) {
+        return purchases.receive(purchaseId, locationType, locationId);
     }
 }

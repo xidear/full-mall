@@ -57,9 +57,27 @@ public class PurchaseService {
         return id;
     }
 
-    /** 确认收货：按行写入成本；重复收货会被状态拦住（幂等）。 */
+    /**
+     * 确认收货：按行写成本 + 写库存批次（含批次单位成本）。
+     *
+     * <p>批次与成本必须同时落库：只写成本会让库存账对不上，只写批次则毛利无法核算。
+     */
+    @Transactional
+    public ReceiptResult receive(UUID purchaseId, String locationType, UUID locationId) {
+        if (locationType == null || locationType.isBlank() || locationId == null) {
+            throw ApiException.badRequest("RECEIPT_LOCATION_REQUIRED",
+                    "收货必须指定库存地点（locationType + locationId）");
+        }
+        return doReceive(purchaseId, locationType, locationId);
+    }
+
     @Transactional
     public ReceiptResult receive(UUID purchaseId) {
+        throw ApiException.badRequest("RECEIPT_LOCATION_REQUIRED",
+                "收货必须指定库存地点：请调用 receive(purchaseId, locationType, locationId)");
+    }
+
+    private ReceiptResult doReceive(UUID purchaseId, String locationType, UUID locationId) {
         String status = jdbc.query("SELECT status FROM purchase_order WHERE id = ?",
                 rs -> rs.next() ? rs.getString("status") : null, purchaseId);
         if (status == null) {
@@ -85,6 +103,12 @@ public class PurchaseService {
         for (Row row : rows) {
             costService.receive(row.skuId(), row.quantity(), row.unitCost(),
                     "PURCHASE_RECEIPT", purchaseId.toString());
+            jdbc.update("""
+                    INSERT INTO inventory_batch (id, sku_id, location_type, location_id, batch_no,
+                                                 quantity, unit_cost_amount, unit_cost_currency)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, (SELECT currency FROM purchase_order WHERE id = ?))
+                    """, UUID.randomUUID(), row.skuId(), locationType.toUpperCase(), locationId,
+                    batchNo(purchaseId, row.id()), row.quantity(), row.unitCost(), purchaseId);
             jdbc.update("UPDATE purchase_order_line SET received_qty = quantity WHERE id = ?", row.id());
             totalQuantity += row.quantity();
             totalAmount += row.quantity() * row.unitCost();
@@ -93,5 +117,10 @@ public class PurchaseService {
                 UPDATE purchase_order SET status = 'RECEIVED', received_at = now() WHERE id = ?
                 """, purchaseId);
         return new ReceiptResult(purchaseId, rows.size(), totalQuantity, totalAmount);
+    }
+
+    /** 批次号：采购单 + 行号，便于追溯成本来源。 */
+    private String batchNo(UUID purchaseId, UUID lineId) {
+        return "PO-" + purchaseId.toString().substring(0, 8) + "-" + lineId.toString().substring(0, 6);
     }
 }

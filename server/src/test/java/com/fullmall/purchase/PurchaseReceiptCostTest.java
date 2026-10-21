@@ -70,9 +70,9 @@ class PurchaseReceiptCostTest {
         UUID skuId = sku();
 
         UUID first = purchases.create(null, "CNY", List.of(new PurchaseService.Line(skuId, 10, 800)));
-        purchases.receive(first);
+        purchases.receive(first, "WAREHOUSE", UUID.randomUUID());
         UUID second = purchases.create(null, "CNY", List.of(new PurchaseService.Line(skuId, 10, 1_200)));
-        purchases.receive(second);
+        purchases.receive(second, "WAREHOUSE", UUID.randomUUID());
 
         var cost = costs.current(skuId);
         assertThat(cost.quantity()).isEqualTo(20);
@@ -81,12 +81,24 @@ class PurchaseReceiptCostTest {
     }
 
     @Test
+    void receivingWritesBatchWithUnitCost() {
+        UUID skuId = sku();
+        UUID id = purchases.create(null, "CNY", List.of(new PurchaseService.Line(skuId, 7, 900)));
+        purchases.receive(id, "WAREHOUSE", UUID.randomUUID());
+
+        var batch = jdbc.queryForMap(
+                "SELECT quantity, unit_cost_amount FROM inventory_batch WHERE sku_id = ?", skuId);
+        assertThat(((Number) batch.get("quantity")).intValue()).isEqualTo(7);
+        assertThat(((Number) batch.get("unit_cost_amount")).longValue()).isEqualTo(900);
+    }
+
+    @Test
     void receivingTwiceIsRejected() {
         UUID skuId = sku();
         UUID id = purchases.create(null, "CNY", List.of(new PurchaseService.Line(skuId, 1, 500)));
-        purchases.receive(id);
+        purchases.receive(id, "WAREHOUSE", UUID.randomUUID());
 
-        assertThatThrownBy(() -> purchases.receive(id))
+        assertThatThrownBy(() -> purchases.receive(id, "WAREHOUSE", UUID.randomUUID()))
                 .isInstanceOf(com.fullmall.platform.error.ApiException.class)
                 .hasMessageContaining("只有已下单");
     }

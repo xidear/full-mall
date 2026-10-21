@@ -27,6 +27,7 @@ const notifications = ref<Notification[]>([])
 const loading = ref(false)
 // 正在标记已读的通知：避免重复请求
 const markingId = ref('')
+const retryingId = ref('')
 const error = ref('')
 
 const channelLabels: Record<string, string> = {
@@ -67,6 +68,21 @@ async function load() {
     error.value = cause instanceof Error ? cause.message : '通知加载失败'
   } finally {
     loading.value = false
+  }
+}
+
+// 重试投递：仅 FAILED 可重试，已 SENT 的重试会重复发短信（后端也会拒绝）
+async function retryDelivery(notification: Notification) {
+  if (retryingId.value) return
+  retryingId.value = notification.id
+  try {
+    await api.post(`/admin/v1/notifications/${notification.id}/retry`)
+    ElMessage.success('已重新发送')
+    await load()
+  } catch (cause) {
+    ElMessage.error(cause instanceof Error ? cause.message : '重试失败')
+  } finally {
+    retryingId.value = ''
   }
 }
 
@@ -138,9 +154,11 @@ function label(map: Record<string, string>, key: string) {
       <el-table-column label="已读" width="80">
         <template #default="{ row }">{{ row.readAt ? '是' : '否' }}</template>
       </el-table-column>
-      <el-table-column label="操作" width="110">
+      <el-table-column label="操作" width="150">
         <template #default="{ row }">
-          <el-button v-if="!row.readAt" link type="primary" @click="markRead(row)">标记已读</el-button>
+          <el-button v-if="row.status === 'FAILED'" link type="danger"
+                     :loading="retryingId === row.id" @click="retryDelivery(row)">重试</el-button>
+          <el-button v-else-if="!row.readAt" link type="primary" @click="markRead(row)">标记已读</el-button>
         </template>
       </el-table-column>
     </el-table>

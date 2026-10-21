@@ -116,7 +116,7 @@
 | H1 | 审计 outbox 崩溃恢复 | ✅ | 入口（任务+接口）+ **按 id 重载实体再提交**（实测能消费为 DONE）；只对已注册加载器的实体生效 |
 | H1b | 未注册加载器的实体恢复 | ⬜ | 无加载器时仍退回反序列化（可能失败并计 FAILED）；目前仅 asset 注册 |
 | H2 | 导出文件对象存储（S3/OSS）与签名 URL | ⬜ | 只有 `LocalExportStorage`；**导出流水线本身已 E2E 验证**（发起→处理→下载） |
-| H17 | 通知失败重试 | ✅ | `POST /admin/v1/notifications/{id}/retry`：仅 FAILED 可重试、成功置 SENT；已 SENT 拒绝（防重复发短信）；渠道未配置明确报错（有测试） |
+| H17 | 通知失败重试 | ✅ | 接口 + **后台通知页「重试」按钮**（仅 FAILED 显示、`:loading` 互斥）；已 SENT 拒绝重试（有测试）；页面未做浏览器验证 |
 | H16 | 清理接口拒绝未知参数 | ✅ | `POST /admin/v1/maintenance/retention` 传 `?dryRun=true` 曾**被静默忽略并真实删除**；现返回 400 `UNSUPPORTED_PARAMETER`（有测试） |
 | H15 | 导出处理任务默认开启 | ✅ | `export.worker` 默认开启 + V69 修正存量行；此前导出永远 PENDING |
 | H3 | 导出 keyset 分页（大表导出） | ⬜ | 现在是 offset 分页 |

@@ -183,6 +183,9 @@ interface PromotionRule {
 const rules = ref<PromotionRule[]>([])
 // 正在执行启停的 ID：避免重复点击
 const actionId = ref('')
+// 编辑草稿规则：只允许改 DRAFT（生效中的规则改动会影响正在进行的活动）
+const editingRuleId = ref('')
+const editSaving = ref(false)
 const ruleDialog = ref(false)
 const ruleSaving = ref(false)
 const scopeOptions = ref<ScopeOption[]>([])
@@ -233,6 +236,7 @@ function openRuleCreate() {
   ruleForm.window = [new Date(), new Date(Date.now() + 30 * 24 * 3600 * 1000)]
   ruleForm.priority = 10
   scopeOptions.value = []
+  editingRuleId.value = ''
   ruleDialog.value = true
 }
 
@@ -269,6 +273,56 @@ async function submitRule() {
     error.value = cause instanceof Error ? cause.message : '创建规则失败'
   } finally {
     ruleSaving.value = false
+  }
+}
+
+function openEditRule(rule: PromotionRule) {
+  editingRuleId.value = rule.id
+  ruleForm.code = rule.code
+  ruleForm.title = rule.title
+  ruleForm.type = rule.type as 'FULL_REDUCTION' | 'FULL_DISCOUNT'
+  ruleForm.thresholdYuan = rule.thresholdAmount / 100
+  ruleForm.valueYuan = rule.type === 'FULL_DISCOUNT' ? 0 : rule.value / 100
+  ruleForm.percent = rule.type === 'FULL_DISCOUNT' ? rule.value : 90
+  ruleForm.scope = rule.scope as 'ALL' | 'SKU' | 'CATEGORY' | 'BRAND'
+  ruleForm.scopeIds = []
+  ruleForm.channel = rule.channel as 'ONLINE' | 'POS' | 'PICKUP'
+  ruleForm.priority = rule.priority
+  ruleForm.window = [new Date(rule.startsAt), new Date(rule.endsAt)]
+  scopeOptions.value = []
+  ruleDialog.value = true
+}
+
+async function submitEditRule() {
+  if (!editingRuleId.value || editSaving.value) return
+  if (!ruleForm.window || ruleForm.window.length !== 2) {
+    ElMessage.error('请选择活动时间')
+    return
+  }
+  editSaving.value = true
+  try {
+    await api.put(`/admin/v1/promotions/rules/${editingRuleId.value}`, {
+      code: ruleForm.code.trim().toUpperCase(),
+      title: ruleForm.title.trim(),
+      type: ruleForm.type,
+      thresholdAmount: Math.round(ruleForm.thresholdYuan * 100),
+      value: ruleForm.type === 'FULL_REDUCTION'
+        ? Math.round(ruleForm.valueYuan * 100) : ruleForm.percent,
+      scope: ruleForm.scope,
+      scopeIds: ruleForm.scopeIds,
+      channel: ruleForm.channel,
+      startsAt: ruleForm.window[0].toISOString(),
+      endsAt: ruleForm.window[1].toISOString(),
+      priority: ruleForm.priority
+    })
+    ElMessage.success('规则已更新')
+    ruleDialog.value = false
+    editingRuleId.value = ''
+    await loadRules()
+  } catch (cause) {
+    ElMessage.error(cause instanceof Error ? cause.message : '更新失败')
+  } finally {
+    editSaving.value = false
   }
 }
 
@@ -356,6 +410,8 @@ function windowLabel(promotion: PromotionView) {
       </el-table-column>
       <el-table-column label="操作" width="160">
         <template #default="{ row }">
+          <el-button v-if="row.status === 'DRAFT'" size="small" plain
+                     @click="openEditRule(row)">编辑</el-button>
           <el-button v-if="row.status === 'DRAFT'" size="small" type="primary"
                      :loading="actionId === row.id" @click="activateRule(row)">启用</el-button>
           <el-button v-if="row.status === 'ACTIVE'" size="small"
@@ -364,7 +420,8 @@ function windowLabel(promotion: PromotionView) {
       </el-table-column>
     </el-table>
 
-    <el-dialog v-model="ruleDialog" title="新建满减/满折规则" width="520px">
+    <el-dialog v-model="ruleDialog"
+               :title="editingRuleId ? '编辑满减/满折规则' : '新建满减/满折规则'" width="520px">
       <el-form label-width="110px">
         <el-form-item label="编码">
           <el-input v-model="ruleForm.code" placeholder="例如 FULL-200-20" />
@@ -419,7 +476,10 @@ function windowLabel(promotion: PromotionView) {
       </el-form>
       <template #footer>
         <el-button @click="ruleDialog = false">取消</el-button>
-        <el-button type="primary" :loading="ruleSaving" @click="submitRule">创建</el-button>
+        <el-button type="primary" :loading="editingRuleId ? editSaving : ruleSaving"
+                   @click="editingRuleId ? submitEditRule() : submitRule()">
+          {{ editingRuleId ? '保存' : '创建' }}
+        </el-button>
       </template>
     </el-dialog>
 

@@ -55,6 +55,14 @@ public class AdminSupplierController {
     }
 
     /** 生成结算单（SUP-020）。退款暂按 0，佣金费率未配置时为 0。 */
+    /** 结算单列表（后台查看）。 */
+    @GetMapping("/{supplierId}/settlements")
+    public java.util.List<com.fullmall.supplier.infra.SupplierSettlementRepository.SettlementRow>
+            settlements(@PathVariable UUID supplierId,
+                        @RequestParam(defaultValue = "20") int limit) {
+        return settlementService.list(supplierId, limit);
+    }
+
     @PostMapping("/{supplierId}/settlements")
     @org.springframework.security.access.prepost.PreAuthorize("hasRole('ADMIN')")
     public SupplierSettlementRepository.SettlementRow generateSettlement(

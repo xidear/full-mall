@@ -53,6 +53,20 @@ interface SupplierReturn {
   createdAt: string
 }
 const supplierReturns = ref<SupplierReturn[]>([])
+// 结算单：来自平台生成的周期结算（含退货扣减）
+interface Settlement {
+  id: string
+  periodStart: string
+  periodEnd: string
+  grossAmount: number
+  refundAmount: number
+  commissionAmount: number
+  payableAmount: number
+  currency: string
+  status: string
+}
+const settlements = ref<Settlement[]>([])
+const settling = ref(false)
 const returnBusyId = ref('')
 const statusFilter = ref('ALLOCATED')
 const feedRows = reactive<FeedRow[]>([
@@ -95,8 +109,9 @@ async function connect() {
     connected.value = true
     success.value = `已连接：${ping.supplierName}`
     await loadOrders()
-    // 连接后同时加载退货单，否则面板一直是"暂无"
+    // 连接后同时加载退货单与结算单，否则面板一直是"暂无"
     await loadReturns()
+    await loadSettlements()
   } catch (cause) {
     connected.value = false
     error.value = messageOf(cause)
@@ -144,6 +159,36 @@ async function decideReturn(item: SupplierReturn, status: 'ACCEPTED' | 'REJECTED
     error.value = messageOf(cause)
   } finally {
     returnBusyId.value = ''
+  }
+}
+
+async function loadSettlements() {
+  if (!connected.value) return
+  try {
+    settlements.value = await signedRequest<Settlement[]>('GET', '/open/v1/settlements?limit=20')
+  } catch (cause) {
+    error.value = messageOf(cause)
+  }
+}
+
+async function downloadSettlementsCsv() {
+  if (settling.value) return
+  settling.value = true
+  try {
+    // 签名请求拿文本，再触发浏览器下载（带签名的链接无法用 <a href> 直接点）
+    const csv = await signedRequestText('GET', '/open/v1/settlements.csv?limit=200')
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' })
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = 'supplier-settlements.csv'
+    link.click()
+    URL.revokeObjectURL(url)
+    success.value = '结算 CSV 已下载'
+  } catch (cause) {
+    error.value = messageOf(cause)
+  } finally {
+    settling.value = false
   }
 }
 
@@ -268,6 +313,33 @@ async function signedRequest<T>(method: string, path: string, body?: unknown): P
     }
   }
   return response.json() as Promise<T>
+}
+
+/**
+ * 同 signedRequest，但返回**纯文本**（CSV 导出用）。
+ *
+ * <p>不能用 signedRequest：它对响应做 JSON 解析，CSV 会直接抛错。
+ */
+async function signedRequestText(method: string, path: string): Promise<string> {
+  const timestamp = String(Math.floor(Date.now() / 1000))
+  const nonce = crypto.randomUUID().replace(/-/g, '')
+  const bodyHash = await sha256Hex('')
+  const canonical = `${method}\n${path}\n${timestamp}\n${nonce}\n${bodyHash}`
+  const signature = await hmacHex(secret.value.trim(), canonical)
+  const response = await fetch(`${API_BASE}${path}`, {
+    method,
+    headers: {
+      'X-Supplier-Key': accessKey.value.trim(),
+      'X-Supplier-Timestamp': timestamp,
+      'X-Supplier-Nonce': nonce,
+      'X-Supplier-Signature': signature
+    }
+  })
+  const text = await response.text()
+  if (!response.ok) {
+    throw new Error(text)
+  }
+  return text
 }
 
 async function sha256Hex(text: string) {
@@ -460,6 +532,38 @@ function disconnect() {
                 </div>
               </li>
             </ul>
+          </section>
+
+          <section class="panel">
+            <div class="panel-head">
+              <h2>结算单</h2>
+              <div class="header-actions">
+                <button type="button" class="ghost-button" @click="loadSettlements">刷新</button>
+                <button type="button" :disabled="settling" @click="downloadSettlementsCsv">
+                  {{ settling ? '导出中…' : '下载 CSV' }}
+                </button>
+              </div>
+            </div>
+            <p class="muted">平台按周期生成的结算：应付 = 毛额 − 退货扣减 − 佣金。金额单位：分。</p>
+            <p v-if="!settlements.length" class="muted">暂无结算单。</p>
+            <table v-else class="settle-table">
+              <thead>
+                <tr>
+                  <th>周期</th><th>毛额</th><th>退货扣减</th><th>佣金</th><th>应付</th><th>状态</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-for="item in settlements" :key="item.id">
+                  <td>{{ new Date(item.periodStart).toLocaleDateString('zh-CN') }} ~
+                      {{ new Date(item.periodEnd).toLocaleDateString('zh-CN') }}</td>
+                  <td>{{ item.grossAmount }}</td>
+                  <td>{{ item.refundAmount }}</td>
+                  <td>{{ item.commissionAmount }}</td>
+                  <td><strong>{{ item.payableAmount }}</strong></td>
+                  <td>{{ item.status }}</td>
+                </tr>
+              </tbody>
+            </table>
           </section>
 
           <section class="panel">

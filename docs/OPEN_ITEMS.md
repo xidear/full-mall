@@ -15,7 +15,8 @@
 | A1 | 真实支付适配器（微信/支付宝 SDK 对接） | ⬜ | 只有 `MockPaymentConnector`；`PaymentService` 里 provider≠mock 时直接拒绝 |
 | A2 | 支付回调/对账（异步通知校验、对账文件） | ⬜ | `PROJECT_MEMORY` §9 记录"对账文件仍未实现" |
 | A3 | 退款到真实渠道（当前只改库状态） | ⬜ | `refund` 走 mock connector |
-| A4 | 退款幂等键（同一笔退款重复提交） | ⚠️ | 有 `payment_event` 记录但未做外部幂等键校验 |
+| A4 | 退款累计校验 | ✅ | V65 `payment.refunded_amount` + DB CHECK；退两次超额被拒（有测试）。**外部幂等键仍未做** |
+| A9 | 按行退款的数量累计 | ⚠️ | `allocateAndRecord` 按金额反推数量，同一行多次退款会撞"数量超限"（本轮测试暴露） |
 | A5 | 支付配置版本切换时的在途订单路由 | ⚠️ | `payment.config_version_id` 已存，但退款时未按版本取配置 |
 | A6 | 部分退款佣金回冲口径 | ⬜ | `docs/REFUND_POLICY.md` §5 明确"佣金未做开关" |
 | A7 | 退款按行分摊落库 | ✅ | `PaymentService.refund` 默认落行分摊（售后走 `recordForAfterSale`，传 false 防重复）；`allocate` 是纯计算器、`allocateAndRecord` 才写库（有测试） |
@@ -166,10 +167,10 @@
 
 | 状态 | 数量 |
 |---|---|
-| ✅ 已实现并验证 | 35 |
+| ✅ 已实现并验证 | 36 |
 | ⚠️ 已实现未验证 / 半接线 | 26 |
 | ⬜ 未实现 | 34 |
 | 🚫 有意不做 | 6 |
-| **合计** | **101** |
+| **合计** | **102** |
 
 > 注：本表是当前代码与文档的真实汇总，不是"挑选重点"。后续每轮完成若干条即更新对应行。

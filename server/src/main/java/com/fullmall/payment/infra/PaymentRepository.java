@@ -38,6 +38,23 @@ public class PaymentRepository {
         return payment;
     }
 
+    /** 累计已退款额（含本次）。 */
+    public long refundedAmount(UUID paymentId) {
+        Long value = jdbcTemplate.queryForObject(
+                "SELECT refunded_amount FROM payment WHERE id = ?", Long.class, paymentId);
+        return value == null ? 0 : value;
+    }
+
+    /** 记录本次退款额（与支付状态更新同一事务）。 */
+    public void addRefundedAmount(UUID paymentId, long amount) {
+        int updated = jdbcTemplate.update(
+                "UPDATE payment SET refunded_amount = refunded_amount + ? WHERE id = ?",
+                amount, paymentId);
+        if (updated != 1) {
+            throw new IllegalStateException("退款额累计失败: " + paymentId);
+        }
+    }
+
     public void update(Payment payment) {
         int updated = jdbcTemplate.update("""
                 UPDATE payment

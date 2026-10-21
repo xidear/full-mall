@@ -146,7 +146,16 @@ public class PaymentService {
                 && payment.status() != PaymentStatus.PARTIALLY_REFUNDED)) {
             throw ApiException.conflict("PAYMENT_NOT_REFUNDABLE", "订单没有可退款的支付记录");
         }
+        // 累计校验：单次校验不够，退两次会超过支付额（超退是资金事故）
+        long alreadyRefunded = paymentRepository.refundedAmount(payment.id());
+        long payableRefund = payment.amount().amount() - alreadyRefunded;
+        if (amount > payableRefund) {
+            throw ApiException.conflict("REFUND_EXCEEDS_REMAINING",
+                    "退款超过可退金额：已退 " + alreadyRefunded + "，本次 " + amount
+                            + "，可退 " + payableRefund);
+        }
         Payment refunded = mockPaymentConnector.refund(payment, amount);
+        paymentRepository.addRefundedAmount(payment.id(), amount);
         paymentRepository.update(refunded);
         paymentRepository.insertEvent(payment.id(), "PAYMENT_REFUNDED",
                 "{\"amount\":" + amount + "}");

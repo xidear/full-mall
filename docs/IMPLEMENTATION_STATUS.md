@@ -4540,3 +4540,28 @@ ERROR: column f.supplier_id does not exist
 
 > 教训：**只测计算器不算测功能**。这条 SQL 错误存在了多轮，直到补 E2E 才暴露。
 
+---
+
+## 2026-10-19：后台只读接口冒烟（H13）
+
+新增 `api-smoke.spec.ts`：一次请求 **25 个只读接口**（后台 22 + 公开 3），任何 5xx 或非预期 4xx 直接失败。
+目的：抓出"只有单测、从未被端到端调用"的接口（上轮结算 SQL 错误就是这类）。
+
+### 本轮抓到的问题（都是真问题）
+
+| 现象 | 真相 |
+|---|---|
+| `/admin/v1/settlement` 之前 500 | 上轮已修（`f.supplier_id` 不存在） |
+| `/admin/v1/permissions/matrix` 404 | 实际路径是 `/admin/v1/permissions`（我按猜写） |
+| `/api/v1/theme` 401 | **带 staff token 调公开接口会被会员过滤器拒绝**——真实现象，值得记录 |
+| `/admin/v1/maintenance/retention` 405 | 它是 POST（执行清理），不是 GET |
+
+| 验证 | 结果 |
+|---|---|
+| 冒烟用例 | ✅ 25 个接口全部正常（576ms） |
+
+### 记录一个真实行为
+
+**公开接口不接受 staff token**：`/api/v1/**` 的会员过滤器会把无效会员 token 当未登录 → 401。
+前端如果同时带两种 token 会踩坑，已写入 `docs/PITFALLS.md`。
+

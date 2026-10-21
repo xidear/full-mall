@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import HelpDrawer from './components/HelpDrawer.vue'
 import { computed, reactive, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
@@ -136,6 +137,7 @@ async function submitPassword() {
         </div>
         <div class="header-actions">
           <el-button @click="openPasswordDialog">修改密码</el-button>
+          <HelpDrawer />
           <el-button type="primary" plain @click="handleLogout">退出登录</el-button>
         </div>
       </el-header>

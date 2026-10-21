@@ -49,24 +49,27 @@ except Exception:
 PY
 }
 
-echo "== 1/5 后端测试 =="
+echo "== 1/6 后端测试 =="
 (cd "$ROOT/server" && mvn -B test)
 
-echo "== 2/5 后端打包 =="
+echo "== 2/6 后端打包 =="
 (cd "$ROOT/server" && mvn -B -q -DskipTests package)
 
-echo "== 3/5 前端构建 =="
+echo "== 3/6 前端构建 =="
 (cd "$ROOT/web" && npm ci --no-audit --no-fund --cache /tmp/npm-cache && npm run build)
 
-echo "== 4/5 接口对齐 =="
+echo "== 4/6 接口对齐 =="
 python3 "$ROOT/scripts/check-api-alignment.py"
+
+echo "== 5/6 帮助文档覆盖 =="
+python3 scripts/check-help-coverage.py
 
 if (( RUN_E2E == 0 )); then
   echo "== 跳过 E2E（--no-e2e）=="
   exit 0
 fi
 
-echo "== 5/5 E2E =="
+echo "== 6/6 E2E =="
 cd "$ROOT/server"
 # 1) 嵌入式 PostgreSQL（复用测试依赖，容器内无需 Docker）
 mvn -B -q dependency:build-classpath -Dmdep.outputFile=/tmp/cp.txt -Dmdep.includeScope=test

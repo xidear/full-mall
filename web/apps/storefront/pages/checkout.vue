@@ -121,6 +121,17 @@ async function ensureMemberToken(): Promise<string> {
   if (process.client) {
     // 同时写 cookie：订单页在服务端渲染时读不到 localStorage，只能靠 cookie 带身份
     localStorage.setItem('fullmall.memberToken', session.token)
+    // 拉一次会员资料：把时区写入 cookie，供页面按会员时区格式化时间
+    try {
+      const profile = await $fetch<{ timezone?: string }>(
+        `${config.public.apiBase}/api/v1/member/auth/me`,
+        { headers: { Authorization: `Bearer ${session.token}` } })
+      if (profile.timezone) {
+        document.cookie = `fullmall_member_timezone=${profile.timezone}; path=/; max-age=2592000; samesite=lax`
+      }
+    } catch {
+      // 取不到时区不影响下单；页面会退回浏览器本地时区
+    }
     document.cookie = `fullmall_member_token=${session.token}; path=/; max-age=2592000; samesite=lax`
   }
   return session.token

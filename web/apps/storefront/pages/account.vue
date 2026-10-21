@@ -1,4 +1,7 @@
 <script setup lang="ts">
+import { formatMemberDate, formatMemberDateTime } from '~/utils/datetime'
+// 会员时区：由会员资料接口提供；未登录时为 undefined（退回浏览器本地时区）
+const memberTimezone = useCookie<string | null>('fullmall_member_timezone').value ?? undefined
 import { orderStatusLabel } from '@fullmall/api-client'
 import type { Order } from '~/types'
 
@@ -49,7 +52,7 @@ onMounted(async () => {
           <strong>{{ order.orderNo }}</strong>
           <span class="status-badge">{{ orderStatusLabel(order.status) }}</span>
         </div>
-        <p class="muted">{{ order.createdAt ? new Date(order.createdAt).toLocaleString('zh-CN') : '' }}</p>
+        <p class="muted">{{ order.createdAt ? formatMemberDateTime(order.createdAt, memberTimezone) : '' }}</p>
         <div class="order-card-lines">
           <span v-for="line in order.lines" :key="line.id">{{ line.title }} × {{ line.quantity }}</span>
         </div>

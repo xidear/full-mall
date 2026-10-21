@@ -1,4 +1,7 @@
 <script setup lang="ts">
+import { formatMemberDate, formatMemberDateTime } from '~/utils/datetime'
+// 会员时区：由会员资料接口提供；未登录时为 undefined（退回浏览器本地时区）
+const memberTimezone = useCookie<string | null>('fullmall_member_timezone').value ?? undefined
 import { computed, reactive, ref } from 'vue'
 import {
   fulfillmentStatusLabel,
@@ -168,7 +171,7 @@ async function submitAfterSale() {
       <p v-if="trackingError" class="form-error">物流信息暂时不可用，请稍后再试。</p>
       <ul v-else class="tracking-list">
         <li v-for="(event, index) in tracking" :key="index">
-          <span class="tracking-time">{{ new Date(event.at).toLocaleString('zh-CN') }}</span>
+          <span class="tracking-time">{{ formatMemberDateTime(event.at, memberTimezone) }}</span>
           <strong>{{ event.status }}</strong>
           <span class="muted">{{ event.location }}</span>
         </li>

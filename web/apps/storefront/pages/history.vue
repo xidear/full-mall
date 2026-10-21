@@ -1,4 +1,6 @@
 <script setup lang="ts">
+// 会员时区：由会员资料接口提供；未登录时为 undefined（退回浏览器本地时区）
+const memberTimezone = useCookie<string | null>('fullmall_member_timezone').value ?? undefined
 import { computed } from 'vue'
 
 interface HistoryEntry {
@@ -39,7 +41,7 @@ function price(value: number, currency: string) {
       <li v-for="item in items" :key="item.skuId">
         <NuxtLink :to="`/product/${item.productId}`">{{ item.title }}</NuxtLink>
         <strong>{{ price(item.priceAmount, item.currency) }}</strong>
-        <span class="muted">看过 {{ item.viewCount }} 次 · {{ new Date(item.viewedAt).toLocaleDateString('zh-CN') }}</span>
+        <span class="muted">看过 {{ item.viewCount }} 次 · {{ formatMemberDate(item.viewedAt, memberTimezone) }}</span>
       </li>
     </ul>
   </section>

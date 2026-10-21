@@ -127,13 +127,25 @@ public class MemberAuthService {
     }
 
     public record MemberProfile(UUID id, String memberNo, String nameMasked, String phoneMasked,
-                                String tier, long points, long storedValue, String currency) {
+                                String tier, long points, long storedValue, String currency,
+                                /** 会员显示时区：未设置时返回系统默认（服务器时区或 app.timezone）。 */
+                                String timezone) {
+    }
+
+    /** 系统默认时区：`app.timezone` 优先，未配置则服务器时区。 */
+    private String defaultZone() {
+        String configured = jdbcTemplate.query(
+                "SELECT setting_value FROM system_setting WHERE setting_key = 'app.timezone'",
+                rs -> rs.next() ? rs.getString(1) : null);
+        return configured == null || configured.isBlank()
+                ? java.time.ZoneId.systemDefault().getId() : configured.trim();
     }
 
     /** 会员自身资料（手机号与姓名掩码，避免前端/日志泄露 PII）。 */
     public MemberProfile profile(UUID memberId) {
         return jdbcTemplate.query("""
-                SELECT id, member_no, name, phone, tier, points_balance, stored_value_balance, currency
+                SELECT id, member_no, name, phone, tier, points_balance, stored_value_balance, currency,
+                       timezone
                   FROM member WHERE id = ?
                 """, (rs, rowNum) -> new MemberProfile(
                 rs.getObject("id", UUID.class),
@@ -143,7 +155,9 @@ public class MemberAuthService {
                 rs.getString("tier"),
                 rs.getLong("points_balance"),
                 rs.getLong("stored_value_balance"),
-                rs.getString("currency")), memberId)
+                rs.getString("currency"),
+                rs.getString("timezone") == null || rs.getString("timezone").isBlank()
+                        ? defaultZone() : rs.getString("timezone")), memberId)
                 .stream().findFirst()
                 .orElseThrow(() -> ApiException.notFound("MEMBER_NOT_FOUND", "会员不存在: " + memberId));
     }

@@ -1,4 +1,7 @@
 <script setup lang="ts">
+import { formatMemberDate, formatMemberDateTime } from '~/utils/datetime'
+// 会员时区：由会员资料接口提供；未登录时为 undefined（退回浏览器本地时区）
+const memberTimezone = useCookie<string | null>('fullmall_member_timezone').value ?? undefined
 import { computed, ref } from 'vue'
 
 interface MemberNotification {
@@ -72,7 +75,7 @@ if (process.client) {
       <li v-for="item in items" :key="item.id" :class="{ unread: !item.readAt }">
         <div class="title-row">
           <strong>{{ item.title }}</strong>
-          <span class="muted">{{ new Date(item.createdAt).toLocaleString('zh-CN') }}</span>
+          <span class="muted">{{ formatMemberDateTime(item.createdAt, memberTimezone) }}</span>
         </div>
         <p>{{ item.content }}</p>
         <button v-if="!item.readAt" type="button" :disabled="markingId === item.id" @click="markRead(item)">

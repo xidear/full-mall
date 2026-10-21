@@ -45,6 +45,30 @@ const form = reactive<Record<string, string>>({
   'distribution.staff-level2-enabled': 'false'
 })
 
+// 渠道自检：直接调用发送链路，返回真实结果（不做前端模拟）
+const testChannel = ref('IN_APP')
+const testing = ref(false)
+interface TestResult { status: string; errorMessage?: string | null }
+const testResult = ref<TestResult | null>(null)
+
+async function runChannelTest() {
+  if (testing.value) return
+  testing.value = true
+  testResult.value = null
+  try {
+    testResult.value = await api.post<TestResult>('/admin/v1/notifications/test-send', {
+      channel: testChannel.value
+    })
+  } catch (cause) {
+    testResult.value = {
+      status: 'FAILED',
+      errorMessage: cause instanceof Error ? cause.message : '发送失败'
+    }
+  } finally {
+    testing.value = false
+  }
+}
+
 const minWithdrawalYuan = computed({
   get: () => Number(form['distribution.min-withdrawal'] || 0) / 100,
   set: (value: number) => { form['distribution.min-withdrawal'] = String(Math.round(value * 100)) }
@@ -263,6 +287,27 @@ async function save() {
           </el-form-item>
         </div>
         <p class="muted">真实适配器需要在环境变量或密钥管理中配置凭证；开源默认 Mock，不访问外部服务。</p>
+
+        <h3 style="margin-top: 16px">渠道自检</h3>
+        <div class="policy-grid">
+          <el-form-item label="测试渠道">
+            <el-select v-model="testChannel" style="width: 100%">
+              <el-option label="站内消息" value="IN_APP" />
+              <el-option label="短信" value="SMS" />
+              <el-option label="邮件" value="EMAIL" />
+              <el-option label="微信" value="WECHAT" />
+              <el-option label="APP 推送" value="APP" />
+            </el-select>
+          </el-form-item>
+          <el-form-item label="操作">
+            <el-button :loading="testing" @click="runChannelTest">发送测试消息</el-button>
+          </el-form-item>
+        </div>
+        <el-alert v-if="testResult" :type="testResult.status === 'SENT' ? 'success' : 'error'"
+                  show-icon :closable="false"
+                  :title="testResult.status === 'SENT'
+                    ? '渠道可用：测试消息已发送'
+                    : `渠道不可用：${testResult.errorMessage ?? '发送失败'}`" />
       </section>
     </el-form>
   </div>

@@ -4888,3 +4888,26 @@ Spring 静默忽略**，接口照常执行**真实删除**。
 查明原因：**渠道 sender 由启动配置决定**（`app.sms.provider`），改数据库设置不会重建 sender，
 所以 dev 环境无法在不重启的情况下制造 FAILED。这个自检接口正好补上了"确认渠道是否可用"的能力。
 
+---
+
+## 2026-10-19：渠道自检 UI + 修掉路由拼错
+
+系统设置页新增「渠道自检」：选渠道 → 发送测试消息 → 按真实结果显示成功/失败原因。
+
+### 踩到的真实问题：路由被拼错
+
+`/admin/v1/notifications/test-send` 404 —— 因为该方法写在会员控制器里，
+类上有 `@RequestMapping("/api/v1/notifications")`，实际路径变成
+`/api/v1/notifications/admin/v1/notifications/test-send`。
+
+修复：拆出独立的 `NotificationAdminController`（`@RequestMapping("/admin/v1/notifications")`），
+`test-send` 与 `retry` 都迁过去。
+
+| 验证 | 结果 |
+|---|---|
+| **E2E** | ✅ 设置页 → 发送测试消息 → 显示"渠道可用：测试消息已发送"（2.9s） |
+| 后端测试 | **446 个全绿** |
+| 接口对齐 | 211 路由 / 24 调用 / 0 未匹配 |
+
+> 教训：**同一个 Controller 里混用两套前缀会拼接**，不要靠想象路径，跑一次就知道。
+

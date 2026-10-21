@@ -105,7 +105,7 @@
 | G1 | `/open/v1` 统一 API 契约（结算/退货/待办） | ⚠️ | `DEVELOPMENT_PLAN_V3` B1 标注"仍缺" |
 | G2 | 供应商待办中心（拉取 + WSS + seq/ack） | ⬜ | `DEVELOPMENT_PLAN_V3` B4 |
 | G3 | 供应商结算 | ⚠️ | 计算 + 退货扣减 + 后台结算弹窗（**E2E 已验证生成与显示**）；对账文件导出仍未做 |
-| G4 | 供应商结算 CSV 导出 | ✅ | `GET /open/v1/settlements.csv`（HMAC 签名）E2E 验证：200 + Content-Disposition + 非空内容 |
+| G4 | 供应商 CSV | ✅ | 导出 `GET /open/v1/settlements.csv`；导入 `POST /open/v1/inventory/feed.csv`（复用解析器与校验）；均 E2E 验证；行级错误返回 400 带明细 |
 | G5 | 供应商 Webhook 推送与重试 | ⬜ | 设计有，代码无 |
 | G6 | 供应商退货对账 | ⬜ | 无 |
 

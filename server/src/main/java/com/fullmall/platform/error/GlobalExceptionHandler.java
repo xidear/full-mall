@@ -88,6 +88,18 @@ public class GlobalExceptionHandler {
                 requestId(request), List.of()));
     }
 
+    /** CSV 导入的行级校验失败 → **400**，并把每行问题带回。 */
+    @ExceptionHandler(com.fullmall.platform.importing.CsvImportException.class)
+    public ResponseEntity<ErrorResponse> onCsvImport(
+            com.fullmall.platform.importing.CsvImportException error,
+            HttpServletRequest request) {
+        List<String> details = error.errors().stream()
+                .map(row -> "第 " + row.rowNumber() + " 行/" + row.field() + "：" + row.reason())
+                .toList();
+        return ResponseEntity.badRequest().body(new ErrorResponse(
+                "CSV_IMPORT_INVALID", error.getMessage(), requestId(request), details));
+    }
+
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ErrorResponse> handleUnexpected(Exception exception, HttpServletRequest request) {
         String requestId = requestId(request);

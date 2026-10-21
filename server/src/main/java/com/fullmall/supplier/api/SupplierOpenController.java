@@ -23,15 +23,18 @@ public class SupplierOpenController {
     private final com.fullmall.supplier.app.SupplierReturnService supplierReturnService;
     private final com.fullmall.supplier.app.SupplierSettlementService settlementService;
     private final com.fullmall.supplier.app.SupplierSettlementCsvService settlementCsvService;
+    private final com.fullmall.supplier.app.SupplierStockFeedCsvParser stockFeedCsvParser;
 
     public SupplierOpenController(SupplierService supplierService,
                                   com.fullmall.supplier.app.SupplierSettlementService settlementService,
                                   com.fullmall.supplier.app.SupplierSettlementCsvService settlementCsvService,
-                                  com.fullmall.supplier.app.SupplierReturnService supplierReturnService) {
+                                  com.fullmall.supplier.app.SupplierReturnService supplierReturnService,
+                                  com.fullmall.supplier.app.SupplierStockFeedCsvParser stockFeedCsvParser) {
         this.supplierService = supplierService;
         this.settlementService = settlementService;
         this.settlementCsvService = settlementCsvService;
         this.supplierReturnService = supplierReturnService;
+        this.stockFeedCsvParser = stockFeedCsvParser;
     }
 
     @GetMapping(value = "/settlements.csv", produces = "text/csv;charset=UTF-8")
@@ -123,6 +126,26 @@ public class SupplierOpenController {
             @PathVariable UUID fulfillmentId,
             @Valid @RequestBody SupplierRejectRequest request) {
         return supplierService.reject(supplierId, fulfillmentId, request);
+    }
+
+    /**
+     * CSV 批量导入库存与价格（供应商后台/脚本用）。
+     *
+     * <p>复用同一套校验与落库：CSV 先由 `SupplierStockFeedCsvParser` 解析成行，
+     * 再走 `updateStock`，避免"CSV 通道"绕过校验。
+     */
+    @PostMapping(value = "/inventory/feed.csv", consumes = "text/csv")
+    public SupplierStockFeedResult inventoryFeedCsv(
+            @RequestAttribute(SupplierHmacFilter.SUPPLIER_ID_ATTRIBUTE) UUID supplierId,
+            @RequestBody String csv) {
+        var rows = stockFeedCsvParser.parse(csv);
+        java.util.List<SupplierStockFeedRequest.Item> items = rows.stream()
+                .map(row -> new SupplierStockFeedRequest.Item(
+                        row.supplierSkuCode(), row.availableQuantity(),
+                        row.priceAmount(), row.priceCurrency()))
+                .toList();
+        var request = new SupplierStockFeedRequest(items);
+        return supplierService.updateStock(supplierId, request);
     }
 
     @PostMapping("/inventory/feed")

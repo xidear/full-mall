@@ -17,6 +17,8 @@ import java.util.Set;
  * "同义词/换句话问"的问题。生产必须换 pgvector 实现，这一点写在文档里，不假装等价。
  */
 @Component
+@org.springframework.boot.autoconfigure.condition.ConditionalOnProperty(
+        name = "app.ai.mode", havingValue = "demo", matchIfMissing = true)
 public class InMemoryKnowledgeStore implements KnowledgeStore {
 
     private final Map<String, List<KnowledgeChunk>> bySource = new LinkedHashMap<>();

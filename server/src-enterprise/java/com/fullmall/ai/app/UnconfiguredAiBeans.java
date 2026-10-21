@@ -39,6 +39,14 @@ public class UnconfiguredAiBeans {
         };
     }
 
+    /** 生产模式才有嵌入客户端；调用失败会抛错，不返回零向量。 */
+    @Bean
+    @org.springframework.boot.autoconfigure.condition.ConditionalOnProperty(
+            name = "app.ai.mode", havingValue = "prod")
+    EmbeddingClient embeddingClient(com.fullmall.ai.config.AiProperties properties) {
+        return new EmbeddingClient(properties);
+    }
+
     @Bean
     ChatModel chatModel() {
         return new ChatModel() {

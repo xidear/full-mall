@@ -23,15 +23,18 @@ public class AdminAiController {
     private final com.fullmall.ai.app.AnswerService answerService;
     private final com.fullmall.ai.app.DocumentIngestionService ingestion;
     private final com.fullmall.ai.app.KnowledgeStore knowledgeStore;
+    private final com.fullmall.ai.app.ProductKnowledgeSyncService productSync;
 
     public AdminAiController(AiProperties properties,
                              com.fullmall.ai.app.AnswerService answerService,
                              com.fullmall.ai.app.DocumentIngestionService ingestion,
-                             com.fullmall.ai.app.KnowledgeStore knowledgeStore) {
+                             com.fullmall.ai.app.KnowledgeStore knowledgeStore,
+                             com.fullmall.ai.app.ProductKnowledgeSyncService productSync) {
         this.properties = properties;
         this.answerService = answerService;
         this.ingestion = ingestion;
         this.knowledgeStore = knowledgeStore;
+        this.productSync = productSync;
     }
 
     public record AskRequest(String question) {
@@ -80,6 +83,22 @@ public class AdminAiController {
                 "type", result.detectedType(),
                 "chunks", result.chunks(),
                 "chars", result.chars(),
+                "totalChunks", knowledgeStore.size()));
+    }
+
+    /** 商品知识同步：改价/改描述后调用，立即重建该 SKU 的知识块。 */
+    @org.springframework.web.bind.annotation.PostMapping("/knowledge/sync")
+    public ResponseEntity<Map<String, Object>> syncProduct(
+            @org.springframework.web.bind.annotation.RequestParam java.util.UUID skuId) {
+        ResponseEntity<Map<String, Object>> notReady = readiness();
+        if (notReady != null) {
+            return notReady;
+        }
+        var result = productSync.sync(skuId);
+        return ResponseEntity.ok(Map.of(
+                "skuId", result.skuId(),
+                "title", result.title(),
+                "chunks", result.chunks(),
                 "totalChunks", knowledgeStore.size()));
     }
 

@@ -41,7 +41,7 @@ public class LineRefundService {
     public List<LineInfo> lines(UUID orderId) {
         return jdbcTemplate.query("""
                 SELECT id, sku_id, quantity, unit_price_amount, currency
-                  FROM order_line WHERE order_id = ? ORDER BY id
+                  FROM order_line WHERE order_id = ? ORDER BY created_at, id
                 """, (rs, rowNum) -> new LineInfo(
                 rs.getObject("id", UUID.class), rs.getObject("sku_id", UUID.class),
                 rs.getInt("quantity"), rs.getLong("unit_price_amount"), rs.getString("currency")),

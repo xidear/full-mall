@@ -41,6 +41,19 @@ const loading = ref(false)
 const error = ref('')
 const success = ref('')
 const orders = ref<SupplierOrder[]>([])
+// 供应商售后（商城 → 供应商）：只能接受或拒绝，结算由平台处理
+interface SupplierReturn {
+  id: string
+  orderId: string
+  reason: string
+  amount: number
+  currency: string
+  status: 'REQUESTED' | 'ACCEPTED' | 'REJECTED' | 'SETTLED'
+  note: string | null
+  createdAt: string
+}
+const supplierReturns = ref<SupplierReturn[]>([])
+const returnBusyId = ref('')
 const statusFilter = ref('ALLOCATED')
 const feedRows = reactive<FeedRow[]>([
   { supplierSkuCode: 'SUP-DROPSHIP-001', availableQuantity: 100, priceAmount: 35 }
@@ -64,6 +77,7 @@ onMounted(async () => {
 
 watch(statusFilter, () => {
   void loadOrders()
+  void loadReturns()
 })
 
 async function connect() {
@@ -100,6 +114,34 @@ async function loadOrders() {
     error.value = messageOf(cause)
   } finally {
     loading.value = false
+  }
+}
+
+async function loadReturns() {
+  if (!connected.value) return
+  try {
+    const response = await signedRequest<{ items: SupplierReturn[] }>('GET', '/open/v1/returns')
+    supplierReturns.value = response.items
+  } catch (cause) {
+    error.value = messageOf(cause)
+  }
+}
+
+async function decideReturn(item: SupplierReturn, status: 'ACCEPTED' | 'REJECTED') {
+  if (returnBusyId.value) return
+  returnBusyId.value = item.id
+  error.value = ''
+  success.value = ''
+  try {
+    await signedRequest('POST', `/open/v1/returns/${item.id}/decision`, {
+      status, note: status === 'ACCEPTED' ? '供应商同意退货折让' : '供应商拒绝，请平台复核'
+    })
+    success.value = status === 'ACCEPTED' ? '已同意退货' : '已拒绝退货'
+    await loadReturns()
+  } catch (cause) {
+    error.value = messageOf(cause)
+  } finally {
+    returnBusyId.value = ''
   }
 }
 
@@ -395,6 +437,30 @@ function disconnect() {
         </section>
 
         <section class="panel">
+            <div class="panel-head">
+              <h2>退货与折让</h2>
+              <button type="button" class="ghost" @click="loadReturns">刷新</button>
+            </div>
+            <p class="muted">平台发起的退货/折让请求。你只能同意或拒绝；金额结算由平台处理。</p>
+            <p v-if="!supplierReturns.length" class="muted">暂无退货单。</p>
+            <ul v-else class="return-list">
+              <li v-for="item in supplierReturns" :key="item.id">
+                <div class="return-main">
+                  <strong>{{ item.reason }}</strong>
+                  <span class="muted">订单 {{ item.orderId.slice(0, 8) }} · {{ item.amount / 100 }} {{ item.currency }}
+                    · {{ item.status }}</span>
+                </div>
+                <div class="return-actions" v-if="item.status === 'REQUESTED'">
+                  <button type="button" :disabled="returnBusyId === item.id"
+                          @click="decideReturn(item, 'ACCEPTED')">同意</button>
+                  <button type="button" class="danger" :disabled="returnBusyId === item.id"
+                          @click="decideReturn(item, 'REJECTED')">拒绝</button>
+                </div>
+              </li>
+            </ul>
+          </section>
+
+          <section class="panel">
           <div class="panel-head">
             <div>
               <h2>库存与价格同步</h2>
@@ -725,4 +791,13 @@ select {
   font-size: 13px;
   line-height: 1.8;
 }
+
+.return-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+.return-list li {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  padding: 10px 12px; border: 1px solid rgba(148, 163, 184, 0.35); border-radius: 8px;
+}
+.return-main { display: grid; gap: 2px; }
+.return-actions { display: flex; gap: 8px; }
+.return-actions .danger { border-color: #ef4444; color: #ef4444; }
 </style>

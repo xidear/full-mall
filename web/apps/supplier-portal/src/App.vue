@@ -95,6 +95,8 @@ async function connect() {
     connected.value = true
     success.value = `已连接：${ping.supplierName}`
     await loadOrders()
+    // 连接后同时加载退货单，否则面板一直是"暂无"
+    await loadReturns()
   } catch (cause) {
     connected.value = false
     error.value = messageOf(cause)

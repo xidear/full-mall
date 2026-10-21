@@ -137,7 +137,7 @@
 | I3 | 后台敏感配置脱敏（AK 回显 `******`） | ✅ | 已实现并有测试 |
 | I4 | 生产/演示隔离（mock 不进 prod） | ✅ | 就绪检查 + 运行时拒绝；启动不阻断 |
 | I5 | 字段级权限（供应商只看自己字段） | ⬜ | `AGENTS.md` 说"ERP 明确需要时再做" |
-| I6 | 操作审计查询 | ✅ | `GET /admin/v1/audit/events?eventType&actor&from&to&page&size`（`audit_event` 表，16 处写入点；有测试）；后台页面未做 |
+| I6 | 操作审计查询 | ✅ | 接口 + **后台「操作审计」页面**（类型/操作人/时间范围/分页），E2E 已验证打开与筛选 |
 | I6b | JaVers 变更快照查询 | ⚠️ | `GET /admin/v1/audit/history`（注册制白名单）；全仓仅 1 个 JPA 实体，价值有限 |
 | I9 | 操作审计覆盖面 | ✅ | 新增 `PAYMENT_SUCCEEDED`/`PAYMENT_REFUNDED`/`COUPON_REDEEMED`/`ORDER_CANCELLED_BY_SYSTEM`/`ORDER_REFUND_REQUESTED`；累计 21 处写入（券核销有断言测试，订单取消仅代码接入） |
 | I7 | 个税/发票（佣金、提现合规） | ⬜ | 未涉及 |

@@ -48,6 +48,7 @@ const allMenus = [
   { path: '/promotions', label: '促销管理', roles: ['ADMIN', 'OPERATOR'] },
   { path: '/coupons', label: '优惠券', roles: ['ADMIN', 'OPERATOR'] },
   { path: '/reviews', label: '评价审核', roles: ['ADMIN', 'OPERATOR'] },
+  { path: '/audit', label: '操作审计', roles: ['ADMIN'] },
   { path: '/pos', label: '门店收银', roles: ['ADMIN', 'OPERATOR'] },
   { path: '/pos-members', label: '会员与优惠券', roles: ['ADMIN', 'OPERATOR'] },
   { path: '/suppliers', label: '供应商', roles: ['ADMIN', 'OPERATOR'] },

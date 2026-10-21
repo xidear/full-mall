@@ -5477,3 +5477,23 @@ RAG 改库即生效、能回溯、无命中就说不知道。训练留给"风格
 3. 收货确认时：写 `inventory_batch(unit_cost_amount)` + 调 `SkuCostService.receive`
 4. 退货入库按原批次成本回冲
 
+---
+
+## 2026-10-19：采购单 + 收货 → 成本自动产生（G7 第一步）
+
+| 组件 | 内容 |
+|---|---|
+| V80 | `purchase_order` / `purchase_order_line`（数量、单价、已收数量） |
+| `PurchaseService.create` | 下单（数量 >0、单价 ≥0 校验） |
+| `PurchaseService.receive` | **收货即写成本**（调用 `SkuCostService.receive`），状态 PLACED→RECEIVED；重复收货被拒 |
+| 接口 | `POST /admin/v1/purchases`、`POST /admin/v1/purchases/{id}/receive` |
+
+| 验证 | 结果 |
+|---|---|
+| 后端全量 | ✅ **484 个全绿** |
+| 用例 | 10@8 元 + 10@12 元 → 均价 10 元、金额 200 元；重复收货被拒 |
+| 接口对齐 | 218 路由 / 24 调用 / 0 未匹配 |
+
+> 仍缺（G7 ⚠️）：收货时**写 `inventory_batch`**（需要仓库/库位/效期），以及退货按原批次回冲。
+> 目前成本已能自动产生，但库存批次账与成本账尚未合并——分两步走，避免一次改太多。
+

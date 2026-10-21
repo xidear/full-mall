@@ -19,7 +19,7 @@
 | A10 | 时间存储与生成时区 | ✅ | 库里时间列均为 `TIMESTAMPTZ`；订单号改用显式时区（`app.timezone`，默认服务器时区），不再隐式依赖 TZ |
 | A9 | 按行退款数量累计 | ✅ | V67 数量可空；金额分摊写 NULL，整件才写数量（有两条测试）；不再撞"数量超限" |
 | A5 | 支付配置版本切换时的在途订单路由 | ⚠️ | `payment.config_version_id` 已存，但退款时未按版本取配置 |
-| A6 | 部分退款佣金回冲 | ✅ | DEFER 口径：开单冻结（按退款占比）→ 售后关闭；退货完成回冲 `reversed_amount`，驳回/换货解冻不扣（有测试） |
+| A6 | 部分退款佣金回冲 | ✅ | DEFER 口径：开单冻结（按退款占比）→ 售后关闭；退货完成回冲 `reversed_amount`，驳回/换货解冻不扣（单测 + **E2E 端到端**） |
 | A7 | 退款按行分摊落库 | ✅ | `PaymentService.refund` 默认落行分摊（售后走 `recordForAfterSale`，传 false 防重复）；`allocate` 是纯计算器、`allocateAndRecord` 才写库（有测试） |
 | A8 | 结算价/成本快照（毛利分佣所需） | ⬜ | `order_line` 无成本字段 → 阻塞分销 `PROFIT` 模式 |
 

@@ -131,7 +131,8 @@ public class DistributionRepository {
         List<Object> args = new java.util.ArrayList<>();
         StringBuilder sql = new StringBuilder("""
                 SELECT c.id, c.order_id, o.order_no, c.promoter_staff_id, u.display_name AS promoter_name,
-                       c.order_amount, c.commission_amount, c.currency, c.status, c.created_at, c.settled_at
+                       c.order_amount, c.commission_amount, c.currency, c.status, c.created_at, c.settled_at,
+                       c.reversed_amount, c.hold_amount
                 FROM distribution_commission c
                 JOIN orders o ON o.id = c.order_id
                 LEFT JOIN staff_user u ON u.id = c.promoter_staff_id
@@ -151,7 +152,9 @@ public class DistributionRepository {
                 new Money(rs.getLong("order_amount"), rs.getString("currency")),
                 new Money(rs.getLong("commission_amount"), rs.getString("currency")),
                 rs.getString("status"), rs.getTimestamp("created_at").toInstant(),
-                rs.getTimestamp("settled_at") == null ? null : rs.getTimestamp("settled_at").toInstant()),
+                rs.getTimestamp("settled_at") == null ? null : rs.getTimestamp("settled_at").toInstant(),
+                new Money(rs.getLong("reversed_amount"), rs.getString("currency")),
+                new Money(rs.getLong("hold_amount"), rs.getString("currency"))),
                 args.toArray());
     }
 

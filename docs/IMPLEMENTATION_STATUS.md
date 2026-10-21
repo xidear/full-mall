@@ -4808,3 +4808,28 @@ Spring 静默忽略**，接口照常执行**真实删除**。
 | 后端测试 | **442 个，全部通过** |
 | 用例 | 1000 佣金/订单 10000 退 4000 → 冻结 400；关闭退货 → `reversed_amount=400`、hold 清空；驳回 → hold 清空且金额不变 |
 
+---
+
+## 2026-10-19：佣金冻结/回冲端到端验证
+
+`commission-hold.spec.ts`（真实接口链路）：
+
+```
+带推广人下单(2 件) → 支付 → 佣金已生成(hold=0)
+→ 顾客申请 1 件退货 → holdAmount > 0（冻结生效）
+→ 运营 审核→收货→退款 → reversedAmount > 0 且 holdAmount = 0
+```
+
+配套：`GET /admin/v1/distribution/commissions` 新增 `reversedAmount` / `holdAmount` 两个字段
+（运营也需要看到"被冻结/已回冲"多少）。
+
+| 验证 | 结果 |
+|---|---|
+| E2E | ✅ 通过（1.7s） |
+| 后端测试 | 442 个（上轮已验证） |
+
+### 本轮踩坑
+
+打包时**替换了正在运行的 jar**，导致运行中进程 `ClassNotFoundException: ThrowableProxy`。
+规则补充：**先停服务再打包**（或打包到临时文件再替换），否则会出现难以理解的运行时错误。
+

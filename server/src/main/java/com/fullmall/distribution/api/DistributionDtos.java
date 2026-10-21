@@ -28,7 +28,11 @@ public final class DistributionDtos {
 
     public record CommissionView(
             UUID id, UUID orderId, String orderNo, UUID promoterId, String promoterName,
-            Money orderAmount, Money commission, String status, Instant createdAt, Instant settledAt
+            Money orderAmount, Money commission, String status, Instant createdAt, Instant settledAt,
+            /** 已回冲金额（售后退货完成后累加）。 */
+            Money reversedAmount,
+            /** 售后冻结中金额（>0 表示售后未关闭，不可提现）。 */
+            Money holdAmount
     ) {
     }
 }

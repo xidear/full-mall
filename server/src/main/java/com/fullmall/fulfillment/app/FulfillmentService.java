@@ -309,6 +309,11 @@ public class FulfillmentService {
             throw ApiException.conflict("PICK_LINE_ALREADY_CONFIRMED",
                     "Pick line already confirmed: " + line.id());
         }
+        // 回写实际批次到订单行：售后退货要按原批次成本回冲（多行合并时该列为空，会在日志里体现）
+        if (!repository.recordOrderLineBatch(line.id(), batchId)) {
+            org.slf4j.LoggerFactory.getLogger(FulfillmentService.class)
+                    .info("拣货行未回写订单行批次（多行合并或无来源订单行）：pickLine={}", line.id());
+        }
 
         if (repository.countUnpicked(taskId) == 0) {
             repository.updatePickTaskStatus(taskId, "PICKED");

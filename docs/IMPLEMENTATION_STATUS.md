@@ -5640,3 +5640,22 @@ V82：`pick_task_line.order_line_id`（可空）。
 
 > 仍缺（H21 ⚠️）：拣货**确认**时调用 `recordLineBatch`；以及"多行合并"场景的拆分辨率方案。
 
+---
+
+## 2026-10-19：拣货确认回写订单行批次（H21）
+
+`confirmPick` 成功后调用 `recordOrderLineBatch(pickLineId, batchId)`：
+
+| 规则 | 说明 |
+|---|---|
+| 写入条件 | `pick_task_line.order_line_id` 存在（唯一来源）且 `order_line.batch_id IS NULL` |
+| 失败处理 | 不阻断拣货（拣货是主业务），记录 INFO：多行合并或无来源订单行 |
+| 价值 | 售后退货可拿到**原批次**，按原成本回冲 |
+
+| 验证 | 结果 |
+|---|---|
+| 后端全量 | ✅ **489 个全绿**（自提/拣货流程未受影响） |
+
+> 仍缺：多行合并（付费行+赠品行）场景需要 `pick_line_order_line` 映射表按数量分摊；
+> 当前这类行的 `batch_id` 为空，退货回冲需人工指定批次（已在台账标注）。
+

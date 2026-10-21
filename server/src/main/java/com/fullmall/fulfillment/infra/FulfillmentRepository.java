@@ -216,6 +216,20 @@ public class FulfillmentRepository {
                 rs.getObject("order_line_id", UUID.class)), taskId);
     }
 
+    /**
+     * 拣货确认时把**实际批次**回写到订单行（只写一次）。
+     *
+     * <p>售后按原批次成本回冲依赖它；写入失败不得影响拣货本身，但必须返回 false 让调用方记录。
+     */
+    public boolean recordOrderLineBatch(UUID pickLineId, UUID batchId) {
+        return jdbcTemplate.update("""
+                UPDATE order_line ol
+                   SET batch_id = ?
+                  FROM pick_task_line ptl
+                 WHERE ptl.id = ? AND ptl.order_line_id = ol.id AND ol.batch_id IS NULL
+                """, batchId, pickLineId) == 1;
+    }
+
     public boolean markPickLinePicked(UUID lineId, int quantity) {
         int updated = jdbcTemplate.update("""
                 UPDATE pick_task_line

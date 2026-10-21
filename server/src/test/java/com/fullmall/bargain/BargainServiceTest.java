@@ -116,4 +116,28 @@ class BargainServiceTest {
         assertThatThrownBy(() -> bargain.start(activityId, owner))
                 .hasMessageContaining("只能发起一次");
     }
+
+    /** 只有 READY 可下单，且只能绑一次订单。 */
+    @Test
+    void onlyReadySessionCanBeOrderedOnce() {
+        UUID activityId = activity(1_000, 400, 3);
+        UUID owner = member("13900004001");
+        var session = bargain.start(activityId, owner);
+
+        assertThatThrownBy(() -> bargain.markOrdered(session.id(), UUID.randomUUID()))
+                .hasMessageContaining("只有人数已够");
+
+        bargain.help(session.id(), member("13900004002"));
+        bargain.help(session.id(), member("13900004003"));
+        bargain.help(session.id(), member("13900004004"));
+
+        UUID orderId = UUID.randomUUID();
+        var ordered = bargain.markOrdered(session.id(), orderId);
+        assertThat(ordered.status()).isEqualTo("ORDERED");
+        assertThat(jdbc.queryForObject("SELECT order_id FROM bargain_session WHERE id = ?",
+                UUID.class, session.id())).isEqualTo(orderId);
+
+        assertThatThrownBy(() -> bargain.markOrdered(session.id(), UUID.randomUUID()))
+                .hasMessageContaining("不能重复下单");
+    }
 }

@@ -117,6 +117,25 @@ public class BargainService {
         return find(sessionId);
     }
 
+    /**
+     * 场次绑定订单：只有 `READY`（人数已够）的场次可以下单，且只能绑定一次。
+     *
+     * <p>这里不改库存：下单走正常订单流程预占，未支付由**订单超时任务**释放
+     * （用户口径：达成后未支付不立即释放，等超时）。
+     */
+    @Transactional
+    public Session markOrdered(UUID sessionId, UUID orderId) {
+        int updated = jdbc.update("""
+                UPDATE bargain_session SET status = 'ORDERED', order_id = ?
+                 WHERE id = ? AND status = 'READY'
+                """, orderId, sessionId);
+        if (updated != 1) {
+            throw ApiException.conflict("BARGAIN_NOT_ORDERABLE",
+                    "只有人数已够（READY）的砍价场次可以下单，且不能重复下单：" + sessionId);
+        }
+        return find(sessionId);
+    }
+
     public Session find(UUID sessionId) {
         var rows = jdbc.query("""
                 SELECT bs.id, bs.activity_id, bs.member_id, bs.current_price, bs.helper_count,

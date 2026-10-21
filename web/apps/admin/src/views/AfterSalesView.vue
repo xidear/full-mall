@@ -15,6 +15,15 @@ const afterSales = ref<AfterSaleView[]>([])
 const page = ref(0)
 const size = ref(20)
 const total = ref(0)
+const sortKey = ref('createdAt')
+const sortDirection = ref<'asc' | 'desc'>('desc')
+
+function onSortChange(payload: { prop: string | null; order: 'ascending' | 'descending' | null }) {
+  sortKey.value = payload.prop ?? 'createdAt'
+  sortDirection.value = payload.order === 'ascending' ? 'asc' : 'desc'
+  page.value = 0
+  load()
+}
 
 function reloadFromFirstPage() {
   page.value = 0
@@ -66,7 +75,8 @@ async function load() {
   try {
     const response = await api.get<{ items: AfterSaleView[]; total: number }>(
       '/admin/v1/after-sales',
-      { status: statusFilter.value || undefined, page: page.value, size: size.value })
+      { status: statusFilter.value || undefined, page: page.value, size: size.value,
+        sort: sortKey.value, direction: sortDirection.value })
     afterSales.value = response.items
     total.value = response.total
   } catch (cause) {
@@ -191,7 +201,7 @@ function money(value?: { amount: number; currency: string }) {
         </div>
       </div>
 
-      <el-table :data="afterSales" empty-text="暂无售后单">
+      <el-table :data="afterSales" @sort-change="onSortChange" empty-text="暂无售后单">
         <el-table-column prop="afterSaleNo" label="售后单号" min-width="180" />
         <el-table-column prop="orderNo" label="订单号" min-width="170" />
         <el-table-column label="类型" width="110">
@@ -204,11 +214,11 @@ function money(value?: { amount: number; currency: string }) {
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="退款金额" width="120">
+        <el-table-column label="退款金额" sortable="custom" prop="refundAmount" width="120">
           <template #default="{ row }">{{ money(row.refundAmount) }}</template>
         </el-table-column>
         <el-table-column prop="reason" label="原因" min-width="160" />
-        <el-table-column label="申请时间" width="180">
+        <el-table-column label="申请时间" sortable="custom" prop="createdAt" width="180">
           <template #default="{ row }">{{ formatDateTime(row.createdAt) }}</template>
         </el-table-column>
         <el-table-column label="操作" width="280">

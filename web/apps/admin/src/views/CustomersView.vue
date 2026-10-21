@@ -17,6 +17,15 @@ const error = ref('')
 const page = ref(0)
 const size = ref(20)
 const total = ref(0)
+const sortKey = ref('lastOrderAt')
+const sortDirection = ref<'asc' | 'desc'>('desc')
+
+function onSortChange(payload: { prop: string | null; order: 'ascending' | 'descending' | null }) {
+  sortKey.value = payload.prop ?? 'lastOrderAt'
+  sortDirection.value = payload.order === 'ascending' ? 'asc' : 'desc'
+  page.value = 0
+  load()
+}
 
 interface Page<T> { items: T[]; page: number; size: number; total: number }
 
@@ -32,7 +41,7 @@ async function load() {
   error.value = ''
   try {
     const response = await api.get<Page<Customer>>('/admin/v1/customers',
-      { page: page.value, size: size.value })
+      { page: page.value, size: size.value, sort: sortKey.value, direction: sortDirection.value })
     customers.value = response.items
     total.value = response.total
   } catch (cause) {
@@ -57,10 +66,10 @@ function money(value: Customer['totalSpent']) {
       <el-button @click="load">刷新</el-button>
     </div>
     <el-alert v-if="error" :title="error" type="error" show-icon :closable="false" class="mb-16" />
-    <el-table :data="customers" stripe>
+    <el-table :data="customers" @sort-change="onSortChange" stripe>
       <el-table-column prop="name" label="客户" width="140" />
       <el-table-column prop="phone" label="手机号" width="150" />
-      <el-table-column prop="orderCount" label="订单数" width="100" />
+      <el-table-column prop="orderCount" sortable="custom" label="订单数" width="100" />
       <el-table-column label="累计消费" width="140">
         <template #default="{ row }">{{ money(row.totalSpent) }}</template>
       </el-table-column>

@@ -97,7 +97,22 @@ public class AfterSaleRepository {
     }
 
     /** 分页列表（offset 由 page × size 计算）。 */
+    /** 排序白名单：默认按申请时间倒序。 */
+    private static String afterSaleOrderBy(String sort, String direction) {
+        String column = switch (sort == null ? "" : sort.trim()) {
+            case "refundAmount" -> "a.refund_amount";
+            case "status" -> "a.status";
+            default -> "a.created_at";
+        };
+        String dir = "asc".equalsIgnoreCase(direction == null ? "" : direction.trim()) ? "ASC" : "DESC";
+        return column + " " + dir;
+    }
+
     public List<AfterSaleView> list(String status, int page, int size) {
+        return list(status, page, size, null, null);
+    }
+
+    public List<AfterSaleView> list(String status, int page, int size, String sort, String direction) {
         String filter = status == null ? "" : status.trim().toUpperCase();
         return jdbcTemplate.query("""
                 SELECT a.id, a.after_sale_no, a.order_id, o.order_no, a.type, a.status, a.reason,
@@ -106,7 +121,9 @@ public class AfterSaleRepository {
                        a.exchange_carrier_code, a.exchange_tracking_no, a.exchange_shipped_at
                 FROM after_sale a JOIN orders o ON o.id = a.order_id
                 WHERE (? = '' OR a.status = ?)
-                ORDER BY a.created_at DESC LIMIT ? OFFSET ?
+                ORDER BY
+                """ + afterSaleOrderBy(sort, direction) + """
+                 LIMIT ? OFFSET ?
                 """, (rs, rowNum) -> withChildren(map(rs)), filter, filter, size,
                 Math.max(page, 0) * Math.max(size, 1));
     }

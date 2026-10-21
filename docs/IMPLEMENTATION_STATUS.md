@@ -4996,3 +4996,19 @@ Spring 静默忽略**，接口照常执行**真实删除**。
 > 诚实说明：回填用订单时间近似（同批写入，误差可忽略但确实不是行精确时间）。
 > 今后新写入的行才有精确 `now()`。
 
+---
+
+## 2026-10-19：客户与售后列表排序（H7 部分）
+
+- `GET /admin/v1/customers?sort&direction`：白名单 `lastOrderAt`（默认）/ `orderCount` / `totalSpent`；
+- `GET /admin/v1/after-sales?sort&direction`：白名单 `createdAt`（默认）/ `refundAmount` / `status`；
+- 前端两页加 `sortable="custom"` + `@sort-change`，筛选变更重置页码。
+
+| 验证 | 结果 |
+|---|---|
+| 后端测试 | **448 个，全部通过** |
+| 新增用例 | 金额排序生效；**未知字段/`DROP TABLE` 片段安全回落且数据完好**；售后排序契约可用 |
+| 接口对齐 | 211 路由 / 24 调用 / 0 未匹配 |
+
+> 又踩一次"SQL 拼接处 `DESC` 与 `LIMIT` 粘连"（与第 143 轮同一坑）。已在坑清单记为固定检查项。
+

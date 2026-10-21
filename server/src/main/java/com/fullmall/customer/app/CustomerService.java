@@ -23,7 +23,22 @@ public class CustomerService {
      * <p>返回统一契约 `{items, page, size, total}`，与后台其它列表一致，
      * 便于前端套用同一套分页组件。
      */
+    /** 排序白名单：只接受已知列，方向仅 asc/desc，未知字段回落最近下单时间。 */
+    private static String orderByOf(String sort, String direction) {
+        String column = switch (sort == null ? "" : sort.trim()) {
+            case "orderCount" -> "order_count";
+            case "totalSpent" -> "total_spent";
+            default -> "last_order_at";
+        };
+        String dir = "asc".equalsIgnoreCase(direction == null ? "" : direction.trim()) ? "ASC" : "DESC";
+        return column + " " + dir;
+    }
+
     public Map<String, Object> list(int page, int size) {
+        return list(page, size, "lastOrderAt", "desc");
+    }
+
+    public Map<String, Object> list(int page, int size, String sort, String direction) {
         int safeSize = Math.min(Math.max(size, 1), 100);
         int safePage = Math.max(page, 0);
 
@@ -34,8 +49,9 @@ public class CustomerService {
                        COALESCE(SUM(total_amount), 0) AS total_spent, MAX(created_at) AS last_order_at
                 FROM orders
                 GROUP BY contact_phone
-                ORDER BY last_order_at DESC
-                LIMIT ? OFFSET ?
+                ORDER BY
+                """ + orderByOf(sort, direction) + """
+                 LIMIT ? OFFSET ?
                 """, (rs, rowNum) -> new CustomerSummary(
                 rs.getString("contact_phone"),
                 rs.getString("contact_name"),

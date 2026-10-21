@@ -123,9 +123,14 @@ public class AfterSaleService {
 
     /** 分页列表（统一契约 items/total/page/size）。 */
     public java.util.Map<String, Object> list(String status, int page, int size) {
+        return list(status, page, size, null, null);
+    }
+
+    public java.util.Map<String, Object> list(String status, int page, int size,
+                                              String sort, String direction) {
         int safeSize = Math.min(Math.max(size, 1), 100);
         int safePage = Math.max(page, 0);
-        List<AfterSaleView> items = repository.list(status, safePage, safeSize);
+        List<AfterSaleView> items = repository.list(status, safePage, safeSize, sort, direction);
         long total = repository.countByStatus(status);
         return java.util.Map.of("items", items, "page", safePage, "size", safeSize, "total", total);
     }

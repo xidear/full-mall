@@ -30,8 +30,10 @@ public class AdminAfterSaleController {
     @GetMapping
     public java.util.Map<String, Object> list(@RequestParam(required = false) String status,
                                              @RequestParam(defaultValue = "0") int page,
-                                             @RequestParam(defaultValue = "20") int size) {
-        return afterSaleService.list(status, page, size);
+                                             @RequestParam(defaultValue = "20") int size,
+                                             @RequestParam(required = false) String sort,
+                                             @RequestParam(required = false) String direction) {
+        return afterSaleService.list(status, page, size, sort, direction);
     }
 
     @PostMapping("/{afterSaleId}/approve")

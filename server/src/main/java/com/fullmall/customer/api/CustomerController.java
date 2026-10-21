@@ -20,7 +20,9 @@ public class CustomerController {
 
     @GetMapping
     public java.util.Map<String, Object> list(@RequestParam(defaultValue = "0") int page,
-                                              @RequestParam(defaultValue = "20") int size) {
-        return customerService.list(page, size);
+                                              @RequestParam(defaultValue = "20") int size,
+                                              @RequestParam(required = false) String sort,
+                                              @RequestParam(required = false) String direction) {
+        return customerService.list(page, size, sort, direction);
     }
 }

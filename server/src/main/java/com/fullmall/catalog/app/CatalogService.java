@@ -79,6 +79,32 @@ public class CatalogService {
         return sku;
     }
 
+    /**
+     * 维护 SKU 成本。
+     *
+     * <p>成本是敏感数据（毛利、佣金、砍价底价都依赖它），只允许 ADMIN 调用；
+     * 传 null 表示清除（回到"未维护"），此时依赖成本的功能必须明确拒绝。
+     */
+    @Transactional
+    public void updateCost(UUID skuId, Long costAmount) {
+        if (costAmount != null && costAmount < 0) {
+            throw ApiException.badRequest("SKU_COST_INVALID", "成本不能为负数：" + costAmount);
+        }
+        int updated = repository.updateCost(skuId, costAmount);
+        if (updated != 1) {
+            throw ApiException.notFound("SKU_NOT_FOUND", "SKU 不存在：" + skuId);
+        }
+    }
+
+    /** 读取成本（未维护返回 null，**不返回 0**）。 */
+    public Long cost(UUID skuId) {
+        Long cost = repository.findCost(skuId);
+        if (cost == null && repository.findSku(skuId) == null) {
+            throw ApiException.notFound("SKU_NOT_FOUND", "SKU 不存在：" + skuId);
+        }
+        return cost;
+    }
+
     @Transactional
     public Product createProduct(ProductUpsertRequest request) {
         UUID productId = Ids.newId();

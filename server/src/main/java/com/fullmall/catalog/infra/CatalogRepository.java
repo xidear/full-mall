@@ -263,4 +263,15 @@ public class CatalogRepository {
             throw new IllegalStateException("Failed to parse shelf life policy JSON", exception);
         }
     }
+
+    public int updateCost(UUID skuId, Long costAmount) {
+        return jdbcTemplate.update("UPDATE sku SET cost_amount = ? WHERE id = ?", costAmount, skuId);
+    }
+
+    /** 未维护成本返回 null（调用方不得当作 0）。 */
+    public Long findCost(UUID skuId) {
+        var values = jdbcTemplate.query("SELECT cost_amount FROM sku WHERE id = ?",
+                (rs, rowNum) -> rs.getObject("cost_amount", Long.class), skuId);
+        return values.isEmpty() ? null : values.get(0);
+    }
 }

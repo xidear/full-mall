@@ -65,6 +65,30 @@ public class AdminCatalogController {
         return catalogService.createProduct(request);
     }
 
+    public record CostRequest(Long costAmount) {
+    }
+
+    /**
+     * 维护 SKU 成本（仅 ADMIN）。
+     *
+     * <p>成本用于毛利、佣金 PROFIT 模式与砍价底价校验，属于敏感数据，
+     * 不对 OPERATOR 开放，也不进入任何顾客侧 DTO。
+     */
+    @org.springframework.web.bind.annotation.PutMapping("/skus/{skuId}/cost")
+    @org.springframework.security.access.prepost.PreAuthorize("hasRole('ADMIN')")
+    public void updateCost(@PathVariable UUID skuId,
+                           @org.springframework.web.bind.annotation.RequestBody CostRequest body) {
+        catalogService.updateCost(skuId, body == null ? null : body.costAmount());
+    }
+
+    /** 读取成本（仅 ADMIN；未维护返回 null，不返回 0）。 */
+    @org.springframework.web.bind.annotation.GetMapping("/skus/{skuId}/cost")
+    @org.springframework.security.access.prepost.PreAuthorize("hasRole('ADMIN')")
+    public java.util.Map<String, Object> cost(@PathVariable UUID skuId) {
+        Long cost = catalogService.cost(skuId);
+        return java.util.Collections.singletonMap("costAmount", cost);
+    }
+
     @PatchMapping("/{productId}/status")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void updateStatus(@PathVariable UUID productId,

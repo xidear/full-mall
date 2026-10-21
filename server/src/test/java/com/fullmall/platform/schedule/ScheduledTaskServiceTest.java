@@ -101,7 +101,10 @@ class ScheduledTaskServiceTest {
                 "audit-outbox-recovery",
                 "member.birthday-gift",
                 "member.points-expiry");
-        assertThat(codes).hasSize(11);
+        // ai.knowledge-sync 只在企业版存在（社区版不含 AI 类），因此按 edition 区分条数
+        String edition = System.getenv("APP_EDITION");
+        boolean enterprise = "enterprise".equalsIgnoreCase(edition == null ? "" : edition.trim());
+        assertThat(codes).hasSize(enterprise ? 12 : 11);
     }
 
     @Test

@@ -62,3 +62,19 @@
 
 上一轮我写"超出 10 万块再切 pgvector"，把**结论**写成了**依据**：既没说清为什么测试库没有扩展，
 也没给出量化阈值。这份 ADR 补上：现象 → 原因 → 实测 → 选项 → 触发条件。
+
+## 7. pgvector 落地预案（等真机解除 Docker 限制后实施）
+
+用户决定：**先把当前功能做完，迁移到真机并解除 Docker 限制后再上 pgvector**。以下为待执行清单。
+
+| 步骤 | 内容 |
+|---|---|
+| 1 | 生产库 `CREATE EXTENSION vector`（PG 15/16 官方镜像或 `pgvector/pgvector`） |
+| 2 | 迁移 V76：`ALTER TABLE knowledge_chunk ADD COLUMN embedding_vec vector(1024)` + HNSW 索引（`vector_cosine_ops`） |
+| 3 | 回填：把现有 `embedding`（bytea）转成 `embedding_vec`（一次性脚本） |
+| 4 | 新增 `PgVectorKnowledgeStore`：`ORDER BY embedding_vec <=> ?::vector LIMIT ?`，保留元数据过滤 |
+| 5 | 开关：`app.ai.store=bytea|pgvector`；两实现共用同一 `KnowledgeStore` 端口，测试各覆盖一次 |
+| 6 | 测试环境：Testcontainers `pgvector/pgvector:pg16`；CI 无 Docker 时**跳过该用例并显式标注**（不是静默跳过） |
+| 7 | 评测：同一批 50 条标注问题，对比关键词 vs 向量 Top-3 命中率 |
+
+**验收**：向量检索 Top-3 命中率比关键词提升 ≥ 15 个百分点；检索 P95 < 100ms（10 万块）；两套实现结果集结构一致。

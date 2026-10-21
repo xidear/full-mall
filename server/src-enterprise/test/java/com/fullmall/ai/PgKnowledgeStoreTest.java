@@ -56,6 +56,9 @@ class PgKnowledgeStoreTest {
     @Autowired
     JdbcTemplate jdbc;
 
+    @Autowired
+    com.fullmall.ai.app.KnowledgeBackfillService backfill;
+
     private UUID skuWithPrice(long price) {
         UUID productId = UUID.randomUUID();
         UUID skuId = UUID.randomUUID();
@@ -89,6 +92,25 @@ class PgKnowledgeStoreTest {
         assertThat(jdbc.queryForObject(
                 "SELECT COUNT(*) FROM knowledge_chunk WHERE source_id = ?", Integer.class,
                 skuId.toString())).isEqualTo(1);
+    }
+
+    /** 商品改价后无需人工点"重建"：水位巡检自动重建并替换旧价格。 */
+    @Test
+    void autoSyncPicksUpPriceChange() {
+        UUID skuId = skuWithPrice(1_000);
+        backfill.syncChanged();
+        assertThat(store.search("演示商品 价格", 5))
+                .anySatisfy(chunk -> assertThat(chunk.content()).contains("10.00"));
+
+        // 改价（模拟后台编辑）：只改数据，不调用任何同步接口
+        jdbc.update("UPDATE sku SET price_amount = 2500 WHERE id = ?", skuId);
+
+        var result = backfill.syncChanged();
+
+        assertThat(result.products()).isGreaterThanOrEqualTo(1);
+        List<KnowledgeChunk> after = store.search("演示商品 价格", 5);
+        assertThat(after).anySatisfy(chunk -> assertThat(chunk.content()).contains("25.00"));
+        assertThat(after).noneSatisfy(chunk -> assertThat(chunk.content()).contains("10.00"));
     }
 
     @Test

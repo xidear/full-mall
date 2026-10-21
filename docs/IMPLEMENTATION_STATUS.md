@@ -5452,3 +5452,28 @@ RAG 改库即生效、能回溯、无命中就说不知道。训练留给"风格
 
 > 仍缺（A8 ⚠️）：收货接口调用 `receive`、售后退货按原批次回冲、`inventory_batch.unit_cost_amount`、只读展示。
 
+---
+
+## 2026-10-19：成本链路的真实阻塞——**没有采购入库入口**
+
+准备把 `SkuCostService.receive` 接到收货时发现：**系统里没有采购/收货单流程**。
+
+核查结论：
+
+| 检查 | 结果 |
+|---|---|
+| 是否存在 purchase/procurement 模块 | ❌ 无 |
+| 是否存在收货/入库单接口 | ❌ 无（只有调拨 receive 与售后 receive） |
+| `inventory_batch` 谁在写 | 仅演示种子 `seed.sql`；代码里只做数量更新 |
+| 影响 | 成本无法自动产生 → 砍价底价、PROFIT 佣金、毛利报表全部缺前置 |
+
+已登记 **G7 采购入库/收货单**（⬜）。这不是我"没接上"，而是**目标物不存在**；
+若强行把成本写在一个虚构入口，就是自欺欺人。
+
+### 建议的最小可行实现（下一步）
+
+1. `purchase_order`（供应商、SKU、数量、单价、状态）
+2. `goods_receipt`（收货单，按行确认入库）
+3. 收货确认时：写 `inventory_batch(unit_cost_amount)` + 调 `SkuCostService.receive`
+4. 退货入库按原批次成本回冲
+

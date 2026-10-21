@@ -72,8 +72,9 @@ class ReferralBindingPolicyTest {
         return rows.isEmpty() ? null : rows.get(0);
     }
 
+    /** ONCE（用户口径 2026-10-19）：后到覆盖先前，第二单归第二个人。 */
     @Test
-    void onceBindingKeepsFirstPromoter() {
+    void onceBindingLetsLaterPromoterTakeOver() {
         setting("distribution.bind-mode", "ONCE");
         setting("distribution.bind-timing", "CART");
         String phone = "139" + UUID.randomUUID().toString().substring(0, 8).replaceAll("[^0-9]", "1");
@@ -86,11 +87,12 @@ class ReferralBindingPolicyTest {
         referrals.attachCheckout(order2, phone, second, "ORDER");
 
         assertThat(orderReferrer(order1)).isEqualTo(first);
-        assertThat(orderReferrer(order2)).isEqualTo(first);   // 一次性绑定：后来者不抢
+        assertThat(orderReferrer(order2)).isEqualTo(second);  // 一次性绑定：后到覆盖先前
     }
 
+    /** PERMANENT：已有上级则不被覆盖，第二单仍归第一个人。 */
     @Test
-    void permanentBindingLetsNewPromoterTakeOver() {
+    void permanentBindingKeepsFirstPromoter() {
         setting("distribution.bind-mode", "PERMANENT");
         setting("distribution.bind-timing", "CART");
         String phone = "137" + UUID.randomUUID().toString().substring(0, 8).replaceAll("[^0-9]", "1");
@@ -103,7 +105,7 @@ class ReferralBindingPolicyTest {
         referrals.attachCheckout(order2, phone, second, "PERMANENT");
 
         assertThat(orderReferrer(order1)).isEqualTo(first);
-        assertThat(orderReferrer(order2)).isEqualTo(second);  // 终身绑定：新推广员接管
+        assertThat(orderReferrer(order2)).isEqualTo(first);   // 终身绑定：先绑定者长期受益
     }
 
     @Test

@@ -63,8 +63,8 @@ public class ReferralService {
      * <ul>
      *   <li>`bind-timing=REGISTER`：结算不新建绑定，只沿用注册时已有的关系；</li>
      *   <li>`bind-timing=CART` 或 `VISIT`：结算可按推广链接新建绑定；</li>
-     *   <li>`bind-mode=ONCE`：已有活跃绑定时不覆盖（一次性绑定）；</li>
-     *   <li>`bind-mode=PERMANENT`：新推广员覆盖旧关系（终身绑定）。</li>
+     *   <li>`bind-mode=ONCE`：**后到覆盖先前**（一次性绑定：谁最后带来这笔单，佣金归谁）；</li>
+     *   <li>`bind-mode=PERMANENT`：已有上级则**不覆盖**（终身绑定：先绑定的推广员长期受益）。</li>
      * </ul>
      */
     @Transactional
@@ -74,16 +74,22 @@ public class ReferralService {
         boolean once = "ONCE".equals(config.bindMode());
         ReferralBindingView existing = repository.findActiveBinding(phone);
 
-        if (referrerId != null && !"REGISTER".equals(timing) && !(once && existing != null)) {
-            ReferralMode mode = parseMode(modeValue == null || modeValue.isBlank()
-                    ? "ORDER" : modeValue);
-            Instant expiresAt = mode == ReferralMode.VISIT ? Instant.now().plus(Duration.ofDays(30)) : null;
-            if (!once) {
-                repository.deactivateBindings(phone);
+        if (referrerId != null && !"REGISTER".equals(timing)) {
+            // ONCE：后到覆盖先前（一次性绑定，最后一笔带来者得佣金）
+            // PERMANENT：已有上级则保留原关系，不覆盖
+            boolean shouldBind = once || existing == null;
+            if (shouldBind) {
+                ReferralMode mode = parseMode(modeValue == null || modeValue.isBlank()
+                        ? "ORDER" : modeValue);
+                Instant expiresAt = mode == ReferralMode.VISIT
+                        ? Instant.now().plus(Duration.ofDays(30)) : null;
+                if (once) {
+                    repository.deactivateBindings(phone);   // 只停用**关系**，不动已结算佣金
+                }
+                repository.insertBinding(phone, referrerId, mode.name(), "CHECKOUT", expiresAt);
+                repository.attachOrder(orderId, referrerId, mode.name());
+                return;
             }
-            repository.insertBinding(phone, referrerId, mode.name(), "CHECKOUT", expiresAt);
-            repository.attachOrder(orderId, referrerId, mode.name());
-            return;
         }
 
         if (existing != null) {

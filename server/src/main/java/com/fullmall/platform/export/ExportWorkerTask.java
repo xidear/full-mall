@@ -34,7 +34,9 @@ public class ExportWorkerTask implements ScheduledJob {
 
     @Override
     public boolean enabledByDefault() {
-        return false;
+        // 导出是"发起后必须有人处理"的流水线：默认关闭会导致任务永远停在 PENDING，
+        // 用户以为系统坏了。处理是幂等且可重入的，默认开启更安全。
+        return true;
     }
 
     @Override

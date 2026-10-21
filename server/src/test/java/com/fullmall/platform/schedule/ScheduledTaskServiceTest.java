@@ -110,9 +110,9 @@ class ScheduledTaskServiceTest {
                 "promotion.group-buy-expiry", "distribution.commission-release"}) {
             assertThat(tasks.find(code).enabled()).as(code).isTrue();
         }
-        // 破坏性/重型任务默认关闭
+        // 破坏性/重型任务默认关闭（导出处理已移到上面的必开列表）
         for (String code : new String[]{"maintenance.retention", "notification.retention",
-                "export.retention", "export.worker"}) {
+                "export.retention"}) {
             assertThat(tasks.find(code).enabled()).as(code).isFalse();
         }
     }

@@ -4717,3 +4717,28 @@ ERROR: column f.supplier_id does not exist
 > 顺带确认：维护中的文案会随 503 返回（`maintenance_message`），前台可直接展示。
 > 这类"配置项看起来有代码但没验证过"的地方，是这阶段最值得逐个点一遍的。
 
+---
+
+## 2026-10-19：导出流水线实测——**默认关闭导致永远 PENDING**（H15）
+
+`export-job.spec.ts`：后台发起 `member` 导出 → 轮询状态 → 下载 CSV。第一次跑就卡住：
+状态长时间 PENDING。
+
+### 根因
+
+`ExportWorkerTask.enabledByDefault() == false`，而 `enabledByDefault` **只在首次注册时生效**；
+存量库里的行仍是 `enabled=false`。也就是说：**任何导出任务发起后都不会被处理**。
+
+### 修复
+
+1. `ExportWorkerTask` 默认改为开启（导出是"发起后必须有人处理"的流水线，幂等可重入）；
+2. V69 一次性把存量 `export.worker` 行置为启用；
+3. 调度测试口径同步（`export.worker` 从"默认关闭"移到"必开"）。
+
+| 验证 | 结果 |
+|---|---|
+| E2E | ✅ 发起 → SUCCEEDED → 下载 200 且内容非空（6.2s） |
+| 后端测试 | **437 个全绿** |
+
+> 这是本阶段第 4 个"默认关闭/配置错位导致功能从未生效"的案例（前三个：结算 SQL、审计恢复、验收放宽）。
+

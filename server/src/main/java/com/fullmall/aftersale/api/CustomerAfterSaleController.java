@@ -35,4 +35,16 @@ public class CustomerAfterSaleController {
     public List<AfterSaleView> list(@PathVariable UUID orderId, @RequestParam String phone) {
         return afterSaleService.listByOrder(orderId, phone);
     }
+
+    public record NotReceived(String contactPhone) {
+    }
+
+    /** 顾客申报"未收到换货商品"：阻止自动完成，转人工处理。 */
+    @org.springframework.web.bind.annotation.PostMapping("/{afterSaleId}/not-received")
+    public void reportNotReceived(@PathVariable java.util.UUID orderId,
+                                  @PathVariable java.util.UUID afterSaleId,
+                                  @org.springframework.web.bind.annotation.RequestBody NotReceived body) {
+        afterSaleService.reportNotReceived(orderId, afterSaleId,
+                body == null ? null : body.contactPhone());
+    }
 }

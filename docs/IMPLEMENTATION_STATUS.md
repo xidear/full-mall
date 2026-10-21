@@ -5332,3 +5332,24 @@ RAG 改库即生效、能回溯、无命中就说不知道。训练留给"风格
 
 字段级 tooltip 尚未全量覆盖；门店收银/供应商/客服前端帮助待补；文案暂为中文单语。
 
+---
+
+## 2026-10-19：换货到期自动完成（J6 转功能，D11）
+
+口径（用户确认）：**自营场景下，换货发出后超过 N 天，顾客未申报"未收到"即视为确认收货**。
+理由：大量顾客不会主动点确认；快递"已签收"只代表被取走，但自营可视为送达；争议走客服。
+
+| 实现 | 说明 |
+|---|---|
+| V76 | `after_sale.auto_complete_at / disputed_at / auto_completed` |
+| 发货 | 记录 `auto_complete_at = now() + N 天`（`make_interval`，默认 7，可配 1..60） |
+| 任务 | `after-sale.exchange-auto-complete`，每 10 分钟扫描到期单 |
+| 自动完成 | 写 `COMPLETED` + `auto_completed=true` + 事件，并**解除佣金冻结**（换货不算退货，不扣佣金） |
+| 顾客异议 | `POST /api/v1/orders/{orderId}/after-sales/{id}/not-received`（校验手机号）→ 写 `disputed_at` → **永不自动完成**，转人工 |
+
+| 验证 | 结果 |
+|---|---|
+| 后端全量 | ✅ **466 个全绿** |
+| 用例 | 到期无争议 → COMPLETED 且 auto_completed=true；有争议 → 保持 EXCHANGE_SHIPPED 且不在可自动完成集合；默认天数=7 |
+| 接口对齐 | 213 路由 / 24 调用 / 0 未匹配 |
+

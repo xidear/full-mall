@@ -40,16 +40,50 @@ public class AfterSaleRepository {
     }
 
     /** 记录换货发货信息并推进状态。 */
-    public void markExchangeShipped(UUID afterSaleId, String carrierCode, String trackingNo) {
+    public void markExchangeShipped(UUID afterSaleId, String carrierCode, String trackingNo,
+                                   int autoCompleteDays) {
         int updated = jdbcTemplate.update("""
                 UPDATE after_sale
                    SET exchange_carrier_code = ?, exchange_tracking_no = ?,
-                       exchange_shipped_at = now(), status = 'EXCHANGE_SHIPPED'
+                       exchange_shipped_at = now(),
+                       auto_complete_at = now() + make_interval(days => ?),
+                       status = 'EXCHANGE_SHIPPED'
                  WHERE id = ? AND status = 'RECEIVED'
-                """, carrierCode, trackingNo, afterSaleId);
+                """, carrierCode, trackingNo, autoCompleteDays, afterSaleId);
         if (updated != 1) {
             throw new IllegalStateException("换货发货状态更新失败：" + afterSaleId);
         }
+    }
+
+    /** 到期自动完成：仅处理"已发货、超期、顾客未报未收到"的单据。 */
+    public java.util.List<UUID> findAutoCompletable(int limit) {
+        return jdbcTemplate.query("""
+                SELECT id FROM after_sale
+                 WHERE status = 'EXCHANGE_SHIPPED'
+                   AND auto_complete_at IS NOT NULL
+                   AND auto_complete_at <= now()
+                   AND disputed_at IS NULL
+                 ORDER BY auto_complete_at
+                 LIMIT ?
+                """, (rs, rowNum) -> rs.getObject("id", UUID.class), limit);
+    }
+
+    /** 顾客报"未收到"：阻止自动完成，转人工处理。 */
+    public void markDisputed(UUID afterSaleId, String note) {
+        int updated = jdbcTemplate.update("""
+                UPDATE after_sale SET disputed_at = now(), admin_note = COALESCE(admin_note, ?)
+                 WHERE id = ? AND status = 'EXCHANGE_SHIPPED'
+                """, note, afterSaleId);
+        if (updated != 1) {
+            throw new IllegalStateException("只有换货已发货的售后单可以申报未收到：" + afterSaleId);
+        }
+    }
+
+    public void completeExchangeAuto(UUID afterSaleId) {
+        jdbcTemplate.update("""
+                UPDATE after_sale SET status = 'COMPLETED', auto_completed = TRUE
+                 WHERE id = ? AND status = 'EXCHANGE_SHIPPED' AND disputed_at IS NULL
+                """, afterSaleId);
     }
 
     /** 标记换货完成（只有已发货的换货单可完成）。 */

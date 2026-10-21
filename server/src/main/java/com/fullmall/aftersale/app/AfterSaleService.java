@@ -30,6 +30,8 @@ public class AfterSaleService {
     private final PaymentService paymentService;
     private final com.fullmall.order.app.LineRefundService lineRefunds;
     private final com.fullmall.distribution.app.CommissionHoldService commissionHold;
+    @org.springframework.beans.factory.annotation.Value("${app.after-sale.exchange-auto-complete-days:7}")
+    private int exchangeAutoCompleteDays;
     private final com.fullmall.notification.app.NotificationService notifications;
     private final com.fullmall.inventory.app.InventoryService inventoryService;
     private final org.springframework.jdbc.core.JdbcTemplate jdbcTemplate;
@@ -151,6 +153,22 @@ public class AfterSaleService {
     }
 
 
+    /** 顾客申报"未收到换货商品"：阻止自动完成并转人工。 */
+    @org.springframework.transaction.annotation.Transactional
+    public void reportNotReceived(java.util.UUID orderId, java.util.UUID afterSaleId, String phone) {
+        var order = orderService.getOrder(orderId);
+        if (phone == null || !order.contactPhone().equals(phone.trim())) {
+            throw ApiException.conflict("AFTER_SALE_PHONE_MISMATCH", "手机号与订单联系人不一致");
+        }
+        repository.markDisputed(afterSaleId, "顾客申报未收到换货商品（" + phone.trim() + "）");
+        repository.insertEvent(afterSaleId, "DISPUTED", "顾客申报未收到换货商品", "顾客");
+    }
+
+    /** 换货自动完成时解除佣金冻结（换货不属于退货，不扣佣金）。 */
+    public void closeCommissionHoldForAutoComplete(java.util.UUID afterSaleId) {
+        commissionHold.close(afterSaleId, false);
+    }
+
     /**
      * 换货发货：记录换货商品的承运商与运单号，状态推进到 `EXCHANGE_SHIPPED`，并通知顾客。
      *
@@ -178,7 +196,8 @@ public class AfterSaleService {
                     "需先收到顾客寄回的商品才能发出换货，当前状态=" + afterSale.status());
         }
         dispatchExchangeStock(afterSale, afterSaleId);
-        repository.markExchangeShipped(afterSaleId, carrierCode.trim(), trackingNo.trim());
+        repository.markExchangeShipped(afterSaleId, carrierCode.trim(), trackingNo.trim(),
+                exchangeAutoCompleteDays);
         repository.insertEvent(afterSaleId, "EXCHANGE_SHIPPED",
                 "换货已发出，承运商 " + carrierCode.trim() + "，运单号 " + trackingNo.trim(), "system");
         notifyOrder(afterSale.orderId(), "AFTER_SALE_EXCHANGE_SHIPPED", "换货商品已发出",

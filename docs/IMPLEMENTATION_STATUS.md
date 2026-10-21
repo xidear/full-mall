@@ -5684,3 +5684,19 @@ V82：`pick_task_line.order_line_id`（可空）。
 > 已知限制（H21 仍 ⚠️）：多行合并（付费行+赠品行同 SKU）的拣货行没有订单行映射，
 > 这类退货会走"明确拒绝 + 人工指定批次"路径，而不是自动回冲。
 
+---
+
+## 2026-10-19：砍价三张表（D13 数据层）
+
+| 表 | 关键约束 |
+|---|---|
+| `bargain_activity` | 底价 >0；助力人数 3..30；单次砍价 `cut_min>0`；有效期 12..72h；`allow_below_cost` + `below_cost_reason`（低于成本必须留痕） |
+| `bargain_session` | `UNIQUE(activity_id, member_id)`：同一会员同一活动只能发起一次；状态 `ONGOING/READY/EXPIRED/ORDERED` |
+| `bargain_help` | `UNIQUE(session_id, helper_member_id)`：**助力人去重由数据库保证**，不靠应用判断 |
+
+| 验证 | 结果 |
+|---|---|
+| 迁移冒烟 | ✅ 通过（v83） |
+
+> 未做：发起/助力/达成/超时释放逻辑与接口；库存按正常下单预占，未支付由订单超时释放。
+

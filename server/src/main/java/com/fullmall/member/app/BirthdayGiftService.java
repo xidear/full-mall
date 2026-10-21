@@ -23,13 +23,16 @@ import java.util.UUID;
 public class BirthdayGiftService {
 
     private static final Logger log = LoggerFactory.getLogger(BirthdayGiftService.class);
-    /** 默认时区：未设置时按中国大陆。 */
-    public static final String DEFAULT_ZONE = "Asia/Shanghai";
+    /** 系统默认时区配置键（未设置时取服务器时区）。 */
+    public static final String SYSTEM_ZONE = "app.timezone";
 
     private final JdbcTemplate jdbcTemplate;
+    private final com.fullmall.setting.app.SystemSettingService systemSettings;
 
-    public BirthdayGiftService(JdbcTemplate jdbcTemplate) {
+    public BirthdayGiftService(JdbcTemplate jdbcTemplate,
+                               com.fullmall.setting.app.SystemSettingService systemSettings) {
         this.jdbcTemplate = jdbcTemplate;
+        this.systemSettings = systemSettings;
     }
 
     public record Granted(UUID memberId, long points) {
@@ -77,14 +80,24 @@ public class BirthdayGiftService {
         return granted;
     }
 
-    private java.time.ZoneId zoneOf(String timezone) {
-        String raw = timezone == null || timezone.isBlank() ? DEFAULT_ZONE : timezone.trim();
+    /**
+     * 会员时区：会员未设置时**跟随系统默认**（系统默认 = 服务器时区，可由 `app.timezone` 覆盖）。
+     *
+     * <p>时区字符串非法直接抛错，不静默回落到默认值（会错一天）。
+     */
+    private java.time.ZoneId zoneOf(String memberZone) {
+        String raw = memberZone == null || memberZone.isBlank() ? systemZone() : memberZone.trim();
         try {
             return java.time.ZoneId.of(raw);
         } catch (java.time.DateTimeException error) {
-            // 配置错误不能静默按默认时区发（可能错一天）：直接失败，交由运维修正
-            throw new IllegalStateException("会员时区无效：" + raw, error);
+            throw new IllegalStateException("时区配置无效：" + raw, error);
         }
+    }
+
+    private String systemZone() {
+        String configured = systemSettings.rawValue(SYSTEM_ZONE);
+        return configured == null || configured.isBlank()
+                ? java.time.ZoneId.systemDefault().getId() : configured.trim();
     }
 
     /** 兼容旧调用：按"现在"发放。 */

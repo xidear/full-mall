@@ -99,4 +99,34 @@ class BirthdayGiftTest {
         assertThat(gifts.grantAt(now.plusSeconds(86400)))
                 .noneSatisfy(item -> assertThat(item.memberId()).isEqualTo(memberId));
     }
+
+    @Test
+    void changingBirthdayAfterGiftDoesNotGrantAgain() {
+        // 攻击路径：领过之后把生日改成"明天/后天"，试图每天再领
+        Instant now = Instant.parse("2026-10-20T03:00:00Z");   // 上海 11:00
+        UUID memberId = member("GOLD", LocalDate.of(1990, 10, 20), "Asia/Shanghai");
+        assertThat(gifts.grantAt(now))
+                .anySatisfy(item -> assertThat(item.memberId()).isEqualTo(memberId));
+
+        // 把生日改成次日，再跑
+        jdbc.update("UPDATE member SET birthday = ? WHERE id = ?",
+                java.sql.Date.valueOf(LocalDate.of(1990, 10, 21)), memberId);
+        assertThat(gifts.grantAt(now.plusSeconds(86400)))
+                .noneSatisfy(item -> assertThat(item.memberId()).isEqualTo(memberId));
+    }
+
+    @Test
+    void memberWithoutBirthdayIsNeverGranted() {
+        Instant jan1 = Instant.parse("2027-01-01T00:30:00Z");   // 上海 08:30，元旦
+        UUID id = UUID.randomUUID();
+        jdbc.update("""
+                INSERT INTO member (id, member_no, name, phone, tier, points_balance,
+                                    stored_value_balance, currency, birthday, timezone)
+                VALUES (?, ?, '无生日', ?, 'GOLD', 0, 0, 'CNY', NULL, NULL)
+                """, id, "M-NOB-" + id.toString().substring(0, 8),
+                "136" + id.toString().replaceAll("[^0-9]", "5").substring(0, 8));
+
+        assertThat(gifts.grantAt(jan1))
+                .noneSatisfy(item -> assertThat(item.memberId()).isEqualTo(id));
+    }
 }

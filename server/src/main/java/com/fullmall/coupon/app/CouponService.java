@@ -91,6 +91,50 @@ public class CouponService {
         }
     }
 
+    /**
+     * 修改券模板：**只有草稿可改**。
+     *
+     * <p>生效中的模板改了面额/门槛会让已领取的券与规则不一致——已发实例按领取时的快照执行，
+     * 但运营口径会混乱；因此生效中只允许停用，不允许改参数。
+     */
+    @Transactional
+    public void updateTemplate(UUID templateId, String title, long value, long minOrderAmount,
+                               int totalQuantity, int perMemberLimit, int validityDays) {
+        if (value <= 0) {
+            throw ApiException.badRequest("COUPON_VALUE_INVALID", "面额必须大于 0");
+        }
+        if (totalQuantity <= 0 || perMemberLimit <= 0) {
+            throw ApiException.badRequest("COUPON_QUANTITY_INVALID", "发放总量与每人限领必须大于 0");
+        }
+        if (validityDays <= 0 || validityDays > 365) {
+            throw ApiException.badRequest("COUPON_VALIDITY_INVALID", "有效期天数必须在 1..365");
+        }
+        int updated = jdbcTemplate.update("""
+                UPDATE coupon_template
+                   SET title = ?, value = ?, min_order_amount = ?, total_quantity = ?,
+                       per_member_limit = ?, validity_days = ?
+                 WHERE id = ? AND status = 'DRAFT'
+                """, title, value, minOrderAmount, totalQuantity, perMemberLimit, validityDays,
+                templateId);
+        if (updated != 1) {
+            throw ApiException.conflict("COUPON_TEMPLATE_NOT_EDITABLE",
+                    "只有草稿状态的券模板可以修改（已生效请先停用）: " + templateId);
+        }
+    }
+
+    /** 停用模板：立即停止发放；已领取的券实例不受影响（按领取时的有效期继续可用）。 */
+    @Transactional
+    public void disable(UUID templateId) {
+        int updated = jdbcTemplate.update("""
+                UPDATE coupon_template SET status = 'DISABLED'
+                 WHERE id = ? AND status IN ('DRAFT', 'ACTIVE')
+                """, templateId);
+        if (updated != 1) {
+            throw ApiException.conflict("COUPON_TEMPLATE_NOT_DISABLABLE",
+                    "该券模板当前状态不可停用: " + templateId);
+        }
+    }
+
     /** 会员领券：校验模板生效、时间窗、库存、每人限领。 */
     @Transactional
     public UUID claim(UUID templateId, UUID memberId) {

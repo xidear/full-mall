@@ -207,4 +207,38 @@ class CouponServiceTest {
         assertThat(events).hasSize(1);
         assertThat(events.get(0).get("actor")).isEqualTo("member:" + MEMBER);
     }
+
+    /** 草稿可改；生效中不可改；停用后不可再领；已领取的券不受影响。 */
+    @Test
+    void draftCanBeEditedButActiveCannot() {
+        UUID draft = coupons.createTemplate("CP-EDIT-1", "可编辑券", "AMOUNT", 500, 1_000, 10, 1, 30,
+                Instant.now(), Instant.now().plusSeconds(86_400 * 30), "ALL", java.util.List.of());
+        coupons.updateTemplate(draft, "改后标题", 800, 2_000, 20, 2, 15);
+        var row = jdbc.queryForMap("SELECT title, value, min_order_amount, total_quantity"
+                + " FROM coupon_template WHERE id = ?", draft);
+        assertThat(row.get("title")).isEqualTo("改后标题");
+        assertThat(((Number) row.get("value")).longValue()).isEqualTo(800);
+
+        UUID active = activeTemplate("CP-EDIT-2", 10, 1);
+        assertThatThrownBy(() -> coupons.updateTemplate(active, "改", 800, 0, 5, 1, 10))
+                .isInstanceOf(com.fullmall.platform.error.ApiException.class)
+                .hasMessageContaining("只有草稿状态");
+    }
+
+    @Test
+    void disabledTemplateStopsIssuingButKeepsIssuedCoupons() {
+        UUID active = activeTemplate("CP-DIS-1", 10, 1);
+        UUID couponId = coupons.claim(active, MEMBER);
+
+        coupons.disable(active);
+
+        assertThat(jdbc.queryForObject("SELECT status FROM coupon_template WHERE id = ?",
+                String.class, active)).isEqualTo("DISABLED");
+        // 已领取的券仍然有效
+        assertThat(jdbc.queryForObject("SELECT status FROM member_coupon WHERE id = ?",
+                String.class, couponId)).isEqualTo("UNUSED");
+        // 停用后不能再领
+        assertThatThrownBy(() -> coupons.claim(active, MEMBER2))
+                .isInstanceOf(com.fullmall.platform.error.ApiException.class);
+    }
 }

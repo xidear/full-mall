@@ -55,6 +55,25 @@ public class CouponController {
         coupons.activate(id);
     }
 
+    public record UpdateTemplate(String title, long value, long minOrderAmount,
+                                 int totalQuantity, int perMemberLimit, int validityDays) {
+    }
+
+    /** 修改草稿模板（生效中的请先停用）。 */
+    @PutMapping("/admin/v1/coupons/templates/{id}")
+    @PreAuthorize("hasRole('ADMIN')")
+    public void updateTemplate(@PathVariable UUID id, @RequestBody UpdateTemplate body) {
+        coupons.updateTemplate(id, body.title(), body.value(), body.minOrderAmount(),
+                body.totalQuantity(), body.perMemberLimit(), body.validityDays());
+    }
+
+    /** 停用模板：停止发放，已领取的券不受影响。 */
+    @PostMapping("/admin/v1/coupons/templates/{id}/disable")
+    @PreAuthorize("hasRole('ADMIN')")
+    public void disable(@PathVariable UUID id) {
+        coupons.disable(id);
+    }
+
     @PostMapping("/api/v1/coupons/{templateId}/claim")
     @ResponseStatus(HttpStatus.CREATED)
     public Map<String, UUID> claim(@PathVariable UUID templateId,

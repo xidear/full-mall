@@ -21,10 +21,17 @@ public class AdminAiController {
 
     private final AiProperties properties;
     private final com.fullmall.ai.app.AnswerService answerService;
+    private final com.fullmall.ai.app.DocumentIngestionService ingestion;
+    private final com.fullmall.ai.app.KnowledgeStore knowledgeStore;
 
-    public AdminAiController(AiProperties properties, com.fullmall.ai.app.AnswerService answerService) {
+    public AdminAiController(AiProperties properties,
+                             com.fullmall.ai.app.AnswerService answerService,
+                             com.fullmall.ai.app.DocumentIngestionService ingestion,
+                             com.fullmall.ai.app.KnowledgeStore knowledgeStore) {
         this.properties = properties;
         this.answerService = answerService;
+        this.ingestion = ingestion;
+        this.knowledgeStore = knowledgeStore;
     }
 
     public record AskRequest(String question) {
@@ -51,6 +58,29 @@ public class AdminAiController {
                         "title", chunk.title()))
                 .toList());
         return ResponseEntity.ok(result);
+    }
+
+    /** 客户资料导入（企业版）：multipart 上传，返回切块统计；失败按类型明确报错。 */
+    @org.springframework.web.bind.annotation.PostMapping(
+            value = "/knowledge/import", consumes = org.springframework.http.MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseEntity<Map<String, Object>> importKnowledge(
+            @org.springframework.web.bind.annotation.RequestParam("file")
+            org.springframework.web.multipart.MultipartFile file) throws java.io.IOException {
+        ResponseEntity<Map<String, Object>> notReady = readiness();
+        if (notReady != null) {
+            return notReady;
+        }
+        if (file == null || file.isEmpty()) {
+            throw com.fullmall.platform.error.ApiException.badRequest(
+                    "EMPTY_DOCUMENT", "上传文件为空");
+        }
+        var result = ingestion.importFile(file.getOriginalFilename(), file.getBytes());
+        return ResponseEntity.ok(Map.of(
+                "sourceId", result.sourceId(),
+                "type", result.detectedType(),
+                "chunks", result.chunks(),
+                "chars", result.chars(),
+                "totalChunks", knowledgeStore.size()));
     }
 
     private ResponseEntity<Map<String, Object>> readiness() {

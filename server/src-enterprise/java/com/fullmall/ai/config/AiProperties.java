@@ -13,6 +13,8 @@ public class AiProperties {
 
     /** 模块总开关；社区版没有这些类，企业版默认也关闭，需显式开启。 */
     private boolean enabled = false;
+    /** `demo`（关键词检索 + 抽取式回答，无需 GPU）或 `prod`（向量检索 + 模型生成）。 */
+    private String mode = "demo";
     /** OpenAI 兼容的对话服务地址，例如 http://192.168.1.15:8000/v1 */
     private String chatBaseUrl;
     private String chatModel;
@@ -71,7 +73,18 @@ public class AiProperties {
     }
 
     /** 是否具备可用的对话/嵌入配置；缺任一项都算未就绪。 */
+    public String getMode() {
+        return mode;
+    }
+
+    public void setMode(String mode) {
+        this.mode = mode;
+    }
+
     public boolean isReady() {
+        if (enabled && "demo".equalsIgnoreCase(mode == null ? "" : mode.trim())) {
+            return true;   // 演示模式不依赖外部模型
+        }
         return enabled
                 && chatBaseUrl != null && !chatBaseUrl.isBlank()
                 && chatModel != null && !chatModel.isBlank()

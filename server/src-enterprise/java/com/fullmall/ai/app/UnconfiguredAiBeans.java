@@ -16,6 +16,18 @@ import java.util.List;
 @Configuration
 public class UnconfiguredAiBeans {
 
+    /**
+     * 演示模式：用内存关键词检索；生产模式才需要 pgvector + 嵌入模型。
+     * 用 `@ConditionalOnProperty(app.ai.mode=demo)` 显式声明，不靠默认值猜。
+     */
+    @Bean
+    @org.springframework.boot.autoconfigure.condition.ConditionalOnProperty(
+            name = "app.ai.mode", havingValue = "demo")
+    KnowledgeRetriever demoKnowledgeRetriever(InMemoryKnowledgeStore store,
+                                              com.fullmall.ai.config.AiProperties properties) {
+        return (query, topK) -> store.search(query, topK > 0 ? topK : properties.getTopK());
+    }
+
     @Bean
     KnowledgeRetriever knowledgeRetriever() {
         return new KnowledgeRetriever() {

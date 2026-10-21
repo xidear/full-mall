@@ -4701,3 +4701,19 @@ ERROR: column f.supplier_id does not exist
 > 测试里 CSV 表头写成旧格式导致 400，正好验证了新映射：错误信息指出"表头不匹配，期望 [...]"。
 > 导出与导入现在都覆盖，G4 关闭。
 
+---
+
+## 2026-10-19：站点维护状态实跑验证（H14）
+
+代码里已有 `FeatureGuardFilter` 对 `/api/v1/**` 做站点状态拦截，但**从未验证过**。
+
+`site-status.spec.ts`：改 `site_status=MAINTENANCE` → 顾客端返回 **503 `SITE_MAINTENANCE`** →
+改回 `OPEN` → 恢复 200。
+
+| 验证 | 结果 |
+|---|---|
+| E2E | ✅ 通过（747ms） |
+
+> 顺带确认：维护中的文案会随 503 返回（`maintenance_message`），前台可直接展示。
+> 这类"配置项看起来有代码但没验证过"的地方，是这阶段最值得逐个点一遍的。
+

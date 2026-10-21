@@ -30,6 +30,11 @@ public class SupplierAdminService {
         return repository.listSuppliers();
     }
 
+    /** 后台列表排序（白名单在仓储层）。 */
+    public List<SupplierCredentialView> listSuppliers(String sort, String direction) {
+        return repository.listSuppliers(sort, direction);
+    }
+
     @Transactional
     public SupplierCredentialCreated rotateCredential(UUID supplierId) {
         if (!repository.supplierExists(supplierId)) {

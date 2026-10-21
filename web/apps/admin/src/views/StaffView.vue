@@ -8,6 +8,14 @@ const staff = ref<StaffUser[]>([])
 const stores = ref<Store[]>([])
 const bindings = ref<Record<string, string[]>>({})
 const loading = ref(false)
+const sortKey = ref('displayName')
+const sortDirection = ref<'asc' | 'desc'>('asc')
+
+function onSortChange(payload: { prop: string | null; order: 'ascending' | 'descending' | null }) {
+  sortKey.value = payload.prop ?? 'displayName'
+  sortDirection.value = payload.order === 'descending' ? 'desc' : 'asc'
+  load()
+}
 const error = ref('')
 
 const pinDialog = ref(false)
@@ -115,7 +123,7 @@ async function saveStores() {
       <el-button @click="load">刷新</el-button>
     </div>
     <el-alert v-if="error" :title="error" type="error" show-icon :closable="false" class="mb-16" />
-    <el-table :data="staff" stripe>
+    <el-table :data="staff" @sort-change="onSortChange" stripe>
       <el-table-column prop="username" label="账号" width="160" />
       <el-table-column prop="displayName" label="姓名" width="160" />
       <el-table-column label="角色" width="140">

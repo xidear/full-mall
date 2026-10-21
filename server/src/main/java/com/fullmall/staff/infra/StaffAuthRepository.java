@@ -35,11 +35,29 @@ public class StaffAuthRepository {
         return accounts.stream().findFirst().orElse(null);
     }
 
+    /** 排序白名单：默认按创建时间。 */
+    private static String orderByOf(String sort, String direction) {
+        String column = switch (sort == null ? "" : sort.trim()) {
+            case "displayName" -> "display_name";
+            case "username" -> "username";
+            case "role" -> "role";
+            case "status" -> "status";
+            default -> "created_at";
+        };
+        String dir = "asc".equalsIgnoreCase(direction == null ? "" : direction.trim()) ? "ASC" : "DESC";
+        return column + " " + dir;
+    }
+
     public List<StaffUser> findAll() {
+        return findAll(null, null);
+    }
+
+    public List<StaffUser> findAll(String sort, String direction) {
         return jdbcTemplate.query("""
                 SELECT id, username, display_name, role, status
                 FROM staff_user
-                ORDER BY created_at
+                ORDER BY
+                """ + orderByOf(sort, direction) + """
                 """, (rs, rowNum) -> new StaffUser(
                 rs.getObject("id", UUID.class),
                 rs.getString("username"),

@@ -53,6 +53,12 @@ class ListSortingTest {
     @Autowired
     JdbcTemplate jdbc;
 
+    @Autowired
+    com.fullmall.staff.infra.StaffAuthRepository staff;
+
+    @Autowired
+    com.fullmall.supplier.infra.SupplierRepository suppliers;
+
     private void order(String phone, long total) {
         UUID id = UUID.randomUUID();
         jdbc.update("""
@@ -78,6 +84,26 @@ class ListSortingTest {
         var fallback = customers.list(0, 10, "total_spent; DROP TABLE orders", "desc");
         assertThat(fallback).containsKey("items");
         assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM orders", Integer.class)).isPositive();
+    }
+
+    @Test
+    void staffAndSupplierSortUseWhitelist() {
+        // 员工：白名单字段排序可用，未知字段回落
+        UUID staffId = UUID.randomUUID();
+        jdbc.update("""
+                INSERT INTO staff_user (id, username, display_name, password_hash, role, status)
+                VALUES (?, ?, '排序员工', 'x', 'OPERATOR', 'ACTIVE')
+                """, staffId, "sort_staff_" + staffId.toString().substring(0, 6));
+
+        var staffAsc = staff.findAll("displayName", "asc");
+        assertThat(staffAsc).isNotEmpty();
+        var staffFallback = staff.findAll("display_name; DROP TABLE staff_user", "desc");
+        assertThat(staffFallback).isNotNull();
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM staff_user", Integer.class)).isPositive();
+
+        // 供应商：同上
+        assertThat(suppliers.listSuppliers("code", "asc")).isNotNull();
+        assertThat(suppliers.listSuppliers("name; DROP", "asc")).isNotNull();
     }
 
     @Test

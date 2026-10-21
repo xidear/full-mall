@@ -86,8 +86,9 @@ public class AdminSupplierController {
     }
 
     @GetMapping
-    public List<SupplierCredentialView> suppliers() {
-        return adminService.listSuppliers();
+    public List<SupplierCredentialView> suppliers(@RequestParam(required = false) String sort,
+                                                  @RequestParam(required = false) String direction) {
+        return adminService.listSuppliers(sort, direction);
     }
 
     @PostMapping("/{supplierId}/credentials")

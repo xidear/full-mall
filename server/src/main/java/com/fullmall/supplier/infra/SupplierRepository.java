@@ -45,12 +45,28 @@ public class SupplierRepository {
                 """, UUID.randomUUID(), supplierId, accessKey, secretEncrypted);
     }
 
+    /** 排序白名单：默认按名称。 */
+    private static String supplierOrderBy(String sort, String direction) {
+        String column = switch (sort == null ? "" : sort.trim()) {
+            case "code" -> "s.code";
+            case "active" -> "s.active";
+            default -> "s.name";
+        };
+        String dir = "asc".equalsIgnoreCase(direction == null ? "" : direction.trim()) ? "ASC" : "DESC";
+        return column + " " + dir;
+    }
+
     public List<SupplierCredentialView> listSuppliers() {
+        return listSuppliers(null, null);
+    }
+
+    public List<SupplierCredentialView> listSuppliers(String sort, String direction) {
         return jdbcTemplate.query("""
                 SELECT s.id, s.code, s.name, s.active, c.access_key, c.rotated_at
                 FROM supplier s
                 LEFT JOIN supplier_credential c ON c.supplier_id = s.id
-                ORDER BY s.name
+                ORDER BY
+                """ + supplierOrderBy(sort, direction) + """
                 """, (rs, rowNum) -> new SupplierCredentialView(
                 rs.getObject("id", UUID.class),
                 rs.getString("code"),

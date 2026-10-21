@@ -6,6 +6,7 @@ import com.fullmall.staff.api.StaffPinRequest.SetPin;
 import com.fullmall.staff.app.StaffAuthService;
 import com.fullmall.staff.infra.StaffAuthRepository;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -27,8 +28,9 @@ public class StaffAdminController {
     }
 
     @GetMapping
-    public List<StaffUser> list() {
-        return repository.findAll();
+    public List<StaffUser> list(@RequestParam(required = false) String sort,
+                                @RequestParam(required = false) String direction) {
+        return repository.findAll(sort, direction);
     }
 
     @PostMapping("/{staffId}/pin")

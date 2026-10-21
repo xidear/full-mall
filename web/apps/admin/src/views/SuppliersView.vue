@@ -6,6 +6,14 @@ import type { SupplierCredentialView } from '@fullmall/api-client'
 import { api } from '../api'
 
 const suppliers = ref<SupplierCredentialView[]>([])
+const sortKey = ref('name')
+const sortDirection = ref<'asc' | 'desc'>('asc')
+
+function onSortChange(payload: { prop: string | null; order: 'ascending' | 'descending' | null }) {
+  sortKey.value = payload.prop ?? 'name'
+  sortDirection.value = payload.order === 'descending' ? 'desc' : 'asc'
+  load()
+}
 const loading = ref(false)
 const error = ref('')
 const credentialDialog = ref(false)
@@ -75,7 +83,8 @@ async function load() {
   loading.value = true
   error.value = ''
   try {
-    suppliers.value = await api.get<SupplierCredentialView[]>('/admin/v1/suppliers')
+    suppliers.value = await api.get<SupplierCredentialView[]>('/admin/v1/suppliers',
+      { sort: sortKey.value, direction: sortDirection.value })
   } catch (cause) {
     error.value = cause instanceof Error ? cause.message : '供应商加载失败'
   } finally {
@@ -126,9 +135,9 @@ async function copy(text: string, label: string) {
         <el-button @click="load">刷新</el-button>
       </div>
 
-      <el-table :data="suppliers" empty-text="暂无供应商">
-        <el-table-column prop="code" label="供应商编码" width="150" />
-        <el-table-column prop="name" label="供应商名称" min-width="180" />
+      <el-table :data="suppliers" @sort-change="onSortChange" empty-text="暂无供应商">
+        <el-table-column prop="code" sortable="custom" label="供应商编码" width="150" />
+        <el-table-column prop="name" sortable="custom" label="供应商名称" min-width="180" />
         <el-table-column label="状态" width="100">
           <template #default="{ row }">
             <el-tag :type="row.active ? 'success' : 'info'">{{ row.active ? '启用' : '停用' }}</el-tag>

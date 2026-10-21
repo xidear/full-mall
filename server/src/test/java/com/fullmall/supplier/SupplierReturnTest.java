@@ -96,4 +96,19 @@ class SupplierReturnTest {
                 .isInstanceOf(com.fullmall.platform.error.ApiException.class)
                 .hasMessageContaining("金额不能为负");
     }
+
+    @Test
+    void supplierCannotDecideOthersReturn() {
+        UUID owner = UUID.randomUUID();
+        UUID intruder = UUID.randomUUID();
+        UUID id = returns.create(owner, order(), "质量", 500, "CNY", "staff:ops");
+
+        assertThatThrownBy(() -> returns.transitionForSupplier(intruder, id, "ACCEPTED", null))
+                .isInstanceOf(com.fullmall.platform.error.ApiException.class)
+                .hasMessageContaining("不存在");   // 不泄露存在性
+
+        returns.transitionForSupplier(owner, id, "ACCEPTED", "同意");
+        assertThat(jdbc.queryForObject("SELECT status FROM supplier_return WHERE id = ?",
+                String.class, id)).isEqualTo("ACCEPTED");
+    }
 }

@@ -20,15 +20,18 @@ import java.util.UUID;
 public class SupplierOpenController {
 
     private final SupplierService supplierService;
+    private final com.fullmall.supplier.app.SupplierReturnService supplierReturnService;
     private final com.fullmall.supplier.app.SupplierSettlementService settlementService;
     private final com.fullmall.supplier.app.SupplierSettlementCsvService settlementCsvService;
 
     public SupplierOpenController(SupplierService supplierService,
                                   com.fullmall.supplier.app.SupplierSettlementService settlementService,
-                                  com.fullmall.supplier.app.SupplierSettlementCsvService settlementCsvService) {
+                                  com.fullmall.supplier.app.SupplierSettlementCsvService settlementCsvService,
+                                  com.fullmall.supplier.app.SupplierReturnService supplierReturnService) {
         this.supplierService = supplierService;
         this.settlementService = settlementService;
         this.settlementCsvService = settlementCsvService;
+        this.supplierReturnService = supplierReturnService;
     }
 
     @GetMapping(value = "/settlements.csv", produces = "text/csv;charset=UTF-8")
@@ -66,6 +69,36 @@ public class SupplierOpenController {
             @RequestAttribute(SupplierHmacFilter.SUPPLIER_ID_ATTRIBUTE) UUID supplierId,
             @PathVariable UUID fulfillmentId) {
         return supplierService.getOrder(supplierId, fulfillmentId);
+    }
+
+    /** 供应商售后单列表（只看到自己的）。 */
+    @GetMapping("/returns")
+    public java.util.Map<String, Object> returns(
+            @RequestAttribute(SupplierHmacFilter.SUPPLIER_ID_ATTRIBUTE) UUID supplierId,
+            @org.springframework.web.bind.annotation.RequestParam(required = false) String status,
+            @org.springframework.web.bind.annotation.RequestParam(defaultValue = "0") int page,
+            @org.springframework.web.bind.annotation.RequestParam(defaultValue = "20") int size) {
+        return supplierReturnService.list(supplierId, status, page, size);
+    }
+
+    public record SupplierReturnDecision(String status, String note) {
+    }
+
+    /** 供应商对售后单表态：只能 ACCEPTED / REJECTED（不能直接结算）。 */
+    @PostMapping("/returns/{returnId}/decision")
+    public java.util.Map<String, Boolean> decideReturn(
+            @RequestAttribute(SupplierHmacFilter.SUPPLIER_ID_ATTRIBUTE) UUID supplierId,
+            @PathVariable UUID returnId,
+            @RequestBody SupplierReturnDecision decision) {
+        String target = decision.status() == null ? "" : decision.status().trim().toUpperCase();
+        if (!target.equals("ACCEPTED") && !target.equals("REJECTED")) {
+            throw new com.fullmall.platform.error.ApiException(
+                    org.springframework.http.HttpStatus.BAD_REQUEST,
+                    "SUPPLIER_RETURN_DECISION_INVALID",
+                    "供应商只能接受或拒绝，不能直接结算");
+        }
+        supplierReturnService.transitionForSupplier(supplierId, returnId, target, decision.note());
+        return java.util.Map.of("updated", true);
     }
 
     @PostMapping("/orders/{fulfillmentId}/accept")

@@ -87,6 +87,21 @@ public class SupplierReturnService {
                 """, normalized, note == null ? null : note.trim(), closing, id);
     }
 
+    /** 供应商侧表态：必须属于该供应商，且只能 ACCEPTED/REJECTED。 */
+    @Transactional
+    public void transitionForSupplier(UUID supplierId, UUID returnId, String target, String note) {
+        List<UUID> owners = jdbcTemplate.queryForList(
+                "SELECT supplier_id FROM supplier_return WHERE id = ?", UUID.class, returnId);
+        if (owners.isEmpty()) {
+            throw ApiException.notFound("SUPPLIER_RETURN_NOT_FOUND", "供应商售后单不存在: " + returnId);
+        }
+        if (!owners.get(0).equals(supplierId)) {
+            // 不泄露存在性：对他人的单据返回"不存在"
+            throw ApiException.notFound("SUPPLIER_RETURN_NOT_FOUND", "供应商售后单不存在: " + returnId);
+        }
+        transition(returnId, target, note);
+    }
+
     public Map<String, Object> list(UUID supplierId, String status, int page, int size) {
         int safeSize = Math.min(Math.max(size, 1), 100);
         int offset = Math.max(page, 0) * safeSize;

@@ -159,7 +159,7 @@
 | K2 | Admin 首次配置 | ✅ | 4 步向导（基础/运营/服务商/完成，可跳过）+ 常驻提示；后端 status/complete；**E2E 走完整个向导** |
 | K3 | 积分过期 | ⚠️ | 基础已做：V64 `remaining_points` + 核销 FIFO 扣减（有测试）；**过期任务与后台判定未做** |
 | K4 | 部分退款佣金 DEFER：售后关闭事件驱动 | ⬜ | 见 `docs/DECISIONS_PENDING.md` A6 |
-| K5 | 区分「商城售后单」与「供应商售后单」状态机 | ⚠️ | 现有 `after_sale` 是商城侧；ERP 供应商售后未建模 |
+| K5 | 供应商售后独立建模 | ⚠️ | V68 `supplier_return`（REQUESTED→ACCEPTED/REJECTED→SETTLED）+ 后台接口 + 状态机测试；**供应商门户侧查看/申诉未做** |
 | K6 | AI 接口层（推荐/客服/文案/图片，未配置即明确不可用） | ⬜ | 见 `docs/AI_EXTENSION.md` |
 | K7 | AI 事件采集补齐（加购、搜索词、点击埋点） | ⬜ | 同上 |
 

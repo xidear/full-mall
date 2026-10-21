@@ -58,6 +58,8 @@ public class PermissionService {
         if (path.startsWith("/admin/v1/distribution")) return "promotion.manage";
         if (path.startsWith("/admin/v1/after-sales")) return "order.manage";
         if (path.startsWith("/admin/v1/suppliers")) return "supplier.manage";
+        // 供应商售后与供应商管理同权限
+        if (path.startsWith("/admin/v1/supplier-returns")) return "supplier.manage";
         if (path.startsWith("/admin/v1/notifications")) return "notification.view";
         if (path.startsWith("/admin/v1/theme")) return "theme.manage";
         if (path.startsWith("/admin/v1/staff")) return "staff.manage";

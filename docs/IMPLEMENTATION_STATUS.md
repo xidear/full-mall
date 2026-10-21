@@ -4381,3 +4381,27 @@ storefront 结算页需要真正的 OTP 流程：
 
 > 说明：页面只展示 `audit_event`（应用级操作审计）。JaVers 快照（I6b）另接口，未做页面。
 
+---
+
+## 2026-10-19：供应商售后独立建模（K5 第一步）
+
+按你的要求，把两类售后彻底分开：
+
+| 类型 | 表 | 流程 |
+|---|---|---|
+| **商城售后单**（顾客 → 商城） | `after_sale` | 申请 → 审核 → 收货 → 退款/换货 |
+| **供应商售后单**（商城 → 供应商） | **`supplier_return`（新增 V68）** | 发起 → 供应商接受/拒绝 → 结算扣减 |
+
+接口：`POST /admin/v1/supplier-returns`、`POST .../{id}/status`、`GET ...`（权限 `supplier.manage`）。
+
+状态机严格受限：`REQUESTED → ACCEPTED|REJECTED`，`ACCEPTED → SETTLED`，其余流转一律拒绝；
+`REJECTED`/`SETTLED` 时写 `closed_at`。
+
+| 验证 | 结果 |
+|---|---|
+| 后端测试 | **434 个，全部通过，0 跳过** |
+| 新增用例 | 正常流转到 SETTLED 并写关闭时间；REQUESTED 直接 SETTLED 被拒；未知状态被拒；缺原因/负金额被拒 |
+| 接口对齐 | **206** 路由 / 24 调用 / 0 未匹配 |
+
+> 未做：供应商门户侧查看与申诉、结算单联动扣减。K5 仍记 ⚠️。
+

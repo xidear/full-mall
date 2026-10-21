@@ -4765,3 +4765,23 @@ Spring 静默忽略**，接口照常执行**真实删除**。
 | 新增用例 | 传 `dryRun` → 400 且提示包含 `dryRun` |
 | 接口对齐 | **209** 路由 / 24 调用 / 0 未匹配 |
 
+---
+
+## 2026-10-19：积分过期（K3 完成，按你的口径）
+
+口径：**后台可配、默认永不过期、判断写完善**。
+
+| 项 | 实现 |
+|---|---|
+| `member.points.expiry-mode` | `NEVER`（默认）/ `ROLLING_DAYS` / `FIFO` |
+| `member.points.expiry-days` | 有效期天数；非 NEVER 时必须 > 0 且 ≤ 3650，否则**报错** |
+| 过期算法 | 扫 `EARN` 且 `remaining_points > 0` 且 `created_at <= now - days`；按剩余量扣，写 `EXPIRE` 流水（`business_key=expire:<ledgerId>` 幂等），余额不为负 |
+| 定时任务 | `member.points-expiry` 默认**开启**；NEVER 时直接返回不扫描 |
+
+| 验证 | 结果 |
+|---|---|
+| 后端测试 | **441 个，全部通过** |
+| 用例 | NEVER 不expire；ROLLING_DAYS=30 只过期 40 天前那笔（新笔保留、余额 150→50、写 1 条 EXPIRE）；非法模式与 0 天各报错 |
+
+> 说明：`FIFO` 与 `ROLLING_DAYS` 目前算法相同（都是"获得后 N 天"），保留两个取值是为将来支持"统一到期日"。
+

@@ -73,6 +73,21 @@ public class GlobalExceptionHandler {
                 requestId(request), List.of()));
     }
 
+    /**
+     * 路径/查询参数类型不匹配（例如 `{id}` 传了非 UUID）→ **400**。
+     *
+     * <p>与"请求体无法解析"同类：属于调用方错误，不是服务端故障。
+     */
+    @ExceptionHandler(org.springframework.web.method.annotation.MethodArgumentTypeMismatchException.class)
+    public ResponseEntity<ErrorResponse> onTypeMismatch(
+            org.springframework.web.method.annotation.MethodArgumentTypeMismatchException error,
+            HttpServletRequest request) {
+        return ResponseEntity.badRequest().body(new ErrorResponse(
+                "INVALID_PARAMETER_TYPE",
+                "参数 " + error.getName() + " 类型不正确：" + error.getMessage(),
+                requestId(request), List.of()));
+    }
+
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ErrorResponse> handleUnexpected(Exception exception, HttpServletRequest request) {
         String requestId = requestId(request);

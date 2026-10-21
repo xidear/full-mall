@@ -4669,3 +4669,18 @@ ERROR: column f.supplier_id does not exist
 
 > 仍有限制（H1b）：只有注册了加载器的实体能可靠恢复；目前仅 asset。
 
+---
+
+## 2026-10-19：供应商结算 CSV 导出验证（G4）
+
+`supplier-csv.spec.ts`：后台签发凭证 → **在测试里自行做 HMAC-SHA256 签名** → 调
+`GET /open/v1/settlements.csv` → 断言 200、`Content-Disposition` 正确、内容非空。
+
+| 验证 | 结果 |
+|---|---|
+| E2E | ✅ 通过（616ms） |
+| 签名方式 | `sha256(body)` + `HMAC(secret, "GET\npath\nts\nnonce\nbodyHash")` |
+
+> 这条用例的价值：证明**外部系统按文档实现签名就能拿到导出**，而不只是内部调用能通。
+> 仍未做：CSV 批量**导入**（解析器存在，无入口）。
+

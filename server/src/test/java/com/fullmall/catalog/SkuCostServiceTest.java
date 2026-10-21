@@ -92,4 +92,43 @@ class SkuCostServiceTest {
                 .isInstanceOf(com.fullmall.platform.error.ApiException.class)
                 .hasMessageContaining("没有成本记录");
     }
+
+    /** COST-3：退货按**原批次成本**回冲，而不是当前均价。 */
+    @Test
+    void returnUsesOriginalBatchCostNotCurrentAverage() {
+        UUID skuId = sku();
+        // 先按 10 元入库 10 件，再按 20 元入库 10 件 → 均价 15 元
+        costs.receive(skuId, 10, 1_000, "RECEIPT", "R1");
+        costs.receive(skuId, 10, 2_000, "RECEIPT", "R2");
+        assertThat(costs.current(skuId).avgCost()).isEqualTo(1_500);
+
+        // 造一个批次（成本 10 元），退货 5 件应按 10 元回冲
+        UUID batchId = UUID.randomUUID();
+        jdbc.update("""
+                INSERT INTO inventory_batch (id, sku_id, location_type, location_id, batch_no,
+                                             quantity, unit_cost_amount, unit_cost_currency)
+                VALUES (?, ?, 'WAREHOUSE', ?, 'B-RET-1', 10, 1000, 'CNY')
+                """, batchId, skuId, UUID.randomUUID());
+
+        var after = costs.returnFromBatch(skuId, batchId, 5);
+
+        // 数量 25、金额 20000+10000+5000 = 35000 → 均价 1400（若按均价 1500 回冲会得到 1500）
+        assertThat(after.quantity()).isEqualTo(25);
+        assertThat(after.amount()).isEqualTo(35_000);
+        assertThat(after.avgCost()).isEqualTo(1_400);
+    }
+
+    @Test
+    void returnWithoutBatchCostIsRejected() {
+        UUID skuId = sku();
+        UUID batchId = UUID.randomUUID();
+        jdbc.update("""
+                INSERT INTO inventory_batch (id, sku_id, location_type, location_id, batch_no, quantity)
+                VALUES (?, ?, 'WAREHOUSE', ?, 'B-NOCOST', 5)
+                """, batchId, skuId, UUID.randomUUID());
+
+        assertThatThrownBy(() -> costs.returnFromBatch(skuId, batchId, 1))
+                .isInstanceOf(com.fullmall.platform.error.ApiException.class)
+                .hasMessageContaining("没有成本记录");
+    }
 }

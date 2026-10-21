@@ -5069,3 +5069,27 @@ Spring 静默忽略**，接口照常执行**真实删除**。
 
 > 剩余（F1 ⚠️）：后台品牌管理页（增删改）未做。
 
+---
+
+## 2026-10-19：构建分版 M0 完成（社区版不含 AI）
+
+| 项 | 实现 |
+|---|---|
+| Maven profile | `community`（默认，`activeByDefault`）/ `enterprise` |
+| 源码隔离 | AI 与许可源码放 `server/src-enterprise/java`，仅 `enterprise` 用 `build-helper` 加入源码根 |
+| 运行标识 | `app.edition: ${APP_EDITION:community}`；surefire 注入 `APP_EDITION=${app.edition}` |
+| 类隔离验证 | `EditionPackagingTest`：社区版断言 `com.fullmall.ai.*` **不存在**，企业版断言存在 |
+
+企业版骨架 `AdminAiController`：
+
+- `app.ai.enabled=false` → **503**，`reason="AI 模块未启用"`；
+- 启用但缺配置 → **503**，`missing=["app.ai.chat-base-url", ...]` 逐项列出；
+- 全配好 → 200 返回模型名与 topK。
+
+| 验证 | 结果 |
+|---|---|
+| 社区版编译 + 全量测试 | ✅ **452 个全绿** |
+| 企业版编译（`-Penterprise`） | ✅ BUILD SUCCESS，产物含 `com/fullmall/ai/api/AdminAiController.class` |
+| 企业版用例 | ✅ `EditionPackagingTest` 通过 |
+| 社区版类目录 | ✅ `target/classes/com/fullmall/ai` 不存在 |
+

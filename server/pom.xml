@@ -21,6 +21,7 @@
         <java.version>21</java.version>
         <spring-modulith.version>2.1.1</spring-modulith.version>
         <springdoc.version>3.1.1</springdoc.version>
+        <app.edition>community</app.edition>
     </properties>
 
     <dependencyManagement>
@@ -206,6 +207,59 @@
             <properties>
                 <app.mode>prod</app.mode>
             </properties>
+        </profile>
+
+        <!--
+          构建分版：
+          - community（默认）：只编译 src/main/java，产物**不含** com.fullmall.ai / com.fullmall.licensing
+          - enterprise：额外把 src-enterprise/java 加入源码根，含 AI 与许可模块
+          社区版是 github 开源产物；企业版只交付客户。
+        -->
+        <profile>
+            <id>community</id>
+            <activation>
+                <activeByDefault>true</activeByDefault>
+            </activation>
+            <properties>
+                <app.edition>community</app.edition>
+            </properties>
+        </profile>
+        <profile>
+            <id>enterprise</id>
+            <properties>
+                <app.edition>enterprise</app.edition>
+            </properties>
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>org.codehaus.mojo</groupId>
+                        <artifactId>build-helper-maven-plugin</artifactId>
+                        <version>3.6.1</version>
+                        <executions>
+                            <execution>
+                                <id>add-enterprise-sources</id>
+                                <phase>generate-sources</phase>
+                                <goals><goal>add-source</goal></goals>
+                                <configuration>
+                                    <sources>
+                                        <source>src-enterprise/java</source>
+                                    </sources>
+                                </configuration>
+                            </execution>
+                        </executions>
+                    </plugin>
+                            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-surefire-plugin</artifactId>
+                <configuration>
+                    <!-- 把构建分版传进测试环境，供 EditionPackagingTest 断言产物形态 -->
+                    <environmentVariables>
+                        <APP_EDITION>${app.edition}</APP_EDITION>
+                    </environmentVariables>
+                </configuration>
+            </plugin>
+</plugins>
+            </build>
         </profile>
     </profiles>
 </project>

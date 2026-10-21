@@ -58,6 +58,16 @@ class LicenseReadOnlyFilterTest {
         String payCallback() {
             return "ok";
         }
+
+        @PostMapping("/admin/v1/license/upload")
+        String upload() {
+            return "{\"saved\":true}";
+        }
+
+        @PostMapping("/admin/v1/customers/x/notes")
+        String writeBusinessData() {
+            return "ok";
+        }
     }
 
     private Path licenseFile;
@@ -121,6 +131,18 @@ class LicenseReadOnlyFilterTest {
         mvc().perform(post("/admin/v1/auth/login")).andExpect(status().isOk());
         mvc().perform(post("/api/v1/payments/mock/x/pay"))
                 .andExpect(status().isOk());
+    }
+
+    /** 三个例外是**用户确认过**的策略：过期后仍必须能登录、上传许可、接收支付回调。 */
+    @Test
+    void confirmedExceptionsStayAvailableWhileExpired() throws Exception {
+        mvc().perform(post("/admin/v1/auth/login")).andExpect(status().isOk());
+        mvc().perform(post("/admin/v1/license/upload")).andExpect(status().isOk());
+        mvc().perform(post("/api/v1/payments/mock/x/pay")).andExpect(status().isOk());
+        // 但普通业务写操作必须被拦
+        mvc().perform(post("/admin/v1/customers/x/notes"))
+                .andExpect(status().is(402))
+                .andExpect(jsonPath("$.code").value("LICENSE_EXPIRED"));
     }
 
     @Test

@@ -140,4 +140,27 @@ class BargainServiceTest {
         assertThatThrownBy(() -> bargain.markOrdered(session.id(), UUID.randomUUID()))
                 .hasMessageContaining("不能重复下单");
     }
+
+    /** 结算取价：只有本人的 READY 场次可参与，且不会回落原价。 */
+    @Test
+    void quoteOnlyForOwnReadySession() {
+        UUID activityId = activity(1_000, 400, 3);
+        UUID owner = member("13900005001");
+        UUID other = member("13900005002");
+        var session = bargain.start(activityId, owner);
+
+        assertThatThrownBy(() -> bargain.quote(session.id(), owner))
+                .as("未达成不能按活动价下单").hasMessageContaining("砍价尚未达成");
+        assertThatThrownBy(() -> bargain.quote(session.id(), other))
+                .hasMessageContaining("只能用自己的砍价场次");
+
+        bargain.help(session.id(), member("13900005003"));
+        bargain.help(session.id(), member("13900005004"));
+        bargain.help(session.id(), member("13900005005"));
+
+        var quote = bargain.quote(session.id(), owner);
+        assertThat(quote.unitPrice()).isLessThan(1_000);
+        assertThat(quote.unitPrice()).isGreaterThanOrEqualTo(400);
+        assertThat(quote.skuId()).isNotNull();
+    }
 }

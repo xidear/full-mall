@@ -136,6 +136,39 @@ public class BargainService {
         return find(sessionId);
     }
 
+    /**
+     * 结算取价：仅 `READY`（人数已够）且属于本人的场次可参与结算。
+     *
+     * <p>返回的是**锁定价格**；下单时必须用它替代 SKU 原价，否则砍价等于白砍。
+     * 校验失败一律拒绝，不回落原价（回落等于静默放弃优惠）。
+     */
+    public record Quote(UUID sessionId, UUID skuId, long unitPrice, String currency) {
+    }
+
+    public Quote quote(UUID sessionId, UUID memberId) {
+        record Row(UUID memberId, String status, long price, UUID skuId, String currency) {
+        }
+        var rows = jdbc.query("""
+                SELECT bs.member_id, bs.status, bs.current_price, ba.sku_id, ba.currency
+                  FROM bargain_session bs JOIN bargain_activity ba ON ba.id = bs.activity_id
+                 WHERE bs.id = ?
+                """, (rs, rowNum) -> new Row(rs.getObject("member_id", UUID.class),
+                rs.getString("status"), rs.getLong("current_price"),
+                rs.getObject("sku_id", UUID.class), rs.getString("currency")), sessionId);
+        if (rows.isEmpty()) {
+            throw ApiException.notFound("BARGAIN_SESSION_NOT_FOUND", "砍价场次不存在：" + sessionId);
+        }
+        Row row = rows.get(0);
+        if (!row.memberId().equals(memberId)) {
+            throw ApiException.conflict("BARGAIN_NOT_OWNER", "只能用自己的砍价场次下单");
+        }
+        if (!"READY".equals(row.status())) {
+            throw ApiException.conflict("BARGAIN_NOT_READY",
+                    "砍价尚未达成（当前状态 " + row.status() + "），不能按活动价下单");
+        }
+        return new Quote(sessionId, row.skuId(), row.price(), row.currency());
+    }
+
     public Session find(UUID sessionId) {
         var rows = jdbc.query("""
                 SELECT bs.id, bs.activity_id, bs.member_id, bs.current_price, bs.helper_count,

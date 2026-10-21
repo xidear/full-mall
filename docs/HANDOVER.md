@@ -12,8 +12,7 @@
 | 前端构建（5 应用） | ✅ |
 | 接口对齐 | ✅ 222 路由 / 24 调用 / 0 未匹配 |
 | 帮助覆盖 | ✅ 22 页，索引同步（`docs/HELP_INDEX.md`） |
-| E2E（全量） | 37 passed / 4 failed（2 个真回归已修、2 个 AI spec 已按构建显式跳过） |
-| E2E（回归复跑） | ✅ `commission-hold`、`exchange-flow` 均通过（1.6s / 0.9s） |
+| E2E（全量） | ✅ **39 passed / 0 failed**（1.5 分钟；AI 2 条按构建显式跳过） |
 
 ## 2. 已闭环、可直接用的能力
 

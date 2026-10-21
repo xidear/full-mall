@@ -37,7 +37,7 @@ public class SupplierSettlementRepository {
                        COALESCE(SUM(p.amount_amount), 0) AS gross_amount
                   FROM orders o
                   JOIN fulfillment_order f ON f.order_id = o.id
-                   AND f.supplier_id = ? AND f.type = 'SUPPLIER_DROPSHIP'
+                   AND f.source_id = ? AND f.type = 'SUPPLIER_DROPSHIP'
                   JOIN payment p ON p.order_id = o.id AND p.status = 'PAID'
                  WHERE o.created_at >= ? AND o.created_at < ?
                  GROUP BY o.currency

@@ -5434,3 +5434,21 @@ RAG 改库即生效、能回溯、无命中就说不知道。训练留给"风格
 > 未做（A8 仍 ⚠️）：批次表加单位成本、收货/出库/退货结转、`stock_cost_movement`、只读展示。
 > 下一步按 `docs/COST_ACCOUNTING_DESIGN.md` §6 顺序落地。
 
+---
+
+## 2026-10-19：成本核算落地第二步（V79 + SkuCostService）
+
+| 组件 | 内容 |
+|---|---|
+| V79 | `sku_cost`（数量/金额/均价/stale）+ `stock_cost_movement`（RECEIPT/ISSUE/RETURN/ADJUST/WRITE_OFF） |
+| `SkuCostService.receive` | 收货入库 → 重算移动加权均价 → 写 RECEIPT 流水（同一事务） |
+| `SkuCostService.issue` | 出库按均价结转、均价不变 → 写 ISSUE 流水；**无成本记录直接拒绝** |
+| `current` | 从未入库返回 **null**（调用方不得当作 0） |
+
+| 验证 | 结果 |
+|---|---|
+| 后端全量 | ✅ **482 个全绿** |
+| 用例 | 10@10 + 10@14 → 均价 12、金额 240；出库 5 → 金额 180、均价仍 12；流水 3 条；无成本记录出库被拒 |
+
+> 仍缺（A8 ⚠️）：收货接口调用 `receive`、售后退货按原批次回冲、`inventory_batch.unit_cost_amount`、只读展示。
+

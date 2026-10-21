@@ -34,7 +34,17 @@ public class NotificationChannelConfig {
     // 外部渠道：只有非生产模式才装 mock，避免"假发送成功"污染生产数据。
     @Bean
     public NotificationChannelSender smsNotificationSender(
-            @Value("${app.sms.provider:mock}") String provider) {
+            @Value("${app.sms.provider:mock}") String provider,
+            @Value("${app.sms.aliyun.access-key-id:}") String aliyunKeyId,
+            @Value("${app.sms.aliyun.access-key-secret:}") String aliyunKeySecret,
+            @Value("${app.sms.aliyun.endpoint:}") String aliyunEndpoint,
+            @Value("${app.sms.aliyun.sign-name:}") String aliyunSignName,
+            @Value("${app.sms.aliyun.template-code:}") String aliyunTemplateCode) {
+        if ("aliyun".equalsIgnoreCase(provider == null ? "" : provider.trim())) {
+            // 真实通道：配置缺失会在这里启动失败，不会假装发送成功
+            return new com.fullmall.notification.channel.AliyunSmsSender(
+                    aliyunKeyId, aliyunKeySecret, aliyunEndpoint, aliyunSignName, aliyunTemplateCode);
+        }
         return externalSender("SMS", provider);
     }
 

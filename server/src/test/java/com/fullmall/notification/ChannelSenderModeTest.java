@@ -22,7 +22,7 @@ class ChannelSenderModeTest {
     @Test
     void demoModeUsesMockSenders() {
         var config = new NotificationChannelConfig("demo");
-        NotificationChannelSender sms = config.smsNotificationSender("mock");
+        NotificationChannelSender sms = config.smsNotificationSender("mock", "", "", "", "", "");
         assertThat(sms.channel()).isEqualTo("SMS");
         sms.send(sample());   // mock 不抛错
     }
@@ -30,7 +30,7 @@ class ChannelSenderModeTest {
     @Test
     void productionModeNeverFakesExternalDelivery() {
         var config = new NotificationChannelConfig("prod");
-        NotificationChannelSender sms = config.smsNotificationSender("mock");
+        NotificationChannelSender sms = config.smsNotificationSender("mock", "", "", "", "", "");
 
         // 关键断言：生产下 mock 也不会被当成成功，而是明确失败
         assertThatThrownBy(() -> sms.send(sample()))
@@ -41,9 +41,14 @@ class ChannelSenderModeTest {
     @Test
     void productionModeReportsUnconfiguredRealProviderExplicitly() {
         var config = new NotificationChannelConfig("prod");
-        NotificationChannelSender sms = config.smsNotificationSender("aliyun");
+        // 真实通道缺配置：**启动期**就失败（比"发送时才发现"更早暴露）
+        assertThatThrownBy(() -> config.smsNotificationSender("aliyun", "", "", "", "", ""))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("必须配置");
 
-        assertThatThrownBy(() -> sms.send(sample()))
+        // 其它未接入渠道仍是"总是失败"的 sender，不允许伪装成功
+        NotificationChannelSender email = config.emailNotificationSender("aliyun");
+        assertThatThrownBy(() -> email.send(sample()))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("未配置真实服务商");
     }

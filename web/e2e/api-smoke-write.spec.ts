@@ -19,7 +19,14 @@ const WRITE_CASES: Array<{ method: 'POST' | 'PUT'; path: string; body?: unknown;
     note: '通知不存在' },
   { method: 'PUT', path: '/admin/v1/settings', body: { 'not.allowed.key': 'x' }, note: '非法设置键' },
   { method: 'POST', path: '/admin/v1/distribution/withdrawals',
-    body: { promoterId: 'not-a-uuid', amount: -1 }, note: '提现非法参数' }
+    body: { promoterId: 'not-a-uuid', amount: -1 }, note: '提现非法参数' },
+  { method: 'POST', path: '/admin/v1/staff/00000000-0000-0000-0000-000000000000/pin',
+    body: {}, note: '员工 PIN 空体' },
+  { method: 'POST', path: '/admin/v1/orders/00000000-0000-0000-0000-000000000000/refunds',
+    body: {}, note: '退款空体' },
+  { method: 'POST', path: '/admin/v1/supplier-returns', body: {},
+    note: '供应商退货空体' },
+  { method: 'POST', path: '/api/v1/member/auth/verify', body: {}, note: 'OTP 校验空体' }
 ]
 
 test('write endpoints reject invalid input with 4xx, never 500', async ({ request }) => {

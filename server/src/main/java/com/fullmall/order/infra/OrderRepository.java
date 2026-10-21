@@ -278,4 +278,18 @@ public class OrderRepository {
                 order.contactName(), order.contactPhone(), order.contactEmail(), order.addressJson(),
                 order.fulfillmentMode(), order.storeId(), order.createdAt(), findOrderLines(order.id()));
     }
+
+    /** 记录订单行实际出库批次（拣货时写入）；同一行只允许写一次，避免被后续批次覆盖。 */
+    public boolean recordLineBatch(UUID orderLineId, UUID batchId) {
+        return jdbcTemplate.update("""
+                UPDATE order_line SET batch_id = ?
+                 WHERE id = ? AND batch_id IS NULL
+                """, batchId, orderLineId) == 1;
+    }
+
+    public UUID findLineBatch(UUID orderLineId) {
+        var rows = jdbcTemplate.query("SELECT batch_id FROM order_line WHERE id = ?",
+                (rs, rowNum) -> rs.getObject("batch_id", UUID.class), orderLineId);
+        return rows.isEmpty() ? null : rows.get(0);
+    }
 }

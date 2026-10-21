@@ -5576,3 +5576,20 @@ RAG 改库即生效、能回溯、无命中就说不知道。训练留给"风格
 
 > 这轮只做核查与登记，**没有写"看起来能跑"的接线**。
 
+---
+
+## 2026-10-19：订单行批次列（H21 第一步）
+
+- V81：`order_line.batch_id UUID REFERENCES inventory_batch(id)` + 部分索引；
+- `OrderRepository.recordLineBatch(lineId, batchId)`：**只允许写一次**（`WHERE batch_id IS NULL`），
+  防止后续批次覆盖导致退货回冲到错误成本；
+- `findLineBatch` 供售后退货取原批次。
+
+| 验证 | 结果 |
+|---|---|
+| 后端全量 | ✅ **489 个全绿** |
+| 用例 | 首次写入成功、第二次返回 false 且值不变 |
+
+> 仍缺（H21 ⚠️）：**拣货路径写入**（POS/仓库拣货知道批次，需在那里调用 `recordLineBatch`），
+> 之后售后收货才能安全调用 `returnFromBatch`。
+

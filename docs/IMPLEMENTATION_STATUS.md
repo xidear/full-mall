@@ -5737,3 +5737,22 @@ V82：`pick_task_line.order_line_id`（可空）。
 > 教训：把"数据缺失"当成"业务失败"是错的处理方式——售后是顾客权利，不能被内部记账问题挡住；
 > 正确做法是**业务继续 + 留下可见待办**。
 
+---
+
+## 2026-10-19：回归复跑通过
+
+修复后单独重跑两个曾失败的 spec：
+
+```
+✓ commission-hold  partial return holds commission then reverses it on refund (1.6s)
+✓ exchange-flow    exchange flows from request to completion (0.9s)
+2 passed
+```
+
+| 项 | 结果 |
+|---|---|
+| 曾失败的 2 条 | ✅ 通过（证明"售后不再被缺批次卡住"） |
+| AI 2 条 | 已按构建显式跳过（社区版无该路由） |
+
+> 未重跑全量 41 条：本轮时间/上下文有限，已如实记录，不声称"全部通过"。
+

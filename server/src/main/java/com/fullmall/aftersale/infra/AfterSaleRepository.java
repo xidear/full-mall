@@ -229,6 +229,13 @@ public class AfterSaleRepository {
         return id;
     }
 
+    /** 订单行记录的原出库批次；为空说明拣货时未回填（多行合并）。 */
+    public UUID findOrderLineBatch(UUID orderLineId) {
+        var rows = jdbcTemplate.query("SELECT batch_id FROM order_line WHERE id = ?",
+                (rs, rowNum) -> rs.getObject("batch_id", UUID.class), orderLineId);
+        return rows.isEmpty() ? null : rows.get(0);
+    }
+
     public void insertStockMove(UUID batchId, UUID skuId, String locationType, UUID locationId,
                                 int quantity, UUID afterSaleId) {
         jdbcTemplate.update("""

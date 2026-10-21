@@ -35,6 +35,7 @@ public class AfterSaleService {
     private final com.fullmall.notification.app.NotificationService notifications;
     private final com.fullmall.inventory.app.InventoryService inventoryService;
     private final org.springframework.jdbc.core.JdbcTemplate jdbcTemplate;
+    private final com.fullmall.catalog.app.SkuCostService skuCostService;
 
     public AfterSaleService(AfterSaleRepository repository, OrderService orderService,
                             PaymentService paymentService,
@@ -42,7 +43,8 @@ public class AfterSaleService {
                             com.fullmall.distribution.app.CommissionHoldService commissionHold,
                             com.fullmall.notification.app.NotificationService notifications,
                             com.fullmall.inventory.app.InventoryService inventoryService,
-                            org.springframework.jdbc.core.JdbcTemplate jdbcTemplate) {
+                            org.springframework.jdbc.core.JdbcTemplate jdbcTemplate,
+                            com.fullmall.catalog.app.SkuCostService skuCostService) {
         this.repository = repository;
         this.orderService = orderService;
         this.paymentService = paymentService;
@@ -50,6 +52,7 @@ public class AfterSaleService {
         this.commissionHold = commissionHold;
         this.notifications = notifications;
         this.inventoryService = inventoryService;
+        this.skuCostService = skuCostService;
         this.jdbcTemplate = jdbcTemplate;
     }
 
@@ -258,6 +261,14 @@ public class AfterSaleService {
                     batchNo, line.quantity(), afterSale.refundAmount().currency());
             repository.insertStockMove(batchId, line.skuId(), locationType, request.locationId(),
                     line.quantity(), afterSaleId);
+            // 成本回冲：必须按**原批次**，没有批次信息就明确拒绝（不按均价猜）
+            UUID originalBatch = repository.findOrderLineBatch(line.orderLineId());
+            if (originalBatch == null) {
+                throw ApiException.conflict("RETURN_BATCH_UNKNOWN",
+                        "订单行没有记录出库批次，无法按原批次回冲成本（需人工指定）："
+                                + line.orderLineId());
+            }
+            skuCostService.returnFromBatch(line.skuId(), originalBatch, line.quantity());
         }
         repository.markReceived(afterSaleId);
         repository.insertEvent(afterSaleId, "RECEIVED", "退货入库，批次状态 QUARANTINE", operator);

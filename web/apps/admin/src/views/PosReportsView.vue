@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
-import { posSaleStatusLabel, posShiftStatusLabel } from '@fullmall/api-client'
+import { posSaleStatusLabel, posShiftStatusLabel, formatDateTime, formatDate } from '@fullmall/api-client'
 import type {
   PosDailyReport,
   PosReconciliationReport,
@@ -232,7 +232,7 @@ function messageOf(cause: unknown, fallback: string) {
           <template #default="{ row }">{{ money(row.sale.pointsDiscount) }}</template>
         </el-table-column>
         <el-table-column label="时间" width="180">
-          <template #default="{ row }">{{ new Date(row.sale.createdAt).toLocaleString('zh-CN') }}</template>
+          <template #default="{ row }">{{ formatDateTime(row.sale.createdAt) }}</template>
         </el-table-column>
         <el-table-column label="支付明细" min-width="220">
           <template #default="{ row }">

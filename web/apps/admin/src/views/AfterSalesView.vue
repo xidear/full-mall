@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { formatDateTime } from '@fullmall/api-client'
 import { onMounted, reactive, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import type { AfterSaleView } from '@fullmall/api-client'
@@ -208,7 +209,7 @@ function money(value?: { amount: number; currency: string }) {
         </el-table-column>
         <el-table-column prop="reason" label="原因" min-width="160" />
         <el-table-column label="申请时间" width="180">
-          <template #default="{ row }">{{ new Date(row.createdAt).toLocaleString('zh-CN') }}</template>
+          <template #default="{ row }">{{ formatDateTime(row.createdAt) }}</template>
         </el-table-column>
         <el-table-column label="操作" width="280">
           <template #default="{ row }">
@@ -257,7 +258,7 @@ function money(value?: { amount: number; currency: string }) {
         </el-table>
         <h3 class="section-title">处理事件</h3>
         <el-timeline>
-          <el-timeline-item v-for="event in detail.events" :key="event.id" :timestamp="new Date(event.createdAt).toLocaleString('zh-CN')">
+          <el-timeline-item v-for="event in detail.events" :key="event.id" :timestamp="formatDateTime(event.createdAt)">
             {{ event.eventType }} · {{ event.note || '—' }} · {{ event.operatorName || '—' }}
           </el-timeline-item>
         </el-timeline>

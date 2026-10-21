@@ -7,8 +7,7 @@ import {
   orderStatusLabel,
   type Fulfillment,
   type Order,
-  type OrderSummary
-} from '@fullmall/api-client'
+  type OrderSummary, formatDateTime, formatDate } from '@fullmall/api-client'
 import { ElMessage } from 'element-plus'
 import { api } from '../api'
 
@@ -164,7 +163,7 @@ function money(amount: number, currency: string) {
         <template #default="{ row }">{{ money(row.total.amount, row.total.currency) }}</template>
       </el-table-column>
       <el-table-column label="下单时间" sortable="custom" prop="createdAt" width="180">
-        <template #default="{ row }">{{ new Date(row.createdAt).toLocaleString('zh-CN') }}</template>
+        <template #default="{ row }">{{ formatDateTime(row.createdAt) }}</template>
       </el-table-column>
       <el-table-column label="操作" width="100">
         <template #default="{ row }">
@@ -192,7 +191,7 @@ function money(amount: number, currency: string) {
         <el-descriptions-item label="联系人">{{ selected.contactName }} · {{ selected.contactPhone }}</el-descriptions-item>
         <el-descriptions-item label="履约方式">{{ fulfillmentModeLabel(selected.fulfillmentMode) }}</el-descriptions-item>
         <el-descriptions-item label="订单金额">{{ money(selected.total.amount, selected.total.currency) }}</el-descriptions-item>
-        <el-descriptions-item label="下单时间">{{ new Date(selected.createdAt).toLocaleString('zh-CN') }}</el-descriptions-item>
+        <el-descriptions-item label="下单时间">{{ formatDateTime(selected.createdAt) }}</el-descriptions-item>
       </el-descriptions>
 
       <h3>商品</h3>

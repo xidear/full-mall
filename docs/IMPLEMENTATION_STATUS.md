@@ -4264,3 +4264,20 @@ storefront 结算页需要真正的 OTP 流程：
 前端时间显示目前用**浏览器本地时区**。要求是：顾客端按用户设置的时区显示，admin 与供应商端固定东八。
 这需要在前端统一封装格式化函数（`toLocaleString` 显式传 `timeZone`），涉及多个页面。
 
+---
+
+## 2026-10-19：管理端时间统一东八（K8 第一步）
+
+- `@fullmall/api-client` 新增 `formatDateTime` / `formatDate`（显式 `timeZone: 'Asia/Shanghai'`）。
+- admin / store-console / support-console / supplier-portal 共 **12 个文件、16 处**时间格式化改为调用该函数。
+
+**为什么管理端固定东八**：不同电脑的浏览器时区不同，运营会看到不同"今天"，对账（今日订单/销售额）直接对不上。
+
+| 验证 | 结果 |
+|---|---|
+| 前端构建（5 应用 + 类型检查） | ✅ |
+| 残留检查 | 管理端 `toLocaleString('zh-CN')` **0 处** |
+
+> 顾客端按会员时区显示**未做**（需 `/api/v1/me` 返回时区或读 cookie），K8 记 ⚠️。
+> 本轮未跑 E2E（纯格式化改动，无接口变更）。
+

@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { formatDateTime } from '@fullmall/api-client'
 import { onMounted, ref } from 'vue'
 import { ElMessage } from 'element-plus'
 import { api } from '../api'
@@ -103,7 +104,7 @@ async function toggleStatus(review: Review) {
         </template>
       </el-table-column>
       <el-table-column label="提交时间" width="180">
-        <template #default="{ row }">{{ new Date(row.createdAt).toLocaleString('zh-CN') }}</template>
+        <template #default="{ row }">{{ formatDateTime(row.createdAt) }}</template>
       </el-table-column>
       <el-table-column label="操作" width="140">
         <template #default="{ row }">

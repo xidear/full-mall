@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { formatDateTime } from '@fullmall/api-client'
 import { computed, onMounted, reactive, ref } from 'vue'
 import { ElMessage } from 'element-plus'
 import type { MemberAdminView, MemberLevel, PosCoupon, PosMember } from '@fullmall/api-client'
@@ -364,7 +365,7 @@ function yuanToFen(value: number) {
               </template>
             </el-table-column>
             <el-table-column label="有效期至" width="180">
-              <template #default="{ row }">{{ new Date(row.validTo).toLocaleString('zh-CN') }}</template>
+              <template #default="{ row }">{{ formatDateTime(row.validTo) }}</template>
             </el-table-column>
           </el-table>
         </el-tab-pane>

@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { formatDateTime } from '@fullmall/api-client'
 import { computed, onMounted, reactive, ref } from 'vue'
 import { ElMessage } from 'element-plus'
 import type {
@@ -312,7 +313,7 @@ function statusLabel(status: string) {
 }
 
 function windowLabel(promotion: PromotionView) {
-  return `${new Date(promotion.startsAt).toLocaleString('zh-CN')} 至 ${new Date(promotion.endsAt).toLocaleString('zh-CN')}`
+  return `${formatDateTime(promotion.startsAt)} 至 ${formatDateTime(promotion.endsAt)}`
 }
 </script>
 
@@ -578,7 +579,7 @@ function windowLabel(promotion: PromotionView) {
           </template>
         </el-table-column>
         <el-table-column label="截止" width="170">
-          <template #default="{ row }">{{ new Date(row.expiresAt).toLocaleString('zh-CN') }}</template>
+          <template #default="{ row }">{{ formatDateTime(row.expiresAt) }}</template>
         </el-table-column>
       </el-table>
     </el-drawer>

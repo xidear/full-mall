@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { formatDateTime } from '@fullmall/api-client'
 import { computed, onMounted, reactive, ref } from 'vue'
 import { ElMessage } from 'element-plus'
 import type { ProductPage } from '@fullmall/api-client'
@@ -374,7 +375,7 @@ function statusLabel(status: string) {
               </template>
             </el-table-column>
             <el-table-column label="收货时间" width="180">
-              <template #default="{ row }">{{ new Date(row.confirmedAt || row.createdAt).toLocaleString('zh-CN') }}</template>
+              <template #default="{ row }">{{ formatDateTime(row.confirmedAt || row.createdAt) }}</template>
             </el-table-column>
           </el-table>
         </el-tab-pane>
@@ -445,7 +446,7 @@ function statusLabel(status: string) {
             </el-table-column>
             <el-table-column prop="lines.length" label="批次数" width="100" />
             <el-table-column label="创建时间" width="180">
-              <template #default="{ row }">{{ new Date(row.createdAt).toLocaleString('zh-CN') }}</template>
+              <template #default="{ row }">{{ formatDateTime(row.createdAt) }}</template>
             </el-table-column>
           </el-table>
         </el-tab-pane>

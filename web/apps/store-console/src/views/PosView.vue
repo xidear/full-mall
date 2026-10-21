@@ -14,8 +14,7 @@ import {
   type PosSaleLine,
   type PosSaleView,
   type PosShiftView,
-  type Store
-} from '@fullmall/api-client'
+  type Store, formatDateTime, formatDate } from '@fullmall/api-client'
 
 interface CartLine {
   skuId: string
@@ -910,7 +909,7 @@ function messageOf(cause: unknown, fallback: string) {
           <template #default="{ row }">{{ money(row.sale.refunded) }}</template>
         </el-table-column>
         <el-table-column label="时间" width="180">
-          <template #default="{ row }">{{ new Date(row.sale.createdAt).toLocaleString('zh-CN') }}</template>
+          <template #default="{ row }">{{ formatDateTime(row.sale.createdAt) }}</template>
         </el-table-column>
         <el-table-column label="操作" width="130">
           <template #default="{ row }">

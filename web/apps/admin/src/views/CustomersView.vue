@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { formatDateTime } from '@fullmall/api-client'
 import { onMounted, ref } from 'vue'
 import { api } from '../api'
 
@@ -64,7 +65,7 @@ function money(value: Customer['totalSpent']) {
         <template #default="{ row }">{{ money(row.totalSpent) }}</template>
       </el-table-column>
       <el-table-column label="最近下单" min-width="180">
-        <template #default="{ row }">{{ new Date(row.lastOrderAt).toLocaleString('zh-CN') }}</template>
+        <template #default="{ row }">{{ formatDateTime(row.lastOrderAt) }}</template>
       </el-table-column>
     </el-table>
 

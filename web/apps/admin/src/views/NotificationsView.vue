@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { formatDateTime } from '@fullmall/api-client'
 import { onMounted, reactive, ref } from 'vue'
 import { ElMessage } from 'element-plus'
 import { api } from '../api'
@@ -114,7 +115,7 @@ function label(map: Record<string, string>, key: string) {
     <el-alert v-if="error" :title="error" type="error" show-icon :closable="false" class="mb-16" />
     <el-table :data="notifications" stripe>
       <el-table-column label="时间" width="180">
-        <template #default="{ row }">{{ new Date(row.createdAt).toLocaleString('zh-CN') }}</template>
+        <template #default="{ row }">{{ formatDateTime(row.createdAt) }}</template>
       </el-table-column>
       <el-table-column label="接收方" width="110">
         <template #default="{ row }">{{ label(recipientLabels, row.recipientType) }}</template>

@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { formatDateTime } from '@fullmall/api-client'
 import { computed, onBeforeUnmount, onMounted, reactive, ref } from 'vue'
 
 interface Agent {
@@ -335,7 +336,7 @@ function messageOf(cause: unknown) {
             </span>
           </div>
           <small>{{ conversation.customerName || '顾客' }} · {{ conversation.customerPhone || '未留手机号' }}</small>
-          <small>{{ new Date(conversation.lastMessageAt || conversation.createdAt).toLocaleString('zh-CN') }}</small>
+          <small>{{ formatDateTime(conversation.lastMessageAt || conversation.createdAt) }}</small>
         </button>
       </aside>
 

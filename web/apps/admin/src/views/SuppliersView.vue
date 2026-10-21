@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { formatDateTime } from '@fullmall/api-client'
 import { onMounted, ref } from 'vue'
 import { ElMessage } from 'element-plus'
 import type { SupplierCredentialView } from '@fullmall/api-client'
@@ -82,7 +83,7 @@ async function copy(text: string, label: string) {
         </el-table-column>
         <el-table-column label="最近轮换" width="190">
           <template #default="{ row }">
-            {{ row.rotatedAt ? new Date(row.rotatedAt).toLocaleString('zh-CN') : '—' }}
+            {{ row.rotatedAt ? formatDateTime(row.rotatedAt) : '—' }}
           </template>
         </el-table-column>
         <el-table-column label="操作" width="150">

@@ -5700,3 +5700,21 @@ V82：`pick_task_line.order_line_id`（可空）。
 
 > 未做：发起/助力/达成/超时释放逻辑与接口；库存按正常下单预占，未支付由订单超时释放。
 
+---
+
+## 2026-10-19：砍价接口层（D13）
+
+| 端点 | 作用 |
+|---|---|
+| `POST /admin/v1/bargain-activities` | 创建活动：读 SKU 加权成本 → 走 `BargainPricing`（无硬下限，低于成本/成本未知需确认）→ 返回推荐价与标记 |
+| `POST /api/v1/bargain/activities/{id}/start` | 顾客发起（一人一次） |
+| `POST /api/v1/bargain/sessions/{id}/help` | 助力（去重、不破底价、人数到位 READY） |
+| `POST /api/v1/bargain/sessions/{id}/order` | 绑单（仅 READY、一次） |
+
+| 验证 | 结果 |
+|---|---|
+| 后端全量 | ✅ **497 个全绿** |
+| 接口对齐 | **222 路由**（+4）/ 24 调用 / 0 未匹配 |
+
+> 未做：结算真正按活动价下单（需改 checkout 取价逻辑）、前端活动页与规则公示。
+

@@ -203,10 +203,12 @@ public class WithdrawalService {
     /** 可提现余额 = 已解冻佣金 − 已被提现消耗的部分。 */
     public long availableForWithdrawal(UUID promoterId) {
         Long available = jdbcTemplate.queryForObject("""
-                SELECT COALESCE(SUM(commission_amount - consumed_amount), 0)
+                SELECT COALESCE(SUM(commission_amount - consumed_amount - reversed_amount
+                                    - hold_amount), 0)
                   FROM distribution_commission
                  WHERE promoter_staff_id = ? AND status = 'AVAILABLE'
                    AND payee_channel = 'WALLET'   -- 员工佣金走工资，不进可提现余额
+                   AND hold_after_sale_id IS NULL -- 售后未关闭前不释放
                 """, Long.class, promoterId);
         Long pending = jdbcTemplate.queryForObject("""
                 SELECT COALESCE(SUM(amount_amount), 0) FROM withdrawal

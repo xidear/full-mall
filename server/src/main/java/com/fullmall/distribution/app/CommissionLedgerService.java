@@ -56,6 +56,7 @@ public class CommissionLedgerService {
                   FROM distribution_commission c
                   JOIN orders o ON o.id = c.order_id
                  WHERE c.status = 'FROZEN' AND c.frozen_until IS NULL
+                   AND c.hold_after_sale_id IS NULL
                    AND o.status = 'FULFILLED' AND o.fulfilled_at IS NOT NULL
                    AND o.fulfilled_at <= ?
                  ORDER BY o.fulfilled_at
@@ -75,6 +76,7 @@ public class CommissionLedgerService {
                 SELECT id, order_id, promoter_staff_id, commission_amount, currency, status, frozen_until
                   FROM distribution_commission
                  WHERE status = 'FROZEN' AND frozen_until <= ?
+                   AND hold_after_sale_id IS NULL   -- 售后未关闭前不解冻
                  ORDER BY frozen_until
                  LIMIT 500
                 """, (rs, rowNum) -> map(rs), Timestamp.from(now));

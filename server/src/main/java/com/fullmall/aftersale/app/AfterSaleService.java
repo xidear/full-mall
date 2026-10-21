@@ -29,6 +29,7 @@ public class AfterSaleService {
     private final OrderService orderService;
     private final PaymentService paymentService;
     private final com.fullmall.order.app.LineRefundService lineRefunds;
+    private final com.fullmall.distribution.app.CommissionHoldService commissionHold;
     private final com.fullmall.notification.app.NotificationService notifications;
     private final com.fullmall.inventory.app.InventoryService inventoryService;
     private final org.springframework.jdbc.core.JdbcTemplate jdbcTemplate;
@@ -36,6 +37,7 @@ public class AfterSaleService {
     public AfterSaleService(AfterSaleRepository repository, OrderService orderService,
                             PaymentService paymentService,
                             com.fullmall.order.app.LineRefundService lineRefunds,
+                            com.fullmall.distribution.app.CommissionHoldService commissionHold,
                             com.fullmall.notification.app.NotificationService notifications,
                             com.fullmall.inventory.app.InventoryService inventoryService,
                             org.springframework.jdbc.core.JdbcTemplate jdbcTemplate) {
@@ -43,6 +45,7 @@ public class AfterSaleService {
         this.orderService = orderService;
         this.paymentService = paymentService;
         this.lineRefunds = lineRefunds;
+        this.commissionHold = commissionHold;
         this.notifications = notifications;
         this.inventoryService = inventoryService;
         this.jdbcTemplate = jdbcTemplate;
@@ -109,6 +112,10 @@ public class AfterSaleService {
             repository.insertLine(id, item.orderLineId(), line.skuId(), item.quantity());
         }
         repository.insertEvent(id, "REQUESTED", request.reason().trim(), "顾客");
+        // 部分退货：冻结对应比例佣金，售后关闭前不得提现（DEFER 口径）
+        if (refundAmount > 0) {
+            commissionHold.hold(orderId, id, refundAmount, order.total().amount());
+        }
         notifyOrder(orderId, "AFTER_SALE_CREATED", "售后申请已提交",
                 "售后单 " + afterSaleNo + " 已提交，我们会尽快处理。");
         return repository.find(id);
@@ -203,6 +210,7 @@ public class AfterSaleService {
         if (!"REQUESTED".equals(afterSale.status()) && !"APPROVED".equals(afterSale.status())) {
             throw ApiException.conflict("AFTER_SALE_NOT_REJECTABLE", "售后单当前状态为 " + afterSale.status());
         }
+        commissionHold.close(afterSaleId, false);   // 驳回：解除冻结，不扣佣金
         repository.reject(afterSaleId, request.reason().trim());
         repository.insertEvent(afterSaleId, "REJECTED", request.reason().trim(), operator);
         return require(afterSaleId);
@@ -244,6 +252,8 @@ public class AfterSaleService {
             // 落行退款记录：让"退的是哪几件商品"可追溯，并供后续按比例回退使用
             lineRefunds.recordForAfterSale(afterSaleId);
         }
+        // 售后结果=退货完成/已退款 → 按冻结额回冲佣金
+        commissionHold.close(afterSaleId, true);
         repository.markRefunded(afterSaleId);
         repository.insertEvent(afterSaleId, "REFUNDED",
                 amount > 0 ? "原路退款 " + amount + " 分" : "换货完成，无退款", operator);
@@ -317,6 +327,7 @@ public class AfterSaleService {
             throw ApiException.conflict("AFTER_SALE_NOT_SHIPPED",
                     "换货尚未发出，不能标记完成，当前状态=" + afterSale.status());
         }
+        commissionHold.close(afterSaleId, false);   // 换货完成：非退货，不扣佣金
         repository.completeExchange(afterSaleId, operator);
         repository.insertEvent(afterSaleId, "EXCHANGE_COMPLETED", "换货已完成", operator);
         notifyOrder(afterSale.orderId(), "AFTER_SALE_EXCHANGE_COMPLETED", "换货已完成",

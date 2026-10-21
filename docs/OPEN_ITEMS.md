@@ -19,7 +19,7 @@
 | A10 | 时间存储与生成时区 | ✅ | 库里时间列均为 `TIMESTAMPTZ`；订单号改用显式时区（`app.timezone`，默认服务器时区），不再隐式依赖 TZ |
 | A9 | 按行退款数量累计 | ✅ | V67 数量可空；金额分摊写 NULL，整件才写数量（有两条测试）；不再撞"数量超限" |
 | A5 | 支付配置版本切换时的在途订单路由 | ⚠️ | `payment.config_version_id` 已存，但退款时未按版本取配置 |
-| A6 | 部分退款佣金回冲口径 | ⬜ | `docs/REFUND_POLICY.md` §5 明确"佣金未做开关" |
+| A6 | 部分退款佣金回冲 | ✅ | DEFER 口径：开单冻结（按退款占比）→ 售后关闭；退货完成回冲 `reversed_amount`，驳回/换货解冻不扣（有测试） |
 | A7 | 退款按行分摊落库 | ✅ | `PaymentService.refund` 默认落行分摊（售后走 `recordForAfterSale`，传 false 防重复）；`allocate` 是纯计算器、`allocateAndRecord` 才写库（有测试） |
 | A8 | 结算价/成本快照（毛利分佣所需） | ⬜ | `order_line` 无成本字段 → 阻塞分销 `PROFIT` 模式 |
 
@@ -161,7 +161,7 @@
 | K8 | 前端时区 | ✅ | 管理端固定东八；顾客端 `formatMemberDateTime` 按会员时区（`/member/auth/me` 返回，登录后写 cookie，未取到退回浏览器时区） |
 | K2 | Admin 首次配置 | ✅ | 4 步向导（基础/运营/服务商/完成，可跳过）+ 常驻提示；后端 status/complete；**E2E 走完整个向导** |
 | K3 | 积分过期 | ✅ | 后台可配 `member.points.expiry-mode`（NEVER 默认 / ROLLING_DAYS / FIFO）+ 天数；按逐笔余量扣、写 EXPIRE 流水、余额不为负、非法配置报错；任务 `member.points-expiry` 默认开启（NEVER 时空跑）（有测试） |
-| K4 | 部分退款佣金 DEFER：售后关闭事件驱动 | ⬜ | 见 `docs/DECISIONS_PENDING.md` A6 |
+| K4 | 佣金 DEFER 自动触发 | ✅ | `AfterSaleService` 在 create/refund/reject/completeExchange 调用 `CommissionHoldService`；冻结期间不释放、不可提现 |
 | K5 | 供应商售后 | ✅ | 模型 + 后台/供应商接口（越权 404）+ 结算扣减（有测试）+ **供应商门户退货面板**（同意/拒绝）；**E2E 已验证**连接后可见并可接受 |
 | K6 | AI 接口层（推荐/客服/文案/图片，未配置即明确不可用） | ⬜ | 见 `docs/AI_EXTENSION.md` |
 | K7 | AI 事件采集补齐（加购、搜索词、点击埋点） | ⬜ | 同上 |
@@ -172,9 +172,9 @@
 
 | 状态 | 数量 |
 |---|---|
-| ✅ 已实现并验证 | 45 |
+| ✅ 已实现并验证 | 47 |
 | ⚠️ 已实现未验证 / 半接线 | 21 |
-| ⬜ 未实现 | 35 |
+| ⬜ 未实现 | 33 |
 | 🚫 有意不做 | 6 |
 | **合计** | **107** |
 | 另：接口冒烟覆盖 | 43 个接口（读 33 / 写 10） |

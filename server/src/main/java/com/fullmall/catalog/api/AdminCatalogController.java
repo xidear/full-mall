@@ -24,18 +24,21 @@ public class AdminCatalogController {
     private final com.fullmall.catalog.app.SkuCostService skuCostService;
     private final com.fullmall.catalog.app.SkuMatrixService skuMatrixService;
     private final com.fullmall.catalog.app.SkuMatrixMultiService skuMatrixMultiService;
+    private final com.fullmall.catalog.app.SkuPriceRuleService skuPriceRuleService;
     private final com.fullmall.catalog.app.ProductTranslationWorkflowService translationWorkflow;
 
     public AdminCatalogController(CatalogService catalogService,
                                   com.fullmall.catalog.app.ProductTranslationWorkflowService translationWorkflow,
                                   com.fullmall.catalog.app.SkuCostService skuCostService,
                                   com.fullmall.catalog.app.SkuMatrixService skuMatrixService,
-                                  com.fullmall.catalog.app.SkuMatrixMultiService skuMatrixMultiService) {
+                                  com.fullmall.catalog.app.SkuMatrixMultiService skuMatrixMultiService,
+                                  com.fullmall.catalog.app.SkuPriceRuleService skuPriceRuleService) {
         this.catalogService = catalogService;
         this.translationWorkflow = translationWorkflow;
         this.skuCostService = skuCostService;
         this.skuMatrixService = skuMatrixService;
         this.skuMatrixMultiService = skuMatrixMultiService;
+        this.skuPriceRuleService = skuPriceRuleService;
     }
 
     /**
@@ -190,6 +193,38 @@ public class AdminCatalogController {
     @org.springframework.web.bind.annotation.GetMapping("/{productId}/availability")
     public java.util.List<java.util.Map<String, Object>> availability(@PathVariable UUID productId) {
         return catalogService.availability(productId);
+    }
+
+    public record PriceRuleRequest(java.util.Map<String, String> match, String mode, long value) {
+    }
+
+    private com.fullmall.catalog.app.SkuPriceRuleService.Mode priceMode(String raw) {
+        try {
+            return com.fullmall.catalog.app.SkuPriceRuleService.Mode.valueOf(
+                    raw == null ? "" : raw.trim().toUpperCase());
+        } catch (IllegalArgumentException error) {
+            throw com.fullmall.platform.error.ApiException.badRequest(
+                    "SKU_PRICE_MODE_INVALID", "模式只能是 ADD 或 SET");
+        }
+    }
+
+    /** 预览：只计算不落库（改价前必须看一眼）。 */
+    @org.springframework.web.bind.annotation.PostMapping("/{productId}/price-rule/preview")
+    @org.springframework.security.access.prepost.PreAuthorize("hasAnyRole('ADMIN','OPERATOR')")
+    public java.util.List<com.fullmall.catalog.app.SkuPriceRuleService.Change> previewPriceRule(
+            @PathVariable UUID productId, @RequestBody PriceRuleRequest body) {
+        return skuPriceRuleService.preview(productId, body.match(), priceMode(body.mode()),
+                body.value());
+    }
+
+    /** 应用：真正落库，返回改动条数。 */
+    @org.springframework.web.bind.annotation.PostMapping("/{productId}/price-rule/apply")
+    @org.springframework.security.access.prepost.PreAuthorize("hasAnyRole('ADMIN','OPERATOR')")
+    public java.util.Map<String, Object> applyPriceRule(
+            @PathVariable UUID productId, @RequestBody PriceRuleRequest body) {
+        int updated = skuPriceRuleService.apply(productId, body.match(), priceMode(body.mode()),
+                body.value());
+        return java.util.Map.of("updated", updated);
     }
 
     @PatchMapping("/{productId}/status")

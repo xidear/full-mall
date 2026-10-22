@@ -25,14 +25,20 @@ public class ExpiryAlertService {
 
     private final JdbcTemplate jdbc;
     private final int warnDays;
+    private final com.fullmall.notification.app.NotificationService notifications;
+    private final boolean notifyEnabled;
 
     public ExpiryAlertService(JdbcTemplate jdbc,
-                              @Value("${app.inventory.expiry-warn-days:30}") int warnDays) {
+                              @Value("${app.inventory.expiry-warn-days:30}") int warnDays,
+                              com.fullmall.notification.app.NotificationService notifications,
+                              @Value("${app.inventory.expiry-notify:true}") boolean notifyEnabled) {
         if (warnDays <= 0) {
             throw new IllegalStateException("app.inventory.expiry-warn-days 必须大于 0，实际=" + warnDays);
         }
         this.jdbc = jdbc;
         this.warnDays = warnDays;
+        this.notifications = notifications;
+        this.notifyEnabled = notifyEnabled;
     }
 
     /** 临期批次清单（含已过期，`daysLeft` 为负）。 */
@@ -74,5 +80,12 @@ public class ExpiryAlertService {
         long expired = rows.stream().filter(row -> ((Number) row.get("daysLeft")).longValue() < 0).count();
         LOG.warn("临期预警：{} 个批次将在 {} 天内到期（其中已过期 {} 个），请及时促销或下架",
                 rows.size(), warnDays, expired);
+        if (notifyEnabled) {
+            // 没有门店上下文时先推「运营」角色：不知道归属就广播，比不提醒更安全
+            notifications.notifyStaff("INVENTORY_EXPIRY",
+                    "临期预警：" + rows.size() + " 个批次即将到期",
+                    "未来 " + warnDays + " 天内到期 " + rows.size()
+                            + " 个批次，其中已过期 " + expired + " 个，请到「临期商品」页处理。");
+        }
     }
 }

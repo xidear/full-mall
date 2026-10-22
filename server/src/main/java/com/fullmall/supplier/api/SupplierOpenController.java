@@ -47,6 +47,18 @@ public class SupplierOpenController {
                 .body(csv.content());
     }
 
+    /** 供应商待办（轮询版）：待接单 + 待处理退货。 */
+    @GetMapping("/todos")
+    public java.util.Map<String, Object> todos(
+            @RequestAttribute(SupplierHmacFilter.SUPPLIER_ID_ATTRIBUTE) UUID supplierId) {
+        int pendingOrders = supplierService.listOrders(supplierId, "PENDING_ACCEPT").size();
+        int pendingReturns = supplierReturnService.pendingCount(supplierId);
+        return java.util.Map.of(
+                "pendingOrders", pendingOrders,
+                "pendingReturns", pendingReturns,
+                "total", pendingOrders + pendingReturns);
+    }
+
     @GetMapping("/settlements")
     public List<com.fullmall.supplier.infra.SupplierSettlementRepository.SettlementRow> settlements(
             @RequestAttribute(SupplierHmacFilter.SUPPLIER_ID_ATTRIBUTE) UUID supplierId,

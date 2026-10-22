@@ -220,4 +220,13 @@ public class SupplierReturnService {
         }
         return result;
     }
+
+    /** 待处理退货数（供应商待办用）。 */
+    public int pendingCount(UUID supplierId) {
+        Integer count = jdbcTemplate.queryForObject("""
+                SELECT COUNT(*) FROM supplier_return
+                 WHERE supplier_id = ? AND status = 'REQUESTED'
+                """, Integer.class, supplierId);
+        return count == null ? 0 : count;
+    }
 }

@@ -103,4 +103,15 @@ class ReturnReconciliationTest {
                 .isEqualTo(((Number) audit.get("acceptedReturnAmount")).longValue()
                         - ((Number) audit.get("settledDeductionAmount")).longValue());
     }
+
+    /** 待办计数只统计 REQUESTED（已处理的不再打扰供应商）。 */
+    @Test
+    void pendingCountOnlyCountsRequested() {
+        UUID supplierId = supplier("待办供应商");
+        returnRow(supplierId, "REQUESTED", 100);
+        returnRow(supplierId, "ACCEPTED", 200);
+        returnRow(supplierId, "SETTLED", 300);
+
+        assertThat(returns.pendingCount(supplierId)).isEqualTo(1);
+    }
 }

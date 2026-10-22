@@ -60,11 +60,14 @@ public class DashboardService {
                 """);
 
         List<DashboardSummary.TodoItem> todos = new ArrayList<>();
-        todos.add(new DashboardSummary.TodoItem("PENDING_PAYMENT", "待付款订单", pendingPayment, "/orders"));
-        todos.add(new DashboardSummary.TodoItem("PENDING_FULFILLMENT", "待发货/待出库", pendingFulfillment, "/orders"));
-        todos.add(new DashboardSummary.TodoItem("PENDING_PICKUP", "待自提", pendingPickup, "/orders"));
+        todos.add(new DashboardSummary.TodoItem("PENDING_PAYMENT", "待付款订单", pendingPayment,
+                "/orders?status=PENDING_PAYMENT"));
+        todos.add(new DashboardSummary.TodoItem("PENDING_FULFILLMENT", "待发货/待出库", pendingFulfillment,
+                "/orders?status=PENDING_SHIPMENT"));
+        todos.add(new DashboardSummary.TodoItem("PENDING_PICKUP", "待自提", pendingPickup,
+                "/orders?status=PENDING_PICKUP"));
         todos.add(new DashboardSummary.TodoItem("LOW_STOCK", "低库存预警", lowStock, "/inventory"));
-        todos.add(new DashboardSummary.TodoItem("NEAR_EXPIRY", "临期批次", nearExpiry, "/inventory"));
+        todos.add(new DashboardSummary.TodoItem("NEAR_EXPIRY", "临期批次", nearExpiry, "/expiring"));
 
         return new DashboardSummary(
                 todayOrders,

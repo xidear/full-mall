@@ -113,6 +113,15 @@ export const HELP_ENTRIES: HelpEntry[] = [
     related: ['/products', '/sku-matrix']
   },
   {
+    route: '/expiring',
+    title: '临期商品',
+    description: '查看即将到期与已过期的批次，提前促销或下架。',
+    steps: ['打开页面按到期日查看', '7 天内标黄、已过期标红', '按批次安排促销或下架'],
+    tips: ['过期批次已不能参与拣货分配', '每天 07:30 系统会自动巡检并在日志中告警'],
+    pitfalls: ['不要等到过期才处理：临期越早促销损失越小'],
+    related: ['/inventory']
+  },
+  {
     route: '/costs',
     title: '成本查询',
     description: '查看 SKU 的加权平均成本与最近批次来源，用于毛利核对。',

@@ -54,6 +54,7 @@ const allMenus = [
   { path: '/exports', label: '导出中心', roles: ['ADMIN', 'OPERATOR'] },
   { path: '/sku-matrix', label: 'SKU 规格矩阵', roles: ['ADMIN', 'OPERATOR'] },
   { path: '/price-rule', label: '规格改价', roles: ['ADMIN', 'OPERATOR'] },
+  { path: '/expiring', label: '临期商品', roles: ['ADMIN', 'OPERATOR'] },
   { path: '/license', label: '许可证', roles: ['ADMIN'] },
   { path: '/reviews', label: '评价审核', roles: ['ADMIN', 'OPERATOR'] },
   { path: '/audit', label: '操作审计', roles: ['ADMIN'] },

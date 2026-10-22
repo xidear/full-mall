@@ -51,6 +51,7 @@ const allMenus = [
   { path: '/ai', label: 'AI 客服', roles: ['ADMIN'] },
   { path: '/brands', label: '品牌管理', roles: ['ADMIN', 'OPERATOR'] },
   { path: '/costs', label: '成本查询', roles: ['ADMIN'] },
+  { path: '/exports', label: '导出中心', roles: ['ADMIN', 'OPERATOR'] },
   { path: '/reviews', label: '评价审核', roles: ['ADMIN', 'OPERATOR'] },
   { path: '/audit', label: '操作审计', roles: ['ADMIN'] },
   { path: '/pos', label: '门店收银', roles: ['ADMIN', 'OPERATOR'] },

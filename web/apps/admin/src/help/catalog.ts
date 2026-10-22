@@ -254,6 +254,22 @@ export const HELP_ENTRIES: HelpEntry[] = [
     pitfalls: ['审计记录不会因为删用户而消失（这是刻意的）']
   },
   {
+    route: '/exports',
+    title: '导出中心',
+    description: '生成异步导出文件并下载（会员、POS 销售明细、SKU 成本）。',
+    steps: [
+      '选择资源 → 点「生成导出」',
+      '等待状态变为 SUCCEEDED',
+      '点「下载」保存 CSV'
+    ],
+    tips: [
+      '导出是异步任务，大数据量需要等一会',
+      '超过最大行数会明确失败，不会给你一个不完整的文件'
+    ],
+    pitfalls: ['文件有保留期，过期后需要重新生成'],
+    related: ['/costs']
+  },
+  {
     route: '/themes',
     title: '主题装修',
     description: '配置前台主题、配色与首页模块。',

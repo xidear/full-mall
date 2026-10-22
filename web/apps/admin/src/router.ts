@@ -16,6 +16,7 @@ import CouponsView from './views/CouponsView.vue'
 import AiView from './views/AiView.vue'
 import BrandsView from './views/BrandsView.vue'
 import CostsView from './views/CostsView.vue'
+import ExportsView from './views/ExportsView.vue'
 import SetupView from './views/SetupView.vue'
 import AuditLogView from './views/AuditLogView.vue'
 import ReviewsView from './views/ReviewsView.vue'
@@ -48,6 +49,7 @@ const router = createRouter({
     { path: '/ai', name: 'ai', component: AiView, meta: { title: 'AI 客服' } },
     { path: '/brands', name: 'brands', component: BrandsView, meta: { title: '品牌管理' } },
     { path: '/costs', name: 'costs', component: CostsView, meta: { title: '成本查询' } },
+    { path: '/exports', name: 'exports', component: ExportsView, meta: { title: '导出中心' } },
     { path: '/setup', name: 'setup', component: SetupView, meta: { title: '首次配置' } },
     { path: '/audit', name: 'audit', component: AuditLogView, meta: { title: '操作审计' } },
     { path: '/reviews', name: 'reviews', component: ReviewsView, meta: { title: '评价审核' } },

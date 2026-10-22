@@ -80,6 +80,22 @@ export const HELP_ENTRIES: HelpEntry[] = [
     related: ['/products']
   },
   {
+    route: '/sku-matrix',
+    title: 'SKU 规格矩阵',
+    description: '按规格值批量生成 SKU，省去逐个手填。',
+    steps: [
+      '填商品 ID 与 SKU 前缀（如 MUG）',
+      '填规格名与规格值（逗号或换行分隔）',
+      '设统一价格后点「生成 SKU」'
+    ],
+    tips: [
+      '编码规则是「前缀-规格值」，已存在的会被跳过',
+      '已有价格不会被覆盖；生成后回商品页补库存与图片'
+    ],
+    pitfalls: ['规格值重复会导致编码重复，系统会直接拒绝'],
+    related: ['/products']
+  },
+  {
     route: '/costs',
     title: '成本查询',
     description: '查看 SKU 的加权平均成本与最近批次来源，用于毛利核对。',

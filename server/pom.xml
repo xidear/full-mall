@@ -45,6 +45,12 @@
     </dependencyManagement>
 
     <dependencies>
+        <!-- 腾讯云短信（官方 SDK，版本随官方每日发布；适配器在 notification.channel.tencent 包内，可整体删除） -->
+        <dependency>
+            <groupId>com.tencentcloudapi</groupId>
+            <artifactId>tencentcloud-sdk-java-sms</artifactId>
+            <version>3.2.18</version>
+        </dependency>
         <!-- 微信生态成熟三方 SDK（WxJava）：模板消息、素材、菜单等 -->
         <dependency>
             <groupId>com.github.binarywang</groupId>

@@ -78,7 +78,7 @@
 
 | # | 事项 | 状态 | 依据 |
 |---|---|---|---|
-| E1 | 短信真实通道 | ⚠️ | 阿里云短信官方 SDK 已接入，缺接口/密钥/模板则启动失败（有测试）；真实发送未联调 |
+| E1 | 短信真实通道 | ⚠️ | 阿里云（dysmsapi）+ **腾讯云（tencentcloud-sdk-java-sms:3.2.18）** 两个适配器，均在独立包、缺配置启动失败、channel=SMS（有测试）；真实发送未联调 |
 | E2 | 微信模板消息 | ⚠️ | WxJava 已接入，配置契约已测；真实发送未联调（需公众号凭据与模板） |
 | E3 | 生日礼积分 | ✅ | 按等级 `birthday_points` 发放；业务时区 UTC+8；`birthday_gift_year` + `points_ledger.business_key` 双幂等（有测试）；定时任务默认开启 |
 | E4 | 会员等级后台配置 | ✅ | **原本就有**（门店收银 → 会员等级 Tab，GET/PUT `/admin/v1/pos/member-levels`）；**E2E 验证改折扣并落库** |

@@ -73,10 +73,10 @@ class SerialNumberServiceTest {
         var result = serials.register(batchId, List.of("imei-001", "IMEI-002"));
 
         assertThat(result.created()).isEqualTo(2);
-        var found = serials.lookup("imei-001");
-        assertThat(found.get("status")).isEqualTo("IN_STOCK");
-        assertThat(found.get("batchId")).isEqualTo(batchId);
-        assertThat(serials.lookup("IMEI-002").get("serialNo")).isEqualTo("IMEI-002");
+        var listed = serials.listByBatch(batchId);
+        assertThat(listed).extracting(row -> row.get("serialNo"))
+                .containsExactly("IMEI-001", "IMEI-002");
+        assertThat(listed).allSatisfy(row -> assertThat(row.get("status")).isEqualTo("IN_STOCK"));
     }
 
     @Test
@@ -88,8 +88,6 @@ class SerialNumberServiceTest {
                 .hasMessageContaining("会超出");
         assertThatThrownBy(() -> serials.register(batchId, List.of("S1")))
                 .hasMessageContaining("已登记");
-        assertThatThrownBy(() -> serials.lookup("NOPE"))
-                .hasMessageContaining("序列号不存在");
         assertThatThrownBy(() -> serials.register(batchId, List.of("X", "X")))
                 .hasMessageContaining("有重复");
     }
@@ -124,8 +122,10 @@ class SerialNumberServiceTest {
         int bound = serials.bindToOrderLine(lineId, List.of("B1", "B2"));
 
         assertThat(bound).isEqualTo(2);
-        assertThat(serials.lookup("B1").get("status")).isEqualTo("SOLD");
-        assertThat(serials.lookup("B1").get("orderLineId")).isEqualTo(lineId);
+        var after = serials.listByBatch(batchId);
+        assertThat(after).allSatisfy(row -> assertThat(row.get("status")).isEqualTo("SOLD"));
+        assertThat(after).extracting(row -> row.get("orderLineId"))
+                .containsOnly(lineId);
         assertThatThrownBy(() -> serials.bindToOrderLine(lineId, List.of("B1")))
                 .hasMessageContaining("不能出库");
     }

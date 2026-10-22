@@ -89,41 +89,26 @@ public class SerialNumberService {
         return new Registered(created);
     }
 
-    /** 按序列号查：在哪批、什么状态、卖给了哪张订单行。 */
-    public Map<String, Object> lookup(String serialNo) {
-        if (serialNo == null || serialNo.isBlank()) {
-            throw ApiException.badRequest("SERIAL_REQUIRED", "序列号不能为空");
-        }
-        var rows = jdbc.query("""
-                SELECT s.serial_no, s.status, s.batch_id, s.order_line_id, s.created_at,
-                       b.batch_no, b.sku_id, k.sku_code
-                  FROM sku_serial s
-                  JOIN inventory_batch b ON b.id = s.batch_id
-                  JOIN sku k ON k.id = s.sku_id
-                 WHERE s.serial_no = ?
+    /** 批次内的序列号清单：盘库/发货作业时顺带核对，不做"按号追人"查询。 */
+    public List<Map<String, Object>> listByBatch(UUID batchId) {
+        return jdbc.query("""
+                SELECT serial_no, status, order_line_id, created_at
+                  FROM sku_serial
+                 WHERE batch_id = ?
+                 ORDER BY serial_no
                 """, (rs, rowNum) -> {
             Map<String, Object> row = new LinkedHashMap<>();
             row.put("serialNo", rs.getString("serial_no"));
             row.put("status", rs.getString("status"));
-            row.put("batchId", rs.getObject("batch_id", UUID.class));
-            row.put("batchNo", rs.getString("batch_no"));
-            row.put("skuId", rs.getObject("sku_id", UUID.class));
-            row.put("skuCode", rs.getString("sku_code"));
             row.put("orderLineId", rs.getObject("order_line_id", UUID.class));
             row.put("createdAt", rs.getTimestamp("created_at").toInstant());
             return row;
-        }, serialNo.trim().toUpperCase(java.util.Locale.ROOT));
-        if (rows.isEmpty()) {
-            throw ApiException.notFound("SERIAL_NOT_FOUND", "序列号不存在：" + serialNo);
-        }
-        return rows.get(0);
+        }, batchId);
     }
 
     /**
-     * 出库绑定：把序列号绑到订单行，状态置为 SOLD。
-     *
-     * <p>校验：序列号必须存在、状态为 IN_STOCK、且与订单行的 SKU 一致。
-     * 任一不满足即整批失败——"扫错一件"比"漏扫"更危险。
+     * 发货绑定：把序列号绑到订单行，状态置 SOLD。
+     * 校验序列号存在、状态为 IN_STOCK、SKU 与订单行一致；任一不满足整批失败。
      */
     @Transactional
     public int bindToOrderLine(UUID orderLineId, List<String> serialNumbers) {
@@ -150,12 +135,9 @@ public class SerialNumberService {
             cleaned.add(serial);
         }
         for (String serial : cleaned) {
-            var row = jdbc.query("""
-                    SELECT status, sku_id FROM sku_serial WHERE serial_no = ?
-                    """, rs -> rs.next()
-                    ? Map.of("status", rs.getString("status"),
-                             "skuId", rs.getObject("sku_id", UUID.class))
-                    : null, serial);
+            var row = jdbc.query("SELECT status, sku_id FROM sku_serial WHERE serial_no = ?",
+                    rs -> rs.next() ? Map.of("status", rs.getString("status"),
+                            "skuId", rs.getObject("sku_id", UUID.class)) : null, serial);
             if (row == null) {
                 throw ApiException.notFound("SERIAL_NOT_FOUND", "序列号不存在：" + serial);
             }
@@ -176,8 +158,7 @@ public class SerialNumberService {
                     """, orderLineId, serial);
         }
         if (updated != cleaned.size()) {
-            throw ApiException.conflict("SERIAL_BIND_RACE",
-                    "有序列号在绑定过程中被其它订单占用，请重新扫描");
+            throw ApiException.conflict("SERIAL_BIND_RACE", "有序列号在绑定过程中被占用，请重扫");
         }
         return updated;
     }

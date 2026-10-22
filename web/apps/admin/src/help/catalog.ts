@@ -96,6 +96,23 @@ export const HELP_ENTRIES: HelpEntry[] = [
     related: ['/products']
   },
   {
+    route: '/price-rule',
+    title: '规格改价',
+    description: '按规格条件（如 存储=256G）批量改价，只影响命中的 SKU。',
+    steps: [
+      '填商品 ID 与规格条件（规格名=规格值）',
+      '选「加减」或「设为」，填金额',
+      '点「预览」核对改前/改后',
+      '确认无误再点「应用改价」'
+    ],
+    tips: [
+      '预览只计算不落库，应用才写入',
+      '规格值必须与 SKU 上的完全一致（大小写、单位）'
+    ],
+    pitfalls: ['不填规格条件会被拒绝——系统不允许无差别全商品改价'],
+    related: ['/products', '/sku-matrix']
+  },
+  {
     route: '/costs',
     title: '成本查询',
     description: '查看 SKU 的加权平均成本与最近批次来源，用于毛利核对。',

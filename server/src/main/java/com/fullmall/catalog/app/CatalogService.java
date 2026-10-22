@@ -204,4 +204,28 @@ public class CatalogService {
         }
         return updated;
     }
+
+    /**
+     * 商品各 SKU 可用量（前台用于禁用缺货规格组合）。
+     *
+     * <p>只算批次现存数量，不减去已下单未出库——预占在拣货时以批次扣减体现，
+     * 因此这里给的是"可售上限"，下单仍会二次校验（防超卖以扣减为准）。
+     */
+    public java.util.List<java.util.Map<String, Object>> availability(UUID productId) {
+        return jdbcTemplate.query("""
+                SELECT s.id AS sku_id, s.sku_code,
+                       COALESCE(SUM(b.quantity), 0) AS available
+                  FROM sku s
+                  LEFT JOIN inventory_batch b ON b.sku_id = s.id
+                 WHERE s.product_id = ?
+                 GROUP BY s.id, s.sku_code
+                 ORDER BY s.sku_code
+                """, (rs, rowNum) -> {
+            java.util.Map<String, Object> row = new java.util.LinkedHashMap<>();
+            row.put("skuId", rs.getObject("sku_id", UUID.class));
+            row.put("skuCode", rs.getString("sku_code"));
+            row.put("available", rs.getInt("available"));
+            return row;
+        }, productId);
+    }
 }

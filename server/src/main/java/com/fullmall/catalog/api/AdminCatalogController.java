@@ -186,6 +186,12 @@ public class AdminCatalogController {
                 body.disabled(), body.priceAmount());
     }
 
+    /** 各 SKU 可用量（前台禁用缺货组合用）。 */
+    @org.springframework.web.bind.annotation.GetMapping("/{productId}/availability")
+    public java.util.List<java.util.Map<String, Object>> availability(@PathVariable UUID productId) {
+        return catalogService.availability(productId);
+    }
+
     @PatchMapping("/{productId}/status")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void updateStatus(@PathVariable UUID productId,

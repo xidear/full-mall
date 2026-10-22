@@ -176,4 +176,32 @@ public class CatalogService {
         }
         return updated;
     }
+
+    /**
+     * 商品批量上下架。
+     *
+     * <p>与批量改价同样的整批语义：任一商品不存在则整批失败，避免"以为都下架了，其实漏了"。
+     */
+    @Transactional
+    public int batchUpdateStatus(java.util.List<UUID> productIds, ProductStatus status) {
+        if (productIds == null || productIds.isEmpty()) {
+            throw ApiException.badRequest("BATCH_STATUS_EMPTY", "没有需要更新的商品");
+        }
+        if (status == null) {
+            throw ApiException.badRequest("BATCH_STATUS_REQUIRED", "必须指定目标状态");
+        }
+        for (UUID productId : productIds) {
+            Integer exists = jdbcTemplate.queryForObject(
+                    "SELECT COUNT(*) FROM product WHERE id = ?", Integer.class, productId);
+            if (exists == null || exists == 0) {
+                throw ApiException.notFound("PRODUCT_NOT_FOUND", "商品不存在：" + productId);
+            }
+        }
+        int updated = 0;
+        for (UUID productId : productIds) {
+            repository.updateStatus(productId, status);
+            updated++;
+        }
+        return updated;
+    }
 }

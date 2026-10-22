@@ -149,6 +149,25 @@ public class AdminCatalogController {
         return java.util.Map.of("updated", updated);
     }
 
+    public record BatchStatusRequest(java.util.List<java.util.UUID> productIds, String status) {
+    }
+
+    /** 商品批量上下架（整批成功或整批失败）。 */
+    @org.springframework.web.bind.annotation.PostMapping("/batch-status")
+    @org.springframework.security.access.prepost.PreAuthorize("hasAnyRole('ADMIN','OPERATOR')")
+    public java.util.Map<String, Object> batchStatus(@RequestBody BatchStatusRequest body) {
+        com.fullmall.catalog.domain.ProductStatus target;
+        try {
+            target = com.fullmall.catalog.domain.ProductStatus.valueOf(
+                    body.status() == null ? "" : body.status().trim().toUpperCase());
+        } catch (IllegalArgumentException error) {
+            throw com.fullmall.platform.error.ApiException.badRequest(
+                    "BATCH_STATUS_INVALID", "状态只能是 DRAFT / ACTIVE / ARCHIVED");
+        }
+        int updated = catalogService.batchUpdateStatus(body.productIds(), target);
+        return java.util.Map.of("updated", updated);
+    }
+
     @PatchMapping("/{productId}/status")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void updateStatus(@PathVariable UUID productId,

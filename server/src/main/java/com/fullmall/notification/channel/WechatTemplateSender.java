@@ -1,51 +1,41 @@
 package com.fullmall.notification.channel;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fullmall.notification.domain.Notification;
+import me.chanjar.weixin.mp.api.WxMpService;
+import me.chanjar.weixin.mp.api.impl.WxMpServiceImpl;
+import me.chanjar.weixin.mp.bean.template.WxMpTemplateData;
+import me.chanjar.weixin.mp.bean.template.WxMpTemplateMessage;
+import me.chanjar.weixin.mp.config.impl.WxMpDefaultConfigImpl;
 
-import java.net.URI;
-import java.net.http.HttpClient;
-import java.net.http.HttpRequest;
-import java.net.http.HttpResponse;
-import java.nio.charset.StandardCharsets;
-import java.time.Duration;
-import java.time.Instant;
-import java.util.Map;
+import java.util.List;
 
 /**
- * 微信模板消息（公众号）。
+ * 微信模板消息（**WxJava** 三方 SDK）。
  *
- * <p>微信**没有官方 Java SDK**（官方只提供 HTTP 接口），因此这里用 JDK HttpClient 直连：
- * 先取 `access_token`（缓存 7000 秒，官方有效期 7200），再发模板消息。
- * 这属于"没有成熟 SDK 可用"的例外，已在文档说明。
+ * <p>为什么用三方 SDK：微信官方没有 Java SDK，但 WxJava 是事实标准（access_token 刷新、
+ * 错误码、重试都由 SDK 处理），比手写 HTTP 更稳。这类"官方无 SDK、生态有成熟实现"的情况
+ * 按项目规则应优先用成熟实现。
  *
- * <p>配置缺失或发送失败一律抛错，不返回成功。
+ * <p>失败语义：缺配置启动即失败；SDK 抛错原样上抛，不伪装成功。
  */
 public class WechatTemplateSender implements NotificationChannelSender {
 
-    private static final ObjectMapper MAPPER = new ObjectMapper();
-
-    private final String appId;
-    private final String appSecret;
+    private final WxMpService wxMpService;
     private final String templateId;
-    private final String baseUrl;
-    private final HttpClient http = HttpClient.newBuilder()
-            .connectTimeout(Duration.ofSeconds(5)).build();
 
-    private String accessToken;
-    private Instant tokenExpiresAt = Instant.EPOCH;
-
-    public WechatTemplateSender(String appId, String appSecret, String templateId, String baseUrl) {
+    public WechatTemplateSender(String appId, String appSecret, String templateId) {
         if (appId == null || appId.isBlank() || appSecret == null || appSecret.isBlank()
                 || templateId == null || templateId.isBlank()) {
             throw new IllegalStateException(
                     "app.notification.wechat 需配置 app-id/app-secret/template-id");
         }
-        this.appId = appId;
-        this.appSecret = appSecret;
+        WxMpDefaultConfigImpl config = new WxMpDefaultConfigImpl();
+        config.setAppId(appId);
+        config.setSecret(appSecret);
+        WxMpService service = new WxMpServiceImpl();
+        service.setWxMpConfigStorage(config);
+        this.wxMpService = service;
         this.templateId = templateId;
-        this.baseUrl = baseUrl == null || baseUrl.isBlank()
-                ? "https://api.weixin.qq.com" : baseUrl;
     }
 
     @Override
@@ -55,51 +45,15 @@ public class WechatTemplateSender implements NotificationChannelSender {
 
     @Override
     public void send(Notification notification) {
+        WxMpTemplateMessage message = WxMpTemplateMessage.builder()
+                .toUser(notification.recipientId())
+                .templateId(templateId)
+                .data(List.of(new WxMpTemplateData("content", notification.content())))
+                .build();
         try {
-            String token = token();
-            String payload = MAPPER.writeValueAsString(Map.of(
-                    "touser", notification.recipientId(),
-                    "template_id", templateId,
-                    "data", Map.of("content", Map.of("value", notification.content()))));
-            HttpRequest request = HttpRequest.newBuilder()
-                    .uri(URI.create(baseUrl + "/cgi-bin/message/template/send?access_token=" + token))
-                    .timeout(Duration.ofSeconds(10))
-                    .header("Content-Type", "application/json")
-                    .POST(HttpRequest.BodyPublishers.ofString(payload, StandardCharsets.UTF_8))
-                    .build();
-            HttpResponse<String> response = http.send(request,
-                    HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
-            if (response.statusCode() != 200) {
-                throw new IllegalStateException("微信模板消息 HTTP " + response.statusCode());
-            }
-            int errcode = MAPPER.readTree(response.body()).path("errcode").asInt(-1);
-            if (errcode != 0) {
-                throw new IllegalStateException("微信模板消息失败 errcode=" + errcode
-                        + "：" + response.body());
-            }
-        } catch (RuntimeException error) {
-            throw error;
+            wxMpService.getTemplateMsgService().sendTemplateMsg(message);
         } catch (Exception error) {
             throw new IllegalStateException("发送微信模板消息失败：" + error.getMessage(), error);
         }
-    }
-
-    private synchronized String token() throws Exception {
-        if (accessToken != null && Instant.now().isBefore(tokenExpiresAt)) {
-            return accessToken;
-        }
-        String url = baseUrl + "/cgi-bin/token?grant_type=client_credential&appid=" + appId
-                + "&secret=" + appSecret;
-        HttpResponse<String> response = http.send(HttpRequest.newBuilder().uri(URI.create(url))
-                .timeout(Duration.ofSeconds(10)).GET().build(),
-                HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
-        var node = MAPPER.readTree(response.body());
-        String token = node.path("access_token").asText(null);
-        if (token == null || token.isBlank()) {
-            throw new IllegalStateException("获取微信 access_token 失败：" + response.body());
-        }
-        accessToken = token;
-        tokenExpiresAt = Instant.now().plusSeconds(7000);
-        return token;
     }
 }

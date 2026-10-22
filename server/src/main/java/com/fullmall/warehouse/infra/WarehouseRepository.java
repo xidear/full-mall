@@ -241,6 +241,38 @@ public class WarehouseRepository {
 
     // ------------------------------------------------------------------ transfer
 
+    /**
+     * 在途明细：已发出未接收的调拨行。
+     *
+     * <p>用途：调拨在途期间**两边仓都不可用**，运营必须能看到"货在路上有多少"，
+     * 否则会误以为丢货或重复补货。
+     */
+    public List<java.util.Map<String, Object>> inTransitLines(int limit) {
+        return jdbcTemplate.query("""
+                SELECT t.transfer_no, t.from_type, t.from_id, t.to_type, t.to_id,
+                       t.shipped_at, l.sku_id, s.sku_code, l.quantity
+                  FROM stock_transfer t
+                  JOIN stock_transfer_line l ON l.transfer_id = t.id
+                  LEFT JOIN sku s ON s.id = l.sku_id
+                 WHERE t.status = 'IN_TRANSIT'
+                 ORDER BY t.shipped_at NULLS LAST
+                 LIMIT ?
+                """, (rs, rowNum) -> {
+            java.util.Map<String, Object> row = new java.util.LinkedHashMap<>();
+            row.put("transferNo", rs.getString("transfer_no"));
+            row.put("fromType", rs.getString("from_type"));
+            row.put("fromId", rs.getObject("from_id", UUID.class));
+            row.put("toType", rs.getString("to_type"));
+            row.put("toId", rs.getObject("to_id", UUID.class));
+            row.put("shippedAt", rs.getTimestamp("shipped_at") == null
+                    ? null : rs.getTimestamp("shipped_at").toInstant());
+            row.put("skuId", rs.getObject("sku_id", UUID.class));
+            row.put("skuCode", rs.getString("sku_code"));
+            row.put("quantity", rs.getInt("quantity"));
+            return row;
+        }, Math.min(Math.max(limit, 1), 500));
+    }
+
     public UUID insertTransfer(String transferNo, String fromType, UUID fromId, String toType,
                                UUID toId, String note) {
         UUID id = UUID.randomUUID();

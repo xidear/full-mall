@@ -309,4 +309,9 @@ public class WarehouseService {
         repository.markStocktakeRejected(stocktakeId, currentActor.requireUsername());
         return requireStocktake(stocktakeId);
     }
+
+    /** 在途库存明细（已发出未接收）。 */
+    public java.util.List<java.util.Map<String, Object>> inTransit(int limit) {
+        return repository.inTransitLines(limit);
+    }
 }

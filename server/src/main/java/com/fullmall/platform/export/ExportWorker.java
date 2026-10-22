@@ -39,12 +39,14 @@ public class ExportWorker {
     private final PosSalesExportRepository posRepository;
     private final ExportStorage storage;
     private final int maxRows;
+    private final com.fullmall.catalog.export.CostCsvExporter costExporter;
 
     public ExportWorker(ExportJobService jobs,
                         MemberExportRepository memberRepository,
                         PosSalesExportRepository posRepository,
                         ExportStorage storage,
-                        @Value("${app.export.max-rows:5000}") int maxRows) {
+                        @Value("${app.export.max-rows:5000}") int maxRows,
+                        com.fullmall.catalog.export.CostCsvExporter costExporter) {
         if (maxRows <= 0) {
             throw new IllegalArgumentException("app.export.max-rows 必须大于 0，实际=" + maxRows);
         }
@@ -53,6 +55,7 @@ public class ExportWorker {
         this.memberRepository = memberRepository;
         this.posRepository = posRepository;
         this.storage = storage;
+        this.costExporter = costExporter;
     }
 
     /**
@@ -91,6 +94,7 @@ public class ExportWorker {
             return switch (job.resource().toLowerCase(Locale.ROOT)) {
                 case "member" -> writeMembers(printer);
                 case "pos_sale_line" -> writePosSales(printer, finance);
+                case "sku_cost" -> writeCosts(printer);
                 default -> throw new IllegalArgumentException("不支持的导出资源: " + job.resource());
             };
         }
@@ -152,5 +156,13 @@ public class ExportWorker {
             }
         }
         return rows.size();
+    }
+
+    /** SKU 成本导出：直接复用成本导出器的行格式，避免两处口径漂移。 */
+    private int writeCosts(CSVPrinter printer) throws IOException {
+        for (String row : costExporter.rows(maxRows + 1)) {
+            printer.printRecord((Object[]) row.split(",", -1));
+        }
+        return costExporter.rows(maxRows + 1).size();
     }
 }

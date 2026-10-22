@@ -20,9 +20,26 @@ import java.util.UUID;
 public class AdminSerialController {
 
     private final SerialNumberService serials;
+    private final com.fullmall.platform.audit.AuditEventService auditEvents;
+    private final com.fullmall.platform.scope.CurrentActor currentActor;
 
-    public AdminSerialController(SerialNumberService serials) {
+    public AdminSerialController(SerialNumberService serials,
+                                 com.fullmall.platform.audit.AuditEventService auditEvents,
+                                 com.fullmall.platform.scope.CurrentActor currentActor) {
         this.serials = serials;
+        this.auditEvents = auditEvents;
+        this.currentActor = currentActor;
+    }
+
+    /**
+     * 序列号追溯是**内部高敏操作**：
+     * 仅 ADMIN，且每次都写审计（谁在什么时候查了哪个号）。
+     * 绝不对外提供——顾客/供应商一律引导官方售后。
+     */
+    private void auditLookup(String serialNo) {
+        auditEvents.record(new com.fullmall.platform.audit.AuditEventService.AuditEvent(
+                "SERIAL_LOOKUP", currentActor.requireUsername(), "sku_serial", serialNo,
+                "按序列号追溯（内部）", null));
     }
 
     public record RegisterRequest(UUID batchId, List<String> serialNumbers) {
@@ -48,13 +65,17 @@ public class AdminSerialController {
 
     /** 按序列号追溯：在哪批、什么状态、卖给哪张订单行。 */
     @GetMapping("/serials/{serialNo}")
+    @PreAuthorize("hasRole('ADMIN')")
     public Map<String, Object> lookup(@PathVariable String serialNo) {
+        auditLookup(serialNo);
         return serials.lookup(serialNo);
     }
 
     /** 支持以 query 形式查询（条码枪扫出来常带前缀）。 */
     @GetMapping("/serials")
+    @PreAuthorize("hasRole('ADMIN')")
     public Map<String, Object> lookupByQuery(@RequestParam String serialNo) {
+        auditLookup(serialNo);
         return serials.lookup(serialNo);
     }
 }

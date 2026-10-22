@@ -470,6 +470,10 @@ export class ApiClient {
     })
   }
 
+  delete<T>(path: string): Promise<T> {
+    return this.request<T>(new URL(path, this.baseUrl).toString(), { method: 'DELETE' })
+  }
+
   put<T>(path: string, body?: unknown): Promise<T> {
     return this.request<T>(new URL(path, this.baseUrl).toString(), {
       method: 'PUT',

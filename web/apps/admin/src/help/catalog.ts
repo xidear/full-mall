@@ -64,6 +64,22 @@ export const HELP_ENTRIES: HelpEntry[] = [
     pitfalls: ['没有 SKU 的商品无法下单']
   },
   {
+    route: '/brands',
+    title: '品牌管理',
+    description: '维护品牌，供商品归属与促销/券的「指定品牌」范围使用。',
+    steps: [
+      '新建品牌：编码唯一，建后不可改（改名可以）',
+      '商品编辑时选择品牌',
+      '删除前确认没有商品引用（列表里能看到引用数）'
+    ],
+    tips: [
+      '品牌用于投放与统计口径，不要当分类用',
+      '被引用的品牌删不掉是保护，不是 bug'
+    ],
+    pitfalls: ['删除被引用品牌会被拒绝；先把商品改到其它品牌再删'],
+    related: ['/products']
+  },
+  {
     route: '/inventory',
     title: '库存管理',
     description: '查看批次库存与占用，处理临期与缺货。',

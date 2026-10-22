@@ -104,13 +104,16 @@ public class FulfillmentService {
                 merged.merge(key,
                         new MergedPickLine(allocation.skuId(), reservation.batchId(),
                                 reservation.expiryDate(), reservation.quantity(),
-                                java.util.Set.of(allocation.orderLineId())),
+                                new java.util.LinkedHashMap<>(java.util.Map.of(
+                                        allocation.orderLineId(), reservation.quantity()))),
                         MergedPickLine::plus);
             }
         }
         for (MergedPickLine line : merged.values()) {
+            UUID pickLineId = Ids.newId();
+            java.util.Set<java.util.UUID> ids = line.orderLineQuantities().keySet();
             repository.insertPickTaskLine(new PickTaskLine(
-                    Ids.newId(),
+                    pickLineId,
                     taskId,
                     line.skuId(),
                     null,
@@ -119,8 +122,11 @@ public class FulfillmentService {
                     null,
                     line.expiryDate(),
                     0,
-                    // 只有一条来源订单行时才回填；多行合并留空（需先拆分辨率）
-                    line.orderLineIds().size() == 1 ? line.orderLineIds().iterator().next() : null));
+                    // 单行来源仍写列；合并行靠映射表
+                    ids.size() == 1 ? ids.iterator().next() : null));
+            for (var entry : line.orderLineQuantities().entrySet()) {
+                repository.insertPickLineMapping(pickLineId, entry.getKey(), entry.getValue());
+            }
         }
 
         if (type == FulfillmentType.STORE_PICKUP) {
@@ -310,7 +316,7 @@ public class FulfillmentService {
                     "Pick line already confirmed: " + line.id());
         }
         // 回写实际批次到订单行：售后退货要按原批次成本回冲（多行合并时该列为空，会在日志里体现）
-        if (!repository.recordOrderLineBatch(line.id(), batchId)) {
+        if (repository.recordOrderLineBatchForPickLine(line.id(), batchId) == 0) {
             org.slf4j.LoggerFactory.getLogger(FulfillmentService.class)
                     .info("拣货行未回写订单行批次（多行合并或无来源订单行）：pickLine={}", line.id());
         }
@@ -426,13 +432,14 @@ public class FulfillmentService {
 
     private record MergedPickLine(java.util.UUID skuId, java.util.UUID batchId,
                                   java.time.LocalDate expiryDate, int quantity,
-                                  java.util.Set<java.util.UUID> orderLineIds) {
+                                  java.util.Map<java.util.UUID, Integer> orderLineQuantities) {
 
         private MergedPickLine plus(MergedPickLine other) {
-            var ids = new java.util.LinkedHashSet<>(orderLineIds);
-            ids.addAll(other.orderLineIds());
+            var quantities = new java.util.LinkedHashMap<>(orderLineQuantities);
+            other.orderLineQuantities().forEach((id, qty) ->
+                    quantities.merge(id, qty, Integer::sum));
             return new MergedPickLine(skuId, batchId, expiryDate,
-                    quantity + other.quantity(), ids);
+                    quantity + other.quantity(), quantities);
         }
     }
 }

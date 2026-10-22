@@ -152,6 +152,36 @@ public class FulfillmentRepository {
                 line.orderLineId());
     }
 
+    /** 记录拣货行与订单行的分摊关系（合并行需要）。 */
+    public void insertPickLineMapping(UUID pickLineId, UUID orderLineId, int quantity) {
+        jdbcTemplate.update("""
+                INSERT INTO pick_line_order_line (pick_line_id, order_line_id, quantity)
+                VALUES (?, ?, ?)
+                ON CONFLICT (pick_line_id, order_line_id)
+                DO UPDATE SET quantity = pick_line_order_line.quantity + EXCLUDED.quantity
+                """, pickLineId, orderLineId, quantity);
+    }
+
+    /**
+     * 拣货确认后回填订单行批次：单行来源走 `pick_task_line.order_line_id`，
+     * 合并行走映射表——两条路径都覆盖，不再留"无法回冲"的单子。
+     */
+    public int recordOrderLineBatchForPickLine(UUID pickLineId, UUID batchId) {
+        int single = jdbcTemplate.update("""
+                UPDATE order_line ol
+                   SET batch_id = ?
+                  FROM pick_task_line ptl
+                 WHERE ptl.id = ? AND ptl.order_line_id = ol.id AND ol.batch_id IS NULL
+                """, batchId, pickLineId);
+        int mapped = jdbcTemplate.update("""
+                UPDATE order_line ol
+                   SET batch_id = ?
+                  FROM pick_line_order_line m
+                 WHERE m.pick_line_id = ? AND m.order_line_id = ol.id AND ol.batch_id IS NULL
+                """, batchId, pickLineId);
+        return single + mapped;
+    }
+
     public PickTask findPickTask(UUID taskId) {
         List<PickTask> tasks = jdbcTemplate.query("""
                 SELECT id, fulfillment_order_id, store_id, status

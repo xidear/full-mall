@@ -43,6 +43,26 @@ public class AuditRecoveryController {
                 page, size);
     }
 
+    /** 审计 keyset 分页（深页推荐）：游标来自上一页的 nextCreatedAt/nextId。 */
+    @GetMapping("/events/keyset")
+    public java.util.Map<String, Object> eventsKeyset(
+            @org.springframework.web.bind.annotation.RequestParam(required = false) String eventType,
+            @org.springframework.web.bind.annotation.RequestParam(required = false) String actor,
+            @org.springframework.web.bind.annotation.RequestParam(required = false) String from,
+            @org.springframework.web.bind.annotation.RequestParam(required = false) String to,
+            @org.springframework.web.bind.annotation.RequestParam(required = false) String cursorCreatedAt,
+            @org.springframework.web.bind.annotation.RequestParam(required = false) java.util.UUID cursorId,
+            @org.springframework.web.bind.annotation.RequestParam(defaultValue = "20") int size) {
+        return auditEvents.searchKeyset(
+                eventType == null || eventType.isBlank() ? null : eventType.trim(),
+                actor == null || actor.isBlank() ? null : actor.trim(),
+                from == null || from.isBlank() ? null : java.time.Instant.parse(from),
+                to == null || to.isBlank() ? null : java.time.Instant.parse(to),
+                cursorCreatedAt == null || cursorCreatedAt.isBlank()
+                        ? null : java.time.Instant.parse(cursorCreatedAt),
+                cursorId, size);
+    }
+
     @GetMapping("/pending")
     public Map<String, Object> pending() {
         return Map.of("pending", auditTrail.pendingRows());

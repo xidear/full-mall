@@ -59,6 +59,45 @@ public class AuditEventService {
      *
      * <p>返回统一契约 `{items,page,size,total}`；时间范围按 UTC 日期闭区间前端传入。
      */
+
+    /** Keyset 分页：按 (created_at, id) 倒序；只用于"默认排序+时间/类型/人筛选"场景。 */
+    public java.util.Map<String, Object> searchKeyset(String typeFilter, String actorFilter,
+                                                      java.time.Instant from, java.time.Instant to,
+                                                      java.time.Instant cursorCreatedAt,
+                                                      java.util.UUID cursorId, int size) {
+        int safeSize = Math.min(Math.max(size, 1), 200);
+        var items = jdbcTemplate.query("""
+                SELECT id, event_type, actor, resource, resource_id, detail, request_id, created_at
+                  FROM audit_event
+                 WHERE (?::text IS NULL OR event_type = ?::text)
+                   AND (?::text IS NULL OR actor ILIKE '%' || ?::text || '%')
+                   AND (?::timestamptz IS NULL OR created_at >= ?::timestamptz)
+                   AND (?::timestamptz IS NULL OR created_at < ?::timestamptz)
+                   AND (?::timestamptz IS NULL OR (created_at, id) < (?::timestamptz, ?::uuid))
+                 ORDER BY created_at DESC, id DESC
+                 LIMIT ?
+                """, (rs, rowNum) -> new java.util.LinkedHashMap<>(java.util.Map.of(
+                "id", rs.getObject("id", java.util.UUID.class).toString(),
+                "eventType", rs.getString("event_type"),
+                "actor", rs.getString("actor"),
+                "resource", rs.getString("resource"),
+                "resourceId", rs.getString("resource_id") == null ? "" : rs.getString("resource_id"),
+                "detail", rs.getString("detail") == null ? "" : rs.getString("detail"),
+                "requestId", rs.getString("request_id") == null ? "" : rs.getString("request_id"),
+                "createdAt", rs.getTimestamp("created_at").toInstant().toString())),
+                typeFilter, typeFilter, actorFilter, actorFilter,
+                ts(from), ts(from), ts(to), ts(to),
+                cursorCreatedAt == null ? null : java.sql.Timestamp.from(cursorCreatedAt),
+                cursorCreatedAt == null ? null : java.sql.Timestamp.from(cursorCreatedAt),
+                cursorId, safeSize);
+        java.util.Map<String, Object> result = new java.util.LinkedHashMap<>();
+        result.put("items", items);
+        result.put("size", safeSize);
+        result.put("nextCreatedAt", items.isEmpty() ? null : items.get(items.size() - 1).get("createdAt"));
+        result.put("nextId", items.isEmpty() ? null : items.get(items.size() - 1).get("id"));
+        return result;
+    }
+
     public java.util.Map<String, Object> search(String eventType, String actor,
                                                java.time.Instant from, java.time.Instant to,
                                                int page, int size) {

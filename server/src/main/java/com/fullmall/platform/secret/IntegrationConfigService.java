@@ -27,6 +27,10 @@ import java.util.Set;
 public class IntegrationConfigService {
 
     private static final ObjectMapper MAPPER = new ObjectMapper();
+    /** 允许的能力（与 ADR-005 一致）；拼错会产生永不生效的死配置，必须拒绝。 */
+    private static final Set<String> SUPPORTED_CAPABILITIES = Set.of(
+            "sms", "payment", "storage", "moderation", "logistics", "ai");
+
     private static final List<String> SENSITIVE_MARKERS =
             List.of("secret", "key", "token", "password", "private");
 
@@ -51,6 +55,10 @@ public class IntegrationConfigService {
                       boolean enabled, String actor) {
         if (capability == null || capability.isBlank() || provider == null || provider.isBlank()) {
             throw ApiException.badRequest("INTEGRATION_KEY_REQUIRED", "能力与供应商不能为空");
+        }
+        if (!SUPPORTED_CAPABILITIES.contains(capability.trim().toLowerCase(java.util.Locale.ROOT))) {
+            throw ApiException.badRequest("INTEGRATION_CAPABILITY_UNSUPPORTED",
+                    "不支持的能力：" + capability + "（可选：" + SUPPORTED_CAPABILITIES + "）");
         }
         if (config == null || config.isEmpty()) {
             throw ApiException.badRequest("INTEGRATION_CONFIG_EMPTY", "配置不能为空");

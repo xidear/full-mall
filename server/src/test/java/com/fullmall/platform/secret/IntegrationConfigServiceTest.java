@@ -86,11 +86,22 @@ class IntegrationConfigServiceTest {
     @Test
     void providerWithoutSecretsIsAllowedAndUnconfiguredResolveFails() {
         // local 存储没有密钥：不应被"必须填敏感字段"卡住
-        var saved = configs.save("storage-local", "local",
+        var saved = configs.save("storage", "local",
                 Map.of("directory", "/data/assets"), false, "admin");
         assertThat(saved.secretFields()).isEmpty();
 
         assertThatThrownBy(() -> configs.resolve("payment"))
                 .hasMessageContaining("尚未在后台启用配置");
+    }
+
+    /** 能力拼错必须拒绝：否则会写入永不生效的死配置。 */
+    @Test
+    void unsupportedCapabilityIsRejected() {
+        assertThatThrownBy(() -> configs.save("smsx", "aliyun",
+                Map.of("access-key-id", "a", "access-key-secret", "b"), true, "admin"))
+                .hasMessageContaining("不支持的能力");
+        assertThatThrownBy(() -> configs.save("", "aliyun",
+                Map.of("access-key", "a"), true, "admin"))
+                .hasMessageContaining("能力与供应商不能为空");
     }
 }

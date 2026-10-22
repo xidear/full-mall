@@ -131,6 +131,24 @@ public class AdminCatalogController {
                 body.values(), body.priceAmount(), body.currency());
     }
 
+    public record BatchPriceItem(java.util.UUID skuId, long priceAmount) {
+    }
+
+    public record BatchPriceRequest(java.util.List<BatchPriceItem> items) {
+    }
+
+    /** SKU 批量改价（整批成功或整批失败）。 */
+    @org.springframework.web.bind.annotation.PostMapping("/skus/batch-price")
+    @org.springframework.security.access.prepost.PreAuthorize("hasAnyRole('ADMIN','OPERATOR')")
+    public java.util.Map<String, Object> batchPrice(@RequestBody BatchPriceRequest body) {
+        java.util.Map<java.util.UUID, Long> prices = new java.util.LinkedHashMap<>();
+        for (BatchPriceItem item : body.items()) {
+            prices.put(item.skuId(), item.priceAmount());
+        }
+        int updated = catalogService.batchUpdatePrices(prices);
+        return java.util.Map.of("updated", updated);
+    }
+
     @PatchMapping("/{productId}/status")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void updateStatus(@PathVariable UUID productId,

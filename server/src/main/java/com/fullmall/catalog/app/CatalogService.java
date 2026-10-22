@@ -22,9 +22,12 @@ import java.util.UUID;
 public class CatalogService {
 
     private final CatalogRepository repository;
+    private final org.springframework.jdbc.core.JdbcTemplate jdbcTemplate;
 
-    public CatalogService(CatalogRepository repository) {
+    public CatalogService(CatalogRepository repository,
+                         org.springframework.jdbc.core.JdbcTemplate jdbcTemplate) {
         this.repository = repository;
+        this.jdbcTemplate = jdbcTemplate;
     }
 
     public ProductPage listProducts(String locale, String keyword, UUID categoryId, int page, int size) {
@@ -142,5 +145,35 @@ public class CatalogService {
         }
 
         return getProduct(productId, "zh-CN");
+    }
+
+    /**
+     * SKU 批量改价。
+     *
+     * <p>规则：价格必须 &gt; 0；不存在的 SKU 整批失败（不做部分成功，避免运营以为全改了）；
+     * 返回实际更新条数。
+     */
+    @Transactional
+    public int batchUpdatePrices(java.util.Map<UUID, Long> prices) {
+        if (prices == null || prices.isEmpty()) {
+            throw ApiException.badRequest("BATCH_PRICE_EMPTY", "没有需要更新的 SKU");
+        }
+        for (var entry : prices.entrySet()) {
+            if (entry.getValue() == null || entry.getValue() <= 0) {
+                throw ApiException.badRequest("BATCH_PRICE_INVALID",
+                        "价格必须大于 0：" + entry.getKey());
+            }
+            Integer exists = jdbcTemplate.queryForObject(
+                    "SELECT COUNT(*) FROM sku WHERE id = ?", Integer.class, entry.getKey());
+            if (exists == null || exists == 0) {
+                throw ApiException.notFound("SKU_NOT_FOUND", "SKU 不存在：" + entry.getKey());
+            }
+        }
+        int updated = 0;
+        for (var entry : prices.entrySet()) {
+            updated += jdbcTemplate.update("UPDATE sku SET price_amount = ? WHERE id = ?",
+                    entry.getValue(), entry.getKey());
+        }
+        return updated;
     }
 }

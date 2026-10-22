@@ -23,6 +23,30 @@ const page = ref(0)
 const size = ref(20)
 const total = ref(0)
 
+// 实体快照：只有注册了审计类型的实体可查（当前仅资产）
+const snapshotType = ref('asset')
+const snapshotId = ref('')
+const snapshots = ref<Array<Record<string, unknown>>>([])
+const snapshotLoading = ref(false)
+const snapshotError = ref('')
+
+async function loadSnapshots() {
+  if (!snapshotType.value.trim() || !snapshotId.value.trim() || snapshotLoading.value) return
+  snapshotLoading.value = true
+  snapshotError.value = ''
+  snapshots.value = []
+  try {
+    snapshots.value = await api.get<Array<Record<string, unknown>>>('/admin/v1/audit/history', {
+      entityType: snapshotType.value.trim(),
+      entityId: snapshotId.value.trim()
+    })
+  } catch (cause) {
+    snapshotError.value = cause instanceof Error ? cause.message : '快照加载失败'
+  } finally {
+    snapshotLoading.value = false
+  }
+}
+
 onMounted(load)
 
 async function load() {
@@ -77,7 +101,9 @@ function changePage(next: number) {
         <el-button type="primary" @click="search">查询</el-button>
       </div>
     </div>
-    <el-alert v-if="error" :title="error" type="error" show-icon :closable="false" class="mb-16" />
+    <el-tabs>
+      <el-tab-pane label="操作事件">
+        <el-alert v-if="error" :title="error" type="error" show-icon :closable="false" class="mb-16" />
 
     <el-table :data="items" stripe>
       <el-table-column label="时间" width="180">
@@ -97,6 +123,30 @@ function changePage(next: number) {
                      :current-page="page + 1" @current-change="changePage" />
     </div>
 
-    <el-empty v-if="!loading && !items.length" description="没有匹配的审计记录" />
+        <el-empty v-if="!loading && !items.length" description="没有匹配的审计记录" />
+      </el-tab-pane>
+
+      <el-tab-pane label="实体快照">
+        <el-alert type="info" :closable="false" show-icon class="mb-16"
+                  title="只有注册了审计类型的实体可查（当前仅 asset）"
+                  description="用于核对某条记录的历史版本；普通业务变更请看「操作事件」。" />
+        <div class="snapshot-actions mb-16">
+          <el-input v-model="snapshotType" placeholder="实体类型，如 asset" style="width: 200px" />
+          <el-input v-model="snapshotId" placeholder="实体 ID（UUID）" style="width: 320px" />
+          <el-button type="primary" :loading="snapshotLoading" @click="loadSnapshots">查询</el-button>
+        </div>
+        <el-alert v-if="snapshotError" :title="snapshotError" type="error" show-icon
+                  :closable="false" class="mb-16" />
+        <el-table :data="snapshots" v-loading="snapshotLoading" empty-text="暂无快照">
+          <el-table-column prop="commitId" label="版本" min-width="240" />
+          <el-table-column prop="author" label="操作人" width="160" />
+          <el-table-column prop="committedAt" label="提交时间" width="180" />
+        </el-table>
+      </el-tab-pane>
+    </el-tabs>
   </div>
 </template>
+
+<style scoped>
+.snapshot-actions { display: flex; gap: 12px; }
+</style>

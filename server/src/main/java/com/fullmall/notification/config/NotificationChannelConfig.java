@@ -56,7 +56,15 @@ public class NotificationChannelConfig {
 
     @Bean
     public NotificationChannelSender wechatNotificationSender(
-            @Value("${app.sms.provider:mock}") String provider) {
+            @Value("${app.sms.provider:mock}") String provider,
+            @Value("${app.notification.wechat.app-id:}") String wechatAppId,
+            @Value("${app.notification.wechat.app-secret:}") String wechatAppSecret,
+            @Value("${app.notification.wechat.template-id:}") String wechatTemplateId,
+            @Value("${app.notification.wechat.base-url:}") String wechatBaseUrl) {
+        if ("wechat".equalsIgnoreCase(provider == null ? "" : provider.trim())) {
+            return new com.fullmall.notification.channel.WechatTemplateSender(
+                    wechatAppId, wechatAppSecret, wechatTemplateId, wechatBaseUrl);
+        }
         return externalSender("WECHAT", provider);
     }
 

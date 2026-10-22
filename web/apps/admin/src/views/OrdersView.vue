@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
+import { useRoute } from 'vue-router'
 import {
   fulfillmentModeLabel,
   fulfillmentStatusLabel,
@@ -37,7 +38,9 @@ function changePage(next: number) {
 }
 const loading = ref(false)
 const error = ref('')
-const status = ref('')
+const route = useRoute()
+// 支持从工作台待办直达：/orders?status=PENDING_SHIPMENT
+const status = ref(typeof route.query.status === 'string' ? route.query.status : '')
 const selected = ref<Order | null>(null)
 const fulfillments = ref<Fulfillment[]>([])
 const detailLoading = ref(false)

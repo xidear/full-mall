@@ -229,8 +229,8 @@
 | P2 | 后台「第三方服务」页 | ⚠️ | 接口已通（`GET/POST /admin/v1/integrations`，只返回非敏感字段、仅 ADMIN 可保存）；**页面未做** |
 | P3 | 适配器改由配置提供者装配 | ⬜ | 数据库配置 > 环境变量 > 默认；切换无需重启 |
 | P4 | 后台信息架构重组 | ✅ | 7 组菜单；工作台「待办事项」**每项带筛选路径**（待付款/待发货/待自提→订单页已筛，临期→临期页）；订单/售后页支持 `?status=` |
-| P5 | core/lite compose 隔离 | ⚠️ | 已定方案（`docs/OPS_COMPOSE_ISOLATION.md`）：lite 独立 project 或强制互斥；**代码未改，待选型确认** |
-| P6 | 容器写 bind mount 属主问题（cookie 复发） | ⚠️ | 两方案：应用以宿主 UID 运行 / init 容器修属主；**代码未改，待确认** |
+| P5 | core/lite compose 隔离 | ⚠️ | 已改 `Makefile`：`up-lite`/`down-lite` 用 `COMPOSE_PROJECT_NAME=fullmall-lite`；**未实际同时启动验证**（本机无 Docker） |
+| P6 | bind mount 属主（cookie 复发） | ⚠️ | api/worker 改宿主 UID 运行 + `HOME=/tmp` + Maven 仓库 `/tmp/.m2`，`.env` 加 `APP_UID/APP_GID`；**未实机验证**（本机无 Docker） |
 
 ## 统计
 

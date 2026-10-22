@@ -86,4 +86,32 @@ class InTransitStockTest {
         assertThat(rows).allSatisfy(row ->
                 assertThat(((Number) row.get("quantity")).intValue()).isNotEqualTo(9));
     }
+
+    /**
+     * 在途不参与可用量：调拨发出时源批次已扣减，因此该 SKU 的可售数量为 0；
+     * 接收后（upsert 目标批次）才有货可卖。
+     */
+    @Test
+    void inTransitIsNotCountedAsAvailable() {
+        UUID productId = UUID.randomUUID();
+        UUID skuId = UUID.randomUUID();
+        UUID batchId = UUID.randomUUID();
+        jdbc.update("INSERT INTO product (id, title, status) VALUES (?, '在途可售', 'ACTIVE')", productId);
+        jdbc.update("""
+                INSERT INTO sku (id, product_id, sku_code, price_amount, price_currency)
+                VALUES (?, ?, ?, 1000, 'CNY')
+                """, skuId, productId, "IT2-" + skuId.toString().substring(0, 8));
+        jdbc.update("""
+                INSERT INTO inventory_batch (id, sku_id, location_type, location_id, batch_no, quantity)
+                VALUES (?, ?, 'WAREHOUSE', ?, ?, 10)
+                """, batchId, skuId, UUID.randomUUID(), "B2-" + batchId.toString().substring(0, 8));
+
+        boolean shipped = warehouse.requireRepositoryForTest().decrementForTransfer(batchId, 10);
+
+        assertThat(shipped).isTrue();
+        assertThat(jdbc.queryForObject(
+                "SELECT COALESCE(SUM(quantity), 0) FROM inventory_batch WHERE sku_id = ?",
+                Integer.class, skuId))
+                .as("发出后批次数量为 0，在途不可售").isZero();
+    }
 }

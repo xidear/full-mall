@@ -310,6 +310,11 @@ public class WarehouseService {
         return requireStocktake(stocktakeId);
     }
 
+    /** 仅测试用：暴露仓储以验证库存口径（生产代码不要调用）。 */
+    public com.fullmall.warehouse.infra.WarehouseRepository requireRepositoryForTest() {
+        return repository;
+    }
+
     /** 在途库存明细（已发出未接收）。 */
     public java.util.List<java.util.Map<String, Object>> inTransit(int limit) {
         return repository.inTransitLines(limit);

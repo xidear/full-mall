@@ -45,6 +45,12 @@
     </dependencyManagement>
 
     <dependencies>
+        <!-- 七牛云对象存储（官方 SDK；适配器独立成包，可整体删除） -->
+        <dependency>
+            <groupId>com.qiniu</groupId>
+            <artifactId>qiniu-java-sdk</artifactId>
+            <version>7.16.0</version>
+        </dependency>
         <!-- 腾讯云短信（官方 SDK，版本随官方每日发布；适配器在 notification.channel.tencent 包内，可整体删除） -->
         <dependency>
             <groupId>com.tencentcloudapi</groupId>

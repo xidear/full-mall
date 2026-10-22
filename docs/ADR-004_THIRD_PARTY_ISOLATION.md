@@ -25,6 +25,7 @@
 | 支付宝 | `payment.app` | `alipay-sdk-java` | 配置 fail-fast；API 未接 |
 | 微信公众号 | `notification.channel` | `weixin-java-mp` | 配置契约已测 |
 | 快递100 | `logistics.app` | 无（HTTP+签名） | 全链路 + stub 验证 |
+| 七牛云存储 | `platform.asset.qiniu` | `qiniu-java-sdk:7.16.0` | 本轮新增；缺配置失败、provider=qiniu（有测试）；未联调 |
 
 ## 反例（不允许）
 

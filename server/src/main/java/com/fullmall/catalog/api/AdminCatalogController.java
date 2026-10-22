@@ -23,16 +23,19 @@ public class AdminCatalogController {
     private final CatalogService catalogService;
     private final com.fullmall.catalog.app.SkuCostService skuCostService;
     private final com.fullmall.catalog.app.SkuMatrixService skuMatrixService;
+    private final com.fullmall.catalog.app.SkuMatrixMultiService skuMatrixMultiService;
     private final com.fullmall.catalog.app.ProductTranslationWorkflowService translationWorkflow;
 
     public AdminCatalogController(CatalogService catalogService,
                                   com.fullmall.catalog.app.ProductTranslationWorkflowService translationWorkflow,
                                   com.fullmall.catalog.app.SkuCostService skuCostService,
-                                  com.fullmall.catalog.app.SkuMatrixService skuMatrixService) {
+                                  com.fullmall.catalog.app.SkuMatrixService skuMatrixService,
+                                  com.fullmall.catalog.app.SkuMatrixMultiService skuMatrixMultiService) {
         this.catalogService = catalogService;
         this.translationWorkflow = translationWorkflow;
         this.skuCostService = skuCostService;
         this.skuMatrixService = skuMatrixService;
+        this.skuMatrixMultiService = skuMatrixMultiService;
     }
 
     /**
@@ -166,6 +169,21 @@ public class AdminCatalogController {
         }
         int updated = catalogService.batchUpdateStatus(body.productIds(), target);
         return java.util.Map.of("updated", updated);
+    }
+
+    public record MatrixMultiRequest(String prefix,
+                                     java.util.Map<String, java.util.List<String>> dimensions,
+                                     java.util.List<java.util.Map<String, String>> disabled,
+                                     long priceAmount) {
+    }
+
+    /** 多维度规格生成（颜色 × 内存 × 存储，支持组合禁用）。 */
+    @org.springframework.web.bind.annotation.PostMapping("/{productId}/sku-matrix-multi")
+    @org.springframework.security.access.prepost.PreAuthorize("hasAnyRole('ADMIN','OPERATOR')")
+    public com.fullmall.catalog.app.SkuMatrixMultiService.Result generateMatrixMulti(
+            @PathVariable UUID productId, @RequestBody MatrixMultiRequest body) {
+        return skuMatrixMultiService.generate(productId, body.prefix(), body.dimensions(),
+                body.disabled(), body.priceAmount());
     }
 
     @PatchMapping("/{productId}/status")

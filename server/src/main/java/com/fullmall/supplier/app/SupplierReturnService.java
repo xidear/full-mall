@@ -159,4 +159,32 @@ public class SupplierReturnService {
         }
         return rows.get(0);
     }
+
+    /**
+     * 供应商退货对账：按供应商汇总周期内**已同意**的退货金额。
+     *
+     * <p>用途：结算时扣减的金额要和这里对得上；运营核对差异时先看这张表。
+     */
+    public java.util.List<java.util.Map<String, Object>> reconciliation(int days) {
+        int safeDays = Math.min(Math.max(days, 1), 365);
+        return jdbcTemplate.query("""
+                SELECT r.supplier_id, s.name AS supplier_name, r.currency,
+                       COUNT(*) AS accepted_count,
+                       COALESCE(SUM(r.amount_amount), 0) AS accepted_amount
+                  FROM supplier_return r
+                  LEFT JOIN supplier s ON s.id = r.supplier_id
+                 WHERE r.status = 'ACCEPTED'
+                   AND r.created_at >= now() - make_interval(days => ?)
+                 GROUP BY r.supplier_id, s.name, r.currency
+                 ORDER BY accepted_amount DESC
+                """, (rs, rowNum) -> {
+            java.util.Map<String, Object> row = new java.util.LinkedHashMap<>();
+            row.put("supplierId", rs.getObject("supplier_id", UUID.class));
+            row.put("supplierName", rs.getString("supplier_name"));
+            row.put("currency", rs.getString("currency"));
+            row.put("acceptedCount", rs.getInt("accepted_count"));
+            row.put("acceptedAmount", rs.getLong("accepted_amount"));
+            return row;
+        }, safeDays);
+    }
 }

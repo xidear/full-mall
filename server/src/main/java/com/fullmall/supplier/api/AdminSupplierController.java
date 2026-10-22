@@ -25,12 +25,15 @@ public class AdminSupplierController {
     private final SupplierAdminService adminService;
     private final SupplierTokenService tokenService;
     private final com.fullmall.supplier.app.SupplierSettlementService settlementService;
+    private final com.fullmall.supplier.app.SupplierReturnService supplierReturnService;
 
     public AdminSupplierController(SupplierAdminService adminService, SupplierTokenService tokenService,
-                                   com.fullmall.supplier.app.SupplierSettlementService settlementService) {
+                                   com.fullmall.supplier.app.SupplierSettlementService settlementService,
+                                   com.fullmall.supplier.app.SupplierReturnService supplierReturnService) {
         this.adminService = adminService;
         this.tokenService = tokenService;
         this.settlementService = settlementService;
+        this.supplierReturnService = supplierReturnService;
     }
 
     public record TokenIssued(String token, Instant expiresAt) {
@@ -61,6 +64,13 @@ public class AdminSupplierController {
             settlements(@PathVariable UUID supplierId,
                         @RequestParam(defaultValue = "20") int limit) {
         return settlementService.list(supplierId, limit);
+    }
+
+    /** 供应商退货对账（按供应商汇总已同意退货金额）。 */
+    @GetMapping("/supplier-returns/reconciliation")
+    public java.util.List<java.util.Map<String, Object>> returnReconciliation(
+            @RequestParam(defaultValue = "30") int days) {
+        return supplierReturnService.reconciliation(days);
     }
 
     @PostMapping("/{supplierId}/settlements")

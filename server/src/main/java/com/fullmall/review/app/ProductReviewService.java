@@ -26,8 +26,11 @@ public class ProductReviewService {
     private static final List<String> REVIEWABLE_STATUS = List.of("PAID", "FULFILLED");
 
     private final JdbcTemplate jdbcTemplate;
+    private final com.fullmall.review.app.ReviewModerationPolicy moderationPolicy;
 
-    public ProductReviewService(JdbcTemplate jdbcTemplate) {
+    public ProductReviewService(JdbcTemplate jdbcTemplate,
+                                com.fullmall.review.app.ReviewModerationPolicy moderationPolicy) {
+        this.moderationPolicy = moderationPolicy;
         this.jdbcTemplate = jdbcTemplate;
     }
 
@@ -63,11 +66,18 @@ public class ProductReviewService {
 
         UUID id = UUID.randomUUID();
         try {
+            var moderation = moderationPolicy.decide(content);
+            if (moderation.outcome() == com.fullmall.review.app.ReviewModerationPolicy.Outcome.REJECT) {
+                throw ApiException.badRequest("REVIEW_REJECTED",
+                        "评价包含违规内容，请修改后重试（" + moderation.reason() + "）");
+            }
+            String status = moderation.outcome() == com.fullmall.review.app.ReviewModerationPolicy.Outcome.PUBLISH
+                    ? "PUBLISHED" : "PENDING";
             jdbcTemplate.update("""
-                    INSERT INTO product_review (id, sku_id, member_id, order_id, rating, content)
-                    VALUES (?, ?, ?, ?, ?, ?)
+                    INSERT INTO product_review (id, sku_id, member_id, order_id, rating, content, status)
+                    VALUES (?, ?, ?, ?, ?, ?, ?)
                     """, id, skuId, memberId, orderId, rating,
-                    content == null ? null : content.trim());
+                    content == null ? null : content.trim(), status);
         } catch (org.springframework.dao.DuplicateKeyException error) {
             throw ApiException.conflict("REVIEW_ALREADY_EXISTS",
                     "该订单的这件商品已经评价过了");

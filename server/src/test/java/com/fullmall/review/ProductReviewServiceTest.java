@@ -93,8 +93,12 @@ class ProductReviewServiceTest {
     void memberCanReviewPurchasedSkuOnce() {
         UUID id = reviews.create(MEMBER, orderId, SKU, 5, "很好用");
 
-        assertThat(reviews.listForSku(SKU, 10)).extracting(ProductReviewService.Review::id).contains(id);
-        assertThat(reviews.averageRating(SKU)).isEqualTo(5.0);
+        // 未配置审核供应商 → 评价进入待人工（PENDING），不对顾客展示
+        assertThat(jdbc.queryForObject(
+                "SELECT status FROM product_review WHERE id = ?", String.class, id))
+                .isEqualTo("PENDING");
+        assertThat(reviews.listForSku(SKU, 10)).extracting(ProductReviewService.Review::id)
+                .doesNotContain(id);
 
         assertThatThrownBy(() -> reviews.create(MEMBER, orderId, SKU, 4, "重复"))
                 .isInstanceOf(com.fullmall.platform.error.ApiException.class)

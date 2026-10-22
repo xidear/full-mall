@@ -66,6 +66,9 @@ interface Settlement {
   status: string
 }
 const settlements = ref<Settlement[]>([])
+// 待办（轮询）：待接单 + 待处理退货
+interface Todos { pendingOrders: number; pendingReturns: number; total: number }
+const todos = ref<Todos | null>(null)
 const settling = ref(false)
 const returnBusyId = ref('')
 const statusFilter = ref('ALLOCATED')
@@ -112,6 +115,7 @@ async function connect() {
     // 连接后同时加载退货单与结算单，否则面板一直是"暂无"
     await loadReturns()
     await loadSettlements()
+    await loadTodos()
   } catch (cause) {
     connected.value = false
     error.value = messageOf(cause)
@@ -159,6 +163,16 @@ async function decideReturn(item: SupplierReturn, status: 'ACCEPTED' | 'REJECTED
     error.value = messageOf(cause)
   } finally {
     returnBusyId.value = ''
+  }
+}
+
+async function loadTodos() {
+  if (!connected.value) return
+  try {
+    todos.value = await signedRequest<Todos>('GET', '/open/v1/todos')
+  } catch {
+    // 待办失败不阻断主流程（订单列表仍可用），但不静默吞掉：置空并保留上一次
+    todos.value = null
   }
 }
 
@@ -425,6 +439,18 @@ function disconnect() {
         <div v-if="success" class="alert success">{{ success }}</div>
 
         <section class="panel">
+            <div class="panel-head">
+              <h2>待办</h2>
+              <button type="button" class="ghost-button" @click="loadTodos">刷新</button>
+            </div>
+            <p v-if="!todos" class="muted">暂无待办数据（或加载失败，可点刷新重试）。</p>
+            <ul v-else class="todo-list">
+              <li><strong>{{ todos.pendingOrders }}</strong> 个待接单订单</li>
+              <li><strong>{{ todos.pendingReturns }}</strong> 个待处理退货</li>
+            </ul>
+          </section>
+
+          <section class="panel">
           <div class="panel-head">
             <div>
               <h2>代发订单</h2>
@@ -906,4 +932,6 @@ select {
 .return-main { display: grid; gap: 2px; }
 .return-actions { display: flex; gap: 8px; }
 .return-actions .danger { border-color: #ef4444; color: #ef4444; }
+
+.todo-list { margin: 0; padding-left: 18px; line-height: 1.9; }
 </style>

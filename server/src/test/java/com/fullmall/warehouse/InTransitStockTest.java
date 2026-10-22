@@ -46,6 +46,9 @@ class InTransitStockTest {
     WarehouseService warehouse;
 
     @Autowired
+    com.fullmall.warehouse.infra.WarehouseRepository transfers;
+
+    @Autowired
     JdbcTemplate jdbc;
 
     private UUID transfer(String status, int quantity) {
@@ -106,7 +109,7 @@ class InTransitStockTest {
                 VALUES (?, ?, 'WAREHOUSE', ?, ?, 10)
                 """, batchId, skuId, UUID.randomUUID(), "B2-" + batchId.toString().substring(0, 8));
 
-        boolean shipped = warehouse.requireRepositoryForTest().decrementForTransfer(batchId, 10);
+        boolean shipped = transfers.decrementForTransfer(batchId, 10);
 
         assertThat(shipped).isTrue();
         assertThat(jdbc.queryForObject(

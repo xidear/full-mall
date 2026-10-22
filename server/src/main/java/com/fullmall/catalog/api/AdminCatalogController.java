@@ -22,14 +22,17 @@ public class AdminCatalogController {
 
     private final CatalogService catalogService;
     private final com.fullmall.catalog.app.SkuCostService skuCostService;
+    private final com.fullmall.catalog.app.SkuMatrixService skuMatrixService;
     private final com.fullmall.catalog.app.ProductTranslationWorkflowService translationWorkflow;
 
     public AdminCatalogController(CatalogService catalogService,
                                   com.fullmall.catalog.app.ProductTranslationWorkflowService translationWorkflow,
-                                  com.fullmall.catalog.app.SkuCostService skuCostService) {
+                                  com.fullmall.catalog.app.SkuCostService skuCostService,
+                                  com.fullmall.catalog.app.SkuMatrixService skuMatrixService) {
         this.catalogService = catalogService;
         this.translationWorkflow = translationWorkflow;
         this.skuCostService = skuCostService;
+        this.skuMatrixService = skuMatrixService;
     }
 
     /**
@@ -113,6 +116,19 @@ public class AdminCatalogController {
     public java.util.Map<String, Object> cost(@PathVariable UUID skuId) {
         Long cost = catalogService.cost(skuId);
         return java.util.Collections.singletonMap("costAmount", cost);
+    }
+
+    public record MatrixRequest(String prefix, String optionName, java.util.List<String> values,
+                                long priceAmount, String currency) {
+    }
+
+    /** 规格矩阵批量生成 SKU（幂等：已存在编码跳过）。 */
+    @org.springframework.web.bind.annotation.PostMapping("/{productId}/sku-matrix")
+    @org.springframework.security.access.prepost.PreAuthorize("hasAnyRole('ADMIN','OPERATOR')")
+    public com.fullmall.catalog.app.SkuMatrixService.Result generateMatrix(
+            @PathVariable UUID productId, @RequestBody MatrixRequest body) {
+        return skuMatrixService.generate(productId, body.prefix(), body.optionName(),
+                body.values(), body.priceAmount(), body.currency());
     }
 
     @PatchMapping("/{productId}/status")

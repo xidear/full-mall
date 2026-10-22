@@ -105,6 +105,28 @@ public class AdminAiController {
                 "totalChunks", knowledgeStore.size()));
     }
 
+    /** 知识检索（评测与排障用）：返回片段列表，便于核对召回是否命中。 */
+    @org.springframework.web.bind.annotation.GetMapping("/knowledge/search")
+    public java.util.List<java.util.Map<String, Object>> search(
+            @org.springframework.web.bind.annotation.RequestParam("q") String query,
+            @org.springframework.web.bind.annotation.RequestParam(defaultValue = "3") int topK) {
+        if (query == null || query.isBlank()) {
+            throw com.fullmall.platform.error.ApiException.badRequest(
+                    "AI_QUERY_EMPTY", "查询词不能为空");
+        }
+        int safeTopK = Math.min(Math.max(topK, 1), 20);
+        return knowledgeStore.search(query.trim(), safeTopK).stream()
+                .map(chunk -> {
+                    java.util.Map<String, Object> row = new java.util.LinkedHashMap<>();
+                    row.put("sourceType", chunk.sourceType());
+                    row.put("sourceId", chunk.sourceId());
+                    row.put("title", chunk.title());
+                    row.put("content", chunk.content());
+                    return row;
+                })
+                .toList();
+    }
+
     /** 全量重建商品知识（在售 SKU 全部索引），用于首次部署或批量改价后。 */
     @org.springframework.web.bind.annotation.PostMapping("/knowledge/rebuild")
     public ResponseEntity<Map<String, Object>> rebuildKnowledge() {

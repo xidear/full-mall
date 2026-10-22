@@ -33,10 +33,16 @@ public class InMemoryKnowledgeStore implements KnowledgeStore {
         if (query == null || query.isBlank() || topK <= 0) {
             return List.of();
         }
+        // 中文没有空格：整句匹配必然落空，用"整段 + 二元组"召回（与 PgKnowledgeStore 同口径）
         Set<String> terms = new LinkedHashSet<>();
-        for (String raw : query.toLowerCase(Locale.ROOT).split("[\\s,，。？?！!；;：:]+")) {
-            if (raw.length() >= 2) {
-                terms.add(raw);
+        for (String raw : query.toLowerCase(Locale.ROOT).split("[\\s,，。？?！!；;：:、]+")) {
+            String segment = raw.trim();
+            if (segment.length() < 2) {
+                continue;
+            }
+            terms.add(segment);
+            for (int i = 0; i + 2 <= segment.length(); i++) {
+                terms.add(segment.substring(i, i + 2));
             }
         }
         if (terms.isEmpty()) {

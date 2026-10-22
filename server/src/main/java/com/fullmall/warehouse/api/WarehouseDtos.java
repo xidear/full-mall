@@ -67,7 +67,9 @@ public final class WarehouseDtos {
 
     public record StocktakeView(
             UUID id, String stocktakeNo, String locationType, UUID locationId, String status,
-            String note, Instant createdAt, Instant confirmedAt, List<StocktakeLineView> lines
+            String note, Instant createdAt, Instant confirmedAt, List<StocktakeLineView> lines,
+            /** NONE / PENDING / APPROVED / REJECTED（大差异需审批） */
+            String approvalStatus
     ) {
     }
 

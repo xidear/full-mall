@@ -147,7 +147,8 @@ public class WarehouseRepository {
 
     public StocktakeView findStocktake(UUID stocktakeId) {
         List<StocktakeView> rows = jdbcTemplate.query("""
-                SELECT id, stocktake_no, location_type, location_id, status, note, created_at, confirmed_at
+                SELECT id, stocktake_no, location_type, location_id, status, note, created_at, confirmed_at,
+                       approval_status
                 FROM stocktake WHERE id = ?
                 """, (rs, rowNum) -> mapStocktake(rs), stocktakeId);
         return rows.isEmpty() ? null : withStocktakeLines(rows.get(0));
@@ -180,14 +181,14 @@ public class WarehouseRepository {
                 rs.getString("reason")), stocktake.id());
         return new StocktakeView(stocktake.id(), stocktake.stocktakeNo(), stocktake.locationType(),
                 stocktake.locationId(), stocktake.status(), stocktake.note(), stocktake.createdAt(),
-                stocktake.confirmedAt(), lines);
+                stocktake.confirmedAt(), lines, stocktake.approvalStatus());
     }
 
     private StocktakeView mapStocktake(ResultSet rs) throws SQLException {
         return new StocktakeView(rs.getObject("id", UUID.class), rs.getString("stocktake_no"),
                 rs.getString("location_type"), rs.getObject("location_id", UUID.class),
                 rs.getString("status"), rs.getString("note"), instant(rs, "created_at"),
-                instant(rs, "confirmed_at"), List.of());
+                instant(rs, "confirmed_at"), List.of(), rs.getString("approval_status"));
     }
 
     public void updateStocktakeLine(UUID lineId, int countedQuantity, int variance, String reason) {
@@ -204,6 +205,31 @@ public class WarehouseRepository {
         if (updated != 1) {
             throw new IllegalStateException("Batch not found: " + batchId);
         }
+    }
+
+    public void markStocktakePending(UUID stocktakeId) {
+        jdbcTemplate.update("UPDATE stocktake SET approval_status = 'PENDING' WHERE id = ?",
+                stocktakeId);
+    }
+
+    public void markStocktakeApproved(UUID stocktakeId, String actor) {
+        jdbcTemplate.update("""
+                UPDATE stocktake SET approval_status = 'APPROVED', approved_at = now(), approved_by = ?
+                 WHERE id = ?
+                """, actor, stocktakeId);
+    }
+
+    public void markStocktakeRejected(UUID stocktakeId, String actor) {
+        jdbcTemplate.update("""
+                UPDATE stocktake SET approval_status = 'REJECTED', approved_at = now(), approved_by = ?
+                 WHERE id = ?
+                """, actor, stocktakeId);
+    }
+
+    public String approvalStatus(UUID stocktakeId) {
+        var rows = jdbcTemplate.query("SELECT approval_status FROM stocktake WHERE id = ?",
+                (rs, rowNum) -> rs.getString("approval_status"), stocktakeId);
+        return rows.isEmpty() ? null : rows.get(0);
     }
 
     public void markStocktakeConfirmed(UUID stocktakeId, Instant confirmedAt) {

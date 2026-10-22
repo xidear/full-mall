@@ -25,6 +25,9 @@ import java.util.UUID;
 @Service
 public class WarehouseService {
 
+    @org.springframework.beans.factory.annotation.Value("${app.stocktake.approval-threshold:5}")
+    private int approvalThreshold;
+
     private final WarehouseRepository repository;
     private final int replenishmentTarget;
     private final com.fullmall.platform.audit.AuditEventService auditEvents;
@@ -118,6 +121,7 @@ public class WarehouseService {
             throw ApiException.conflict("STOCKTAKE_NOT_DRAFT", "盘点单当前状态为 " + stocktake.status());
         }
         Set<UUID> seen = new HashSet<>();
+        boolean needsApproval = false;
         for (ConfirmStocktakeRequest.CountedLine counted : request.lines()) {
             if (!seen.add(counted.lineId())) {
                 throw ApiException.badRequest("STOCKTAKE_DUPLICATE_LINE", "盘点行重复：" + counted.lineId());
@@ -129,6 +133,11 @@ public class WarehouseService {
                             "盘点行不存在：" + counted.lineId()));
             int variance = counted.countedQuantity() - line.systemQuantity();
             repository.updateStocktakeLine(counted.lineId(), counted.countedQuantity(), variance, counted.reason());
+            if (Math.abs(variance) > approvalThreshold) {
+                // 大差异：只记录，不调账，等 ADMIN 审批（避免"盘点人自己改库存"）
+                needsApproval = true;
+                continue;
+            }
             repository.setBatchQuantity(line.batchId(), counted.countedQuantity());
             if (variance != 0) {
                 repository.insertStockMove(line.batchId(), line.skuId(), stocktake.locationType(),
@@ -136,6 +145,9 @@ public class WarehouseService {
             }
         }
         repository.markStocktakeConfirmed(stocktakeId, Instant.now());
+        if (needsApproval) {
+            repository.markStocktakePending(stocktakeId);
+        }
         auditEvents.record(new com.fullmall.platform.audit.AuditEventService.AuditEvent(
                 "STOCK_ADJUSTED", currentActor.requireUsername(), "stocktake", stocktakeId.toString(),
                 "lines=" + request.lines().size() + ";status=CONFIRMED", null));
@@ -230,6 +242,11 @@ public class WarehouseService {
         return receipt;
     }
 
+    /** 按 id 读取盘点单（对外，供查询与测试）。 */
+    public StocktakeView findStocktake(UUID stocktakeId) {
+        return requireStocktake(stocktakeId);
+    }
+
     private StocktakeView requireStocktake(UUID stocktakeId) {
         StocktakeView stocktake = repository.findStocktake(stocktakeId);
         if (stocktake == null) {
@@ -254,5 +271,42 @@ public class WarehouseService {
             throw ApiException.badRequest("WAREHOUSE_LOCATION_TYPE_INVALID",
                     "地点类型必须是 WAREHOUSE/STORE/SUPPLIER，实际为 " + value);
         }
+    }
+
+    /** 审批通过：按盘点行实盘数调账并写流水（仅 PENDING 可审）。 */
+    @Transactional
+    public StocktakeView approveStocktake(UUID stocktakeId) {
+        StocktakeView stocktake = requireStocktake(stocktakeId);
+        if (!"PENDING".equals(repository.approvalStatus(stocktakeId))) {
+            throw ApiException.conflict("STOCKTAKE_NOT_PENDING",
+                    "该盘点单不在待审批状态");
+        }
+        for (var line : stocktake.lines()) {
+            if (line.countedQuantity() == null || line.variance() == null) {
+                continue;
+            }
+            repository.setBatchQuantity(line.batchId(), line.countedQuantity());
+            if (line.variance() != 0) {
+                repository.insertStockMove(line.batchId(), line.skuId(), stocktake.locationType(),
+                        stocktake.locationId(), "STOCKTAKE_ADJUST", line.variance(),
+                        "STOCKTAKE", stocktakeId);
+            }
+        }
+        repository.markStocktakeApproved(stocktakeId, currentActor.requireUsername());
+        auditEvents.record(new com.fullmall.platform.audit.AuditEventService.AuditEvent(
+                "STOCK_ADJUST_APPROVED", currentActor.requireUsername(), "stocktake",
+                stocktakeId.toString(), "盘点差异审批通过并调账", null));
+        return requireStocktake(stocktakeId);
+    }
+
+    /** 驳回：不调账，保留差异记录供复盘。 */
+    @Transactional
+    public StocktakeView rejectStocktake(UUID stocktakeId) {
+        requireStocktake(stocktakeId);
+        if (!"PENDING".equals(repository.approvalStatus(stocktakeId))) {
+            throw ApiException.conflict("STOCKTAKE_NOT_PENDING", "该盘点单不在待审批状态");
+        }
+        repository.markStocktakeRejected(stocktakeId, currentActor.requireUsername());
+        return requireStocktake(stocktakeId);
     }
 }

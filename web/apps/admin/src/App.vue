@@ -41,36 +41,55 @@ const activeMenu = computed(() => {
   return route.path
 })
 
-const allMenus = [
-  { path: '/', label: '经营总览', roles: ['ADMIN', 'OPERATOR'] },
-  { path: '/products', label: '商品管理', roles: ['ADMIN', 'OPERATOR'] },
-  { path: '/orders', label: '订单管理', roles: ['ADMIN', 'OPERATOR'] },
-  { path: '/after-sales', label: '售后处理', roles: ['ADMIN', 'OPERATOR'] },
-  { path: '/promotions', label: '促销管理', roles: ['ADMIN', 'OPERATOR'] },
-  { path: '/coupons', label: '优惠券', roles: ['ADMIN', 'OPERATOR'] },
-  { path: '/ai', label: 'AI 客服', roles: ['ADMIN'] },
-  { path: '/brands', label: '品牌管理', roles: ['ADMIN', 'OPERATOR'] },
-  { path: '/costs', label: '成本查询', roles: ['ADMIN'] },
-  { path: '/exports', label: '导出中心', roles: ['ADMIN', 'OPERATOR'] },
-  { path: '/sku-matrix', label: 'SKU 规格矩阵', roles: ['ADMIN', 'OPERATOR'] },
-  { path: '/price-rule', label: '规格改价', roles: ['ADMIN', 'OPERATOR'] },
-  { path: '/expiring', label: '临期商品', roles: ['ADMIN', 'OPERATOR'] },
-  { path: '/license', label: '许可证', roles: ['ADMIN'] },
-  { path: '/reviews', label: '评价审核', roles: ['ADMIN', 'OPERATOR'] },
-  { path: '/audit', label: '操作审计', roles: ['ADMIN'] },
-  { path: '/pos', label: '门店收银', roles: ['ADMIN', 'OPERATOR'] },
-  { path: '/pos-members', label: '会员与优惠券', roles: ['ADMIN', 'OPERATOR'] },
-  { path: '/suppliers', label: '供应商', roles: ['ADMIN', 'OPERATOR'] },
-  { path: '/warehouse', label: '仓储作业', roles: ['ADMIN', 'OPERATOR'] },
-  { path: '/customers', label: '客户管理', roles: ['ADMIN', 'OPERATOR'] },
-  { path: '/inventory', label: '库存与批次', roles: ['ADMIN', 'OPERATOR'] },
-  { path: '/notifications', label: '通知中心', roles: ['ADMIN', 'OPERATOR'] },
-  { path: '/themes', label: '主题配置', roles: ['ADMIN', 'OPERATOR'] },
-  { path: '/staff', label: '员工与权限', roles: ['ADMIN'] },
-  { path: '/permissions', label: '权限矩阵', roles: ['ADMIN'] },
-  { path: '/settings', label: '系统设置', roles: ['ADMIN'] }
+const menuGroups = [
+  { key: 'workbench', label: '工作台', items: [
+    { path: '/', label: '经营总览', roles: ['ADMIN', 'OPERATOR'] }
+  ] },
+  { key: 'catalog', label: '商品', items: [
+    { path: '/products', label: '商品管理', roles: ['ADMIN', 'OPERATOR'] },
+    { path: '/sku-matrix', label: 'SKU 规格矩阵', roles: ['ADMIN', 'OPERATOR'] },
+    { path: '/price-rule', label: '规格改价', roles: ['ADMIN', 'OPERATOR'] },
+    { path: '/brands', label: '品牌管理', roles: ['ADMIN', 'OPERATOR'] },
+    { path: '/reviews', label: '评价审核', roles: ['ADMIN', 'OPERATOR'] }
+  ] },
+  { key: 'trade', label: '交易', items: [
+    { path: '/orders', label: '订单管理', roles: ['ADMIN', 'OPERATOR'] },
+    { path: '/after-sales', label: '售后处理', roles: ['ADMIN', 'OPERATOR'] },
+    { path: '/pos', label: '门店收银', roles: ['ADMIN', 'OPERATOR'] },
+    { path: '/warehouse', label: '仓储作业', roles: ['ADMIN', 'OPERATOR'] },
+    { path: '/suppliers', label: '供应商', roles: ['ADMIN', 'OPERATOR'] }
+  ] },
+  { key: 'stock', label: '库存', items: [
+    { path: '/inventory', label: '库存与批次', roles: ['ADMIN', 'OPERATOR'] },
+    { path: '/expiring', label: '临期商品', roles: ['ADMIN', 'OPERATOR'] }
+  ] },
+  { key: 'marketing', label: '营销', items: [
+    { path: '/promotions', label: '促销管理', roles: ['ADMIN', 'OPERATOR'] },
+    { path: '/coupons', label: '优惠券', roles: ['ADMIN', 'OPERATOR'] },
+    { path: '/pos-members', label: '会员与优惠券', roles: ['ADMIN', 'OPERATOR'] },
+    { path: '/customers', label: '客户管理', roles: ['ADMIN', 'OPERATOR'] }
+  ] },
+  { key: 'finance', label: '财务', items: [
+    { path: '/costs', label: '成本查询', roles: ['ADMIN'] },
+    { path: '/exports', label: '导出中心', roles: ['ADMIN', 'OPERATOR'] }
+  ] },
+  { key: 'system', label: '系统', items: [
+    { path: '/notifications', label: '通知中心', roles: ['ADMIN', 'OPERATOR'] },
+    { path: '/ai', label: 'AI 客服', roles: ['ADMIN'] },
+    { path: '/themes', label: '主题配置', roles: ['ADMIN', 'OPERATOR'] },
+    { path: '/staff', label: '员工与权限', roles: ['ADMIN'] },
+    { path: '/permissions', label: '权限矩阵', roles: ['ADMIN'] },
+    { path: '/license', label: '许可证', roles: ['ADMIN'] },
+    { path: '/audit', label: '操作审计', roles: ['ADMIN'] },
+    { path: '/settings', label: '系统设置', roles: ['ADMIN'] }
+  ] }
 ]
-const menus = computed(() => allMenus.filter(menu => !auth.user || menu.roles.includes(auth.user.role)))
+const visibleGroups = computed(() => menuGroups
+  .map(group => ({
+    ...group,
+    items: group.items.filter(item => !auth.user || item.roles.includes(auth.user.role))
+  }))
+  .filter(group => group.items.length > 0))
 
 async function handleLogout() {
   await logout()
@@ -123,9 +142,12 @@ async function submitPassword() {
         </div>
       </div>
       <el-menu :default-active="activeMenu" router class="admin-menu">
-        <el-menu-item v-for="menu in menus" :key="menu.path" :index="menu.path">
-          {{ menu.label }}
-        </el-menu-item>
+        <template v-for="group in visibleGroups" :key="group.key">
+          <div class="admin-menu-group">{{ group.label }}</div>
+          <el-menu-item v-for="menu in group.items" :key="menu.path" :index="menu.path">
+            {{ menu.label }}
+          </el-menu-item>
+        </template>
       </el-menu>
       <div class="admin-aside-footer">
         <div class="admin-user">

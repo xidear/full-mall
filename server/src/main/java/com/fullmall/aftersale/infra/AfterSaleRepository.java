@@ -162,6 +162,26 @@ public class AfterSaleRepository {
                 Math.max(page, 0) * Math.max(size, 1));
     }
 
+    /** Keyset 分页（按 created_at,id 倒序）：深页友好，与 offset 版本并存。 */
+    public List<AfterSaleView> listKeyset(String status, java.time.Instant cursorCreatedAt,
+                                          UUID cursorId, int size) {
+        String filter = status == null ? "" : status.trim().toUpperCase();
+        return jdbcTemplate.query("""
+                SELECT a.id, a.after_sale_no, a.order_id, o.order_no, a.type, a.status, a.reason,
+                       a.description, a.contact_phone, a.refund_amount, a.currency, a.admin_note,
+                       a.created_at, a.approved_at, a.received_at, a.refunded_at, a.rejected_at,
+                       a.exchange_carrier_code, a.exchange_tracking_no, a.exchange_shipped_at
+                FROM after_sale a JOIN orders o ON o.id = a.order_id
+                WHERE (? = '' OR a.status = ?)
+                  AND (?::timestamptz IS NULL OR (a.created_at, a.id) < (?::timestamptz, ?::uuid))
+                ORDER BY a.created_at DESC, a.id DESC
+                LIMIT ?
+                """, (rs, rowNum) -> withChildren(map(rs)), filter, filter,
+                cursorCreatedAt == null ? null : java.sql.Timestamp.from(cursorCreatedAt),
+                cursorCreatedAt == null ? null : java.sql.Timestamp.from(cursorCreatedAt),
+                cursorId, Math.min(Math.max(size, 1), 100));
+    }
+
     public List<AfterSaleView> listByOrder(UUID orderId, String phone) {
         return jdbcTemplate.query("""
                 SELECT a.id, a.after_sale_no, a.order_id, o.order_no, a.type, a.status, a.reason,

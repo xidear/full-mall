@@ -127,6 +127,30 @@ public class AfterSaleService {
     }
 
     /** 分页列表（统一契约 items/total/page/size）。 */
+
+    /** Keyset 分页：返回本页与下一页游标。与 offset 版本并存。 */
+    public java.util.Map<String, Object> listKeyset(String status, String cursorCreatedAt,
+                                                    UUID cursorId, int size) {
+        int safeSize = Math.min(Math.max(size, 1), 100);
+        java.time.Instant cursor = null;
+        if (cursorCreatedAt != null && !cursorCreatedAt.isBlank()) {
+            cursor = java.time.Instant.parse(cursorCreatedAt.trim());
+        }
+        var items = repository.listKeyset(status, cursor, cursorId, safeSize);
+        java.util.Map<String, Object> result = new java.util.LinkedHashMap<>();
+        result.put("items", items);
+        result.put("size", safeSize);
+        if (!items.isEmpty()) {
+            var last = items.get(items.size() - 1);
+            result.put("nextCreatedAt", last.createdAt().toString());
+            result.put("nextId", last.id());
+        } else {
+            result.put("nextCreatedAt", null);
+            result.put("nextId", null);
+        }
+        return result;
+    }
+
     public java.util.Map<String, Object> list(String status, int page, int size) {
         return list(status, page, size, null, null);
     }

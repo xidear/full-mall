@@ -27,6 +27,15 @@ public class AdminAfterSaleController {
         this.afterSaleService = afterSaleService;
     }
 
+    /** Keyset 分页（深页推荐）：用上一页返回的 nextCreatedAt/nextId 作为游标。 */
+    @GetMapping("/keyset")
+    public java.util.Map<String, Object> keyset(@RequestParam(required = false) String status,
+                                                @RequestParam(required = false) String cursorCreatedAt,
+                                                @RequestParam(required = false) UUID cursorId,
+                                                @RequestParam(defaultValue = "20") int size) {
+        return afterSaleService.listKeyset(status, cursorCreatedAt, cursorId, size);
+    }
+
     @GetMapping
     public java.util.Map<String, Object> list(@RequestParam(required = false) String status,
                                              @RequestParam(defaultValue = "0") int page,

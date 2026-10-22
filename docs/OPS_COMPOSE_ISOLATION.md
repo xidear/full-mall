@@ -72,3 +72,30 @@ COMPOSE_PROJECT_NAME=fullmall-lite docker compose -f compose.lite.yaml up -d
 2. **cookie 治理选路径 1 还是 2**（改运行用户 vs init 容器修属主）。
 
 确认后我改 compose/Makefile，并在文档里补"验证步骤"（同时起两套 / `make reset` 后重新登录仍正常）。
+
+---
+
+## 已实施（按确认：A + 路径 1）
+
+| 改动 | 位置 |
+|---|---|
+| lite 独立 project | `Makefile`：`up-lite` 用 `COMPOSE_PROJECT_NAME=fullmall-lite`，并新增 `down-lite` |
+| api/worker 以宿主 UID 运行 | `compose.yaml`：`user: "${APP_UID:-1000}:${APP_GID:-1000}"` |
+| Maven 仓库改可写路径 | `HOME=/tmp`、`MAVEN_CONFIG=/tmp/.m2`，卷改为 `maven-cache:/tmp/.m2` |
+| 变量入 `.env` | `APP_UID=1000`、`APP_GID=1000` |
+
+### 首次启用注意
+
+`maven-cache` 卷历史上由 root 创建，切换用户后**可能不可写**。首次请执行一次：
+
+```bash
+docker compose down            # 不改卷
+docker volume rm fullmall_maven-cache   # 仅删缓存卷，安全
+docker compose --profile app up -d
+```
+
+### 验证步骤
+
+1. `make up-lite` 与 `docker compose --profile app up -d` **可同时运行**（`docker ps` 里两套容器并存）；
+2. `ls -n server | head` 不应出现 `0 0`（root:root）属主；
+3. `make reset` 后重新登录，cookie/会话仍正常。

@@ -25,10 +25,13 @@ up: env
 	$(COMPOSE) --profile core --profile app --profile tools up -d --build
 
 up-lite: env
-	$(COMPOSE) -f compose.lite.yaml up -d
+	COMPOSE_PROJECT_NAME=fullmall-lite $(COMPOSE) -f compose.lite.yaml up -d
 
 up-obs: env
 	$(COMPOSE) --profile core --profile app --profile tools --profile obs up -d --build
+
+down-lite:
+	COMPOSE_PROJECT_NAME=fullmall-lite $(COMPOSE) -f compose.lite.yaml down
 
 down:
 	$(COMPOSE) --profile core --profile app --profile tools --profile obs --profile ai down

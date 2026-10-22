@@ -125,12 +125,16 @@ services:
   api:
     image: maven:3.9-eclipse-temurin-21
     working_dir: /workspace
+    # 以宿主 UID 运行：避免容器写 bind mount 后留下 root 属主文件（cookie/会话反复失效的根因）
+    user: "${APP_UID:-1000}:${APP_GID:-1000}"
     profiles: [app]
     environment:
       <<: *app-env
       SPRING_PROFILES_ACTIVE: api,dev
       SERVER_PORT: 8080
       JAVA_TOOL_OPTIONS: "-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*:5005"
+      HOME: /tmp
+      MAVEN_CONFIG: /tmp/.m2
     ports:
       - "${API_PORT:-8080}:8080"
       - "${API_DEBUG_PORT:-5005}:5005"
@@ -143,17 +147,20 @@ services:
         condition: service_healthy
     volumes:
       - ./server:/workspace
-      - maven-cache:/root/.m2
+      - maven-cache:/tmp/.m2
     command: ["mvn", "-q", "spring-boot:run"]
 
   worker:
     image: maven:3.9-eclipse-temurin-21
+    user: "${APP_UID:-1000}:${APP_GID:-1000}"
     working_dir: /workspace
     profiles: [app]
     environment:
       <<: *app-env
       SPRING_PROFILES_ACTIVE: worker,dev
       JAVA_TOOL_OPTIONS: "-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*:5006"
+      HOME: /tmp
+      MAVEN_CONFIG: /tmp/.m2
     ports:
       - "${WORKER_ACTUATOR_PORT:-8082}:8082"
       - "${WORKER_DEBUG_PORT:-5006}:5006"
@@ -166,7 +173,7 @@ services:
         condition: service_healthy
     volumes:
       - ./server:/workspace
-      - maven-cache:/root/.m2
+      - maven-cache:/tmp/.m2
     command: ["mvn", "-q", "spring-boot:run"]
 
   ws:

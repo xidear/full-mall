@@ -51,6 +51,18 @@ public class SupplierReturnController {
         return Map.of("updated", true);
     }
 
+    /** Keyset 分页（深页推荐）。 */
+    @GetMapping("/keyset")
+    public Map<String, Object> keyset(@RequestParam(required = false) UUID supplierId,
+                                      @RequestParam(required = false) String status,
+                                      @RequestParam(required = false) String cursorCreatedAt,
+                                      @RequestParam(required = false) UUID cursorId,
+                                      @RequestParam(defaultValue = "20") int size) {
+        return returns.listKeyset(supplierId, status,
+                cursorCreatedAt == null || cursorCreatedAt.isBlank()
+                        ? null : java.time.Instant.parse(cursorCreatedAt), cursorId, size);
+    }
+
     @GetMapping
     public Map<String, Object> list(@RequestParam(required = false) UUID supplierId,
                                     @RequestParam(required = false) String status,

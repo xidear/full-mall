@@ -229,4 +229,42 @@ public class SupplierReturnService {
                 """, Integer.class, supplierId);
         return count == null ? 0 : count;
     }
+
+    /** Keyset 分页：按 (created_at, id) 倒序，保留供应商与状态筛选。 */
+    public Map<String, Object> listKeyset(UUID supplierId, String status,
+                                          java.time.Instant cursorCreatedAt, UUID cursorId, int size) {
+        int safeSize = Math.min(Math.max(size, 1), 100);
+        String filter = status == null || status.isBlank() ? null : status.trim().toUpperCase(Locale.ROOT);
+        if (filter != null && !STATUSES.contains(filter)) {
+            throw ApiException.badRequest("SUPPLIER_RETURN_STATUS_INVALID", "未知状态：" + status);
+        }
+        var items = jdbcTemplate.query("""
+                SELECT id, supplier_id, order_id, reason, amount_amount, currency, status, note,
+                       created_by, created_at, closed_at
+                  FROM supplier_return
+                 WHERE (?::uuid IS NULL OR supplier_id = ?::uuid)
+                   AND (?::text IS NULL OR status = ?::text)
+                   AND (?::timestamptz IS NULL
+                        OR (created_at, id) < (?::timestamptz, ?::uuid))
+                 ORDER BY created_at DESC, id DESC
+                 LIMIT ?
+                """, (rs, rowNum) -> new SupplierReturn(
+                rs.getObject("id", UUID.class), rs.getObject("supplier_id", UUID.class),
+                rs.getObject("order_id", UUID.class), rs.getString("reason"),
+                rs.getLong("amount_amount"), rs.getString("currency"), rs.getString("status"),
+                rs.getString("note"), rs.getString("created_by"),
+                rs.getTimestamp("created_at").toInstant(),
+                rs.getTimestamp("closed_at") == null ? null : rs.getTimestamp("closed_at").toInstant()),
+                supplierId, supplierId, filter, filter,
+                cursorCreatedAt == null ? null : java.sql.Timestamp.from(cursorCreatedAt),
+                cursorCreatedAt == null ? null : java.sql.Timestamp.from(cursorCreatedAt),
+                cursorId, safeSize);
+        Map<String, Object> result = new java.util.LinkedHashMap<>();
+        result.put("items", items);
+        result.put("size", safeSize);
+        result.put("nextCreatedAt", items.isEmpty() ? null
+                : items.get(items.size() - 1).createdAt().toString());
+        result.put("nextId", items.isEmpty() ? null : items.get(items.size() - 1).id());
+        return result;
+    }
 }

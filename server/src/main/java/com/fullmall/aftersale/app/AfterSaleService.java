@@ -167,6 +167,30 @@ public class AfterSaleService {
         repository.insertEvent(afterSaleId, "DISPUTED", "顾客申报未收到换货商品", "顾客");
     }
 
+    /**
+     * 退货入库质检：PASS 才允许后续退款/换货出库，FAIL 保持隔离并转人工。
+     *
+     * <p>不合格不自动退款——先由客服与顾客沟通，避免"货有问题还退钱"。
+     */
+    @Transactional
+    public AfterSaleView recordQuality(UUID afterSaleId, String result, String note, String operator) {
+        AfterSaleView afterSale = require(afterSaleId);
+        String normalized = result == null ? "" : result.trim().toUpperCase();
+        if (!"PASS".equals(normalized) && !"FAIL".equals(normalized)) {
+            throw ApiException.badRequest("QUALITY_RESULT_INVALID", "质检结论只能是 PASS 或 FAIL");
+        }
+        if (!"RECEIVED".equals(afterSale.status())) {
+            throw ApiException.conflict("QUALITY_NOT_ALLOWED",
+                    "只有已收货的售后单可以质检，当前状态 " + afterSale.status());
+        }
+        if (!repository.recordQuality(afterSaleId, normalized, note)) {
+            throw ApiException.conflict("QUALITY_ALREADY_RECORDED", "该售后单已记录质检结论");
+        }
+        repository.insertEvent(afterSaleId, "QUALITY_" + normalized,
+                note == null || note.isBlank() ? "质检" + normalized : note, operator);
+        return require(afterSaleId);
+    }
+
     /** 换货自动完成时解除佣金冻结（换货不属于退货，不扣佣金）。 */
     public void closeCommissionHoldForAutoComplete(java.util.UUID afterSaleId) {
         commissionHold.close(afterSaleId, false);

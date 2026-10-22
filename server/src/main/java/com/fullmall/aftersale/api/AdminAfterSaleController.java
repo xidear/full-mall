@@ -48,6 +48,20 @@ public class AdminAfterSaleController {
         return afterSaleService.reject(afterSaleId, request, "运营后台");
     }
 
+    public record QualityRequest(String result, String note) {
+    }
+
+    /** 退货质检：PASS/FAIL，只能记一次；FAIL 保持隔离并转人工。 */
+    @PostMapping("/{afterSaleId}/quality")
+    @org.springframework.security.access.prepost.PreAuthorize("hasAnyRole('ADMIN','OPERATOR')")
+    public AfterSaleView recordQuality(
+            @PathVariable UUID afterSaleId,
+            @RequestBody QualityRequest body,
+            org.springframework.security.core.Authentication authentication) {
+        return afterSaleService.recordQuality(afterSaleId, body.result(), body.note(),
+                authentication.getName());
+    }
+
     @PostMapping("/{afterSaleId}/receive")
     public AfterSaleView receive(@PathVariable UUID afterSaleId,
                                  @Valid @RequestBody ReceiveAfterSaleRequest request) {

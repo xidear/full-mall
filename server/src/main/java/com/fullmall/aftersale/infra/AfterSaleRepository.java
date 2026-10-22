@@ -204,6 +204,15 @@ public class AfterSaleRepository {
                 """, reason, afterSaleId);
     }
 
+    /** 记录质检结论：只允许在已收货（RECEIVED）后、且只能记一次。 */
+    public boolean recordQuality(UUID afterSaleId, String result, String note) {
+        return jdbcTemplate.update("""
+                UPDATE after_sale
+                   SET quality_result = ?, quality_note = ?, quality_checked_at = now()
+                 WHERE id = ? AND status = 'RECEIVED' AND quality_result IS NULL
+                """, result, note, afterSaleId) == 1;
+    }
+
     public void markReceived(UUID afterSaleId) {
         jdbcTemplate.update("""
                 UPDATE after_sale SET status = 'RECEIVED', received_at = now()

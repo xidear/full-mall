@@ -28,4 +28,16 @@ public class AdminOrderFulfillmentController {
     public List<FulfillmentOrder> list(@PathVariable UUID orderId) {
         return fulfillmentService.findFulfillments(orderId);
     }
+
+    public record CancelRequest(String reason) {
+    }
+
+    /** 取消履约单：仅未开始拣货可取消，会释放库存预占（退款走售后）。 */
+    @PostMapping("/{fulfillmentId}/cancel")
+    public FulfillmentOrder cancel(@PathVariable UUID orderId,
+                                   @PathVariable UUID fulfillmentId,
+                                   @RequestBody(required = false) CancelRequest body) {
+        return fulfillmentService.cancelFulfillment(fulfillmentId,
+                body == null ? null : body.reason());
+    }
 }

@@ -65,7 +65,7 @@
 | D3 | 换货退回旧货的库存回补 | ✅（澄清） | **前提有误**：`shipExchange` 要求状态 `RECEIVED`，而 `receive` 对 RETURN/EXCHANGE 都写入 `QUARANTINE` 批次与库存流水（代码核实） |
 | D4 | 退货入库质检 | ✅ | `POST /admin/v1/after-sales/{id}/quality`：仅 RECEIVED 后、只能记一次、PASS/FAIL 校验；不合格保持隔离转人工（有测试） |
 | D5 | 售后操作按钮 loading | ✅ | 已核实：`AfterSalesView` 有 4 处 `:loading`（同意/驳回/收货/退款），详情弹窗无异步请求故不需要 |
-| D6 | 履约单取消/异常处理 | ⬜ | 只有状态字段，无运营操作入口；需先定取消后库存与退款如何处理 |
+| D6 | 履约单取消 | ✅ | `POST /admin/v1/orders/{orderId}/fulfillments/{id}/cancel`：未拣货可取消并**释放库存预占**；PICKING/PACKED 需人工盘点、SHIPPED 后走售后；退款不在此处（归售后），2 条测试 |
 | D10 | 自营履约「接受/打包」接口 | ✅ | 新增 `/store/v1/fulfillments/{id}/accept` 与 `/pack`；此前自营订单**永远无法发货** |
 | D11 | 会员订单页硬刷新 404 | ✅ | 令牌落 cookie（`fullmall_member_token`），订单页用 `useCookie` 读取；**E2E 已验证硬刷新可渲染履约** |
 | D13 | 砍价营销（假砍价） | ⚠️ | 规则/表/发起/助力/达成/绑单/接口 + **checkout 已按锁定价取价**（本人+READY 校验，不回落原价）；前端活动页未做 |
@@ -236,9 +236,9 @@
 
 | 状态 | 数量 |
 |---|---|
-| ✅ 已实现并验证 | 112 |
+| ✅ 已实现并验证 | 111 |
 | ⚠️ 已实现未验证 / 半接线 | 20 |
-| ⬜ 未实现 | 17 |
+| ⬜ 未实现 | 18 |
 | 🚫 有意不做 / 暂缓 | 7 |
 | **合计** | **158** |
 | 另：接口冒烟覆盖 | 43 个接口（读 33 / 写 10） |

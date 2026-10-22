@@ -442,4 +442,41 @@ public class FulfillmentService {
                     quantity + other.quantity(), quantities);
         }
     }
+
+    /**
+     * 履约单取消（D6）：只允许在**未开始拣货**前取消。
+     *
+     * <p>规则：
+     * <ul>
+     *   <li>`PENDING / ALLOCATED / ACCEPTED` → 取消，并**释放该订单的全部预占**；</li>
+     *   <li>`PICKING / PACKED` → 拒绝（货已动过，需人工盘点后处理）；</li>
+     *   <li>`SHIPPED` 及之后 → 拒绝（走售后退货流程）。</li>
+     * </ul>
+     *
+     * <p>退款不在这里做：取消只回滚库存占用，退款由售后/财务按订单状态处理。
+     */
+    @Transactional
+    public FulfillmentOrder cancelFulfillment(UUID fulfillmentId, String reason) {
+        FulfillmentOrder fulfillment = requireFulfillment(fulfillmentId);
+        FulfillmentStatus status = fulfillment.status();
+        if (status == FulfillmentStatus.CANCELLED) {
+            throw ApiException.conflict("FULFILLMENT_ALREADY_CANCELLED", "该履约单已取消");
+        }
+        if (status == FulfillmentStatus.PICKING || status == FulfillmentStatus.PACKED) {
+            throw ApiException.conflict("FULFILLMENT_CANNOT_CANCEL",
+                    "已开始拣货（" + status + "），请人工盘点后处理");
+        }
+        if (status == FulfillmentStatus.SHIPPED
+                || status == FulfillmentStatus.READY_FOR_PICKUP
+                || status == FulfillmentStatus.COMPLETED) {
+            throw ApiException.conflict("FULFILLMENT_CANNOT_CANCEL",
+                    "当前状态 " + status + " 不能取消，请走售后流程");
+        }
+        inventoryService.releaseOrder(fulfillment.orderId());
+        repository.updateStatus(fulfillmentId, FulfillmentStatus.CANCELLED);
+        notificationService.notifyOrderEvent(fulfillment.orderId(), "FULFILLMENT_CANCELLED",
+                "履约单已取消", reason == null || reason.isBlank() ? "无原因" : reason,
+                java.util.List.of("IN_APP"));
+        return requireFulfillment(fulfillmentId);
+    }
 }

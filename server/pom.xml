@@ -45,6 +45,12 @@
     </dependencyManagement>
 
     <dependencies>
+        <!-- 支付宝官方 SDK -->
+        <dependency>
+            <groupId>com.alipay.sdk</groupId>
+            <artifactId>alipay-sdk-java</artifactId>
+            <version>4.40.0.ALL</version>
+        </dependency>
         <!-- 微信支付 v3 官方 SDK -->
         <dependency>
             <groupId>com.github.wechatpay-apiv3</groupId>

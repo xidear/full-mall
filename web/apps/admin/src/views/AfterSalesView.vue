@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { formatDateTime } from '@fullmall/api-client'
 import { onMounted, reactive, ref } from 'vue'
+import { useRoute } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import type { AfterSaleView } from '@fullmall/api-client'
 import { api } from '../api'
@@ -37,7 +38,9 @@ function changePage(next: number) {
 const locations = ref<Location[]>([])
 const loading = ref(false)
 const error = ref('')
-const statusFilter = ref('')
+const route = useRoute()
+// 支持从工作台直达：/after-sales?status=PENDING
+const statusFilter = ref(typeof route.query.status === 'string' ? route.query.status : '')
 const detail = ref<AfterSaleView | null>(null)
 // 正在执行的售后单：按钮显示 loading，避免重复点击导致重复退款
 const actionId = ref('')

@@ -80,6 +80,22 @@ export const HELP_ENTRIES: HelpEntry[] = [
     related: ['/products']
   },
   {
+    route: '/costs',
+    title: '成本查询',
+    description: '查看 SKU 的加权平均成本与最近批次来源，用于毛利核对。',
+    steps: [
+      '输入 SKU ID 查询',
+      '看「加权平均成本」与「最近批次」是否合理',
+      '显示「成本未知」说明还没有入库记录，不是 0'
+    ],
+    tips: [
+      '成本由采购收货自动产生，系统不提供手填',
+      '卖完后会保留最后的成本并标记为参考值'
+    ],
+    pitfalls: ['把「成本未知」当 0 会算出 100% 毛利'],
+    related: ['/inventory']
+  },
+  {
     route: '/inventory',
     title: '库存管理',
     description: '查看批次库存与占用，处理临期与缺货。',

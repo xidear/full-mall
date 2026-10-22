@@ -294,6 +294,22 @@ export const HELP_ENTRIES: HelpEntry[] = [
     pitfalls: ['直接改生产主题无法回滚，先复制一份']
   },
   {
+    route: '/license',
+    title: '许可证',
+    description: '查看授权状态与到期时间，上传新许可证即时生效。',
+    steps: [
+      '看状态：只读表示许可过期/域名不符/验签失败',
+      '粘贴新的 license.json（payload + signature）',
+      '点「保存并立即生效」，随后刷新确认'
+    ],
+    tips: [
+      '到期后仍可登录与上传许可证，否则没法续费',
+      '验签失败不会假装成功，状态会显示具体原因'
+    ],
+    pitfalls: ['改系统时间不能续命：检测到回拨会进入只读'],
+    related: ['/settings']
+  },
+  {
     route: '/settings',
     title: '系统设置',
     description: '站点状态、支付/短信/物流适配器、分销与提现规则、渠道自检。',

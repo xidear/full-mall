@@ -53,6 +53,7 @@ const allMenus = [
   { path: '/costs', label: '成本查询', roles: ['ADMIN'] },
   { path: '/exports', label: '导出中心', roles: ['ADMIN', 'OPERATOR'] },
   { path: '/sku-matrix', label: 'SKU 规格矩阵', roles: ['ADMIN', 'OPERATOR'] },
+  { path: '/license', label: '许可证', roles: ['ADMIN'] },
   { path: '/reviews', label: '评价审核', roles: ['ADMIN', 'OPERATOR'] },
   { path: '/audit', label: '操作审计', roles: ['ADMIN'] },
   { path: '/pos', label: '门店收银', roles: ['ADMIN', 'OPERATOR'] },

@@ -36,6 +36,15 @@ public class AdminOrderController {
         return orderService.getOrder(orderId);
     }
 
+    /** Keyset 分页（深页推荐）：以上一页返回的 nextCreatedAt/nextId 作为游标。 */
+    @GetMapping("/keyset")
+    public Map<String, Object> keyset(@RequestParam(required = false) String status,
+                                      @RequestParam(required = false) String cursorCreatedAt,
+                                      @RequestParam(required = false) UUID cursorId,
+                                      @RequestParam(defaultValue = "50") int size) {
+        return orderService.listOrdersKeyset(status, cursorCreatedAt, cursorId, size);
+    }
+
     @GetMapping
     public Map<String, Object> list(
             @RequestParam(required = false) String status,

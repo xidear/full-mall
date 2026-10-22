@@ -216,6 +216,35 @@ public class OrderRepository {
         return column + " " + dir;
     }
 
+    /**
+     * Keyset 分页（深页友好）：按 `(created_at, id)` 倒序，用上一页最后一条作为游标。
+     * 只支持默认排序——自定义排序仍走 offset 版本。
+     */
+    public List<com.fullmall.order.api.OrderSummary> findSummariesKeyset(String status,
+                                                                          java.time.Instant cursorCreatedAt,
+                                                                          UUID cursorId, int limit) {
+        String normalized = status == null ? "" : status.trim();
+        return jdbcTemplate.query("""
+                SELECT id, order_no, status, currency, total_amount, fulfillment_mode, contact_name, created_at
+                FROM orders
+                WHERE (? = '' OR status = ?)
+                  AND (?::timestamptz IS NULL
+                       OR (created_at, id) < (?::timestamptz, ?::uuid))
+                ORDER BY created_at DESC, id DESC
+                LIMIT ?
+                """, (rs, rowNum) -> new com.fullmall.order.api.OrderSummary(
+                rs.getObject("id", UUID.class),
+                rs.getString("order_no"),
+                rs.getString("status"),
+                new Money(rs.getLong("total_amount"), rs.getString("currency")),
+                rs.getString("fulfillment_mode"),
+                rs.getString("contact_name"),
+                rs.getTimestamp("created_at").toInstant()), normalized, normalized,
+                cursorCreatedAt == null ? null : java.sql.Timestamp.from(cursorCreatedAt),
+                cursorCreatedAt == null ? null : java.sql.Timestamp.from(cursorCreatedAt),
+                cursorId, limit);
+    }
+
     public List<com.fullmall.order.api.OrderSummary> findSummaries(String status, int limit, int offset) {
         return findSummaries(status, limit, offset, "createdAt", "desc");
     }

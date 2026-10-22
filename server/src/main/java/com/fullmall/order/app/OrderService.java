@@ -556,11 +556,6 @@ public class OrderService {
         return result;
     }
 
-    /**
-     * 按订单号入账（支付回调专用）：金额必须与本地应付一致，已支付则幂等返回 false。
-     *
-     * @return true=本次完成入账；false=此前已支付（幂等）
-     */
     @Transactional
     public boolean markPaidByOrderNo(String orderNo, long paidAmountFen) {
         if (orderNo == null || orderNo.isBlank()) {

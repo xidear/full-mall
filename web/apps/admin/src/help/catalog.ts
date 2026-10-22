@@ -286,6 +286,19 @@ export const HELP_ENTRIES: HelpEntry[] = [
     pitfalls: ['重复重试会产生多条短信，费钱且扰民']
   },
   {
+    route: '/integrations',
+    title: '第三方服务',
+    description: '配置短信、支付、存储、审核、物流、AI 的服务商与密钥。',
+    steps: [
+      '选能力与填服务商标识',
+      '按 key=value 填写配置（密钥类会自动加密）',
+      '需要立即生效则打开「启用」后保存'
+    ],
+    tips: ['密钥保存后不再回显，留空表示沿用旧值', '同一能力只能启用一个服务商'],
+    pitfalls: ['能力名不可自造（只允许 sms/payment/storage/moderation/logistics/ai）'],
+    related: ['/settings']
+  },
+  {
     route: '/audit',
     title: '操作审计',
     description: '查询关键操作记录，追溯谁在何时改了什么。',

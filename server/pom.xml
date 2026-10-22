@@ -45,6 +45,12 @@
     </dependencyManagement>
 
     <dependencies>
+        <!-- 微信支付 v3 官方 SDK -->
+        <dependency>
+            <groupId>com.github.wechatpay-apiv3</groupId>
+            <artifactId>wechatpay-java</artifactId>
+            <version>0.2.15</version>
+        </dependency>
         <!-- 阿里云短信官方 SDK（真实短信通道） -->
         <dependency>
             <groupId>com.aliyun</groupId>

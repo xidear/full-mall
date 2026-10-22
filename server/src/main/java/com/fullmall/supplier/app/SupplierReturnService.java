@@ -187,4 +187,37 @@ public class SupplierReturnService {
             return row;
         }, safeDays);
     }
+
+    /**
+     * 对账审计：**已同意退货金额** vs **结算单已扣减金额**，返回差额。
+     *
+     * <p>为什么需要：扣减发生在生成结算单时，如果运营漏生成或周期不重叠，
+     * 扣减就会缺失；靠人眼对两张表必然漏。差额非 0 时页面必须显式告警。
+     */
+    public java.util.Map<String, Object> reconciliationAudit(int days) {
+        int safeDays = Math.min(Math.max(days, 1), 365);
+        Long accepted = jdbcTemplate.queryForObject("""
+                SELECT COALESCE(SUM(amount_amount), 0) FROM supplier_return
+                 WHERE status = 'ACCEPTED'
+                   AND created_at >= now() - make_interval(days => ?)
+                """, Long.class, safeDays);
+        Long deducted = jdbcTemplate.queryForObject("""
+                SELECT COALESCE(SUM(refund_amount), 0) FROM supplier_settlement
+                 WHERE created_at >= now() - make_interval(days => ?)
+                """, Long.class, safeDays);
+        long acceptedAmount = accepted == null ? 0 : accepted;
+        long deductedAmount = deducted == null ? 0 : deducted;
+        java.util.Map<String, Object> result = new java.util.LinkedHashMap<>();
+        result.put("days", safeDays);
+        result.put("acceptedReturnAmount", acceptedAmount);
+        result.put("settledDeductionAmount", deductedAmount);
+        result.put("difference", acceptedAmount - deductedAmount);
+        result.put("consistent", acceptedAmount == deductedAmount);
+        if (acceptedAmount != deductedAmount) {
+            org.slf4j.LoggerFactory.getLogger(SupplierReturnService.class).warn(
+                    "供应商退货对账差额：已同意 {}，已扣减 {}，差额 {}（近 {} 天）",
+                    acceptedAmount, deductedAmount, acceptedAmount - deductedAmount, safeDays);
+        }
+        return result;
+    }
 }

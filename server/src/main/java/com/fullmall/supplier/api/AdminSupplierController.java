@@ -66,6 +66,13 @@ public class AdminSupplierController {
         return settlementService.list(supplierId, limit);
     }
 
+    /** 对账审计：已同意退货 vs 结算扣减，返回差额与是否一致。 */
+    @GetMapping("/supplier-returns/reconciliation-audit")
+    public java.util.Map<String, Object> reconciliationAudit(
+            @RequestParam(defaultValue = "30") int days) {
+        return supplierReturnService.reconciliationAudit(days);
+    }
+
     /** 供应商退货对账（按供应商汇总已同意退货金额）。 */
     @GetMapping("/supplier-returns/reconciliation")
     public java.util.List<java.util.Map<String, Object>> returnReconciliation(

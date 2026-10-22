@@ -88,4 +88,19 @@ class ReturnReconciliationTest {
         assertThat(rows).allSatisfy(row ->
                 assertThat(((Number) row.get("acceptedAmount")).longValue()).isNotEqualTo(9_999));
     }
+
+    /** 对账审计：未生成结算单时差额 = 已同意金额（必须告警，不能静默为 0）。 */
+    @Test
+    void auditReportsDifferenceWhenSettlementMissing() {
+        UUID supplierId = supplier("差额供应商");
+        returnRow(supplierId, "ACCEPTED", 3_000);
+
+        var audit = returns.reconciliationAudit(30);
+
+        assertThat(((Number) audit.get("acceptedReturnAmount")).longValue()).isGreaterThanOrEqualTo(3_000);
+        assertThat(audit.get("consistent")).isEqualTo(false);
+        assertThat(((Number) audit.get("difference")).longValue())
+                .isEqualTo(((Number) audit.get("acceptedReturnAmount")).longValue()
+                        - ((Number) audit.get("settledDeductionAmount")).longValue());
+    }
 }

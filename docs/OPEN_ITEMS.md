@@ -44,8 +44,8 @@
 
 | # | 事项 | 状态 | 依据 |
 |---|---|---|---|
-| C1 | 叠加/互斥可配置（PRO-003） | ⚠️ | 策略已实现并测准（BEST_ONLY 默认 / STACK + 互斥组）；**结算仍未接入 STACK**（保持现状不改行为） |
-| C2 | 券的叠加策略可配置 | ⚠️ | 只有 `EXCLUSIVE`/`STACKABLE` 开关，非按规则配置 |
+| C1 | 叠加/互斥可配置（PRO-003） | ⚠️ | 策略函数已实现并测准（BEST_ONLY/STACK + 互斥组）；**活动属性（allowCouponStack/allowPoints/门槛基准/排除项）与结算接入未做** |
+| C2 | 券叠加策略按券属性 | ⚠️ | 规格见 `docs/PROMOTION_COUPON_ENGINE.md`；现为全局 EXCLUSIVE/STACKABLE，**未按券属性 + 活动 allowCouponStack 联合判断** |
 | C3 | 券与促销优先级文档化 | ✅ | `REFUND_POLICY.md` §6 |
 | C4 | 券的部分消耗（拆单分摊） | ⬜ | 券是一单一用 |
 | C5 | 券模板编辑/停用 | ✅ | `PUT /admin/v1/coupons/templates/{id}`（仅草稿）+ `POST .../disable`；停用后停止发放、已领券不受影响（有测试）|

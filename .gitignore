@@ -59,3 +59,7 @@ docker-data/
 # Test artifacts
 web/test-results/
 web/playwright-report/
+# 许可证私钥绝不入库
+*.pem
+license-private*
+.dsh-license/

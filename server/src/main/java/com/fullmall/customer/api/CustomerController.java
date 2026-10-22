@@ -18,6 +18,15 @@ public class CustomerController {
         this.customerService = customerService;
     }
 
+    /** Keyset 分页：游标来自上一页的 nextLastOrderAt / nextPhone。 */
+    @GetMapping("/keyset")
+    public java.util.Map<String, Object> keyset(
+            @RequestParam(required = false) String cursorLastOrderAt,
+            @RequestParam(required = false) String cursorPhone,
+            @RequestParam(defaultValue = "20") int size) {
+        return customerService.listKeyset(cursorLastOrderAt, cursorPhone, size);
+    }
+
     @GetMapping
     public java.util.Map<String, Object> list(@RequestParam(defaultValue = "0") int page,
                                               @RequestParam(defaultValue = "20") int size,

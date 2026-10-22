@@ -100,6 +100,40 @@ public class ProductReviewService {
     }
 
     /** 后台评价列表（含已隐藏），用于审核。 */
+    /** Keyset 分页：按 (created_at, id) 倒序；与 offset 版本并存。 */
+    public java.util.Map<String, Object> listForAdminKeyset(String status, String cursorCreatedAt,
+                                                            UUID cursorId, int size) {
+        int safeSize = Math.min(Math.max(size, 1), 100);
+        String filter = normalStatus(status);
+        java.time.Instant cursor = null;
+        if (cursorCreatedAt != null && !cursorCreatedAt.isBlank()) {
+            cursor = java.time.Instant.parse(cursorCreatedAt.trim());
+        }
+        var items = jdbcTemplate.query("""
+                SELECT r.id, r.sku_id, r.order_id, r.member_id, r.rating, r.content, r.status, r.created_at
+                  FROM product_review r
+                 WHERE (?::text IS NULL OR r.status = ?::text)
+                   AND (?::timestamptz IS NULL
+                        OR (r.created_at, r.id) < (?::timestamptz, ?::uuid))
+                 ORDER BY r.created_at DESC, r.id DESC
+                 LIMIT ?
+                """, (rs, rowNum) -> new AdminReview(
+                rs.getObject("id", UUID.class), rs.getObject("sku_id", UUID.class),
+                rs.getObject("order_id", UUID.class), rs.getObject("member_id", UUID.class),
+                rs.getInt("rating"), rs.getString("content"), rs.getString("status"),
+                rs.getTimestamp("created_at").toInstant()), filter, filter,
+                cursor == null ? null : java.sql.Timestamp.from(cursor),
+                cursor == null ? null : java.sql.Timestamp.from(cursor),
+                cursorId, safeSize);
+        java.util.Map<String, Object> result = new java.util.LinkedHashMap<>();
+        result.put("items", items);
+        result.put("size", safeSize);
+        result.put("nextCreatedAt", items.isEmpty() ? null
+                : items.get(items.size() - 1).createdAt().toString());
+        result.put("nextId", items.isEmpty() ? null : items.get(items.size() - 1).id());
+        return result;
+    }
+
     public java.util.List<AdminReview> listForAdmin(String status, int page, int size) {
         int safeSize = Math.min(Math.max(size, 1), 100);
         int offset = Math.max(page, 0) * safeSize;

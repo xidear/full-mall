@@ -33,6 +33,15 @@ public class ProductReviewController {
     }
 
     /** 后台评价列表（含已隐藏）。 */
+    /** 后台评价 keyset 分页（深页推荐）。 */
+    @GetMapping("/admin/v1/reviews/keyset")
+    public Map<String, Object> adminKeyset(@RequestParam(required = false) String status,
+                                           @RequestParam(required = false) String cursorCreatedAt,
+                                           @RequestParam(required = false) UUID cursorId,
+                                           @RequestParam(defaultValue = "20") int size) {
+        return reviews.listForAdminKeyset(status, cursorCreatedAt, cursorId, size);
+    }
+
     @GetMapping("/admin/v1/reviews")
     public Map<String, Object> adminList(@RequestParam(required = false) String status,
                                          @RequestParam(defaultValue = "0") int page,

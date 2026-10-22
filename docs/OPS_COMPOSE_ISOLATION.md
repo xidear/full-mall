@@ -99,3 +99,21 @@ docker compose --profile app up -d
 1. `make up-lite` 与 `docker compose --profile app up -d` **可同时运行**（`docker ps` 里两套容器并存）；
 2. `ls -n server | head` 不应出现 `0 0`（root:root）属主；
 3. `make reset` 后重新登录，cookie/会话仍正常。
+
+### 实机验证结果（本机 Docker 29.7.2 / Compose v5.6.0）
+
+| 检查 | 结果 |
+|---|---|
+| `docker compose -f compose.yaml config -q` | ✅ 通过 |
+| `COMPOSE_PROJECT_NAME=fullmall-lite docker compose -f compose.lite.yaml config -q` | ✅ 通过，project 解析为 `fullmall-lite` |
+| **两套同时 up** | ✅ 成功（core 5 容器 + lite 5 容器并存） |
+| 端口隔离 | core `5432/5672/15672`；lite `15432/15674/15675/17700/11025` |
+| `user:` 指令 | ✅ 在 `--profile app` 下生效（`docker compose config --profile app` 可查到 `user: 1000:1000`） |
+
+**过程中发现的两个真问题（已修）**
+
+1. 只改 project 名不够：`.env` 里的 `RABBITMQ_PORT/POSTGRES_PORT/...` 会被 lite 复用 → 端口仍冲突。
+   已把 lite 变量全部改为 `LITE_*` 前缀（`LITE_POSTGRES_PORT` 等），彻底与 core 解耦。
+2. 默认端口也踩到 core 的 rabbitmq 管理端口（15672），已把 lite AMQP/管理端口默认设为 `15674/15675`。
+
+> 注：`--profile app` 才包含 api/worker，因此不带 profile 执行 `config` 时看不到 `user:` 是正常的。

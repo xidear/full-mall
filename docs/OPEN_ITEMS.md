@@ -229,15 +229,15 @@
 | P2 | 后台「第三方服务」页 | ⚠️ | 接口已通（`GET/POST /admin/v1/integrations`，只返回非敏感字段、仅 ADMIN 可保存）；**页面未做** |
 | P3 | 适配器改由配置提供者装配 | ⬜ | 数据库配置 > 环境变量 > 默认；切换无需重启 |
 | P4 | 后台信息架构重组 | ✅ | 7 组菜单；工作台「待办事项」**每项带筛选路径**（待付款/待发货/待自提→订单页已筛，临期→临期页）；订单/售后页支持 `?status=` |
-| P5 | core/lite compose 隔离 | ⚠️ | 已改 `Makefile`：`up-lite`/`down-lite` 用 `COMPOSE_PROJECT_NAME=fullmall-lite`；**未实际同时启动验证**（本机无 Docker） |
+| P5 | core/lite compose 隔离 | ✅ | 实测两套同时运行：project 分离 + `LITE_*` 端口变量（15432/15674/15675/17700/11025），`docker compose config` 双通过 |
 | P6 | bind mount 属主（cookie 复发） | ⚠️ | api/worker 改宿主 UID 运行 + `HOME=/tmp` + Maven 仓库 `/tmp/.m2`，`.env` 加 `APP_UID/APP_GID`；**未实机验证**（本机无 Docker） |
 
 ## 统计
 
 | 状态 | 数量 |
 |---|---|
-| ✅ 已实现并验证 | 102 |
-| ⚠️ 已实现未验证 / 半接线 | 25 |
+| ✅ 已实现并验证 | 103 |
+| ⚠️ 已实现未验证 / 半接线 | 24 |
 | ⬜ 未实现 | 23 |
 | 🚫 有意不做 / 暂缓 | 7 |
 | **合计** | **158** |

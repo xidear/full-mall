@@ -24,7 +24,14 @@ env:
 up: env
 	$(COMPOSE) --profile core --profile app --profile tools up -d --build
 
-up-lite: env
+
+# lite 是"没有 Docker 时的权宜方案"，与 core 不并行：启动前检查另一套是否在跑
+check-lite-exclusive:
+	@if [ -n "$$(docker compose ps -q 2>/dev/null)" ]; then \
+		echo "错误：core 正在运行（fullmall-*）。lite 只用于无 Docker 环境，请先 make down。"; exit 1; \
+	fi
+
+up-lite: env check-lite-exclusive
 	COMPOSE_PROJECT_NAME=fullmall-lite $(COMPOSE) -f compose.lite.yaml up -d
 
 up-obs: env

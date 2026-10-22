@@ -117,3 +117,28 @@ docker compose --profile app up -d
 2. 默认端口也踩到 core 的 rabbitmq 管理端口（15672），已把 lite AMQP/管理端口默认设为 `15674/15675`。
 
 > 注：`--profile app` 才包含 api/worker，因此不带 profile 执行 `config` 时看不到 `user:` 是正常的。
+
+---
+
+## 最终口径（业务确认）
+
+> **lite 只是"没有 Docker 时的权宜之计"，不与 core 并行运行。**
+
+因此：
+
+| 措施 | 说明 |
+|---|---|
+| `make up-lite` 前置 `check-lite-exclusive` | core 有容器在跑（`docker compose ps -q` 非空）就**明确报错退出** |
+| lite 端口变量 `LITE_*`（15432/15674/15675/17700/11025） | **防御性**设置：即使误开也不会抢占 core 端口 |
+| project 名 `fullmall-lite` | 容器/网络不与 core 混在一起，便于一次性 `down` |
+
+### 清理历史遗留（一次性）
+
+早期 lite 曾用共享 project（`fullmall`）运行，会留下这些容器，导致 `make up-lite` 的互斥检查判定"core 在跑"：
+
+```bash
+docker rm -f fullmall-postgres-1 fullmall-valkey-1 fullmall-rabbitmq-1 \
+              fullmall-mailpit-1 fullmall-meilisearch-1
+```
+
+> meilisearch 只属于 lite，出现在 `fullmall-*` 前缀下即是历史遗留；core 用 opensearch。

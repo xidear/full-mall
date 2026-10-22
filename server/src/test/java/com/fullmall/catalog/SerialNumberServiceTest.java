@@ -93,4 +93,51 @@ class SerialNumberServiceTest {
         assertThatThrownBy(() -> serials.register(batchId, List.of("X", "X")))
                 .hasMessageContaining("有重复");
     }
+
+    private UUID orderLine(UUID skuId) {
+        UUID orderId = UUID.randomUUID();
+        UUID lineId = UUID.randomUUID();
+        jdbc.update("""
+                INSERT INTO orders (id, order_no, status, currency, subtotal_amount, shipping_fee_amount,
+                                    discount_amount, total_amount, contact_name, contact_phone, fulfillment_mode)
+                VALUES (?, ?, 'PAID', 'CNY', 599900, 0, 0, 599900, 'p', '13800000000', 'SHIP')
+                """, orderId, "SN-" + orderId.toString().substring(0, 8));
+        jdbc.update("""
+                INSERT INTO order_line (id, order_id, sku_id, title_snapshot, sku_code_snapshot,
+                                        unit_price_amount, currency, fulfillment_type, quantity)
+                VALUES (?, ?, ?, '手机', 'SN-SKU', 599900, 'CNY', 'SHIP', 1)
+                """, lineId, orderId, skuId);
+        return lineId;
+    }
+
+    private UUID skuOfBatch(UUID batchId) {
+        return jdbc.queryForObject("SELECT sku_id FROM inventory_batch WHERE id = ?",
+                UUID.class, batchId);
+    }
+
+    @Test
+    void bindsSerialsToOrderLineAndRejectsReuse() {
+        UUID batchId = batch(3, "SN3");
+        serials.register(batchId, List.of("B1", "B2"));
+        UUID lineId = orderLine(skuOfBatch(batchId));
+
+        int bound = serials.bindToOrderLine(lineId, List.of("B1", "B2"));
+
+        assertThat(bound).isEqualTo(2);
+        assertThat(serials.lookup("B1").get("status")).isEqualTo("SOLD");
+        assertThat(serials.lookup("B1").get("orderLineId")).isEqualTo(lineId);
+        assertThatThrownBy(() -> serials.bindToOrderLine(lineId, List.of("B1")))
+                .hasMessageContaining("不能出库");
+    }
+
+    @Test
+    void rejectsSerialFromAnotherSku() {
+        UUID batchA = batch(2, "SN4");
+        UUID batchB = batch(2, "SN5");
+        serials.register(batchB, List.of("OTHER-1"));
+        UUID lineForA = orderLine(skuOfBatch(batchA));
+
+        assertThatThrownBy(() -> serials.bindToOrderLine(lineForA, List.of("OTHER-1")))
+                .hasMessageContaining("不属于该订单行");
+    }
 }

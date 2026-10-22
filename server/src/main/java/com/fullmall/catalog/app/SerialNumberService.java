@@ -118,4 +118,67 @@ public class SerialNumberService {
         }
         return rows.get(0);
     }
+
+    /**
+     * 出库绑定：把序列号绑到订单行，状态置为 SOLD。
+     *
+     * <p>校验：序列号必须存在、状态为 IN_STOCK、且与订单行的 SKU 一致。
+     * 任一不满足即整批失败——"扫错一件"比"漏扫"更危险。
+     */
+    @Transactional
+    public int bindToOrderLine(UUID orderLineId, List<String> serialNumbers) {
+        if (orderLineId == null) {
+            throw ApiException.badRequest("SERIAL_ORDER_LINE_REQUIRED", "必须指定订单行");
+        }
+        if (serialNumbers == null || serialNumbers.isEmpty()) {
+            throw ApiException.badRequest("SERIAL_LIST_EMPTY", "序列号列表不能为空");
+        }
+        UUID lineSkuId = jdbc.query("SELECT sku_id FROM order_line WHERE id = ?",
+                rs -> rs.next() ? rs.getObject("sku_id", UUID.class) : null, orderLineId);
+        if (lineSkuId == null) {
+            throw ApiException.notFound("ORDER_LINE_NOT_FOUND", "订单行不存在：" + orderLineId);
+        }
+        List<String> cleaned = new ArrayList<>();
+        for (String raw : serialNumbers) {
+            String serial = raw == null ? "" : raw.trim().toUpperCase(java.util.Locale.ROOT);
+            if (serial.isEmpty()) {
+                throw ApiException.badRequest("SERIAL_EMPTY", "序列号不能为空");
+            }
+            if (cleaned.contains(serial)) {
+                throw ApiException.badRequest("SERIAL_DUPLICATED_IN_REQUEST", "提交的序列号有重复：" + serial);
+            }
+            cleaned.add(serial);
+        }
+        for (String serial : cleaned) {
+            var row = jdbc.query("""
+                    SELECT status, sku_id FROM sku_serial WHERE serial_no = ?
+                    """, rs -> rs.next()
+                    ? Map.of("status", rs.getString("status"),
+                             "skuId", rs.getObject("sku_id", UUID.class))
+                    : null, serial);
+            if (row == null) {
+                throw ApiException.notFound("SERIAL_NOT_FOUND", "序列号不存在：" + serial);
+            }
+            if (!"IN_STOCK".equals(row.get("status"))) {
+                throw ApiException.conflict("SERIAL_NOT_AVAILABLE",
+                        "序列号 " + serial + " 当前状态为 " + row.get("status") + "，不能出库");
+            }
+            if (!lineSkuId.equals(row.get("skuId"))) {
+                throw ApiException.conflict("SERIAL_SKU_MISMATCH",
+                        "序列号 " + serial + " 不属于该订单行的 SKU");
+            }
+        }
+        int updated = 0;
+        for (String serial : cleaned) {
+            updated += jdbc.update("""
+                    UPDATE sku_serial SET status = 'SOLD', order_line_id = ?
+                     WHERE serial_no = ? AND status = 'IN_STOCK'
+                    """, orderLineId, serial);
+        }
+        if (updated != cleaned.size()) {
+            throw ApiException.conflict("SERIAL_BIND_RACE",
+                    "有序列号在绑定过程中被其它订单占用，请重新扫描");
+        }
+        return updated;
+    }
 }

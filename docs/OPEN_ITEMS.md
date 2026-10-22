@@ -64,7 +64,7 @@
 | D2 | 订单详情后台接口 | ✅ | `GET /admin/v1/orders/{id}`（含订单行）；后台订单详情已切到该接口（有测试） |
 | D3 | 换货退回旧货的库存回补 | ✅（澄清） | **前提有误**：`shipExchange` 要求状态 `RECEIVED`，而 `receive` 对 RETURN/EXCHANGE 都写入 `QUARANTINE` 批次与库存流水（代码核实） |
 | D4 | 退货入库质检 | ✅ | `POST /admin/v1/after-sales/{id}/quality`：仅 RECEIVED 后、只能记一次、PASS/FAIL 校验；不合格保持隔离转人工（有测试） |
-| D5 | 售后操作按钮 loading | ✅/⚠️ | 同意/拒绝/退款按钮加 `:loading`（防重复退款）；**详情弹窗无异步请求，不需要 loading（曾加过假 loading，已撤）** |
+| D5 | 售后操作按钮 loading | ✅ | 已核实：`AfterSalesView` 有 4 处 `:loading`（同意/驳回/收货/退款），详情弹窗无异步请求故不需要 |
 | D6 | 履约单取消/异常处理 | ⬜ | 只有状态字段，无运营操作入口 |
 | D10 | 自营履约「接受/打包」接口 | ✅ | 新增 `/store/v1/fulfillments/{id}/accept` 与 `/pack`；此前自营订单**永远无法发货** |
 | D11 | 会员订单页硬刷新 404 | ✅ | 令牌落 cookie（`fullmall_member_token`），订单页用 `useCookie` 读取；**E2E 已验证硬刷新可渲染履约** |
@@ -135,7 +135,7 @@
 | H6 | 前端 loading 缺口 | ✅ | 全量扫描 0 剩余：商品上下架、提货核销、拣货确认、售后三个动作、促销启停、券启用、通知已读、员工 PIN、POS 会员查询/解锁 |
 | H7 | 列表排序 | ✅ | 六个列表均已白名单排序；**深页仍为 offset**（见 H22） |
 | H8 | 移动端（uni-app）页面完整度 | ⚠️ | 只有首页骨架，未接 API |
-| H9 | i18n 多语言文案（en/es/ar/fr/ru） | ⬜ | 决策有，文案与路由未做 |
+| H9 | 多语言文案（en/es/ar/fr/ru） | ⬜ | 翻译工作流与 `TranslationProvider` 有，**目标语言文案与路由未做**；需先确认首发语言清单 |
 | H10 | CI 真实执行验证（GitHub/Gitea runner） | ⬜ | workflow 已写，未跑过 |
 | H11 | compose 部署验证 | ⬜ | 容器内无 Docker |
 | H12 | E2E 覆盖缺口 | ✅ | 已补：券结算、退款、物流轨迹、分销设置、评价页、**售后换货全流程**（申请→审核→收货→发货→完成） |
@@ -152,7 +152,7 @@
 | I4 | 生产/演示隔离（mock 不进 prod） | ✅ | 就绪检查 + 运行时拒绝；启动不阻断 |
 | I5 | 字段级权限（供应商只看自己字段） | ⬜ | `AGENTS.md` 说"ERP 明确需要时再做" |
 | I6 | 操作审计查询 | ✅ | 接口 + **后台「操作审计」页面**（类型/操作人/时间范围/分页），E2E 已验证打开与筛选 |
-| I6b | JaVers 变更快照查询 | ⚠️ | `GET /admin/v1/audit/history`（注册制白名单）；全仓仅 1 个 JPA 实体，价值有限 |
+| I6b | JaVers 快照查询 | ⚠️ | 接口 `/admin/v1/audit/history` 已实现；全仓仍只有 1 个 JPA 实体（asset），**后台无对应页面**，价值有限 |
 | I9 | 操作审计覆盖面 | ✅ | 新增 `PAYMENT_SUCCEEDED`/`PAYMENT_REFUNDED`/`COUPON_REDEEMED`/`ORDER_CANCELLED_BY_SYSTEM`/`ORDER_REFUND_REQUESTED`；累计 21 处写入（券核销有断言测试，订单取消仅代码接入） |
 | I7 | 个税/发票（佣金、提现合规） | ⬜ | 未涉及 |
 | I8 | 隐私政策/用户协议版本化与同意记录 | ✅ | `legal_*` 表 + 接受接口 |

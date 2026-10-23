@@ -14,6 +14,11 @@ interface Location {
 
 const afterSales = ref<AfterSaleView[]>([])
 const page = ref(0)
+const useKeyset = ref(true)
+const cursorCreatedAt = ref<string | null>(null)
+const cursorId = ref<string | null>(null)
+const hasMore = ref(true)
+const loadingMore = ref(false)
 const size = ref(20)
 const total = ref(0)
 const sortKey = ref('createdAt')
@@ -72,9 +77,43 @@ onMounted(async () => {
   }
 })
 
+async function loadMore() {
+  if (!hasMore.value || loadingMore.value) return
+  loadingMore.value = true
+  try {
+    const response = await api.get<{
+      items: AfterSaleView[]
+      nextCreatedAt: string | null
+      nextId: string | null
+    }>('/admin/v1/after-sales/keyset', {
+      status: statusFilter.value || undefined,
+      cursorCreatedAt: cursorCreatedAt.value || undefined,
+      cursorId: cursorId.value || undefined,
+      size: size.value
+    })
+    afterSales.value = [...afterSales.value, ...response.items]
+    cursorCreatedAt.value = response.nextCreatedAt
+    cursorId.value = response.nextId
+    hasMore.value = Boolean(response.nextId)
+  } catch (cause) {
+    error.value = cause instanceof Error ? cause.message : '加载更多失败'
+  } finally {
+    loadingMore.value = false
+  }
+}
+
 async function load() {
   loading.value = true
   error.value = ''
+  if (useKeyset.value) {
+    cursorCreatedAt.value = null
+    cursorId.value = null
+    hasMore.value = true
+    afterSales.value = []
+    loading.value = false
+    await loadMore()
+    return
+  }
   try {
     const response = await api.get<{ items: AfterSaleView[]; total: number }>(
       '/admin/v1/after-sales',
@@ -240,7 +279,11 @@ function money(value?: { amount: number; currency: string }) {
 
       <div class="table-footer">
         <span class="muted">共 {{ total }} 条售后</span>
-        <el-pagination
+        <el-button v-if="useKeyset" data-testid="aftersale-load-more" :loading="loadingMore"
+                   :disabled="!hasMore" @click="loadMore">
+          {{ hasMore ? '加载更多' : '没有更多了' }}
+        </el-button>
+        <el-pagination v-else
           layout="prev, pager, next"
           :page-size="size"
           :total="total"

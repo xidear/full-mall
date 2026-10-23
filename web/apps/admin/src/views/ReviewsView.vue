@@ -20,6 +20,10 @@ const loading = ref(false)
 const error = ref('')
 const statusFilter = ref<'' | 'PUBLISHED' | 'HIDDEN'>('')
 const page = ref(0)
+const cursorCreatedAt = ref<string | null>(null)
+const cursorId = ref<string | null>(null)
+const hasMore = ref(true)
+const loadingMore = ref(false)
 const size = ref(20)
 const total = ref(0)
 // 正在处理的评价 ID：避免重复点击造成状态反复
@@ -27,22 +31,40 @@ const actionId = ref('')
 
 onMounted(load)
 
+async function loadMore() {
+  if (!hasMore.value || loadingMore.value) return
+  loadingMore.value = true
+  try {
+    const response = await api.get<{
+      items: Review[]
+      nextCreatedAt: string | null
+      nextId: string | null
+    }>('/admin/v1/reviews/keyset', {
+      status: statusFilter.value || undefined,
+      cursorCreatedAt: cursorCreatedAt.value || undefined,
+      cursorId: cursorId.value || undefined,
+      size: size.value
+    })
+    reviews.value = [...reviews.value, ...response.items]
+    cursorCreatedAt.value = response.nextCreatedAt
+    cursorId.value = response.nextId
+    hasMore.value = Boolean(response.nextId)
+  } catch (cause) {
+    error.value = cause instanceof Error ? cause.message : '加载更多失败'
+  } finally {
+    loadingMore.value = false
+  }
+}
+
 async function load() {
   loading.value = true
   error.value = ''
-  try {
-    const response = await api.get<{ items: Review[]; total: number }>('/admin/v1/reviews', {
-      status: statusFilter.value || undefined,
-      page: page.value,
-      size: size.value
-    })
-    reviews.value = response.items
-    total.value = response.total
-  } catch (cause) {
-    error.value = cause instanceof Error ? cause.message : '评价加载失败'
-  } finally {
-    loading.value = false
-  }
+  cursorCreatedAt.value = null
+  cursorId.value = null
+  hasMore.value = true
+  reviews.value = []
+  loading.value = false
+  await loadMore()
 }
 
 function reloadFromFirstPage() {
@@ -118,8 +140,8 @@ async function toggleStatus(review: Review) {
 
     <div class="table-footer">
       <span class="muted">共 {{ total }} 条评价</span>
-      <el-pagination layout="prev, pager, next" :page-size="size" :total="total"
-                     :current-page="page + 1" @current-change="changePage" />
+      <el-button data-testid="review-load-more" :loading="loadingMore" :disabled="!hasMore"
+                 @click="loadMore">{{ hasMore ? '加载更多' : '没有更多了' }}</el-button>
     </div>
 
     <el-empty v-if="!loading && !reviews.length" description="暂无评价" />

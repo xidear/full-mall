@@ -15,12 +15,22 @@ import java.util.UUID;
 public class AdminOrderController {
 
     private final OrderService orderService;
+    private final com.fullmall.coupon.app.CouponAllocationService couponAllocations;
 
-    public AdminOrderController(OrderService orderService) {
+    public AdminOrderController(OrderService orderService,
+                                com.fullmall.coupon.app.CouponAllocationService couponAllocations) {
         this.orderService = orderService;
+        this.couponAllocations = couponAllocations;
     }
 
     /** 后台订单详情（客服/运营查询，含订单行与金额）。 */
+    /** 券额分摊明细（部分退货计算用）。 */
+    @GetMapping("/{orderId}/coupon-allocations")
+    public java.util.List<com.fullmall.coupon.app.CouponAllocationService.Allocation> couponAllocations(
+            @PathVariable UUID orderId) {
+        return couponAllocations.findAllocations(orderId);
+    }
+
     @GetMapping("/{orderId}")
     public com.fullmall.order.domain.Order detail(@PathVariable UUID orderId) {
         return orderService.getOrder(orderId);

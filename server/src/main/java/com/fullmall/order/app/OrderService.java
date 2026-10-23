@@ -58,6 +58,7 @@ public class OrderService {
     private final com.fullmall.member.app.MemberPointsService memberPoints;
     private final com.fullmall.promotion.app.PromotionPreviewService promotionPreviews;
     private final com.fullmall.coupon.app.CouponService coupons;
+    private final com.fullmall.coupon.app.CouponAllocationService couponAllocations;
     private final String couponMode;
     private final com.fullmall.member.auth.MemberAuthService memberAuth;
 
@@ -94,6 +95,7 @@ public class OrderService {
                         com.fullmall.member.app.MemberPointsService memberPoints,
                         com.fullmall.promotion.app.PromotionPreviewService promotionPreviews,
                         com.fullmall.coupon.app.CouponService coupons,
+                        com.fullmall.coupon.app.CouponAllocationService couponAllocations,
                         @org.springframework.beans.factory.annotation.Value("${app.promotion.coupon.mode:EXCLUSIVE}") String couponMode,
                         com.fullmall.member.auth.MemberAuthService memberAuth) {
         this.orderRepository = orderRepository;
@@ -114,6 +116,7 @@ public class OrderService {
         this.memberPoints = memberPoints;
         this.promotionPreviews = promotionPreviews;
         this.coupons = coupons;
+        this.couponAllocations = couponAllocations;
         this.memberAuth = memberAuth;
         this.couponMode = couponMode == null ? "EXCLUSIVE" : couponMode.trim().toUpperCase();
         if (!java.util.List.of("EXCLUSIVE", "STACKABLE").contains(this.couponMode)) {
@@ -259,6 +262,9 @@ public class OrderService {
         requireVerifiedCustomer(request, ctx);
 
         UUID orderId = Ids.newId();
+        java.util.Map<UUID, Long> lineAmounts = new java.util.LinkedHashMap<>();
+        UUID appliedCouponId = null;
+        long appliedCouponDiscount = 0;
 
         // 优惠券（默认 EXCLUSIVE：与促销互斥，取优惠更大者；STACKABLE 则叠加）
         if (ctx.couponId() != null) {
@@ -293,6 +299,8 @@ public class OrderService {
                 total = new Money(Math.max(total.amount() - eligibility.discountAmount(), 0), currency);
                 discount = discount.plus(new Money(eligibility.discountAmount(), currency));
             }
+            appliedCouponId = ctx.couponId();
+            appliedCouponDiscount = eligibility.discountAmount();
             coupons.consume(ctx.couponId(), couponMemberId, orderId);
         }
 
@@ -375,6 +383,12 @@ public class OrderService {
                     sku.shelfLifePolicy());
             groups.computeIfAbsent(new FulfillmentKey(fulfillmentType, location.locationId()), key -> new ArrayList<>())
                     .add(new LineAllocation(orderLineId, sku.id(), item.quantity(), allocations));
+            lineAmounts.put(orderLineId, item.unitPrice().amount() * item.quantity());
+        }
+
+        // 券额按行金额比例分摊（C4）：部分退货时才能算出"这一行用了多少券"
+        if (appliedCouponId != null && appliedCouponDiscount > 0) {
+            couponAllocations.apply(orderId, appliedCouponId, lineAmounts, appliedCouponDiscount);
         }
 
         for (Map.Entry<FulfillmentKey, List<LineAllocation>> entry : groups.entrySet()) {

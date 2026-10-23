@@ -18,7 +18,7 @@ import java.util.Map;
  */
 public class OpenAiCompatClient {
 
-    private static final ObjectMapper MAPPER = new ObjectMapper();
+    private static final ObjectMapper MAPPER = com.fullmall.platform.json.Json.mapper();
 
     private final String baseUrl;
     private final String apiKey;

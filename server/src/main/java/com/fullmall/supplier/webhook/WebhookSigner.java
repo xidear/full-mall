@@ -20,15 +20,7 @@ public final class WebhookSigner {
         if (secret == null || secret.isBlank()) {
             throw new IllegalArgumentException("webhook secret 不能为空");
         }
-        try {
-            Mac mac = Mac.getInstance("HmacSHA256");
-            mac.init(new SecretKeySpec(secret.getBytes(StandardCharsets.UTF_8), "HmacSHA256"));
-            byte[] digest = mac.doFinal(
-                    (timestampSeconds + "." + (body == null ? "" : body))
-                            .getBytes(StandardCharsets.UTF_8));
-            return HexFormat.of().formatHex(digest);
-        } catch (Exception error) {
-            throw new IllegalStateException("Webhook 签名失败", error);
-        }
+        return com.fullmall.platform.crypto.Hmac.hex(
+                secret, timestampSeconds + "." + (body == null ? "" : body));
     }
 }

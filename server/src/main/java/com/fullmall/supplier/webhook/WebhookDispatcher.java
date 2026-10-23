@@ -32,7 +32,7 @@ import java.util.UUID;
 @Service
 public class WebhookDispatcher {
 
-    private static final ObjectMapper MAPPER = new ObjectMapper();
+    private static final ObjectMapper MAPPER = com.fullmall.platform.json.Json.mapper();
     private static final int MAX_ATTEMPTS = 5;
     private static final long[] BACKOFF_SECONDS = {60, 300, 1800, 7200, 21600};
 

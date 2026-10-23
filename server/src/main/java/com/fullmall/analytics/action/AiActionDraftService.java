@@ -19,7 +19,7 @@ import java.util.UUID;
 @Service
 public class AiActionDraftService {
 
-    private static final ObjectMapper MAPPER = new ObjectMapper();
+    private static final ObjectMapper MAPPER = com.fullmall.platform.json.Json.mapper();
     private static final Set<String> ACTIONS = Set.of("sku.price.set", "product.status.set", "coupon.grant");
 
     private final JdbcTemplate jdbc;

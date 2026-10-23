@@ -21,7 +21,7 @@ import java.util.Map;
  */
 public class WechatNativeOrderClient {
 
-    private static final ObjectMapper MAPPER = new ObjectMapper();
+    private static final ObjectMapper MAPPER = com.fullmall.platform.json.Json.mapper();
 
     private final String appId;
     private final String merchantId;

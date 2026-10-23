@@ -286,6 +286,15 @@ export const HELP_ENTRIES: HelpEntry[] = [
     pitfalls: ['重复重试会产生多条短信，费钱且扰民']
   },
   {
+    route: '/ai-actions',
+    title: 'AI 变更审批',
+    description: 'AI 只能提草稿，需要两个管理员签署后才能执行。',
+    steps: ['查看待处理草稿与载荷', '第一位管理员签署', '第二位管理员签署（同一人不能签两次）', '签署完成后点执行'],
+    tips: ['执行会真实改数据，先核对 skuCode 与价格', '驳回必须写原因'],
+    pitfalls: ['不要为了省事让同一个人签两次——那就失去双签意义'],
+    related: ['/ai', '/products']
+  },
+  {
     route: '/materials',
     title: '素材库',
     description: '上传商品图/活动图，拿到可访问地址后填到商品或主题里。',

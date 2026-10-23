@@ -64,6 +64,8 @@ test('bargain page renders real activity and blocks anonymous start', async ({ p
   await expect(page.getByText(/最低可到 ¥1\.00/)).toBeVisible()
 
   await expect(page.getByText('未登录：可查看活动，发起与帮砍需先登录。')).toBeVisible()
+  // 水合完成后按钮才有事件处理器，否则点击无反应
+  await page.waitForTimeout(400)
   await page.getByRole('button', { name: '发起砍价' }).click()
   await expect(page.getByText('请先登录后再发起砍价')).toBeVisible()
 })

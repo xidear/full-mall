@@ -142,3 +142,11 @@ pgrep -f "[f]ullmall-server-0.1.0" | xargs -r kill -9
 ```
 
 `scripts/restart-api.sh` 里的 `pgrep -f "fullmall-server-0.1.0-SNAPSHOT.jar"` 不受影响（脚本自身命令行不含该字符串）。
+
+## E2E `tracking.spec.ts` 在整套运行时会偶发失败
+
+**现象**：单独跑通过；整套跑失败在 `getByRole('heading', {name:'物流轨迹'})` 不可见；加 `--retries=1` 即通过。
+
+**判断**：与其它用例共享同一后端/库造成的时序或数据竞争（该用例自建会员、下单、支付、发货，链路最长）。
+
+**当前做法**：CI 里对 E2E 保留 `--retries=1`；**不**通过放宽断言掩盖。已记录待查（需要固定种子库隔离或给该用例独立 SKU）。

@@ -54,7 +54,7 @@ const error = ref('')
 const success = ref('')
 const products = ref<ProductPage | null>(null)
 const productDialog = ref(false)
-const productForm = reactive({ productId: '', mode: 'PERMANENT' })
+const productForm = reactive({ productId: '' })
 const helpDialog = ref(false)
 const helpForm = reactive({ title: '', url: '' })
 const transferDialog = ref(false)
@@ -194,7 +194,6 @@ async function sendText() {
 
 function openProductDialog() {
   productForm.productId = products.value?.items[0]?.id ?? ''
-  productForm.mode = 'PERMANENT'
   productDialog.value = true
 }
 
@@ -206,8 +205,7 @@ async function sendProduct() {
       method: 'POST',
       body: JSON.stringify({
         agentId: agentId.value,
-        productId: productForm.productId,
-        mode: productForm.mode
+        productId: productForm.productId
       })
     })
     productDialog.value = false
@@ -398,14 +396,7 @@ function messageOf(cause: unknown) {
             {{ product.title }} · {{ product.skus[0]?.skuCode }}
           </option>
         </select>
-        <label>推广绑定模式</label>
-        <select v-model="productForm.mode">
-          <option value="PERMANENT">永久绑定</option>
-          <option value="REGISTER">注册绑定</option>
-          <option value="ORDER">下单绑定</option>
-          <option value="VISIT">访问绑定（30 天）</option>
-          <option value="ONE_TIME">一次性绑定</option>
-        </select>
+        <p class="hint">客服发商品不产生分销绑定：佣金走工资（PAYROLL）。</p>
         <p class="muted">顾客通过卡片下单并支付后，佣金记入当前客服；绑定策略与分销模块共用。</p>
         <div class="modal-actions">
           <button type="button" class="ghost" @click="productDialog = false">取消</button>

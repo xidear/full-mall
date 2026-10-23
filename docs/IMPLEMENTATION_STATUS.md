@@ -5876,3 +5876,19 @@ E2E 未跑（需要 5 个前端 + PG，下轮单独跑）。
 | 译文链路：admin 录入 en → 审核 → 发布 → `/products/{id}?locale=en` 返回英文、zh-CN 不含 | ✅ passed |
 | Chromium 全量 | ✅ **47 passed / 2 skipped** |
 
+## 全量核验（第 53 轮）
+
+| 检查 | 结果 |
+|---|---|
+| 后端测试 | ✅ **650 个**（0 失败 0 跳过） |
+| 金额精度守卫 | ✅ 通过 |
+| 关键文件守卫 | ✅ 24 个齐全 |
+| 接口对齐 | ✅ 277 路由 / 29 调用 / 0 未匹配 |
+| 帮助覆盖 | ✅ 35 页 |
+| 前端构建 | ✅ storefront / admin / store-console / supplier-portal / support-console + mobile(H5) |
+| Chromium E2E | ⚠️ **48 passed / 2 skipped / 1 flaky**（`tracking.spec.ts` 整套运行时偶发；单跑通过，`--retries=1` 通过） |
+
+### 本轮修的 E2E 与前端不一致
+- 砍价页：E2E 点击早于水合 → 增加水合等待；
+- 客服台：仍在上送 `mode`（B10 已禁止）→ 移除该字段与下拉，改为说明"客服发商品不产生分销绑定"。
+

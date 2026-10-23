@@ -74,6 +74,12 @@ class CustomerBargainController {
         this.bargain = bargain;
     }
 
+    /** 活动详情（前台展示：标题、原价、底价、人数、时间窗）。 */
+    @org.springframework.web.bind.annotation.GetMapping("/activities/{activityId}")
+    public java.util.Map<String, Object> activity(@PathVariable UUID activityId) {
+        return bargain.activityDetail(activityId);
+    }
+
     @PostMapping("/activities/{activityId}/start")
     public BargainService.Session start(@PathVariable UUID activityId,
                                         @RequestParam UUID memberId) {

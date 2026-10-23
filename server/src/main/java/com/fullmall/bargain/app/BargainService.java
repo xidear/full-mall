@@ -195,4 +195,38 @@ public class BargainService {
         }
         return rows.get(0);
     }
+
+    /** 活动详情（前台展示用）：含 SKU 标题、原价、底价、人数与时间窗。 */
+    public java.util.Map<String, Object> activityDetail(UUID activityId) {
+        var rows = jdbc.query("""
+                SELECT a.id, a.sku_id, a.floor_price, a.max_cut, a.min_helpers, a.cut_min, a.cut_max,
+                       a.starts_at, a.ends_at, s.sku_code, k.title, s.price_amount, s.price_currency,
+                       (SELECT COUNT(*) FROM bargain_session bs WHERE bs.activity_id = a.id) AS sessions
+                  FROM bargain_activity a
+                  JOIN sku s ON s.id = a.sku_id
+                  JOIN product k ON k.id = s.product_id
+                 WHERE a.id = ?
+                """, (rs, rowNum) -> {
+            java.util.Map<String, Object> row = new java.util.LinkedHashMap<>();
+            row.put("id", rs.getObject("id", UUID.class));
+            row.put("skuId", rs.getObject("sku_id", UUID.class));
+            row.put("skuCode", rs.getString("sku_code"));
+            row.put("title", rs.getString("title"));
+            row.put("listPrice", rs.getLong("price_amount"));
+            row.put("currency", rs.getString("price_currency"));
+            row.put("floorPrice", rs.getLong("floor_price"));
+            row.put("maxCut", rs.getLong("max_cut"));
+            row.put("minHelpers", rs.getInt("min_helpers"));
+            row.put("cutMin", rs.getLong("cut_min"));
+            row.put("cutMax", rs.getLong("cut_max"));
+            row.put("startsAt", rs.getTimestamp("starts_at").toInstant().toString());
+            row.put("endsAt", rs.getTimestamp("ends_at").toInstant().toString());
+            row.put("sessions", rs.getLong("sessions"));
+            return row;
+        }, activityId);
+        if (rows.isEmpty()) {
+            throw ApiException.notFound("BARGAIN_ACTIVITY_NOT_FOUND", "砍价活动不存在：" + activityId);
+        }
+        return rows.get(0);
+    }
 }

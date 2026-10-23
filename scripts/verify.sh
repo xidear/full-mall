@@ -87,6 +87,8 @@ done
 # 2) 后端 jar（启动失败会明确报错，而不是静默复用旧进程）
 SPRING_DATASOURCE_URL="jdbc:postgresql://localhost:${PG_PORT}/postgres" \
 SPRING_DATASOURCE_USERNAME=postgres SPRING_DATASOURCE_PASSWORD="" \
+# 本地/CI 用的固定测试主密钥（32 字节 Base64，仅用于验证环境；生产必须用真实密钥）
+export APP_SECRET_KEY="${APP_SECRET_KEY:-MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=}"
 SPRING_PROFILES_ACTIVE=dev \
   java -jar target/fullmall-server-0.1.0-SNAPSHOT.jar > /tmp/fullmall-api.log 2>&1 &
 PIDS+=($!)

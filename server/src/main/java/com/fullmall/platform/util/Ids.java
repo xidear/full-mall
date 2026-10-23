@@ -40,8 +40,9 @@ public final class Ids {
     }
 
     public static String orderNo() {
+        // 时间戳只到秒，并发下单会撞号；后缀用 8 位十六进制随机（约 43 亿组合）
         return "FM" + ZonedDateTime.now(zone).format(ORDER_NO_FORMAT)
-                + String.format("%04d", RANDOM.nextInt(10_000));
+                + String.format("%08x", RANDOM.nextInt());
     }
 
     public static String pickupCode() {

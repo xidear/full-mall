@@ -64,7 +64,7 @@ public class AlipayPrecreateClient {
         try {
             bizContent = MAPPER.writeValueAsString(Map.of(
                     "out_trade_no", outTradeNo,
-                    "total_amount", String.format("%.2f", amountFen / 100.0),
+                    "total_amount", com.fullmall.platform.money.Money.toYuan(amountFen),
                     "subject", subject == null || subject.isBlank() ? "商品订单" : subject,
                     "timeout_express", "30m"));
         } catch (Exception error) {

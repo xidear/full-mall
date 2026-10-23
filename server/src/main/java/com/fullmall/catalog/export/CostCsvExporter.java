@@ -43,7 +43,7 @@ public class CostCsvExporter {
                 String.valueOf(rs.getLong("quantity")),
                 String.valueOf(rs.getLong("amount")),
                 String.valueOf(rs.getLong("avg_cost_amount")),
-                String.format("%.2f", rs.getLong("avg_cost_amount") / 100.0),
+                com.fullmall.platform.money.Money.toYuan(rs.getLong("avg_cost_amount")),
                 String.valueOf(rs.getBoolean("stale"))), Math.min(Math.max(limit, 1), 5000));
     }
 

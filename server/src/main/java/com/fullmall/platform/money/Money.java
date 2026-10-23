@@ -53,4 +53,40 @@ public record Money(long amount, String currency) {
             throw new IllegalArgumentException("Currency mismatch: " + currency + " vs " + other.currency);
         }
     }
+
+    /**
+     * 分 → 元的**精确**文本（两位小数），用于对接渠道报文。
+     *
+     * <p>禁止用 `fen / 100.0`：double 在 0.1/0.01 上不可精确表示，
+     * 大额或连续四舍五入会产生一分钱误差（支付报文里这是事故）。
+     */
+    public static String toYuan(long fen) {
+        return java.math.BigDecimal.valueOf(fen)
+                .movePointLeft(2)
+                .setScale(2, java.math.RoundingMode.UNNECESSARY)
+                .toPlainString();
+    }
+
+    /** 元（字符串）→ 分，精确到 0.01；多余小数位直接报错而不是静默截断。 */
+    public static long parseYuan(String yuan) {
+        return new java.math.BigDecimal(yuan.trim())
+                .movePointRight(2)
+                .setScale(0, java.math.RoundingMode.UNNECESSARY)
+                .longValueExact();
+    }
+
+    /**
+     * 按比例分摊并**精确**取整：`amount * numerator / denominator`，四舍五入到分。
+     *
+     * <p>用于退款按行分摊、佣金按退款比例扣回等场景；double 实现会出现 ±1 分偏差。
+     */
+    public static long mulDiv(long amount, long numerator, long denominator) {
+        if (denominator == 0) {
+            throw new ArithmeticException("分摊分母不能为 0");
+        }
+        return java.math.BigDecimal.valueOf(amount)
+                .multiply(java.math.BigDecimal.valueOf(numerator))
+                .divide(java.math.BigDecimal.valueOf(denominator), 0, java.math.RoundingMode.HALF_UP)
+                .longValueExact();
+    }
 }

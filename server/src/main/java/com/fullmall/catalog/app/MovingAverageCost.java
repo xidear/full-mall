@@ -59,6 +59,8 @@ public final class MovingAverageCost {
     }
 
     private static long divideRound(long amount, long quantity) {
-        return Math.round((double) amount / quantity);
+        return java.math.BigDecimal.valueOf(amount)
+                .divide(java.math.BigDecimal.valueOf(quantity), 0, java.math.RoundingMode.HALF_UP)
+                .longValueExact();
     }
 }

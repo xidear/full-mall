@@ -47,7 +47,8 @@ public class CommissionHoldService {
 
         for (Row row : commissions) {
             // 按退款占比计算冻结额；四舍五入到分，至少 1 分（有退款就应有冻结）
-            long holdAmount = Math.max(1, Math.round(row.amount() * (double) refundAmount / orderTotal));
+            long holdAmount = Math.max(1L, com.fullmall.platform.money.Money.mulDiv(
+                    row.amount(), refundAmount, orderTotal));
             holdAmount = Math.min(holdAmount, row.amount());
             jdbcTemplate.update("""
                     UPDATE distribution_commission

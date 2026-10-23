@@ -60,7 +60,7 @@ public class AlipayRefundClient {
         try {
             bizContent = MAPPER.writeValueAsString(Map.of(
                     "out_trade_no", outTradeNo,
-                    "refund_amount", String.format("%.2f", refundFen / 100.0),
+                    "refund_amount", com.fullmall.platform.money.Money.toYuan(refundFen),
                     "out_request_no", outRequestNo,
                     "refund_reason", reason == null || reason.isBlank() ? "售后退款" : reason));
         } catch (Exception error) {

@@ -102,3 +102,35 @@
 2. `platform/paging/KeysetSupport` + 6 个模块改造（中风险，需逐个跑测试）。
 3. `promotion.rules` 拆列 + `coupon_template.scope_ids` 改关联表（**改动大、涉及前端**，建议单独一轮）。
 4. 6 个实体表补 `created_at`（需你定回填策略）。
+
+## 五、金额精度（用户质询后的实测与整改）
+
+### 5.1 现状（事实）
+
+| 层 | 做法 | 结论 |
+|---|---|---|
+| 数据库 | 金额列**全部 `bigint`，单位分**（实测 0 个 float/numeric 金额列） | 以最小货币单位整数记账，是支付系统通行做法；不存在 0.1+0.2 问题 |
+| Java 领域 | `Money` 值对象（`long amount`），主链路加减用 `Math.addExact` | 精确 |
+| 百分比/税额 | `BigDecimal` + `HALF_UP` | 精确 |
+
+### 5.2 但确实有 5 处用了 `double`（已修）
+
+| 位置 | 原写法 | 风险 | 改为 |
+|---|---|---|---|
+| `AlipayPrecreateClient` | `String.format("%.2f", fen / 100.0)` | 大额/边界值报文金额可能差 1 分 | `Money.toYuan(fen)`（BigDecimal→字符串） |
+| `AlipayRefundClient` | 同上 | 同上（退款金额出错更严重） | 同上 |
+| `CommissionHoldService` | `Math.round(amount * (double) refund / total)` | 按比例扣回佣金可能差 1 分 | `Money.mulDiv(amount, refund, total)`（BigDecimal HALF_UP） |
+| `MovingAverageCost` | `Math.round((double) amount / qty)` | 成本单价偏差累积 | BigDecimal 除法 HALF_UP |
+| `CostCsvExporter` | `String.format("%.2f", cost / 100.0)` | 导出金额偏差 | `Money.toYuan` |
+
+### 5.3 防回归
+
+- 新增 `Money.toYuan / Money.parseYuan / Money.mulDiv`（精确换算与分摊）；
+- 新增 `MoneyPrecisionTest`（含 `123456789012345.45` 级大额与 `mulDiv` 边界）；
+- 新增 `scripts/check-money-precision.sh`：扫描 Java 源码，出现 `fen / 100.0`、`String.format("%.2f", ...)`、金额上下文 `(double)` 一律**失败**。
+
+### 5.4 验证
+
+- 金额精度用例 3 条通过；
+- 全量 **638 个测试通过**；
+- 精度守卫脚本输出：`金额精度守卫通过：未发现浮点金额运算`。

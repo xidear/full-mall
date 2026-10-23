@@ -103,12 +103,9 @@ public class ProductReviewService {
     /** Keyset 分页：按 (created_at, id) 倒序；与 offset 版本并存。 */
     public java.util.Map<String, Object> listForAdminKeyset(String status, String cursorCreatedAt,
                                                             UUID cursorId, int size) {
-        int safeSize = Math.min(Math.max(size, 1), 100);
+        var cursor = com.fullmall.platform.paging.KeysetPage.Cursor.parse(cursorCreatedAt, cursorId);
+        int safeSize = com.fullmall.platform.paging.KeysetPage.normalizeSize(size);
         String filter = normalStatus(status);
-        java.time.Instant cursor = null;
-        if (cursorCreatedAt != null && !cursorCreatedAt.isBlank()) {
-            cursor = java.time.Instant.parse(cursorCreatedAt.trim());
-        }
         var items = jdbcTemplate.query("""
                 SELECT r.id, r.sku_id, r.order_id, r.member_id, r.rating, r.content, r.status, r.created_at
                   FROM product_review r
@@ -122,9 +119,9 @@ public class ProductReviewService {
                 rs.getObject("order_id", UUID.class), rs.getObject("member_id", UUID.class),
                 rs.getInt("rating"), rs.getString("content"), rs.getString("status"),
                 rs.getTimestamp("created_at").toInstant()), filter, filter,
-                cursor == null ? null : java.sql.Timestamp.from(cursor),
-                cursor == null ? null : java.sql.Timestamp.from(cursor),
-                cursorId, safeSize);
+                cursor.createdAt() == null ? null : java.sql.Timestamp.from(cursor.createdAt()),
+                cursor.createdAt() == null ? null : java.sql.Timestamp.from(cursor.createdAt()),
+                cursor.id(), safeSize);
         java.util.Map<String, Object> result = new java.util.LinkedHashMap<>();
         result.put("items", items);
         result.put("size", safeSize);

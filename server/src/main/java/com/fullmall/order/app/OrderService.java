@@ -536,24 +536,12 @@ public class OrderService {
      */
     public java.util.Map<String, Object> listOrdersKeyset(String status, String cursorCreatedAt,
                                                           UUID cursorId, int size) {
-        int safeSize = Math.min(Math.max(size, 1), 100);
-        java.time.Instant cursor = null;
-        if (cursorCreatedAt != null && !cursorCreatedAt.isBlank()) {
-            cursor = java.time.Instant.parse(cursorCreatedAt.trim());
-        }
-        List<OrderSummary> items = orderRepository.findSummariesKeyset(status, cursor, cursorId, safeSize);
-        java.util.Map<String, Object> result = new java.util.LinkedHashMap<>();
-        result.put("items", items);
-        result.put("size", safeSize);
-        if (!items.isEmpty()) {
-            OrderSummary last = items.get(items.size() - 1);
-            result.put("nextCreatedAt", last.createdAt().toString());
-            result.put("nextId", last.id());
-        } else {
-            result.put("nextCreatedAt", null);
-            result.put("nextId", null);
-        }
-        return result;
+        var cursor = com.fullmall.platform.paging.KeysetPage.Cursor.parse(cursorCreatedAt, cursorId);
+        int safeSize = com.fullmall.platform.paging.KeysetPage.normalizeSize(size);
+        List<OrderSummary> items = orderRepository.findSummariesKeyset(
+                status, cursor.createdAt(), cursor.id(), safeSize);
+        return com.fullmall.platform.paging.KeysetPage.toResponse(
+                items, safeSize, OrderSummary::createdAt, OrderSummary::id);
     }
 
     @Transactional

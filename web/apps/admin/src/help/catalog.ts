@@ -37,6 +37,15 @@ export const HELP_ENTRIES: HelpEntry[] = [
     pitfalls: ['把总览数字当作财务对账口径（应以结算单为准）']
   },
   {
+    route: '/translations',
+    title: '商品译文',
+    description: '为商品录入其它语言的标题与描述，发布后前台按语言生效。',
+    steps: ['搜索商品', '点「编辑译文」选语言', '填标题/描述并保存草稿', '审核', '发布'],
+    tips: ['没录入译文时前台回退中文，不会空白', '语言代码必须是非 zh-CN（如 en、ja）'],
+    pitfalls: ['草稿未审核就发布会被拒绝'],
+    related: ['/products']
+  },
+  {
     route: '/products',
     title: '商品管理',
     description: '维护商品、SKU、价格与上下架状态。',

@@ -47,6 +47,7 @@ const menuGroups = [
   ] },
   { key: 'catalog', label: '商品', items: [
     { path: '/products', label: '商品管理', roles: ['ADMIN', 'OPERATOR'] },
+    { path: '/translations', label: '商品译文', roles: ['ADMIN', 'OPERATOR'] },
     { path: '/sku-matrix', label: 'SKU 规格矩阵', roles: ['ADMIN', 'OPERATOR'] },
     { path: '/price-rule', label: '规格改价', roles: ['ADMIN', 'OPERATOR'] },
     { path: '/brands', label: '品牌管理', roles: ['ADMIN', 'OPERATOR'] },

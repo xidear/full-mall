@@ -24,10 +24,14 @@ public class CatalogService {
     private final CatalogRepository repository;
     private final org.springframework.jdbc.core.JdbcTemplate jdbcTemplate;
 
+    private final SkuOptionsMigrationService optionsMigration;
+
     public CatalogService(CatalogRepository repository,
-                         org.springframework.jdbc.core.JdbcTemplate jdbcTemplate) {
+                          org.springframework.jdbc.core.JdbcTemplate jdbcTemplate,
+                          SkuOptionsMigrationService optionsMigration) {
         this.repository = repository;
         this.jdbcTemplate = jdbcTemplate;
+        this.optionsMigration = optionsMigration;
     }
 
     public ProductPage listProducts(String locale, String keyword, UUID categoryId, int page, int size) {
@@ -144,6 +148,8 @@ public class CatalogService {
             repository.insertSku(sku);
         }
 
+        // 规格写入关联表（真相来源），JSON 由投影重建
+        optionsMigration.backfillProduct(productId);
         return getProduct(productId, "zh-CN");
     }
 

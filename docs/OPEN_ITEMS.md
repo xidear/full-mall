@@ -175,7 +175,7 @@
 | K4 | 佣金 DEFER 自动触发 | ✅ | `AfterSaleService` 在 create/refund/reject/completeExchange 调用 `CommissionHoldService`；冻结期间不释放、不可提现 |
 | K5 | 供应商售后 | ✅ | 模型 + 后台/供应商接口（越权 404）+ 结算扣减（有测试）+ **供应商门户退货面板**（同意/拒绝）；**E2E 已验证**连接后可见并可接受 |
 | K6 | AI 接口层 | ✅ | 推荐位（规则版）+ **OpenAI 兼容文案/生图客户端**（可接内网模型）：配置即用、非 2xx/空 choices/空 url 均报错；`/ai/copy` 已接线，未配置返回 503；stub 验证 2 条 |
-| K7 | AI 事件采集 | ✅ | 表 `ai_event`（VIEW/ADD_TO_CART/SEARCH/CLICK/PURCHASE）+ 上报接口 `POST /api/v1/events` + 热搜词/加购 Top；类型与维度校验，2 条测试 |
+| K7 | AI 事件采集 | ✅ | 后端表 + 上报/统计接口；**前端埋点已接**：加购与搜索词上报（失败仅 warn，不影响交互） |
 
 ---
 

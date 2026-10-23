@@ -42,6 +42,8 @@ export function useCart() {
   })
 
   function add(line: CartLine) {
+    // K7 埋点：加购行为（失败不影响加购）
+    track('ADD_TO_CART', { skuId: line.skuId, quantity: line.quantity })
     const existing = cart.value.find(item => item.skuId === line.skuId)
     if (existing) {
       existing.quantity += line.quantity

@@ -37,6 +37,13 @@ if (error.value) {
 // 排序或筛选变化时，清掉已追加的页
 watch([sortKey, direction, categoryId, keyword], () => { extraItems.value = [] })
 
+// K7 埋点：搜索词（用于热搜词与选品）
+watch(keyword, (value) => {
+  if (value && value.trim()) {
+    track('SEARCH', { keyword: value.trim() })
+  }
+}, { immediate: true })
+
 const products = computed(() => [...(data.value?.items ?? []), ...extraItems.value])
 const total = computed(() => data.value?.total ?? products.value.length)
 const hasMore = computed(() => products.value.length < total.value)

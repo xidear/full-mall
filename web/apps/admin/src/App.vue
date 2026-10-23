@@ -65,6 +65,7 @@ const menuGroups = [
   ] },
   { key: 'marketing', label: '营销', items: [
     { path: '/promotions', label: '促销管理', roles: ['ADMIN', 'OPERATOR'] },
+    { path: '/pos-promotions', label: 'POS 专属促销', roles: ['ADMIN', 'OPERATOR'] },
     { path: '/coupons', label: '优惠券', roles: ['ADMIN', 'OPERATOR'] },
     { path: '/pos-members', label: '会员与优惠券', roles: ['ADMIN', 'OPERATOR'] },
     { path: '/customers', label: '客户管理', roles: ['ADMIN', 'OPERATOR'] }

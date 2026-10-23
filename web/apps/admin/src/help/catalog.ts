@@ -187,6 +187,15 @@ export const HELP_ENTRIES: HelpEntry[] = [
     pitfalls: ['先退款后收货，可能出现空包裹退款']
   },
   {
+    route: '/pos-promotions',
+    title: 'POS 专属促销',
+    description: '只对门店收银生效的促销，线上不命中。',
+    steps: ['填编码与名称', '选类型与金额', '设起止时间', '创建后到收银端验证'],
+    tips: ['channel 固定 POS，与线上促销互不影响', '结束时间必须晚于开始时间'],
+    pitfalls: ['把 POS 促销建到「促销管理」里会导致线上也生效'],
+    related: ['/promotions', '/pos']
+  },
+  {
     route: '/promotions',
     title: '促销管理',
     description: '配置满减、满折、秒杀与拼团规则。',

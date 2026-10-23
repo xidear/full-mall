@@ -427,7 +427,16 @@ export const HELP_ENTRIES: HelpEntry[] = [
     steps: ['按页填写，可跳过的步骤会标注', '完成后可随时在系统设置中修改'],
     tips: ['向导只是引导，不替代系统设置'],
     pitfalls: ['跳过支付配置会导致只能下单不能付款']
-  }
+  },
+  {
+    route: '/faq',
+    title: 'FAQ 知识库',
+    description: '把客服反复被问、但知识库里没有的问题补成标准答案。',
+    steps: ['看左侧候选（按次数排序）', '点一条问题', '写标准答案', '点「加入 FAQ」'],
+    tips: ['答案要能直接发给顾客，不要写内部术语', '采纳后该问题会从候选消失，并能在搜索里命中'],
+    pitfalls: ['不要照抄顾客原话当答案'],
+    related: ['/products']
+  },
 ]
 
 export function helpFor(route: string): HelpEntry | undefined {

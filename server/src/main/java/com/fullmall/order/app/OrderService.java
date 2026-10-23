@@ -57,6 +57,7 @@ public class OrderService {
     private final com.fullmall.bargain.app.BargainService bargainService;
     private final com.fullmall.member.app.MemberPointsService memberPoints;
     private final com.fullmall.promotion.app.PromotionPreviewService promotionPreviews;
+    private final com.fullmall.promotion.ladder.PromotionLadderService promotionLadders;
     private final org.springframework.jdbc.core.JdbcTemplate jdbcTemplate;
     private final com.fullmall.coupon.app.CouponService coupons;
     private final com.fullmall.coupon.app.CouponAllocationService couponAllocations;
@@ -95,6 +96,7 @@ public class OrderService {
                         com.fullmall.bargain.app.BargainService bargainService,
                         com.fullmall.member.app.MemberPointsService memberPoints,
                         com.fullmall.promotion.app.PromotionPreviewService promotionPreviews,
+                        com.fullmall.promotion.ladder.PromotionLadderService promotionLadders,
                         org.springframework.jdbc.core.JdbcTemplate jdbcTemplate,
                         com.fullmall.coupon.app.CouponService coupons,
                         com.fullmall.coupon.app.CouponAllocationService couponAllocations,
@@ -117,6 +119,7 @@ public class OrderService {
         this.bargainService = bargainService;
         this.memberPoints = memberPoints;
         this.promotionPreviews = promotionPreviews;
+        this.promotionLadders = promotionLadders;
         this.jdbcTemplate = jdbcTemplate;
         this.coupons = coupons;
         this.couponAllocations = couponAllocations;
@@ -246,6 +249,20 @@ public class OrderService {
                     promotionPreviews.scopedRules("ONLINE", subtotalsBySku));
             if (engineResult.applied()) {
                 discount = new Money(engineResult.discountAmount(), currency);
+            }
+        }
+
+        // 阶梯促销（C9）：默认关闭；开启时仅在没有活动型优惠时生效（口径见 PromotionLadderService）
+        if (promotionLadders != null) {
+            java.util.List<Long> unitPrices = new java.util.ArrayList<>();
+            for (ResolvedItem item : resolved) {
+                for (int i = 0; i < item.quantity(); i++) {
+                    unitPrices.add(item.sku().price().amount());
+                }
+            }
+            var ladder = promotionLadders.evaluate(subtotal.amount(), unitPrices, discount.amount() > 0);
+            if (ladder.discountAmount() > 0) {
+                discount = discount.plus(new Money(ladder.discountAmount(), currency));
             }
         }
 

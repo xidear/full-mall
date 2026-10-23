@@ -25,3 +25,12 @@
 
 - `EXCLUSIVE` = 券与促销**取更优者**（不是让券失效）；
 - `STACKABLE` = 券在促销之后继续抵扣。
+
+## 阶梯促销（C9）
+
+| 配置 | 默认 | 说明 |
+|---|---|---|
+| `app.promotion.ladder-enabled` | `false` | 开启后结算会应用 `promotion_ladder` 表里的满赠/第二件半价 |
+
+**保守口径**（可改）：已命中秒杀/买赠等"活动型优惠"时**跳过**阶梯，避免多层叠加失控。
+数据维护：`promotion_ladder(kind=GIFT|SECOND_HALF, threshold_fen, gift_sku_id, gift_quantity, priority)`。

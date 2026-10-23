@@ -17,7 +17,7 @@ import java.util.List;
  *   <li>优惠不超过小计（不允许负应付）。</li>
  * </ul>
  *
- * <p>未实现（明确记录）：叠加/互斥配置、渠道隔离、按类目/品牌限定范围。
+ * <p>叠加/互斥：由 {@code PromotionStackingPolicy} 处理（模式由 `app.promotion.stacking-mode` 配置）。
  */
 public final class PromotionEngine {
 
@@ -119,6 +119,37 @@ public final class PromotionEngine {
         return best == null
                 ? new Result(null, 0, "未达到任何促销门槛")
                 : new Result(best.code(), bestDiscount, "命中 " + best.type());
+    }
+
+    /** 单条规则在给定基数下的优惠额（不满足门槛返回 0）。供叠加策略复用。 */
+    public static long discountOf(Rule rule, long base) {
+        if (base < 0) {
+            throw new IllegalArgumentException("计费基数不能为负: " + rule.code());
+        }
+        if (rule.thresholdAmount() <= 0) {
+            throw new IllegalArgumentException("促销门槛必须大于 0: " + rule.code());
+        }
+        if (base < rule.thresholdAmount()) {
+            return 0;
+        }
+        return switch (rule.type()) {
+            case FULL_REDUCTION -> {
+                if (rule.value() <= 0) {
+                    throw new IllegalArgumentException("满减金额必须大于 0: " + rule.code());
+                }
+                yield Math.min(rule.value(), base);
+            }
+            case FULL_DISCOUNT -> {
+                if (rule.value() <= 0 || rule.value() >= 100) {
+                    throw new IllegalArgumentException("满折百分比必须在 1..99: " + rule.code());
+                }
+                long off = BigDecimal.valueOf(base)
+                        .multiply(BigDecimal.valueOf(100 - rule.value()))
+                        .divide(BigDecimal.valueOf(100), 0, RoundingMode.HALF_UP)
+                        .longValueExact();
+                yield Math.min(off, base);
+            }
+        };
     }
 
     private static Result pickBest(List<ScopedRule> scopedRules) {

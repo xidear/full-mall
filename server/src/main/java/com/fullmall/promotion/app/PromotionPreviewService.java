@@ -23,10 +23,16 @@ public class PromotionPreviewService {
 
     private final JdbcTemplate jdbcTemplate;
     private final CatalogService catalogService;
+    private final PromotionStackingPolicy.Mode stackingMode;
 
-    public PromotionPreviewService(JdbcTemplate jdbcTemplate, CatalogService catalogService) {
+    public PromotionPreviewService(JdbcTemplate jdbcTemplate, CatalogService catalogService,
+                                   @org.springframework.beans.factory.annotation.Value(
+                                           "${app.promotion.stacking-mode:BEST_ONLY}")
+                                   String stackingMode) {
         this.jdbcTemplate = jdbcTemplate;
         this.catalogService = catalogService;
+        this.stackingMode = PromotionStackingPolicy.Mode.valueOf(
+                stackingMode == null ? "BEST_ONLY" : stackingMode.trim().toUpperCase(java.util.Locale.ROOT));
     }
 
     public record Item(UUID skuId, int quantity) {
@@ -66,7 +72,25 @@ public class PromotionPreviewService {
             long line = catalogService.getSku(item.skuId()).price().amount() * item.quantity();
             subtotalsBySku.merge(item.skuId(), line, Long::sum);
         }
-        var result = PromotionEngine.chooseScoped(scopedRules(channel, subtotalsBySku));
+        List<PromotionEngine.ScopedRule> rules = scopedRules(channel, subtotalsBySku);
+        if (stackingMode == PromotionStackingPolicy.Mode.STACK) {
+            // 叠加模式：逐条算优惠，按优先级与互斥组叠加
+            List<PromotionStackingPolicy.Candidate> candidates = new ArrayList<>();
+            for (PromotionEngine.ScopedRule scoped : rules) {
+                long discount = PromotionEngine.discountOf(scoped.rule(), scoped.eligibleSubtotal());
+                if (discount > 0) {
+                    candidates.add(new PromotionStackingPolicy.Candidate(
+                            scoped.rule().code(), discount, scoped.rule().priority(), null));
+                }
+            }
+            var applied = PromotionStackingPolicy.apply(stackingMode, candidates);
+            String codes = applied.applied().isEmpty() ? null
+                    : applied.applied().stream().map(PromotionStackingPolicy.Candidate::code)
+                            .collect(java.util.stream.Collectors.joining("+"));
+            long discount = Math.min(applied.totalDiscount(), subtotal);
+            return new Preview(subtotal, discount, subtotal - discount, codes, resolvedLocale);
+        }
+        var result = PromotionEngine.chooseScoped(rules);
         return new Preview(subtotal, result.discountAmount(),
                 subtotal - result.discountAmount(), result.appliedRuleCode(), resolvedLocale);
     }

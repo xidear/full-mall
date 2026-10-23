@@ -45,6 +45,10 @@ function load() {
   })
 }
 
+function toDetail(product: Product) {
+  uni.navigateTo({ url: `/pages/product/detail?id=${product.id}` })
+}
+
 function price(product: Product) {
   const money = product.skus[0]?.price
   if (!money) return '-'
@@ -76,7 +80,7 @@ function price(product: Product) {
     <view v-if="loading" class="state">加载中…</view>
     <view v-else-if="error" class="state error">{{ error }}</view>
     <view v-else>
-      <view v-for="product in products" :key="product.id" class="card">
+      <view v-for="product in products" :key="product.id" class="card" @click="toDetail(product)">
         <view class="card-head">
           <text class="card-title">{{ product.title }}</text>
           <text v-if="product.shelfLifeManaged" class="tag">批次/效期</text>

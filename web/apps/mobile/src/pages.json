@@ -5,6 +5,18 @@
       "style": {
         "navigationBarTitleText": "Full Mall"
       }
+    },
+    {
+      "path": "pages/product/detail",
+      "style": {
+        "navigationBarTitleText": "商品详情"
+      }
+    },
+    {
+      "path": "pages/cart/cart",
+      "style": {
+        "navigationBarTitleText": "购物车"
+      }
     }
   ],
   "globalStyle": {

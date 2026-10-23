@@ -36,15 +36,24 @@ public class ExportJobScheduler {
         this.batches = batches;
     }
     public void run() {
+        int failures = 0;
+        RuntimeException firstError = null;
         for (int i = 0; i < batches; i++) {
             try {
                 if (!worker.runOnce()) {
-                    return;
+                    break;
                 }
             } catch (RuntimeException error) {
-                // 单个任务失败不影响后续任务；worker 内部已把该任务置为 FAILED
-                log.error("导出任务执行异常（已记录在任务上）", error);
+                failures++;
+                if (firstError == null) {
+                    firstError = error;
+                }
             }
+        }
+        if (failures > 0) {
+            // 每轮汇总一条，避免空转刷屏（H4 根因）
+            log.error("本轮导出任务异常 {} 个（首个原因：{}）", failures,
+                    firstError == null ? "未知" : firstError.getMessage(), firstError);
         }
     }
 }

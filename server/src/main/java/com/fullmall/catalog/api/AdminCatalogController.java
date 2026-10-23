@@ -26,6 +26,7 @@ public class AdminCatalogController {
     private final com.fullmall.catalog.app.SkuMatrixMultiService skuMatrixMultiService;
     private final com.fullmall.catalog.app.SkuPriceRuleService skuPriceRuleService;
     private final com.fullmall.catalog.app.SkuOptionsMigrationService skuOptionsMigrationService;
+    private final com.fullmall.catalog.app.ProductCsvImporter productCsvImporter;
     private final com.fullmall.catalog.app.ProductTranslationWorkflowService translationWorkflow;
 
     public AdminCatalogController(CatalogService catalogService,
@@ -34,7 +35,8 @@ public class AdminCatalogController {
                                   com.fullmall.catalog.app.SkuMatrixService skuMatrixService,
                                   com.fullmall.catalog.app.SkuMatrixMultiService skuMatrixMultiService,
                                   com.fullmall.catalog.app.SkuPriceRuleService skuPriceRuleService,
-                                  com.fullmall.catalog.app.SkuOptionsMigrationService skuOptionsMigrationService) {
+                                  com.fullmall.catalog.app.SkuOptionsMigrationService skuOptionsMigrationService,
+                                  com.fullmall.catalog.app.ProductCsvImporter productCsvImporter) {
         this.catalogService = catalogService;
         this.translationWorkflow = translationWorkflow;
         this.skuCostService = skuCostService;
@@ -42,6 +44,7 @@ public class AdminCatalogController {
         this.skuMatrixMultiService = skuMatrixMultiService;
         this.skuPriceRuleService = skuPriceRuleService;
         this.skuOptionsMigrationService = skuOptionsMigrationService;
+        this.productCsvImporter = productCsvImporter;
     }
 
     /**
@@ -236,6 +239,16 @@ public class AdminCatalogController {
         int updated = skuPriceRuleService.apply(productId, body.match(), priceMode(body.mode()),
                 body.value());
         return java.util.Map.of("updated", updated);
+    }
+
+    public record ImportCsv(String content) {
+    }
+
+    /** 商品 CSV 导入（title,skuCode,price）。任一行不合法则整批不落库。 */
+    @org.springframework.web.bind.annotation.PostMapping("/products/import")
+    @org.springframework.security.access.prepost.PreAuthorize("hasAnyRole('ADMIN','OPERATOR')")
+    public com.fullmall.catalog.app.ProductCsvImporter.Result importCsv(@RequestBody ImportCsv body) {
+        return productCsvImporter.importCsv(body.content());
     }
 
     @PatchMapping("/{productId}/status")

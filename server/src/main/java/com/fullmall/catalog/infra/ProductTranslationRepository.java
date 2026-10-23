@@ -70,4 +70,21 @@ public class ProductTranslationRepository {
                 """, newSourceHash, productId, locale, newSourceHash);
         return updated > 0;
     }
+
+    /** 录入/覆盖译文（运营手填或机器翻译结果），状态置 DRAFT 待审核。 */
+    public void upsert(UUID productId, String locale, String title, String description,
+                       String sourceHash) {
+        jdbcTemplate.update("""
+                INSERT INTO product_translation (product_id, locale, title, description, status,
+                                                 source_hash, reviewed_by, reviewed_at)
+                VALUES (?, ?, ?, ?, 'DRAFT', ?, NULL, NULL)
+                ON CONFLICT (product_id, locale) DO UPDATE
+                   SET title = EXCLUDED.title,
+                       description = EXCLUDED.description,
+                       status = 'DRAFT',
+                       source_hash = EXCLUDED.source_hash,
+                       reviewed_by = NULL,
+                       reviewed_at = NULL
+                """, productId, locale, title, description, sourceHash);
+    }
 }

@@ -1,5 +1,6 @@
 package com.fullmall.purchase.api;
 
+import org.springframework.web.bind.annotation.RequestParam;
 import com.fullmall.purchase.app.PurchaseService;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -39,8 +40,8 @@ public class AdminPurchaseController {
     @PreAuthorize("hasAnyRole('ADMIN','OPERATOR')")
     public PurchaseService.ReceiptResult receive(
             @PathVariable UUID purchaseId,
-            @org.springframework.web.bind.annotation.RequestParam String locationType,
-            @org.springframework.web.bind.annotation.RequestParam UUID locationId) {
+            @RequestParam String locationType,
+            @RequestParam UUID locationId) {
         return purchases.receive(purchaseId, locationType, locationId);
     }
 }

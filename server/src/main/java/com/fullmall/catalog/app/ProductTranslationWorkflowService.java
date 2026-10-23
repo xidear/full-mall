@@ -32,7 +32,26 @@ public class ProductTranslationWorkflowService {
         this.auditEvents = auditEvents;
     }
 
+    /** 录入译文草稿（运营手填/机翻结果），需再审核发布。 */
     @Transactional
+    public ProductTranslationRepository.Row saveDraft(UUID productId, String locale,
+                                                      String title, String description, String actor) {
+        if (title == null || title.isBlank()) {
+            throw ApiException.badRequest("TRANSLATION_TITLE_REQUIRED", "译文标题不能为空");
+        }
+        if (locale == null || locale.isBlank() || "zh-CN".equalsIgnoreCase(locale)) {
+            throw ApiException.badRequest("TRANSLATION_LOCALE_INVALID",
+                    "目标语言必须是非 zh-CN 的语言代码，如 en");
+        }
+        var source = repository.find(productId, "zh-CN");
+        String hash = source.map(ProductTranslationRepository.Row::sourceHash).orElse(null);
+        repository.upsert(productId, locale, title, description, hash);
+        auditEvents.record(new AuditEventService.AuditEvent(
+                "TRANSLATION_DRAFT_SAVED", actor, "product_translation",
+                productId + ":" + locale, "title=" + title, null));
+        return repository.find(productId, locale).orElseThrow();
+    }
+
     public ProductTranslationRepository.Row review(UUID productId, String locale, String actor) {
         requireActor(actor);
         var row = require(productId, locale);

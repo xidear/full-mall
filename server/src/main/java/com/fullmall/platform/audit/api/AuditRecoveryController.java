@@ -1,5 +1,6 @@
 package com.fullmall.platform.audit.api;
 
+import org.springframework.web.bind.annotation.RequestParam;
 import com.fullmall.platform.audit.AuditTrail;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -30,13 +31,13 @@ public class AuditRecoveryController {
     /** 操作审计查询（SEC-003）：按类型/操作人/时间范围。 */
     @GetMapping("/events")
     public java.util.Map<String, Object> events(
-            @org.springframework.web.bind.annotation.RequestParam(required = false) String eventType,
-            @org.springframework.web.bind.annotation.RequestParam(required = false) String actor,
-            @org.springframework.web.bind.annotation.RequestParam(required = false)
+            @RequestParam(required = false) String eventType,
+            @RequestParam(required = false) String actor,
+            @RequestParam(required = false)
             String from,
-            @org.springframework.web.bind.annotation.RequestParam(required = false) String to,
-            @org.springframework.web.bind.annotation.RequestParam(defaultValue = "0") int page,
-            @org.springframework.web.bind.annotation.RequestParam(defaultValue = "20") int size) {
+            @RequestParam(required = false) String to,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size) {
         return auditEvents.search(eventType, actor,
                 from == null || from.isBlank() ? null : java.time.Instant.parse(from),
                 to == null || to.isBlank() ? null : java.time.Instant.parse(to),
@@ -46,13 +47,13 @@ public class AuditRecoveryController {
     /** 审计 keyset 分页（深页推荐）：游标来自上一页的 nextCreatedAt/nextId。 */
     @GetMapping("/events/keyset")
     public java.util.Map<String, Object> eventsKeyset(
-            @org.springframework.web.bind.annotation.RequestParam(required = false) String eventType,
-            @org.springframework.web.bind.annotation.RequestParam(required = false) String actor,
-            @org.springframework.web.bind.annotation.RequestParam(required = false) String from,
-            @org.springframework.web.bind.annotation.RequestParam(required = false) String to,
-            @org.springframework.web.bind.annotation.RequestParam(required = false) String cursorCreatedAt,
-            @org.springframework.web.bind.annotation.RequestParam(required = false) java.util.UUID cursorId,
-            @org.springframework.web.bind.annotation.RequestParam(defaultValue = "20") int size) {
+            @RequestParam(required = false) String eventType,
+            @RequestParam(required = false) String actor,
+            @RequestParam(required = false) String from,
+            @RequestParam(required = false) String to,
+            @RequestParam(required = false) String cursorCreatedAt,
+            @RequestParam(required = false) java.util.UUID cursorId,
+            @RequestParam(defaultValue = "20") int size) {
         return auditEvents.searchKeyset(
                 eventType == null || eventType.isBlank() ? null : eventType.trim(),
                 actor == null || actor.isBlank() ? null : actor.trim(),

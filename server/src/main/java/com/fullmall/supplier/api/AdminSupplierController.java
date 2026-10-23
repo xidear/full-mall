@@ -1,5 +1,6 @@
 package com.fullmall.supplier.api;
 
+import org.springframework.web.bind.annotation.RequestBody;
 import com.fullmall.supplier.app.SupplierAdminService;
 import com.fullmall.supplier.app.SupplierCredentialStatus;
 import com.fullmall.supplier.app.SupplierTokenService;
@@ -79,7 +80,7 @@ public class AdminSupplierController {
     @PostMapping("/{supplierId}/webhooks")
     @org.springframework.security.access.prepost.PreAuthorize("hasAnyRole('ADMIN','OPERATOR')")
     public java.util.Map<String, Object> registerWebhook(@PathVariable UUID supplierId,
-                                                         @org.springframework.web.bind.annotation.RequestBody WebhookRequest body) {
+                                                         @RequestBody WebhookRequest body) {
         if (body.url() == null || !body.url().startsWith("http")) {
             throw com.fullmall.platform.error.ApiException.badRequest(
                     "WEBHOOK_URL_INVALID", "Webhook URL 必须是 http/https 地址");

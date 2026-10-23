@@ -40,7 +40,7 @@ public class AdminWarehouseController {
     /** 在途库存：已发出未接收的调拨明细（两仓都不可用期间的数量）。 */
     @GetMapping("/in-transit")
     public java.util.List<java.util.Map<String, Object>> inTransit(
-            @org.springframework.web.bind.annotation.RequestParam(defaultValue = "200") int limit) {
+            @RequestParam(defaultValue = "200") int limit) {
         return warehouseService.inTransit(limit);
     }
 

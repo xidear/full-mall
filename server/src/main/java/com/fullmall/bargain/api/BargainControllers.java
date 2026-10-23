@@ -1,5 +1,6 @@
 package com.fullmall.bargain.api;
 
+import org.springframework.web.bind.annotation.GetMapping;
 import com.fullmall.bargain.app.BargainService;
 import com.fullmall.promotion.app.BargainPricing;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -97,7 +98,7 @@ class CustomerBargainController {
     }
 
     /** 活动详情（前台展示：标题、原价、底价、人数、时间窗）。 */
-    @org.springframework.web.bind.annotation.GetMapping("/activities/{activityId}")
+    @GetMapping("/activities/{activityId}")
     public java.util.Map<String, Object> activity(@PathVariable UUID activityId) {
         return bargain.activityDetail(activityId);
     }

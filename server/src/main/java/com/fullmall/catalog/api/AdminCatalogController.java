@@ -1,5 +1,6 @@
 package com.fullmall.catalog.api;
 
+import org.springframework.web.bind.annotation.PutMapping;
 import com.fullmall.catalog.app.CatalogService;
 import com.fullmall.catalog.domain.Product;
 import jakarta.validation.Valid;
@@ -52,7 +53,7 @@ public class AdminCatalogController {
      *
      * <p>无成本记录时 `unknown=true`，**不返回 0**，避免毛利被算成 100%。
      */
-    @org.springframework.web.bind.annotation.GetMapping("/skus/{skuId}/cost-view")
+    @GetMapping("/skus/{skuId}/cost-view")
     @org.springframework.security.access.prepost.PreAuthorize("hasRole('ADMIN')")
     public java.util.Map<String, Object> costView(@PathVariable UUID skuId) {
         var snapshot = skuCostService.current(skuId);
@@ -71,6 +72,20 @@ public class AdminCatalogController {
     }
 
     /** 译文送审（I18N-003）。 */
+    public record TranslationDraft(String title, String description) {
+    }
+
+    /** 录入译文（运营手填或机翻结果），进入 DRAFT 待审核。 */
+    @PutMapping("/{productId}/translations/{locale}")
+    @org.springframework.security.access.prepost.PreAuthorize("hasAnyRole('ADMIN','OPERATOR')")
+    public com.fullmall.catalog.infra.ProductTranslationRepository.Row saveTranslation(
+            @PathVariable UUID productId, @PathVariable String locale,
+            @RequestBody TranslationDraft body,
+            org.springframework.security.core.Authentication authentication) {
+        return translationWorkflow.saveDraft(productId, locale, body.title(), body.description(),
+                authentication.getName());
+    }
+
     @PostMapping("/{productId}/translations/{locale}/review")
     @org.springframework.security.access.prepost.PreAuthorize("hasAnyRole('ADMIN','OPERATOR')")
     public com.fullmall.catalog.infra.ProductTranslationRepository.Row reviewTranslation(
@@ -115,15 +130,15 @@ public class AdminCatalogController {
      * <p>成本用于毛利、佣金 PROFIT 模式与砍价底价校验，属于敏感数据，
      * 不对 OPERATOR 开放，也不进入任何顾客侧 DTO。
      */
-    @org.springframework.web.bind.annotation.PutMapping("/skus/{skuId}/cost")
+    @PutMapping("/skus/{skuId}/cost")
     @org.springframework.security.access.prepost.PreAuthorize("hasRole('ADMIN')")
     public void updateCost(@PathVariable UUID skuId,
-                           @org.springframework.web.bind.annotation.RequestBody CostRequest body) {
+                           @RequestBody CostRequest body) {
         catalogService.updateCost(skuId, body == null ? null : body.costAmount());
     }
 
     /** 读取成本（仅 ADMIN；未维护返回 null，不返回 0）。 */
-    @org.springframework.web.bind.annotation.GetMapping("/skus/{skuId}/cost")
+    @GetMapping("/skus/{skuId}/cost")
     @org.springframework.security.access.prepost.PreAuthorize("hasRole('ADMIN')")
     public java.util.Map<String, Object> cost(@PathVariable UUID skuId) {
         Long cost = catalogService.cost(skuId);
@@ -135,7 +150,7 @@ public class AdminCatalogController {
     }
 
     /** 规格矩阵批量生成 SKU（幂等：已存在编码跳过）。 */
-    @org.springframework.web.bind.annotation.PostMapping("/{productId}/sku-matrix")
+    @PostMapping("/{productId}/sku-matrix")
     @org.springframework.security.access.prepost.PreAuthorize("hasAnyRole('ADMIN','OPERATOR')")
     public com.fullmall.catalog.app.SkuMatrixService.Result generateMatrix(
             @PathVariable UUID productId, @RequestBody MatrixRequest body) {
@@ -150,7 +165,7 @@ public class AdminCatalogController {
     }
 
     /** SKU 批量改价（整批成功或整批失败）。 */
-    @org.springframework.web.bind.annotation.PostMapping("/skus/batch-price")
+    @PostMapping("/skus/batch-price")
     @org.springframework.security.access.prepost.PreAuthorize("hasAnyRole('ADMIN','OPERATOR')")
     public java.util.Map<String, Object> batchPrice(@RequestBody BatchPriceRequest body) {
         java.util.Map<java.util.UUID, Long> prices = new java.util.LinkedHashMap<>();
@@ -165,7 +180,7 @@ public class AdminCatalogController {
     }
 
     /** 商品批量上下架（整批成功或整批失败）。 */
-    @org.springframework.web.bind.annotation.PostMapping("/batch-status")
+    @PostMapping("/batch-status")
     @org.springframework.security.access.prepost.PreAuthorize("hasAnyRole('ADMIN','OPERATOR')")
     public java.util.Map<String, Object> batchStatus(@RequestBody BatchStatusRequest body) {
         com.fullmall.catalog.domain.ProductStatus target;
@@ -187,7 +202,7 @@ public class AdminCatalogController {
     }
 
     /** 把既有 options_json 回填到关联表（ADR-003 第 2 步）。 */
-    @org.springframework.web.bind.annotation.PostMapping("/{productId}/sku-options/backfill")
+    @PostMapping("/{productId}/sku-options/backfill")
     @org.springframework.security.access.prepost.PreAuthorize("hasAnyRole('ADMIN','OPERATOR')")
     public com.fullmall.catalog.app.SkuOptionsMigrationService.Result backfillSkuOptions(
             @PathVariable UUID productId) {
@@ -195,7 +210,7 @@ public class AdminCatalogController {
     }
 
     /** 多维度规格生成（颜色 × 内存 × 存储，支持组合禁用）。 */
-    @org.springframework.web.bind.annotation.PostMapping("/{productId}/sku-matrix-multi")
+    @PostMapping("/{productId}/sku-matrix-multi")
     @org.springframework.security.access.prepost.PreAuthorize("hasAnyRole('ADMIN','OPERATOR')")
     public com.fullmall.catalog.app.SkuMatrixMultiService.Result generateMatrixMulti(
             @PathVariable UUID productId, @RequestBody MatrixMultiRequest body) {
@@ -204,7 +219,7 @@ public class AdminCatalogController {
     }
 
     /** 各 SKU 可用量（前台禁用缺货组合用）。 */
-    @org.springframework.web.bind.annotation.GetMapping("/{productId}/availability")
+    @GetMapping("/{productId}/availability")
     public java.util.List<java.util.Map<String, Object>> availability(@PathVariable UUID productId) {
         return catalogService.availability(productId);
     }
@@ -223,7 +238,7 @@ public class AdminCatalogController {
     }
 
     /** 预览：只计算不落库（改价前必须看一眼）。 */
-    @org.springframework.web.bind.annotation.PostMapping("/{productId}/price-rule/preview")
+    @PostMapping("/{productId}/price-rule/preview")
     @org.springframework.security.access.prepost.PreAuthorize("hasAnyRole('ADMIN','OPERATOR')")
     public java.util.List<com.fullmall.catalog.app.SkuPriceRuleService.Change> previewPriceRule(
             @PathVariable UUID productId, @RequestBody PriceRuleRequest body) {
@@ -232,7 +247,7 @@ public class AdminCatalogController {
     }
 
     /** 应用：真正落库，返回改动条数。 */
-    @org.springframework.web.bind.annotation.PostMapping("/{productId}/price-rule/apply")
+    @PostMapping("/{productId}/price-rule/apply")
     @org.springframework.security.access.prepost.PreAuthorize("hasAnyRole('ADMIN','OPERATOR')")
     public java.util.Map<String, Object> applyPriceRule(
             @PathVariable UUID productId, @RequestBody PriceRuleRequest body) {
@@ -245,7 +260,7 @@ public class AdminCatalogController {
     }
 
     /** 商品 CSV 导入（title,skuCode,price）。任一行不合法则整批不落库。 */
-    @org.springframework.web.bind.annotation.PostMapping("/products/import")
+    @PostMapping("/products/import")
     @org.springframework.security.access.prepost.PreAuthorize("hasAnyRole('ADMIN','OPERATOR')")
     public com.fullmall.catalog.app.ProductCsvImporter.Result importCsv(@RequestBody ImportCsv body) {
         return productCsvImporter.importCsv(body.content());

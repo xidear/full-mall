@@ -81,7 +81,7 @@ public class AdminAfterSaleController {
     @PostMapping("/{afterSaleId}/exchange-ship")
     public AfterSaleDtos.AfterSaleView shipExchange(
             @PathVariable java.util.UUID afterSaleId,
-            @org.springframework.web.bind.annotation.RequestBody AfterSaleDtos.ExchangeShipRequest request,
+            @RequestBody AfterSaleDtos.ExchangeShipRequest request,
             org.springframework.security.core.Authentication authentication) {
         var view = afterSaleService.shipExchange(afterSaleId, request.carrierCode(), request.trackingNo());
         return view;

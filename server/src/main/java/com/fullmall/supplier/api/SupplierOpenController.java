@@ -90,9 +90,9 @@ public class SupplierOpenController {
     @GetMapping("/returns")
     public java.util.Map<String, Object> returns(
             @RequestAttribute(SupplierHmacFilter.SUPPLIER_ID_ATTRIBUTE) UUID supplierId,
-            @org.springframework.web.bind.annotation.RequestParam(required = false) String status,
-            @org.springframework.web.bind.annotation.RequestParam(defaultValue = "0") int page,
-            @org.springframework.web.bind.annotation.RequestParam(defaultValue = "20") int size) {
+            @RequestParam(required = false) String status,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size) {
         return supplierReturnService.list(supplierId, status, page, size);
     }
 

@@ -64,7 +64,7 @@ public class AdminDistributionController {
     /** 代推广员发起提现（推广员登录体系落地前由后台代操作）。 */
     @PostMapping("/withdrawals")
     public org.springframework.http.ResponseEntity<java.util.Map<String, java.util.UUID>> requestWithdrawal(
-            @org.springframework.web.bind.annotation.RequestBody java.util.Map<String, Object> body,
+            @RequestBody java.util.Map<String, Object> body,
             org.springframework.security.core.Authentication authentication) {
         // 手工解析必须给出**明确的 400**：非法 UUID/金额不是"服务端错误"
         java.util.UUID promoterId;
@@ -90,14 +90,14 @@ public class AdminDistributionController {
 
     @PostMapping("/withdrawals/{id}/reject")
     public void rejectWithdrawal(@PathVariable java.util.UUID id,
-                                 @org.springframework.web.bind.annotation.RequestBody java.util.Map<String, String> body,
+                                 @RequestBody java.util.Map<String, String> body,
                                  org.springframework.security.core.Authentication authentication) {
         withdrawalService.reject(id, body.get("reason"), authentication.getName());
     }
 
     @PostMapping("/withdrawals/{id}/pay")
     public void payWithdrawal(@PathVariable java.util.UUID id,
-                              @org.springframework.web.bind.annotation.RequestBody java.util.Map<String, String> body,
+                              @RequestBody java.util.Map<String, String> body,
                               org.springframework.security.core.Authentication authentication) {
         withdrawalService.markPaid(id, body.get("paymentRef"), authentication.getName());
     }

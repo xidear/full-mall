@@ -31,9 +31,11 @@ public class SkuMatrixMultiService {
     private static final int MAX_COMBINATIONS = 500;
 
     private final JdbcTemplate jdbc;
+    private final SkuOptionsMigrationService migration;
 
-    public SkuMatrixMultiService(JdbcTemplate jdbc) {
+    public SkuMatrixMultiService(JdbcTemplate jdbc, SkuOptionsMigrationService migration) {
         this.jdbc = jdbc;
+        this.migration = migration;
     }
 
     public record Result(int created, int skipped, int disabled, List<String> codes) {
@@ -124,6 +126,10 @@ public class SkuMatrixMultiService {
             } else {
                 skipped++;
             }
+        }
+        // 生成后立即回填关联表（真相来源）并重建 JSON 投影，避免两份数据不一致
+        if (created > 0) {
+            migration.backfillProduct(productId);
         }
         return new Result(created, skipped, disabledCount, codes);
     }

@@ -25,8 +25,11 @@ public class SkuOptionsMigrationService {
 
     private final JdbcTemplate jdbc;
 
-    public SkuOptionsMigrationService(JdbcTemplate jdbc) {
+    private final SkuOptionsProjectionService projection;
+
+    public SkuOptionsMigrationService(JdbcTemplate jdbc, SkuOptionsProjectionService projection) {
         this.jdbc = jdbc;
+        this.projection = projection;
     }
 
     public record Result(int skus, int dimensions, int values) {
@@ -74,6 +77,8 @@ public class SkuOptionsMigrationService {
             jdbc.update("UPDATE sku SET combination_key = ? WHERE id = ? AND combination_key IS NULL",
                     key.toString(), skuId);
         }
+        // 回填完成后重建投影，保证 JSON 与关联表一致
+        projection.rebuild(productId);
         return new Result(skus.size(), dimensions, values);
     }
 

@@ -17,9 +17,14 @@ import java.util.UUID;
 public class AiEventController {
 
     private final AiEventService events;
+    private final org.springframework.beans.factory.ObjectProvider<
+            com.fullmall.analytics.ai.OpenAiCompatClient> aiClients;
 
-    public AiEventController(AiEventService events) {
+    public AiEventController(AiEventService events,
+                             org.springframework.beans.factory.ObjectProvider<
+                                     com.fullmall.analytics.ai.OpenAiCompatClient> aiClients) {
         this.events = events;
+        this.aiClients = aiClients;
     }
 
     public record EventRequest(String eventType, UUID memberId, String anonymousId,

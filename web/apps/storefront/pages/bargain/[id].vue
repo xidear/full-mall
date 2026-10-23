@@ -45,10 +45,16 @@ const price = computed(() => {
 })
 const floor = computed(() => ((activity.value?.floorPrice ?? 0) / 100).toFixed(2))
 
+const loggedIn = ref(false)
+
 function memberId(): string | null {
   if (!import.meta.client) return null
   return localStorage.getItem('fullmall-member-id')
 }
+
+onMounted(() => {
+  loggedIn.value = Boolean(memberId())
+})
 
 async function start() {
   const id = memberId()
@@ -92,9 +98,6 @@ async function help() {
   }
 }
 
-onMounted(() => {
-  message.value = ''
-})
 </script>
 
 <template>
@@ -120,6 +123,7 @@ onMounted(() => {
             帮砍一刀
           </button>
         </div>
+        <p v-if="!loggedIn" class="warn">未登录：可查看活动，发起与帮砍需先登录。</p>
         <p v-if="message" class="warn">{{ message }}</p>
       </div>
 

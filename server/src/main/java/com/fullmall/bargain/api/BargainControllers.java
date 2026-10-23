@@ -10,6 +10,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.http.HttpStatus;
 
 import java.time.Instant;
 import java.util.Map;
@@ -39,6 +40,27 @@ class AdminBargainController {
     @PostMapping
     @PreAuthorize("hasAnyRole('ADMIN','OPERATOR')")
     public Map<String, Object> create(@RequestBody CreateRequest body) {
+        // 先做业务校验，避免把 DB 约束违规暴露成 500
+        if (body.minHelpers() < 3 || body.minHelpers() > 30) {
+            throw new com.fullmall.platform.error.ApiException(
+                    org.springframework.http.HttpStatus.BAD_REQUEST, "BARGAIN_HELPERS_INVALID",
+                    "助力人数必须在 3–30 之间，当前=" + body.minHelpers());
+        }
+        if (body.expiresHours() < 12 || body.expiresHours() > 72) {
+            throw new com.fullmall.platform.error.ApiException(
+                    org.springframework.http.HttpStatus.BAD_REQUEST, "BARGAIN_EXPIRY_INVALID",
+                    "有效期必须在 12–72 小时之间，当前=" + body.expiresHours());
+        }
+        if (body.floorPrice() <= 0) {
+            throw new com.fullmall.platform.error.ApiException(
+                    org.springframework.http.HttpStatus.BAD_REQUEST, "BARGAIN_FLOOR_INVALID",
+                    "底价必须大于 0");
+        }
+        if (body.cutMin() <= 0 || body.cutMax() < body.cutMin()) {
+            throw new com.fullmall.platform.error.ApiException(
+                    org.springframework.http.HttpStatus.BAD_REQUEST, "BARGAIN_CUT_INVALID",
+                    "每刀金额必须大于 0 且上限不小于下限");
+        }
         Long cost = jdbc.query("""
                 SELECT avg_cost_amount FROM sku_cost WHERE sku_id = ?
                 """, rs -> rs.next() ? rs.getLong("avg_cost_amount") : null, body.skuId());

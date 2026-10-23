@@ -83,4 +83,5 @@ class BargainActivityDetailTest {
         assertThatThrownBy(() -> bargain.activityDetail(UUID.randomUUID()))
                 .hasMessageContaining("砍价活动不存在");
     }
+
 }

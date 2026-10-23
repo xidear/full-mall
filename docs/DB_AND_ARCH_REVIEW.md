@@ -38,7 +38,7 @@
 | `payment_event.payload_json`、`webhook_delivery.payload` | ✅ 保留 JSON | 外部报文原文，用于对账与举证 |
 | `sku.shelf_life_policy_json` | ⚠️ 建议改列 | 只有 `{mode,days,warnDays}` 三个字段，查询/校验都要解 JSON；建议拆三列（待办，涉及前后端） |
 | `promotion.rules` | ✅ 已改（投影列 + 触发器） | 新增 `threshold_amount/rule_value/channel/exclusive_group` 四列与 `promotion_active_channel_idx`；**rules 仍是唯一事实来源**，由 V103 触发器同步，避免程序漏写；`excludeSkuIds` 仍留 JSON |
-| `coupon_template.scope_ids` | ⚠️ 建议改关联表 | 一组 ID 用 JSON 存无法加外键、无法索引；建议 `coupon_template_scope(template_id, scope_type, scope_id)` |
+| `coupon_template.scope_ids` | ✅ 已改关联表 | 新增 `coupon_template_scope(template_id, scope_type, scope_id)`（主键 + `(scope_type, scope_id)` 索引 + 外键级联）；JSON 保留为**写入入口**，触发器同步到关联表，**读取走关联表** |
 | `sku.options_json` | ✅ 保留（ADR-003 已定） | 关联表为真相来源，JSON 是投影；生成/回填后自动重建 |
 | `theme_config.config_json`、`integration_config.config_hint`、`export_job.params`、`support_message.metadata_json`、`ai_event.payload`、`ai_action_draft.payload`、`analytics_event.properties_json` | ✅ 保留 JSON | 结构不固定或仅展示用 |
 
@@ -100,7 +100,7 @@
 
 1. `platform/http/HttpClients` + 替换 10 处（低风险，收益是连接复用与超时一致）。
 2. `platform/paging/KeysetSupport` + 6 个模块改造（中风险，需逐个跑测试）。
-3. `promotion.rules` 拆列 + `coupon_template.scope_ids` 改关联表（**改动大、涉及前端**，建议单独一轮）。
+3. ~~`coupon_template.scope_ids` 改关联表~~ ✅ 已完成（V104，含回填与一致性测试）。
 4. 6 个实体表补 `created_at`（需你定回填策略）。
 
 ## 五、金额精度（用户质询后的实测与整改）

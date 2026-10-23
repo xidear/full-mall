@@ -241,8 +241,13 @@ public class CouponService {
      * 与促销的范围口径一致，避免"促销按类目、券按全场"的错配。
      */
     public long eligibleAmount(UUID couponId, java.util.Map<UUID, Long> subtotalsBySku) {
+        // 读取走关联表（真相）；scope_ids JSON 仅保留为写入投影
         List<ScopeRow> rows = jdbcTemplate.query("""
-                SELECT scope, scope_ids FROM coupon_template t
+                SELECT t.scope,
+                       COALESCE((SELECT jsonb_agg(s.scope_id::text ORDER BY s.scope_id)
+                                   FROM coupon_template_scope s
+                                  WHERE s.template_id = t.id), '[]'::jsonb)::text AS scope_ids
+                  FROM coupon_template t
                   JOIN member_coupon c ON c.template_id = t.id WHERE c.id = ?
                 """, (rs, rowNum) -> new ScopeRow(
                 rs.getString("scope"), rs.getString("scope_ids")), couponId);

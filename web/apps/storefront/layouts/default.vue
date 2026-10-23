@@ -3,6 +3,8 @@ import { themePresets, toCssVars, type ThemeConfig } from '@fullmall/theme'
 import type { Category } from '~/types'
 
 const { count } = useCart()
+const { init: initLocale } = useLocale()
+await initLocale()
 const runtimeConfig = useRuntimeConfig()
 const { public: runtime } = runtimeConfig
 const { theme, themeVars } = useTheme()
@@ -49,7 +51,8 @@ async function search() {
       <div class="container topbar-inner">
         <span>欢迎来到 Full Mall，正品保障 · 门店自提 · 七天无理由</span>
         <nav>
-          <NuxtLink to="/account">我的订单</NuxtLink>
+          <LocaleSwitcher class="locale-slot" />
+        <NuxtLink to="/account">我的订单</NuxtLink>
           <NuxtLink to="/favorites">我的收藏</NuxtLink>
           <NuxtLink to="/history">浏览足迹</NuxtLink>
           <NuxtLink to="/notifications">消息中心</NuxtLink>

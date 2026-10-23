@@ -113,3 +113,20 @@ cd server && mvn -B -DskipTests package
 
 **不要**用"重启一下试试"糊过去；先确认 jar 时间戳晚于最后一次代码改动。
 
+
+## 旧 jar 反复出现（已用脚本根治）
+
+这条踩了 20 次以上，原因是"靠人记得打包"。现在**不靠记忆**：
+
+```bash
+make api-restart          # 或 bash scripts/restart-api.sh
+```
+
+脚本行为（按顺序）：
+
+1. 比较 `target/*.jar` 与 `src/`、`pom.xml` 的 mtime；
+2. **源码更新 → 自动 `mvn package`**（不会跳过）；
+3. 停旧进程 → 起新 jar；
+4. 轮询 `/api/v1/products` 直到 200，90 秒不就绪则**打印日志并退出 1**。
+
+任何"改完代码要验证"的场合都走它；不要再手工 `java -jar`。

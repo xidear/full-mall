@@ -88,3 +88,6 @@ verify: ## 后端测试 + 打包 + 前端构建 + 接口对齐 + E2E
 
 verify-fast: ## 同上但跳过 E2E
 	scripts/verify.sh --no-e2e
+
+api-restart:
+	@bash scripts/restart-api.sh

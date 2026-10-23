@@ -25,12 +25,15 @@ public class WithdrawalService {
 
     private final JdbcTemplate jdbcTemplate;
     private final AuditEventService auditEvents;
+    private final org.springframework.beans.factory.ObjectProvider<PayoutGateway> payouts;
     private final DistributionConfig distributionConfig;
 
     public WithdrawalService(JdbcTemplate jdbcTemplate, AuditEventService auditEvents,
+                             org.springframework.beans.factory.ObjectProvider<PayoutGateway> payouts,
                              DistributionConfig distributionConfig) {
         this.jdbcTemplate = jdbcTemplate;
         this.auditEvents = auditEvents;
+        this.payouts = payouts;
         this.distributionConfig = distributionConfig;
     }
 
@@ -126,6 +129,37 @@ public class WithdrawalService {
 
     /** 打款：标记 PAID，并把等额 AVAILABLE 佣金按 FIFO 置为 WITHDRAWN。 */
     @Transactional
+    /**
+     * 真实打款（B8）：调用微信商家转账；失败抛错、不写"已打款"。
+     *
+     * <p>仅在配置了 `app.payout.wechat.*` 时可用；未配置时明确报错而不是假装成功。
+     */
+    public java.util.Map<String, Object> payoutByWechat(UUID withdrawalId, String openId,
+                                                        String actor) {
+        requireActor(actor);
+        Withdrawal withdrawal = find(withdrawalId);
+        if (!"APPROVED".equals(withdrawal.status())) {
+            throw ApiException.conflict("WITHDRAWAL_NOT_APPROVED",
+                    "只有已审核的提现单可以打款，当前=" + withdrawal.status());
+        }
+        if (openId == null || openId.isBlank()) {
+            throw ApiException.badRequest("PAYOUT_OPENID_REQUIRED", "缺少收款人 openid");
+        }
+        var tax = LaborIncomeTax.compute(withdrawal.amount());
+        var client = payouts.getIfAvailable();
+        if (client == null) {
+            throw ApiException.conflict("PAYOUT_NOT_CONFIGURED",
+                    "未配置微信商家转账（app.payout.wechat.*），无法真实打款");
+        }
+        var transfer = client.transfer("WD-" + withdrawalId, openId, tax.net(), "佣金提现（税后）");
+        jdbcTemplate.update("""
+                UPDATE withdrawal SET tax_amount = ?, net_amount = ? WHERE id = ?
+                """, tax.tax(), tax.net(), withdrawalId);
+        markPaid(withdrawalId, "WX-" + transfer.reference(), actor);
+        return java.util.Map.of("batchId", transfer.reference(),
+                "status", transfer.status(), "netAmount", tax.net(), "taxAmount", tax.tax());
+    }
+
     public void markPaid(UUID withdrawalId, String paymentRef, String actor) {
         requireActor(actor);
         if (paymentRef == null || paymentRef.isBlank()) {

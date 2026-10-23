@@ -35,7 +35,7 @@
 | B5 | 提现：申请人选打款方式 | ✅ | V58 `payout_method`/`payout_account`；须在 `distribution.payout-methods` 白名单内（有测试） |
 | B6 | 提现：审核走权限矩阵 | ✅ | 新增 `withdrawal.review`（默认仅 ADMIN，可在矩阵授予）；去掉写死角色（有测试） |
 | B7 | 提现：最低金额读配置 | ✅ | 低于 `distribution.min-withdrawal` 直接拒绝（有测试） |
-| B8 | 提现：微信零钱/银行卡真实打款 | ⬜ | 仅记录 `payment_ref` |
+| B8 | 提现真实打款 | ⚠️ | 微信商家转账（v3 `/v3/transfer/batches`）请求+签名+失败可见已实现，stub 验证签名；经 `PayoutGateway` 端口接入提现（未配置则明确报 PAYOUT_NOT_CONFIGURED）；**真实开通与 openid 获取未做** |
 | B9 | 佣金可拆分消耗（提现额大于单条佣金） | ✅ | `consumed_amount` 部分消耗 + 余额扣减；未扣完保持 AVAILABLE（有测试） |
 | B10 | 客服发商品 = 走同一套绑定策略 | ⚠️ | 绑定语义已按业务修正（ONCE 覆盖 / PERMANENT 保留，有测试）；**聊天发商品入口接线未做** |
 | B11 | 分销报表 | ✅ | `GET /admin/v1/distribution/report?from&to`：冻结/可提（扣消耗）/已提/工资/钱包/单量 + 合计（有测试） |
@@ -237,8 +237,8 @@
 | 状态 | 数量 |
 |---|---|
 | ✅ 已实现并验证 | 108 |
-| ⚠️ 已实现未验证 / 半接线 | 25 |
-| ⬜ 未实现 | 17 |
+| ⚠️ 已实现未验证 / 半接线 | 26 |
+| ⬜ 未实现 | 16 |
 | 🚫 有意不做 / 暂缓 | 7 |
 | **合计** | **158** |
 | 另：接口冒烟覆盖 | 43 个接口（读 33 / 写 10） |

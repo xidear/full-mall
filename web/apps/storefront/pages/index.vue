@@ -1,10 +1,11 @@
 <script setup lang="ts">
+const { locale } = useLocale()
 import type { Category, Product, ProductPage } from '~/types'
 
 const config = useRuntimeConfig()
 const base = import.meta.server ? config.apiInternalBase : config.public.apiBase
 const { data, error } = await useFetch<ProductPage>(`${base}/api/v1/products`, {
-  query: { locale: 'zh-CN', page: 0, size: 50 }
+  query: { locale: locale.value, page: 0, size: 50 }
 })
 const { data: categories } = await useAsyncData<Category[]>('categories', () =>
   $fetch<Category[]>(`${base}/api/v1/categories`)

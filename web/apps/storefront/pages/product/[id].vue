@@ -1,11 +1,12 @@
 <script setup lang="ts">
+const { locale } = useLocale()
 import type { Product, Promotion } from '~/types'
 
 const route = useRoute()
 const config = useRuntimeConfig()
 const base = import.meta.server ? config.apiInternalBase : config.public.apiBase
 const { data: product, error } = await useFetch<Product>(`${base}/api/v1/products/${route.params.id}`, {
-  query: { locale: 'zh-CN' }
+  query: { locale: locale.value }
 })
 const { data: promotions } = await useFetch<Promotion[]>(`${base}/api/v1/promotions`)
 

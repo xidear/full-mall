@@ -1,4 +1,5 @@
 <script setup lang="ts">
+const { locale } = useLocale()
 import type { Category, Product, ProductPage } from '~/types'
 
 const route = useRoute()
@@ -18,7 +19,7 @@ const { data, pending, error, refresh } = await useAsyncData<ProductPage>(
   'products',
   () => $fetch<ProductPage>(`${base}/api/v1/products`, {
     query: {
-      locale: 'zh-CN',
+      locale: locale.value,
       categoryId: categoryId.value,
       keyword: keyword.value,
       page: 0,
@@ -56,7 +57,7 @@ async function loadMore() {
     const next = Math.floor(products.value.length / PAGE_SIZE)
     const page = await $fetch<ProductPage>(`${base}/api/v1/products`, {
       query: {
-        locale: 'zh-CN', categoryId: categoryId.value, keyword: keyword.value,
+        locale: locale.value, categoryId: categoryId.value, keyword: keyword.value,
         page: next, size: PAGE_SIZE, sort: sortKey.value, direction: direction.value
       }
     })

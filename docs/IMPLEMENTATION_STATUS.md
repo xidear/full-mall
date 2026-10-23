@@ -5869,3 +5869,10 @@ E2E 未跑（需要 5 个前端 + PG，下轮单独跑）。
   已改为**业务校验返回 400 + 明确范围**，并补测试。
 - POS 页原走「秒杀」promotions（强制需要 SKU）→ 404；改为 **rules 接口**（满减/满折，无需 SKU）。
 
+## E2E 增量（第 37 轮）
+
+| 用例 | 结果 |
+|---|---|
+| 译文链路：admin 录入 en → 审核 → 发布 → `/products/{id}?locale=en` 返回英文、zh-CN 不含 | ✅ passed |
+| Chromium 全量 | ✅ **47 passed / 2 skipped** |
+

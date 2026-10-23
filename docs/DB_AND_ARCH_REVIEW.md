@@ -36,7 +36,7 @@
 | `order_line.snapshot` | ✅ 保留 JSON | 商品快照（标题/规格/单价），必须冻结 |
 | `audit_log.before_json/after_json` | ✅ 保留 JSON | 审计留证，结构随业务演进 |
 | `payment_event.payload_json`、`webhook_delivery.payload` | ✅ 保留 JSON | 外部报文原文，用于对账与举证 |
-| `sku.shelf_life_policy_json` | ⚠️ 建议改列 | 只有 `{mode,days,warnDays}` 三个字段，查询/校验都要解 JSON；建议拆三列（待办，涉及前后端） |
+| `sku.shelf_life_policy_json` | ✅ 已改列 | 6 个字段拆成真实列（含两个枚举），加 `CHECK (days >= 0)` 与 `(batch_tracking, near_expiry_days)` 索引；JSON 保留写入入口，触发器同步，**读取走列**（V107） |
 | `promotion.rules` | ✅ 已改（投影列 + 触发器） | 新增 `threshold_amount/rule_value/channel/exclusive_group` 四列与 `promotion_active_channel_idx`；**rules 仍是唯一事实来源**，由 V103 触发器同步，避免程序漏写；`excludeSkuIds` 仍留 JSON |
 | `coupon_template.scope_ids` | ✅ 已改关联表 | 新增 `coupon_template_scope(template_id, scope_type, scope_id)`（主键 + `(scope_type, scope_id)` 索引 + 外键级联）；JSON 保留为**写入入口**，触发器同步到关联表，**读取走关联表** |
 | `sku.options_json` | ✅ 保留（ADR-003 已定） | 关联表为真相来源，JSON 是投影；生成/回填后自动重建 |

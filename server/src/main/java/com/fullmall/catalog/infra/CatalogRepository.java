@@ -151,7 +151,9 @@ public class CatalogRepository {
     public Sku findSku(UUID skuId) {
         List<Sku> rows = jdbcTemplate.query("""
                 SELECT id, product_id, sku_code, barcode, price_amount, price_currency,
-                       compare_at_amount, compare_at_currency, options_json, image_url, shelf_life_policy_json
+                       compare_at_amount, compare_at_currency, options_json, image_url, shelf_life_policy_json,
+                       shelf_batch_tracking, shelf_picking_strategy, shelf_min_remaining_days,
+                       shelf_near_expiry_days, shelf_near_expiry_action, shelf_auto_block_expired
                 FROM sku
                 WHERE id = ?
                 """, (rs, rowNum) -> mapSku(rs), skuId);
@@ -161,7 +163,9 @@ public class CatalogRepository {
     public List<Sku> findSkus(UUID productId) {
         return jdbcTemplate.query("""
                 SELECT id, product_id, sku_code, barcode, price_amount, price_currency,
-                       compare_at_amount, compare_at_currency, options_json, image_url, shelf_life_policy_json
+                       compare_at_amount, compare_at_currency, options_json, image_url, shelf_life_policy_json,
+                       shelf_batch_tracking, shelf_picking_strategy, shelf_min_remaining_days,
+                       shelf_near_expiry_days, shelf_near_expiry_action, shelf_auto_block_expired
                 FROM sku
                 WHERE product_id = ?
                 ORDER BY sku_code
@@ -230,7 +234,7 @@ public class CatalogRepository {
                 compareAt,
                 readMap(rs.getString("options_json")),
                 rs.getString("image_url"),
-                readPolicy(rs.getString("shelf_life_policy_json")));
+                readPolicy(rs));
     }
 
     private String writeJson(Object value) {
@@ -253,7 +257,22 @@ public class CatalogRepository {
         }
     }
 
-    private ShelfLifePolicy readPolicy(String json) {
+    /** 从真实列构造（V107 起列为读取来源，JSON 仅写入投影）。 */
+    private ShelfLifePolicy readPolicy(java.sql.ResultSet rs) {
+        try {
+            return new ShelfLifePolicy(
+                    rs.getBoolean("shelf_batch_tracking"),
+                    com.fullmall.catalog.domain.PickingStrategy.valueOf(rs.getString("shelf_picking_strategy")),
+                    rs.getInt("shelf_min_remaining_days"),
+                    rs.getInt("shelf_near_expiry_days"),
+                    com.fullmall.catalog.domain.NearExpiryAction.valueOf(rs.getString("shelf_near_expiry_action")),
+                    rs.getBoolean("shelf_auto_block_expired"));
+        } catch (java.sql.SQLException error) {
+            throw new IllegalStateException("读取效期策略失败", error);
+        }
+    }
+
+    private ShelfLifePolicy readPolicyLegacy(String json) {
         if (json == null || json.isBlank()) {
             return ShelfLifePolicy.none();
         }

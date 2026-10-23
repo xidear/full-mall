@@ -113,4 +113,35 @@ class AiActionDraftTest {
         assertThat(jdbc.queryForObject("SELECT status FROM product WHERE id = ?", String.class, productId))
                 .isEqualTo("ARCHIVED");
     }
+
+    /** 第三个动作：发券；必须双签，券量不足要拒绝。 */
+    @Test
+    void canGrantCouponAfterDualApproval() {
+        UUID memberId = UUID.randomUUID();
+        UUID templateId = UUID.randomUUID();
+        jdbc.update("""
+                INSERT INTO member (id, member_no, name, phone)
+                VALUES (?, ?, 'AI 测试会员', '13900000001')
+                """, memberId, "AI-M-" + memberId.toString().substring(0, 6));
+        jdbc.update("""
+                INSERT INTO coupon_template (id, code, title, type, value, total_quantity,
+                                             issued_quantity, per_member_limit, validity_days,
+                                             starts_at, ends_at)
+                VALUES (?, ?, 'AI 发券', 'AMOUNT', 1000, 5, 0, 1, 7, now() - interval '1 day',
+                        now() + interval '30 days')
+                """, templateId, "AI-COUPON-" + templateId.toString().substring(0, 6));
+
+        var draft = drafts.create("coupon.grant",
+                Map.of("memberId", memberId.toString(), "templateId", templateId.toString()), "ai");
+        drafts.approve(draft.id(), "a1");
+        drafts.approve(draft.id(), "a2");
+        assertThat(drafts.execute(draft.id(), "a2").status()).isEqualTo("EXECUTED");
+
+        assertThat(jdbc.queryForObject(
+                "SELECT COUNT(*) FROM member_coupon WHERE member_id = ? AND template_id = ?",
+                Integer.class, memberId, templateId)).isEqualTo(1);
+        assertThat(jdbc.queryForObject(
+                "SELECT issued_quantity FROM coupon_template WHERE id = ?", Integer.class, templateId))
+                .isEqualTo(1);
+    }
 }

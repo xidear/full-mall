@@ -20,7 +20,7 @@ import java.util.UUID;
 public class AiActionDraftService {
 
     private static final ObjectMapper MAPPER = new ObjectMapper();
-    private static final Set<String> ACTIONS = Set.of("sku.price.set", "product.status.set");
+    private static final Set<String> ACTIONS = Set.of("sku.price.set", "product.status.set", "coupon.grant");
 
     private final JdbcTemplate jdbc;
 
@@ -98,6 +98,36 @@ public class AiActionDraftService {
                     "只有双签通过后才能执行，当前=" + draft.status());
         }
         Map<String, Object> payload = payloadOf(id);
+        if ("coupon.grant".equals(draft.actionType())) {
+            String memberNo = String.valueOf(payload.getOrDefault("memberId", "")).trim();
+            String templateNo = String.valueOf(payload.getOrDefault("templateId", "")).trim();
+            if (memberNo.isEmpty() || templateNo.isEmpty()) {
+                throw ApiException.badRequest("AI_ACTION_PAYLOAD_INVALID",
+                        "coupon.grant 需要 memberId 与 templateId");
+            }
+            Integer remaining = jdbc.queryForObject("""
+                    SELECT total_quantity - issued_quantity FROM coupon_template
+                     WHERE id = ?::uuid AND ends_at > now()
+                    """, Integer.class, templateNo);
+            if (remaining == null) {
+                throw ApiException.notFound("COUPON_TEMPLATE_NOT_FOUND",
+                        "券模板不存在或已过期：" + templateNo);
+            }
+            if (remaining <= 0) {
+                throw ApiException.conflict("COUPON_SOLD_OUT", "券已发完：" + templateNo);
+            }
+            String code = "AI-" + UUID.randomUUID().toString().replace("-", "")
+                    .substring(0, 10).toUpperCase(java.util.Locale.ROOT);
+            jdbc.update("""
+                    INSERT INTO member_coupon (id, template_id, member_id, code, status, expires_at)
+                    SELECT ?, ?, ?, ?, 'UNUSED', now() + (validity_days || ' days')::interval
+                      FROM coupon_template WHERE id = ?::uuid
+                    """, UUID.randomUUID(), java.util.UUID.fromString(templateNo),
+                    java.util.UUID.fromString(memberNo), code, templateNo);
+            jdbc.update("""
+                    UPDATE coupon_template SET issued_quantity = issued_quantity + 1 WHERE id = ?::uuid
+                    """, templateNo);
+        }
         if ("product.status.set".equals(draft.actionType())) {
             String productNo = String.valueOf(payload.getOrDefault("productId", "")).trim();
             String status = String.valueOf(payload.getOrDefault("status", "")).trim().toUpperCase(java.util.Locale.ROOT);

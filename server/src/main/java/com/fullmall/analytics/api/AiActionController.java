@@ -22,15 +22,30 @@ import java.util.UUID;
 public class AiActionController {
 
     private final AiActionDraftService drafts;
+    private final com.fullmall.analytics.action.AiDraftProposer proponer;
 
-    public AiActionController(AiActionDraftService drafts) {
+    public AiActionController(AiActionDraftService drafts,
+                              org.springframework.beans.factory.ObjectProvider<
+                                      com.fullmall.analytics.ai.OpenAiCompatClient> aiClients) {
         this.drafts = drafts;
+        this.proponer = new com.fullmall.analytics.action.AiDraftProposer(
+                aiClients.getIfAvailable(), drafts);
     }
 
     public record CreateRequest(String actionType, Map<String, Object> payload) {
     }
 
     public record RejectRequest(String reason) {
+    }
+
+    public record ProposeRequest(String instruction) {
+    }
+
+    /** 自然语言 → 草稿（仍需双签）；未配置模型明确 503。 */
+    @PostMapping("/propose")
+    public AiActionDraftService.Draft propose(@RequestBody ProposeRequest body,
+                                              Authentication authentication) {
+        return proponer.propose(body.instruction(), authentication.getName());
     }
 
     @PostMapping

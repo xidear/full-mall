@@ -56,6 +56,13 @@ public class AiActionDraftService {
         return find(id);
     }
 
+    /** 供模型提议使用：动作/参数不合法时转成业务异常（由上层给出明确错误）。 */
+    @Transactional
+    public Draft createAllowingUnsupported(Map.Entry<String, Map<String, Object>> parsed,
+                                           String requestedBy) {
+        return create(parsed.getKey(), parsed.getValue(), requestedBy);
+    }
+
     @Transactional
     public Draft approve(UUID id, String actor) {
         requireActor(actor);

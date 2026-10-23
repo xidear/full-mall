@@ -286,6 +286,15 @@ export const HELP_ENTRIES: HelpEntry[] = [
     pitfalls: ['重复重试会产生多条短信，费钱且扰民']
   },
   {
+    route: '/materials',
+    title: '素材库',
+    description: '上传商品图/活动图，拿到可访问地址后填到商品或主题里。',
+    steps: ['选择图片上传', '等提示成功', '复制地址填到需要的地方'],
+    tips: ['只支持 png/jpeg/webp/gif，大小上限由后端配置', '存储位置取决于「第三方服务」里的存储配置'],
+    pitfalls: ['不要上传带个人信息的截图'],
+    related: ['/products', '/integrations']
+  },
+  {
     route: '/integrations',
     title: '第三方服务',
     description: '配置短信、支付、存储、审核、物流、AI 的服务商与密钥。',

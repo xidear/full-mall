@@ -22,6 +22,7 @@ import LicenseView from './views/LicenseView.vue'
 import PriceRuleView from './views/PriceRuleView.vue'
 import ExpiringView from './views/ExpiringView.vue'
 import IntegrationsView from './views/IntegrationsView.vue'
+import MaterialView from './views/MaterialView.vue'
 import SetupView from './views/SetupView.vue'
 import AuditLogView from './views/AuditLogView.vue'
 import ReviewsView from './views/ReviewsView.vue'
@@ -60,6 +61,7 @@ const router = createRouter({
     { path: '/price-rule', name: 'price-rule', component: PriceRuleView, meta: { title: '规格改价' } },
     { path: '/expiring', name: 'expiring', component: ExpiringView, meta: { title: '临期商品' } },
     { path: '/integrations', name: 'integrations', component: IntegrationsView, meta: { title: '第三方服务' } },
+    { path: '/materials', name: 'materials', component: MaterialView, meta: { title: '素材库' } },
     { path: '/setup', name: 'setup', component: SetupView, meta: { title: '首次配置' } },
     { path: '/audit', name: 'audit', component: AuditLogView, meta: { title: '操作审计' } },
     { path: '/reviews', name: 'reviews', component: ReviewsView, meta: { title: '评价审核' } },

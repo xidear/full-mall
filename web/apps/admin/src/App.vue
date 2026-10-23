@@ -81,6 +81,7 @@ const menuGroups = [
     { path: '/permissions', label: '权限矩阵', roles: ['ADMIN'] },
     { path: '/license', label: '许可证', roles: ['ADMIN'] },
     { path: '/audit', label: '操作审计', roles: ['ADMIN'] },
+    { path: '/materials', label: '素材库', roles: ['ADMIN', 'OPERATOR'] },
     { path: '/integrations', label: '第三方服务', roles: ['ADMIN'] },
     { path: '/settings', label: '系统设置', roles: ['ADMIN'] }
   ] }

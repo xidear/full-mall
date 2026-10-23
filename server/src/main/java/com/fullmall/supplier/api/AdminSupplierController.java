@@ -26,14 +26,20 @@ public class AdminSupplierController {
     private final SupplierTokenService tokenService;
     private final com.fullmall.supplier.app.SupplierSettlementService settlementService;
     private final com.fullmall.supplier.app.SupplierReturnService supplierReturnService;
+    private final org.springframework.jdbc.core.JdbcTemplate jdbcTemplate;
+    private final com.fullmall.supplier.webhook.WebhookDispatcher webhookDispatcher;
 
     public AdminSupplierController(SupplierAdminService adminService, SupplierTokenService tokenService,
                                    com.fullmall.supplier.app.SupplierSettlementService settlementService,
-                                   com.fullmall.supplier.app.SupplierReturnService supplierReturnService) {
+                                   com.fullmall.supplier.app.SupplierReturnService supplierReturnService,
+                                   org.springframework.jdbc.core.JdbcTemplate jdbcTemplate,
+                                   com.fullmall.supplier.webhook.WebhookDispatcher webhookDispatcher) {
         this.adminService = adminService;
         this.tokenService = tokenService;
         this.settlementService = settlementService;
         this.supplierReturnService = supplierReturnService;
+        this.jdbcTemplate = jdbcTemplate;
+        this.webhookDispatcher = webhookDispatcher;
     }
 
     public record TokenIssued(String token, Instant expiresAt) {
@@ -64,6 +70,37 @@ public class AdminSupplierController {
             settlements(@PathVariable UUID supplierId,
                         @RequestParam(defaultValue = "20") int limit) {
         return settlementService.list(supplierId, limit);
+    }
+
+    public record WebhookRequest(String url, String secret) {
+    }
+
+    /** 注册/更新供应商 Webhook（同供应商同 URL 覆盖 secret）。 */
+    @PostMapping("/{supplierId}/webhooks")
+    @org.springframework.security.access.prepost.PreAuthorize("hasAnyRole('ADMIN','OPERATOR')")
+    public java.util.Map<String, Object> registerWebhook(@PathVariable UUID supplierId,
+                                                         @org.springframework.web.bind.annotation.RequestBody WebhookRequest body) {
+        if (body.url() == null || !body.url().startsWith("http")) {
+            throw com.fullmall.platform.error.ApiException.badRequest(
+                    "WEBHOOK_URL_INVALID", "Webhook URL 必须是 http/https 地址");
+        }
+        if (body.secret() == null || body.secret().isBlank()) {
+            throw com.fullmall.platform.error.ApiException.badRequest(
+                    "WEBHOOK_SECRET_REQUIRED", "必须设置签名密钥，否则对端无法校验来源");
+        }
+        jdbcTemplate.update("""
+                INSERT INTO supplier_webhook (id, supplier_id, url, secret, active)
+                VALUES (?, ?, ?, ?, TRUE)
+                """, java.util.UUID.randomUUID(), supplierId, body.url().trim(), body.secret().trim());
+        return java.util.Map.of("registered", true);
+    }
+
+    /** 该供应商的投递记录（排障）。 */
+    @GetMapping("/{supplierId}/webhooks/deliveries")
+    public java.util.List<java.util.Map<String, Object>> webhookDeliveries(
+            @PathVariable UUID supplierId,
+            @RequestParam(defaultValue = "50") int limit) {
+        return webhookDispatcher.deliveries(supplierId, limit);
     }
 
     /** 对账审计：已同意退货 vs 结算扣减，返回差额与是否一致。 */

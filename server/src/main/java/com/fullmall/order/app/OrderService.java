@@ -60,7 +60,7 @@ public class OrderService {
     private final org.springframework.jdbc.core.JdbcTemplate jdbcTemplate;
     private final com.fullmall.coupon.app.CouponService coupons;
     private final com.fullmall.coupon.app.CouponAllocationService couponAllocations;
-    private final String couponMode;
+    private final com.fullmall.promotion.app.CouponStackingPolicy.Mode globalCouponMode;
     private final com.fullmall.member.auth.MemberAuthService memberAuth;
 
     private static final long FLAT_SHIPPING_FEE = 0L;
@@ -121,11 +121,9 @@ public class OrderService {
         this.coupons = coupons;
         this.couponAllocations = couponAllocations;
         this.memberAuth = memberAuth;
-        this.couponMode = couponMode == null ? "EXCLUSIVE" : couponMode.trim().toUpperCase();
-        if (!java.util.List.of("EXCLUSIVE", "STACKABLE").contains(this.couponMode)) {
-            throw new IllegalArgumentException(
-                    "app.promotion.coupon.mode 只能是 EXCLUSIVE 或 STACKABLE，实际=" + couponMode);
-        }
+        this.globalCouponMode = com.fullmall.promotion.app.CouponStackingPolicy.parse(
+                couponMode, "app.promotion.coupon.mode");
+
     }
 
     @Transactional
@@ -291,7 +289,10 @@ public class OrderService {
             if (!eligibility.usable()) {
                 throw ApiException.conflict("COUPON_NOT_USABLE", eligibility.reason());
             }
-            if ("EXCLUSIVE".equals(couponMode)) {
+            // C2：单券可覆盖全局口径（NULL 跟随全局）
+            var effectiveMode = com.fullmall.promotion.app.CouponStackingPolicy.resolve(
+                    globalCouponMode, coupons.stackableOrNull(ctx.couponId()));
+            if (effectiveMode == com.fullmall.promotion.app.CouponStackingPolicy.Mode.EXCLUSIVE) {
                 if (eligibility.discountAmount() <= discount.amount()) {
                     throw ApiException.conflict("COUPON_NOT_BETTER_THAN_PROMOTION",
                             "该券优惠小于当前促销优惠，请移除券或改用它用");

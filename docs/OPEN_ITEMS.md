@@ -45,7 +45,7 @@
 | # | 事项 | 状态 | 依据 |
 |---|---|---|---|
 | C1 | 叠加/互斥可配置（PRO-003） | ✅ | `app.promotion.stacking-mode`（BEST_ONLY 默认 / STACK）；STACK 下按优先级叠加，同互斥组只生效一条；试算与结算共用同一入口；含测试 |
-| C2 | 券叠加策略按券属性 | ⚠️ | 促销侧叠加已可配；**券与促销的叠加仍由券属性（allowCouponStack）单点判定，未接入统一策略** |
+| C2 | 券叠加策略按券属性 | ✅ | 统一判定 `CouponStackingPolicy`：全局 `app.promotion.coupon.mode` + **单券 `coupon_template.stackable` 覆盖**（NULL 跟随全局）；互斥语义为"取更优者"；单元测试覆盖覆盖/NULL/非法配置 |
 | C3 | 券与促销优先级文档化 | ✅ | `REFUND_POLICY.md` §6 |
 | C4 | 券的部分消耗（拆单分摊） | ✅ | 券额**按行金额比例**摊到订单行（余数给最大行，总和严格等于券额），下单即写 `order_coupon_allocation`；查询接口 `/admin/v1/orders/{id}/coupon-allocations`；3 条测试 |
 | C5 | 券模板编辑/停用 | ✅ | `PUT /admin/v1/coupons/templates/{id}`（仅草稿）+ `POST .../disable`；停用后停止发放、已领券不受影响（有测试）|
@@ -236,8 +236,8 @@
 
 | 状态 | 数量 |
 |---|---|
-| ✅ 已实现并验证 | 125 |
-| ⚠️ 已实现未验证 / 半接线 | 15 |
+| ✅ 已实现并验证 | 126 |
+| ⚠️ 已实现未验证 / 半接线 | 14 |
 | ⬜ 未实现 | 10 |
 | 🚫 有意不做 / 暂缓 | 7 |
 | **合计** | **158** |

@@ -462,4 +462,13 @@ public class CouponService {
                                int perMemberLimit, int validityDays, Instant startsAt, Instant endsAt,
                                String status) {
     }
+
+    /** 单券叠加偏好；NULL 表示跟随全局配置（C2）。 */
+    public Boolean stackableOrNull(UUID couponId) {
+        var rows = jdbcTemplate.query("""
+                SELECT t.stackable FROM coupon_template t
+                  JOIN member_coupon c ON c.template_id = t.id WHERE c.id = ?
+                """, (rs, rowNum) -> (Boolean) rs.getObject("stackable"), couponId);
+        return rows.isEmpty() ? null : rows.get(0);
+    }
 }

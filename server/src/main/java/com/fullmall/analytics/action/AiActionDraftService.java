@@ -20,7 +20,7 @@ import java.util.UUID;
 public class AiActionDraftService {
 
     private static final ObjectMapper MAPPER = new ObjectMapper();
-    private static final Set<String> ACTIONS = Set.of("sku.price.set");
+    private static final Set<String> ACTIONS = Set.of("sku.price.set", "product.status.set");
 
     private final JdbcTemplate jdbc;
 
@@ -98,6 +98,19 @@ public class AiActionDraftService {
                     "只有双签通过后才能执行，当前=" + draft.status());
         }
         Map<String, Object> payload = payloadOf(id);
+        if ("product.status.set".equals(draft.actionType())) {
+            String productNo = String.valueOf(payload.getOrDefault("productId", "")).trim();
+            String status = String.valueOf(payload.getOrDefault("status", "")).trim().toUpperCase(java.util.Locale.ROOT);
+            if (productNo.isEmpty() || !java.util.List.of("ACTIVE", "ARCHIVED", "DRAFT").contains(status)) {
+                throw ApiException.badRequest("AI_ACTION_PAYLOAD_INVALID",
+                        "product.status.set 需要 productId 与 status(ACTIVE/ARCHIVED/DRAFT)");
+            }
+            int updated = jdbc.update("UPDATE product SET status = ? WHERE id = ?::uuid",
+                    status, productNo);
+            if (updated != 1) {
+                throw ApiException.notFound("PRODUCT_NOT_FOUND", "商品不存在：" + productNo);
+            }
+        }
         if ("sku.price.set".equals(draft.actionType())) {
             String skuCode = String.valueOf(payload.getOrDefault("skuCode", "")).trim();
             Object price = payload.get("priceAmount");

@@ -96,4 +96,21 @@ class AiActionDraftTest {
         assertThatThrownBy(() -> drafts.execute(draft.id(), "a2"))
                 .hasMessageContaining("价格必须大于 0");
     }
+
+    /** 新增动作：商品上下架，同样必须双签。 */
+    @Test
+    void canArchiveProductAfterDualApproval() {
+        UUID productId = UUID.randomUUID();
+        jdbc.update("INSERT INTO product (id, title, status) VALUES (?, '待下架', 'ACTIVE')", productId);
+
+        var draft = drafts.create("product.status.set",
+                Map.of("productId", productId.toString(), "status", "ARCHIVED"), "ai");
+        drafts.approve(draft.id(), "a1");
+        drafts.approve(draft.id(), "a2");
+        var executed = drafts.execute(draft.id(), "a2");
+
+        assertThat(executed.status()).isEqualTo("EXECUTED");
+        assertThat(jdbc.queryForObject("SELECT status FROM product WHERE id = ?", String.class, productId))
+                .isEqualTo("ARCHIVED");
+    }
 }

@@ -15,6 +15,12 @@ import { api } from '../api'
 const orders = ref<OrderSummary[]>([])
 const total = ref(0)
 const page = ref(0)
+// keyset 模式：游标替代页码，深页不再随页数变慢
+const useKeyset = ref(true)
+const cursorCreatedAt = ref<string | null>(null)
+const cursorId = ref<string | null>(null)
+const hasMore = ref(true)
+const loadingMore = ref(false)
 const size = ref(20)
 
 const sortKey = ref('createdAt')
@@ -63,9 +69,43 @@ const statusOptions = [
 
 onMounted(load)
 
+async function loadMore() {
+  if (!hasMore.value || loadingMore.value) return
+  loadingMore.value = true
+  try {
+    const response = await api.get<{
+      items: OrderSummary[]
+      nextCreatedAt: string | null
+      nextId: string | null
+    }>('/admin/v1/orders/keyset', {
+      status: status.value || undefined,
+      cursorCreatedAt: cursorCreatedAt.value || undefined,
+      cursorId: cursorId.value || undefined,
+      size: size.value
+    })
+    orders.value = [...orders.value, ...response.items]
+    cursorCreatedAt.value = response.nextCreatedAt
+    cursorId.value = response.nextId
+    hasMore.value = Boolean(response.nextId)
+  } catch (cause) {
+    error.value = cause instanceof Error ? cause.message : '加载更多失败'
+  } finally {
+    loadingMore.value = false
+  }
+}
+
 async function load() {
   loading.value = true
   error.value = ''
+  if (useKeyset.value) {
+    cursorCreatedAt.value = null
+    cursorId.value = null
+    hasMore.value = true
+    orders.value = []
+    loading.value = false
+    await loadMore()
+    return
+  }
   try {
     const response = await api.get<{ items: OrderSummary[]; total: number }>('/admin/v1/orders', {
       status: status.value || undefined,
@@ -176,7 +216,11 @@ function money(amount: number, currency: string) {
     </el-table>
     <div class="table-footer">
       <span class="muted">共 {{ total }} 条订单</span>
-      <el-pagination
+      <el-button v-if="useKeyset" data-testid="load-more" :loading="loadingMore"
+                 :disabled="!hasMore" @click="loadMore">
+        {{ hasMore ? '加载更多' : '没有更多了' }}
+      </el-button>
+      <el-pagination v-else
         layout="prev, pager, next"
         :page-size="size"
         :total="total"

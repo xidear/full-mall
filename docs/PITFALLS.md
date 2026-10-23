@@ -130,3 +130,15 @@ make api-restart          # 或 bash scripts/restart-api.sh
 4. 轮询 `/api/v1/products` 直到 200，90 秒不就绪则**打印日志并退出 1**。
 
 任何"改完代码要验证"的场合都走它；不要再手工 `java -jar`。
+
+## `pgrep -f` / `pkill -f` 把自己的命令行也匹配进去
+
+**现象**：执行 `pkill -9 -f 'java -jar .*fullmall-server'` 时，**当前这条 bash 命令自己被 SIGKILL**（因为命令行里含同样字符串）。
+
+**正确做法**：用方括号技巧让模式不匹配自身：
+
+```bash
+pgrep -f "[f]ullmall-server-0.1.0" | xargs -r kill -9
+```
+
+`scripts/restart-api.sh` 里的 `pgrep -f "fullmall-server-0.1.0-SNAPSHOT.jar"` 不受影响（脚本自身命令行不含该字符串）。

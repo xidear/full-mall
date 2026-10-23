@@ -25,6 +25,7 @@ public class AdminCatalogController {
     private final com.fullmall.catalog.app.SkuMatrixService skuMatrixService;
     private final com.fullmall.catalog.app.SkuMatrixMultiService skuMatrixMultiService;
     private final com.fullmall.catalog.app.SkuPriceRuleService skuPriceRuleService;
+    private final com.fullmall.catalog.app.SkuOptionsMigrationService skuOptionsMigrationService;
     private final com.fullmall.catalog.app.ProductTranslationWorkflowService translationWorkflow;
 
     public AdminCatalogController(CatalogService catalogService,
@@ -32,13 +33,15 @@ public class AdminCatalogController {
                                   com.fullmall.catalog.app.SkuCostService skuCostService,
                                   com.fullmall.catalog.app.SkuMatrixService skuMatrixService,
                                   com.fullmall.catalog.app.SkuMatrixMultiService skuMatrixMultiService,
-                                  com.fullmall.catalog.app.SkuPriceRuleService skuPriceRuleService) {
+                                  com.fullmall.catalog.app.SkuPriceRuleService skuPriceRuleService,
+                                  com.fullmall.catalog.app.SkuOptionsMigrationService skuOptionsMigrationService) {
         this.catalogService = catalogService;
         this.translationWorkflow = translationWorkflow;
         this.skuCostService = skuCostService;
         this.skuMatrixService = skuMatrixService;
         this.skuMatrixMultiService = skuMatrixMultiService;
         this.skuPriceRuleService = skuPriceRuleService;
+        this.skuOptionsMigrationService = skuOptionsMigrationService;
     }
 
     /**
@@ -178,6 +181,14 @@ public class AdminCatalogController {
                                      java.util.Map<String, java.util.List<String>> dimensions,
                                      java.util.List<java.util.Map<String, String>> disabled,
                                      long priceAmount) {
+    }
+
+    /** 把既有 options_json 回填到关联表（ADR-003 第 2 步）。 */
+    @org.springframework.web.bind.annotation.PostMapping("/{productId}/sku-options/backfill")
+    @org.springframework.security.access.prepost.PreAuthorize("hasAnyRole('ADMIN','OPERATOR')")
+    public com.fullmall.catalog.app.SkuOptionsMigrationService.Result backfillSkuOptions(
+            @PathVariable UUID productId) {
+        return skuOptionsMigrationService.backfillProduct(productId);
     }
 
     /** 多维度规格生成（颜色 × 内存 × 存储，支持组合禁用）。 */

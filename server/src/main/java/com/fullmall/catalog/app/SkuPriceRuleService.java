@@ -42,12 +42,38 @@ public class SkuPriceRuleService {
     public List<Change> preview(UUID productId, Map<String, String> match, Mode mode, long value) {
         validate(match, mode, value);
         String matchJson = toJson(match);
+        // O5：筛选走关联表（真相来源）。未回填的商品**明确报错**，不静默回退 JSON。
+        Integer relationalRows = jdbc.queryForObject("""
+                SELECT COUNT(*) FROM sku_option_value v
+                  JOIN sku s ON s.id = v.sku_id
+                 WHERE s.product_id = ?
+                """, Integer.class, productId);
+        if (relationalRows == null || relationalRows == 0) {
+            Integer jsonRows = jdbc.queryForObject("""
+                    SELECT COUNT(*) FROM sku WHERE product_id = ? AND options_json <> '{}'::jsonb
+                    """, Integer.class, productId);
+            if (jsonRows != null && jsonRows > 0) {
+                throw ApiException.conflict("SKU_OPTIONS_NOT_MIGRATED",
+                        "该商品规格尚未迁移到关联表，请先执行回填（/admin/v1/products/{id}/sku-options/backfill）");
+            }
+        }
         List<Change> changes = new ArrayList<>();
         jdbc.query("""
-                SELECT id, sku_code, price_amount
-                  FROM sku
-                 WHERE product_id = ? AND options_json @> ?::jsonb
-                 ORDER BY sku_code
+                SELECT DISTINCT s.id, s.sku_code, s.price_amount
+                  FROM sku s
+                  JOIN sku_option_value v ON v.sku_id = s.id
+                  JOIN product_option_value ov ON ov.id = v.option_value_id
+                  JOIN product_option o ON o.id = ov.option_id
+                 WHERE s.product_id = ?
+                   AND NOT EXISTS (
+                        SELECT 1 FROM (SELECT ?::text AS name, ?::text AS value) AS want
+                         WHERE NOT EXISTS (
+                             SELECT 1 FROM sku_option_value v2
+                               JOIN product_option o2 ON o2.id = v2.option_id
+                               JOIN product_option_value ov2 ON ov2.id = v2.option_value_id
+                              WHERE v2.sku_id = s.id AND o2.name = want.name AND ov2.name = want.value)
+                   )
+                 ORDER BY s.sku_code
                 """, rs -> {
             long before = rs.getLong("price_amount");
             long after = mode == Mode.SET ? value : before + value;
@@ -58,7 +84,7 @@ public class SkuPriceRuleService {
             }
             changes.add(new Change(rs.getObject("id", UUID.class), rs.getString("sku_code"),
                     before, after));
-        }, productId, matchJson);
+        }, productId, match.keySet().iterator().next(), match.values().iterator().next());
         if (changes.isEmpty()) {
             throw ApiException.notFound("SKU_FILTER_NO_MATCH",
                     "没有匹配该规格条件的 SKU：" + matchJson);
@@ -77,6 +103,10 @@ public class SkuPriceRuleService {
     }
 
     private void validate(Map<String, String> match, Mode mode, long value) {
+        if (match != null && match.size() > 1) {
+            throw ApiException.badRequest("SKU_FILTER_SINGLE_ONLY",
+                    "当前一次只支持一个规格条件（如 存储=256G）");
+        }
         if (match == null || match.isEmpty()) {
             // 空筛选等于"全商品改价"，风险太高，必须显式传维度条件
             throw ApiException.badRequest("SKU_FILTER_REQUIRED",

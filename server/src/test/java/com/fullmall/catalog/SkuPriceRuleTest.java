@@ -48,6 +48,9 @@ class SkuPriceRuleTest {
     SkuPriceRuleService rules;
 
     @Autowired
+    com.fullmall.catalog.app.SkuOptionsMigrationService migration;
+
+    @Autowired
     JdbcTemplate jdbc;
 
     private UUID phone(String tag) {
@@ -69,6 +72,8 @@ class SkuPriceRuleTest {
     @Test
     void onlyMatchingSpecIsChanged() {
         UUID productId = phone("T1");
+        // O5：筛选走关联表，先回填
+        migration.backfillProduct(productId);
 
         var preview = rules.preview(productId, Map.of("存储", "256G"),
                 SkuPriceRuleService.Mode.ADD, 10_000);
@@ -94,6 +99,7 @@ class SkuPriceRuleTest {
     @Test
     void rejectsEmptyFilterAndNonPositiveResult() {
         UUID productId = phone("T2");
+        migration.backfillProduct(productId);
         assertThatThrownBy(() -> rules.preview(productId, Map.of(),
                 SkuPriceRuleService.Mode.ADD, 100))
                 .hasMessageContaining("不允许无差别改价");

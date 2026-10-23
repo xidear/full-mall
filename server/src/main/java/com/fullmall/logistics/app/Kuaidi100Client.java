@@ -26,8 +26,7 @@ public class Kuaidi100Client {
     private final String customer;
     private final String key;
     private final String endpoint;
-    private final HttpClient http = HttpClient.newBuilder()
-            .connectTimeout(Duration.ofSeconds(5)).build();
+    private final HttpClient http = com.fullmall.platform.http.HttpClients.shared();
 
     public Kuaidi100Client(
             @Value("${app.logistics.kuaidi100.customer:}") String customer,

@@ -26,8 +26,7 @@ public class WechatBillClient {
     private final String serialNumber;
     private final PrivateKey privateKey;
     private final String baseUrl;
-    private final HttpClient http = HttpClient.newBuilder()
-            .connectTimeout(Duration.ofSeconds(5)).build();
+    private final HttpClient http = com.fullmall.platform.http.HttpClients.shared();
 
     public WechatBillClient(String merchantId, String serialNumber, String privateKeyPem,
                             String apiV3Key, String baseUrl) {

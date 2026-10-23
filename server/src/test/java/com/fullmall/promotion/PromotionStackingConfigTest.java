@@ -63,12 +63,13 @@ class PromotionStackingConfigTest {
 
     private void rule(String code, long threshold, long value, int priority) {
         jdbc.update("""
-                INSERT INTO promotion (id, code, title, type, status, starts_at, ends_at, priority, rules)
+                INSERT INTO promotion (id, code, title, type, status, starts_at, ends_at, priority,
+                                       rules, threshold_amount, rule_value, channel)
                 VALUES (?, ?, ?, 'FULL_REDUCTION', 'ACTIVE',
-                        now() - interval '1 hour', now() + interval '1 day', ?, ?::jsonb)
+                        now() - interval '1 hour', now() + interval '1 day', ?, ?::jsonb, ?, ?, 'ONLINE')
                 """, UUID.randomUUID(), code, code, priority,
                 "{\"thresholdAmount\":" + threshold + ",\"value\":" + value
-                        + ",\"channel\":\"ONLINE\"}");
+                        + ",\"channel\":\"ONLINE\"}", threshold, value);
     }
 
     @Test

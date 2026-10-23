@@ -22,8 +22,7 @@ public class HttpModerationAdapter implements ContentModeration {
 
     private final String endpoint;
     private final String apiKey;
-    private final HttpClient http = HttpClient.newBuilder()
-            .connectTimeout(Duration.ofSeconds(3)).build();
+    private final HttpClient http = com.fullmall.platform.http.HttpClients.shared();
 
     public HttpModerationAdapter(String endpoint, String apiKey) {
         if (endpoint == null || endpoint.isBlank()) {

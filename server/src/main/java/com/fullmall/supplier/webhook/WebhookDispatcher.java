@@ -37,8 +37,7 @@ public class WebhookDispatcher {
     private static final long[] BACKOFF_SECONDS = {60, 300, 1800, 7200, 21600};
 
     private final JdbcTemplate jdbc;
-    private final HttpClient http = HttpClient.newBuilder()
-            .connectTimeout(Duration.ofSeconds(5)).build();
+    private final HttpClient http = com.fullmall.platform.http.HttpClients.shared();
 
     public WebhookDispatcher(JdbcTemplate jdbc) {
         this.jdbc = jdbc;

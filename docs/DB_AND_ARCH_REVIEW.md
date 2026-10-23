@@ -37,10 +37,12 @@
 | `audit_log.before_json/after_json` | ✅ 保留 JSON | 审计留证，结构随业务演进 |
 | `payment_event.payload_json`、`webhook_delivery.payload` | ✅ 保留 JSON | 外部报文原文，用于对账与举证 |
 | `sku.shelf_life_policy_json` | ⚠️ 建议改列 | 只有 `{mode,days,warnDays}` 三个字段，查询/校验都要解 JSON；建议拆三列（待办，涉及前后端） |
-| `promotion.rules` | ⚠️ 混合 | `thresholdAmount/value/channel` 已在查询里被 `->>` 提取，说明是**关系型数据**；建议拆列，`excludeSkuIds` 单独建关联表 |
+| `promotion.rules` | ✅ 已改（投影列 + 触发器） | 新增 `threshold_amount/rule_value/channel/exclusive_group` 四列与 `promotion_active_channel_idx`；**rules 仍是唯一事实来源**，由 V103 触发器同步，避免程序漏写；`excludeSkuIds` 仍留 JSON |
 | `coupon_template.scope_ids` | ⚠️ 建议改关联表 | 一组 ID 用 JSON 存无法加外键、无法索引；建议 `coupon_template_scope(template_id, scope_type, scope_id)` |
 | `sku.options_json` | ✅ 保留（ADR-003 已定） | 关联表为真相来源，JSON 是投影；生成/回填后自动重建 |
 | `theme_config.config_json`、`integration_config.config_hint`、`export_job.params`、`support_message.metadata_json`、`ai_event.payload`、`ai_action_draft.payload`、`analytics_event.properties_json` | ✅ 保留 JSON | 结构不固定或仅展示用 |
+
+> 另外发现并修掉一个**静默兜底**：`threshold_amount` 为空时旧代码直接跳过该规则；现在改为抛错并提示检查迁移/写入。 |
 
 ### 1.3 缺 `created_at` 的表（33 个）
 
@@ -81,7 +83,13 @@
 | 事件发布用 Modulith events | 正常 | 保持 |
 | 无统一分页 DTO | 各接口返回字段名不一致（`nextCreatedAt` vs `cursor`） | 建议统一 `KeysetPage<T>{items,nextCursor}` |
 
-## 三、本轮改动清单
+## 三、本轮改动清单（第 44 轮追加）
+
+5. `platform/http/HttpClients`：10 处 HTTP 适配器统一共享客户端。
+6. `V102 + V103`：promotion 规则门槛/面额/渠道提为投影列（触发器同步），加渠道索引。
+7. 修复 `threshold_amount` 为空时**静默跳过规则**的兜底行为（改为明确报错）。
+
+## 四、本轮改动清单
 
 1. `V101__schema_review_indexes.sql`：45 个外键索引 + 5 个复合索引 + 删 1 个重复索引。
 2. `platform/json/Json.java`：统一 JSON 入口；6 处客户端改用它。

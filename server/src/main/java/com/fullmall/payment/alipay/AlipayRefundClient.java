@@ -31,8 +31,7 @@ public class AlipayRefundClient {
     private final PrivateKey appPrivateKey;
     private final PublicKey alipayPublicKey;
     private final String gateway;
-    private final HttpClient http = HttpClient.newBuilder()
-            .connectTimeout(Duration.ofSeconds(5)).build();
+    private final HttpClient http = com.fullmall.platform.http.HttpClients.shared();
 
     public AlipayRefundClient(String appId, String appPrivateKeyPem, String alipayPublicKeyPem,
                               String gateway) {

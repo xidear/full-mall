@@ -224,18 +224,19 @@ public class PromotionPreviewService {
         }
         List<PromotionEngine.Rule> rules = new ArrayList<>();
         jdbcTemplate.query("""
-                SELECT code, type, priority,
-                       (rules->>'thresholdAmount')::bigint AS threshold_amount,
-                       (rules->>'value')::bigint AS rule_value
+                SELECT code, type, priority, threshold_amount, rule_value
                   FROM promotion
                  WHERE status = 'ACTIVE'
                    AND type IN ('FULL_REDUCTION', 'FULL_DISCOUNT')
                    AND starts_at <= now() AND ends_at >= now()
-                   AND COALESCE(rules->>'channel', 'ONLINE') = ?
+                   AND COALESCE(channel, 'ONLINE') = ?
                 """, rs -> {
             long threshold = rs.getLong("threshold_amount");
             if (rs.wasNull()) {
-                return; // 未配置门槛视为未启用（配置错误由引擎抛错）
+                // 不能静默跳过：门槛缺失说明数据未迁移或写入不完整，必须暴露
+                throw new IllegalStateException(
+                        "促销规则缺少 threshold_amount（code=" + rs.getString("code")
+                                + "），请检查迁移 V102 回填或创建逻辑");
             }
             long value = rs.getLong("rule_value");
             rules.add(new PromotionEngine.Rule(

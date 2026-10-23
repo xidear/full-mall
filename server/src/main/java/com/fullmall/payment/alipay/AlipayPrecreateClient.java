@@ -34,8 +34,7 @@ public class AlipayPrecreateClient {
     private final PublicKey alipayPublicKey;
     private final String gateway;
     private final String notifyUrl;
-    private final HttpClient http = HttpClient.newBuilder()
-            .connectTimeout(Duration.ofSeconds(5)).build();
+    private final HttpClient http = com.fullmall.platform.http.HttpClients.shared();
 
     public AlipayPrecreateClient(String appId, String appPrivateKeyPem, String alipayPublicKeyPem,
                                  String gateway, String notifyUrl) {

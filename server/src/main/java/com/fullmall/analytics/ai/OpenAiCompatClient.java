@@ -24,8 +24,7 @@ public class OpenAiCompatClient {
     private final String apiKey;
     private final String textModel;
     private final String imageModel;
-    private final HttpClient http = HttpClient.newBuilder()
-            .connectTimeout(Duration.ofSeconds(5)).build();
+    private final HttpClient http = com.fullmall.platform.http.HttpClients.shared();
 
     public OpenAiCompatClient(String baseUrl, String apiKey, String textModel, String imageModel) {
         if (isBlank(baseUrl) || isBlank(apiKey) || isBlank(textModel)) {

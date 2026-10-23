@@ -166,8 +166,13 @@ async function submitAfterSale() {
       </div>
     </div>
 
-    <div v-if="tracking?.length || trackingError" class="panel">
+    <!-- 已发货就渲染面板：轨迹为空时也要给用户明确反馈，而不是"点了没反应" -->
+    <div v-if="hasShipped || tracking?.length || trackingError" class="panel">
       <h2>物流轨迹</h2>
+      <p v-if="trackingLoading" class="muted">查询中…</p>
+      <p v-else-if="!tracking?.length && !trackingError" class="muted">
+        暂无物流轨迹（承运商尚未回传），请稍后再查。
+      </p>
       <p v-if="trackingError" class="form-error">物流信息暂时不可用，请稍后再试。</p>
       <ul v-else class="tracking-list">
         <li v-for="(event, index) in tracking" :key="index">

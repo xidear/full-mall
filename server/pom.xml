@@ -45,6 +45,12 @@
     </dependencyManagement>
 
     <dependencies>
+        <!-- 腾讯云 COS（官方 SDK；适配器独立包，可整体删除） -->
+        <dependency>
+            <groupId>com.qcloud</groupId>
+            <artifactId>cos_api</artifactId>
+            <version>5.6.227</version>
+        </dependency>
         <!-- 七牛云对象存储（官方 SDK；适配器独立成包，可整体删除） -->
         <dependency>
             <groupId>com.qiniu</groupId>

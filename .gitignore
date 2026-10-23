@@ -63,3 +63,23 @@ web/playwright-report/
 *.pem
 license-private*
 .dsh-license/
+
+# --- secrets (added 2026-10-23) ---
+*.key
+*.p12
+*.pfx
+*.jks
+*.keystore
+*.ppk
+privkey*.pem
+*-key.pem
+*_key.pem
+id_rsa*
+id_ed25519*
+.env
+.env.*
+!.env.example
+!.env.*.example
+!.env.sample
+!.env.template
+*credentials*

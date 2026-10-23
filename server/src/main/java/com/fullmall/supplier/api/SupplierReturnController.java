@@ -58,9 +58,7 @@ public class SupplierReturnController {
                                       @RequestParam(required = false) String cursorCreatedAt,
                                       @RequestParam(required = false) UUID cursorId,
                                       @RequestParam(defaultValue = "20") int size) {
-        return returns.listKeyset(supplierId, status,
-                cursorCreatedAt == null || cursorCreatedAt.isBlank()
-                        ? null : java.time.Instant.parse(cursorCreatedAt), cursorId, size);
+        return returns.listKeyset(supplierId, status, cursorCreatedAt, cursorId, size);
     }
 
     @GetMapping

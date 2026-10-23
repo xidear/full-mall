@@ -65,7 +65,7 @@ public class AuditEventService {
                                                       java.time.Instant from, java.time.Instant to,
                                                       java.time.Instant cursorCreatedAt,
                                                       java.util.UUID cursorId, int size) {
-        int safeSize = Math.min(Math.max(size, 1), 200);
+        int safeSize = com.fullmall.platform.paging.KeysetPage.normalizeSize(size);
         var items = jdbcTemplate.query("""
                 SELECT id, event_type, actor, resource, resource_id, detail, request_id, created_at
                   FROM audit_event
@@ -93,6 +93,7 @@ public class AuditEventService {
         java.util.Map<String, Object> result = new java.util.LinkedHashMap<>();
         result.put("items", items);
         result.put("size", safeSize);
+        // 审计项是 Map（字段名已是字符串），next 游标直接从最后一条取，保持契约不变
         result.put("nextCreatedAt", items.isEmpty() ? null : items.get(items.size() - 1).get("createdAt"));
         result.put("nextId", items.isEmpty() ? null : items.get(items.size() - 1).get("id"));
         return result;

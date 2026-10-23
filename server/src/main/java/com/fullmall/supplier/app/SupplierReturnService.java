@@ -232,8 +232,9 @@ public class SupplierReturnService {
 
     /** Keyset 分页：按 (created_at, id) 倒序，保留供应商与状态筛选。 */
     public Map<String, Object> listKeyset(UUID supplierId, String status,
-                                          java.time.Instant cursorCreatedAt, UUID cursorId, int size) {
-        int safeSize = Math.min(Math.max(size, 1), 100);
+                                          String cursorCreatedAt, UUID cursorId, int size) {
+        var cursor = com.fullmall.platform.paging.KeysetPage.Cursor.parse(cursorCreatedAt, cursorId);
+        int safeSize = com.fullmall.platform.paging.KeysetPage.normalizeSize(size);
         String filter = status == null || status.isBlank() ? null : status.trim().toUpperCase(Locale.ROOT);
         if (filter != null && !STATUSES.contains(filter)) {
             throw ApiException.badRequest("SUPPLIER_RETURN_STATUS_INVALID", "未知状态：" + status);
@@ -256,15 +257,10 @@ public class SupplierReturnService {
                 rs.getTimestamp("created_at").toInstant(),
                 rs.getTimestamp("closed_at") == null ? null : rs.getTimestamp("closed_at").toInstant()),
                 supplierId, supplierId, filter, filter,
-                cursorCreatedAt == null ? null : java.sql.Timestamp.from(cursorCreatedAt),
-                cursorCreatedAt == null ? null : java.sql.Timestamp.from(cursorCreatedAt),
-                cursorId, safeSize);
-        Map<String, Object> result = new java.util.LinkedHashMap<>();
-        result.put("items", items);
-        result.put("size", safeSize);
-        result.put("nextCreatedAt", items.isEmpty() ? null
-                : items.get(items.size() - 1).createdAt().toString());
-        result.put("nextId", items.isEmpty() ? null : items.get(items.size() - 1).id());
-        return result;
+                cursor.createdAt() == null ? null : java.sql.Timestamp.from(cursor.createdAt()),
+                cursor.createdAt() == null ? null : java.sql.Timestamp.from(cursor.createdAt()),
+                cursor.id(), safeSize);
+        return com.fullmall.platform.paging.KeysetPage.toResponse(
+                items, safeSize, SupplierReturn::createdAt, SupplierReturn::id);
     }
 }

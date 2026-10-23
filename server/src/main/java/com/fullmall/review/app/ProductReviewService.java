@@ -122,13 +122,8 @@ public class ProductReviewService {
                 cursor.createdAt() == null ? null : java.sql.Timestamp.from(cursor.createdAt()),
                 cursor.createdAt() == null ? null : java.sql.Timestamp.from(cursor.createdAt()),
                 cursor.id(), safeSize);
-        java.util.Map<String, Object> result = new java.util.LinkedHashMap<>();
-        result.put("items", items);
-        result.put("size", safeSize);
-        result.put("nextCreatedAt", items.isEmpty() ? null
-                : items.get(items.size() - 1).createdAt().toString());
-        result.put("nextId", items.isEmpty() ? null : items.get(items.size() - 1).id());
-        return result;
+        return com.fullmall.platform.paging.KeysetPage.toResponse(
+                items, safeSize, AdminReview::createdAt, AdminReview::id);
     }
 
     public java.util.List<AdminReview> listForAdmin(String status, int page, int size) {

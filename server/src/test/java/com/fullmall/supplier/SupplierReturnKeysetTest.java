@@ -75,7 +75,7 @@ class SupplierReturnKeysetTest {
         Map<String, Object> first = returns.listKeyset(null, "REQUESTED", null, null, 2);
         var firstItems = (List<SupplierReturnService.SupplierReturn>) first.get("items");
         Map<String, Object> second = returns.listKeyset(null, "REQUESTED",
-                java.time.Instant.parse((String) first.get("nextCreatedAt")),
+                (String) first.get("nextCreatedAt"),
                 (UUID) first.get("nextId"), 10);
         var secondItems = (List<SupplierReturnService.SupplierReturn>) second.get("items");
 

@@ -57,6 +57,7 @@ public class OrderService {
     private final com.fullmall.bargain.app.BargainService bargainService;
     private final com.fullmall.member.app.MemberPointsService memberPoints;
     private final com.fullmall.promotion.app.PromotionPreviewService promotionPreviews;
+    private final org.springframework.jdbc.core.JdbcTemplate jdbcTemplate;
     private final com.fullmall.coupon.app.CouponService coupons;
     private final com.fullmall.coupon.app.CouponAllocationService couponAllocations;
     private final String couponMode;
@@ -94,6 +95,7 @@ public class OrderService {
                         com.fullmall.bargain.app.BargainService bargainService,
                         com.fullmall.member.app.MemberPointsService memberPoints,
                         com.fullmall.promotion.app.PromotionPreviewService promotionPreviews,
+                        org.springframework.jdbc.core.JdbcTemplate jdbcTemplate,
                         com.fullmall.coupon.app.CouponService coupons,
                         com.fullmall.coupon.app.CouponAllocationService couponAllocations,
                         @org.springframework.beans.factory.annotation.Value("${app.promotion.coupon.mode:EXCLUSIVE}") String couponMode,
@@ -115,6 +117,7 @@ public class OrderService {
         this.bargainService = bargainService;
         this.memberPoints = memberPoints;
         this.promotionPreviews = promotionPreviews;
+        this.jdbcTemplate = jdbcTemplate;
         this.coupons = coupons;
         this.couponAllocations = couponAllocations;
         this.memberAuth = memberAuth;
@@ -526,7 +529,63 @@ public class OrderService {
                 "total", total);
     }
 
+    /**
+     * 订单 keyset 分页：返回本页与下一页游标（`nextCreatedAt`/`nextId`）。
+     *
+     * <p>与 offset 版本并存：前端未切换前不受影响；深页场景请用本方法。
+     */
+    public java.util.Map<String, Object> listOrdersKeyset(String status, String cursorCreatedAt,
+                                                          UUID cursorId, int size) {
+        int safeSize = Math.min(Math.max(size, 1), 100);
+        java.time.Instant cursor = null;
+        if (cursorCreatedAt != null && !cursorCreatedAt.isBlank()) {
+            cursor = java.time.Instant.parse(cursorCreatedAt.trim());
+        }
+        List<OrderSummary> items = orderRepository.findSummariesKeyset(status, cursor, cursorId, safeSize);
+        java.util.Map<String, Object> result = new java.util.LinkedHashMap<>();
+        result.put("items", items);
+        result.put("size", safeSize);
+        if (!items.isEmpty()) {
+            OrderSummary last = items.get(items.size() - 1);
+            result.put("nextCreatedAt", last.createdAt().toString());
+            result.put("nextId", last.id());
+        } else {
+            result.put("nextCreatedAt", null);
+            result.put("nextId", null);
+        }
+        return result;
+    }
+
+    /**
+     * 按订单号入账（支付回调专用）：金额必须与本地应付一致，已支付则幂等返回 false。
+     *
+     * @return true=本次完成入账；false=此前已支付（幂等）
+     */
     @Transactional
+    public boolean markPaidByOrderNo(String orderNo, long paidAmountFen) {
+        if (orderNo == null || orderNo.isBlank()) {
+            throw ApiException.badRequest("ORDER_NO_REQUIRED", "订单号不能为空");
+        }
+        var rows = jdbcTemplate.query("SELECT id, status, total_amount FROM orders WHERE order_no = ?",
+                rs -> rs.next()
+                        ? java.util.Map.<String, Object>of("id", rs.getObject("id", UUID.class),
+                        "status", rs.getString("status"),
+                        "total", rs.getLong("total_amount"))
+                        : null, orderNo);
+        if (rows == null) {
+            throw ApiException.notFound("ORDER_NOT_FOUND", "订单不存在：" + orderNo);
+        }
+        if (paidAmountFen != ((Number) rows.get("total")).longValue()) {
+            throw ApiException.conflict("PAYMENT_AMOUNT_MISMATCH",
+                    "回调金额 " + paidAmountFen + " 与订单应付 " + rows.get("total") + " 不一致");
+        }
+        if ("PAID".equals(rows.get("status"))) {
+            return false;   // 幂等：重复通知不重复入账
+        }
+        markPaid((UUID) rows.get("id"));
+        return true;
+    }
+
     public void markPaid(UUID orderId) {
         Order order = getOrder(orderId);
         if (order.status() == OrderStatus.PAID) {

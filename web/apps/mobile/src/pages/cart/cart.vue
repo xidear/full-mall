@@ -26,12 +26,11 @@ function change(item: CartItem, delta: number) {
 }
 
 function checkout() {
-  // 下单需要地址与手机号，移动端表单尚未做：明确告知，不伪造订单
-  uni.showModal({
-    title: '暂未开通',
-    content: '移动端下单表单（地址/手机号）还没做，请先在网页版完成下单。',
-    showCancel: false
-  })
+  if (!items.value.length) {
+    uni.showToast({ title: '购物车是空的', icon: 'none' })
+    return
+  }
+  uni.navigateTo({ url: '/pages/checkout/checkout' })
 }
 </script>
 

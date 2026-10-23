@@ -13,6 +13,12 @@
       }
     },
     {
+      "path": "pages/checkout/checkout",
+      "style": {
+        "navigationBarTitleText": "填写订单"
+      }
+    },
+    {
       "path": "pages/cart/cart",
       "style": {
         "navigationBarTitleText": "购物车"

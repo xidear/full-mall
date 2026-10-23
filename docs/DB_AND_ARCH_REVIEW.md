@@ -79,7 +79,7 @@
 |---|---|---|
 | 大量 `JdbcTemplate` 手写 SQL，未用 JPA | 有意为之（批量与复杂查询更可控） | 保持，但**读模型**可考虑 jOOQ 统一（需评估引入成本，暂不动） |
 | Modulith 只做结构校验 | 已能在 CI 抓循环依赖（本轮就抓到 distribution↔payment） | 保持，新增模块必须过 `ModulithStructureTest` |
-| 定时任务用自研 `@Scheduled` + 状态表 | 多实例会重复执行 | 已在关键任务用 `pg_advisory_xact_lock`，**其余任务需逐个核对**（待办） |
+| 定时任务多实例 | 12 个 `ScheduledJob` 原先**都没有互斥** | ✅ 已在调度器统一加**租约表** `scheduled_task_lease`（`TaskLease`）：短事务抢占、运行期持有、结束释放、TTL 到期可接管；抢不到记 `SKIPPED`。**不再逐个任务写锁** |
 | 事件发布用 Modulith events | 正常 | 保持 |
 | 无统一分页 DTO | 各接口返回字段名不一致（`nextCreatedAt` vs `cursor`） | 建议统一 `KeysetPage<T>{items,nextCursor}` |
 

@@ -34,12 +34,15 @@ public class ScheduledTaskService implements ApplicationListener<ApplicationRead
     private static final Logger log = LoggerFactory.getLogger(ScheduledTaskService.class);
 
     private final JdbcTemplate jdbcTemplate;
+    private final TaskLease lease;
     private final Map<String, ScheduledJob> jobs = new HashMap<>();
     private final ThreadPoolTaskScheduler scheduler;
     private final Map<String, ScheduledFuture<?>> running = new ConcurrentHashMap<>();
 
-    public ScheduledTaskService(JdbcTemplate jdbcTemplate, List<ScheduledJob> jobBeans) {
+    public ScheduledTaskService(JdbcTemplate jdbcTemplate, TaskLease lease,
+                                List<ScheduledJob> jobBeans) {
         this.jdbcTemplate = jdbcTemplate;
+        this.lease = lease;
         for (ScheduledJob job : jobBeans) {
             if (jobs.put(job.code(), job) != null) {
                 throw new IllegalStateException("定时任务编码重复：" + job.code());
@@ -145,6 +148,14 @@ public class ScheduledTaskService implements ApplicationListener<ApplicationRead
 
     private void execute(ScheduledJob job) {
         long startedAt = System.currentTimeMillis();
+        // 多实例互斥：抢不到租约说明别的实例在跑，记 SKIPPED（既不算成功也不报错）
+        if (!lease.tryAcquire(job.code(), java.time.Duration.ofMinutes(30))) {
+            log.info("定时任务跳过（其他实例持有租约） code={} holder={}", job.code(), lease.holder());
+            jdbcTemplate.update(
+                    "UPDATE scheduled_task SET last_status = 'SKIPPED', last_error = NULL WHERE code = ?",
+                    job.code());
+            return;
+        }
         try {
             job.run();
             jdbcTemplate.update("""
@@ -163,6 +174,8 @@ public class ScheduledTaskService implements ApplicationListener<ApplicationRead
                      WHERE code = ?
                     """, message.length() > 500 ? message.substring(0, 500) : message,
                     System.currentTimeMillis() - startedAt, job.code());
+        } finally {
+            lease.release(job.code());
         }
     }
 

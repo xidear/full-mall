@@ -104,11 +104,16 @@ public class SupportService {
     @Transactional
     public MessageView sendProduct(UUID conversationId, SendProductRequest request) {
         requireAssigned(conversationId, request.agentId());
+        // B10：客服发商品**不产生分销绑定**（客服佣金走 PAYROLL，见决策记录）。
+        // 之前这里拼 ref=<客服ID>&mode=<请求自填>，等于绕过分销绑定策略，已移除。
+        if (request.mode() != null && !request.mode().isBlank()) {
+            throw ApiException.badRequest("SUPPORT_PRODUCT_NO_REFERRAL",
+                    "客服发商品不支持推荐模式：客服佣金走工资（PAYROLL），不做分销绑定");
+        }
         Product product = catalogService.getProduct(request.productId(), "zh-CN");
         Sku sku = product.skus().stream().findFirst()
                 .orElseThrow(() -> ApiException.conflict("SUPPORT_PRODUCT_NO_SKU", "商品没有可售规格"));
-        String mode = request.mode() == null || request.mode().isBlank() ? "PERMANENT" : request.mode();
-        String link = "/product/" + product.id() + "?ref=" + request.agentId() + "&mode=" + mode;
+        String link = "/product/" + product.id();
         Map<String, Object> metadata = new LinkedHashMap<>();
         metadata.put("productId", product.id());
         metadata.put("title", product.title());
@@ -116,8 +121,7 @@ public class SupportService {
         metadata.put("priceAmount", sku.price().amount());
         metadata.put("currency", sku.price().currency());
         metadata.put("link", link);
-        metadata.put("referralMode", mode);
-        metadata.put("referrerId", request.agentId());
+        metadata.put("referralMode", "NONE");
         return repository.insertMessage(conversationId, "AGENT", request.agentId(),
                 "PRODUCT", "推荐商品：" + product.title(), writeJson(metadata));
     }

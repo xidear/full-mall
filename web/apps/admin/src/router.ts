@@ -26,6 +26,7 @@ import MaterialView from './views/MaterialView.vue'
 import AiActionsView from './views/AiActionsView.vue'
 import PosPromotionsView from './views/PosPromotionsView.vue'
 import TranslationsView from './views/TranslationsView.vue'
+import FaqView from './views/FaqView.vue'
 import SetupView from './views/SetupView.vue'
 import AuditLogView from './views/AuditLogView.vue'
 import ReviewsView from './views/ReviewsView.vue'
@@ -68,6 +69,7 @@ const router = createRouter({
     { path: '/ai-actions', name: 'ai-actions', component: AiActionsView, meta: { title: 'AI 变更审批' } },
     { path: '/pos-promotions', name: 'pos-promotions', component: PosPromotionsView, meta: { title: 'POS 专属促销' } },
     { path: '/translations', name: 'translations', component: TranslationsView, meta: { title: '商品译文' } },
+    { path: '/faq', name: 'faq', component: FaqView, meta: { title: 'FAQ 知识库' } },
     { path: '/setup', name: 'setup', component: SetupView, meta: { title: '首次配置' } },
     { path: '/audit', name: 'audit', component: AuditLogView, meta: { title: '操作审计' } },
     { path: '/reviews', name: 'reviews', component: ReviewsView, meta: { title: '评价审核' } },

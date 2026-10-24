@@ -34,3 +34,16 @@
 
 **保守口径**（可改）：已命中秒杀/买赠等"活动型优惠"时**跳过**阶梯，避免多层叠加失控。
 数据维护：`promotion_ladder(kind=GIFT|SECOND_HALF, threshold_fen, gift_sku_id, gift_quantity, priority)`。
+
+## AI 素材生产
+
+| 表/接口 | 说明 |
+|---|---|
+| `ai_provider` / `PUT /admin/v1/ai/providers/{code}` | 同类可多家，按 `priority` 自动选，也可显式指定；API Key 加密落库、不回显 |
+| `POST /admin/v1/ai/media/jobs` | 提交生成任务（IMAGE/VIDEO/TEXT × 主图/规格/详情/视频/文案），异步执行 |
+| `GET /admin/v1/ai/media/jobs/{id}` | 任务状态与结果资产 id |
+| `GET /admin/v1/ai/media/prompts` | 历史提示词（按商品/规格筛选，可直接上屏） |
+| `POST /admin/v1/ai/media/prompts/optimize` | 用文本模型（可指向 vLLM）优化提示词 |
+
+协议：`openai-images`、`dashscope-image`、`dashscope-video`、`openai-chat`。
+执行：`ai-media-worker` 定时任务（多实例由调度器租约保证不重复）。

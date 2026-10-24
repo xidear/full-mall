@@ -437,6 +437,15 @@ export const HELP_ENTRIES: HelpEntry[] = [
     pitfalls: ['不要照抄顾客原话当答案'],
     related: ['/products']
   },
+  {
+    route: '/ai-media',
+    title: 'AI 素材生成',
+    description: '用 AI 生成商品主图、规格图、详情图、主图视频与详情文案，异步执行并自动入素材库。',
+    steps: ['选类型与用途（主图/规格/详情/视频/文案）', '选供应商（可多家）', '写提示词或点历史提示词上屏', '选导图（已有实拍图）', '提交，完成后自动进素材库'],
+    tips: ['提示词与导图都会留痕，下次可直接复用', '可点「用模型优化提示词」再人工修改', '视频可用已有主图做首帧'],
+    pitfalls: ['没配置对应类型的供应商时按钮不可用——先去第三方服务配置', '同类供应商可配多家，按优先级自动选，也可手动指定'],
+    related: ['/materials', '/products']
+  },
 ]
 
 export function helpFor(route: string): HelpEntry | undefined {

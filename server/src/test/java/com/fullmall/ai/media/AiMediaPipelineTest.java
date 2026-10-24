@@ -101,6 +101,21 @@ class AiMediaPipelineTest {
             exchange.getResponseBody().write(out);
             exchange.close();
         });
+        server.createContext("/images/edits", exchange -> {
+            lastImageRequest.set(new String(exchange.getRequestBody().readAllBytes(),
+                    StandardCharsets.ISO_8859_1));
+            String body = "{\"data\":[{\"b64_json\":\""
+                    + Base64.getEncoder().encodeToString(PNG) + "\"}]}";
+            byte[] out = body.getBytes(StandardCharsets.UTF_8);
+            exchange.sendResponseHeaders(200, out.length);
+            exchange.getResponseBody().write(out);
+            exchange.close();
+        });
+        server.createContext("/ref", exchange -> {
+            exchange.sendResponseHeaders(200, PNG.length);
+            exchange.getResponseBody().write(PNG);
+            exchange.close();
+        });
         server.createContext("/chat/completions", exchange -> {
             String body = "{\"choices\":[{\"message\":{\"content\":\"白底、45° 侧光、浅灰渐变背景\"}}]}";
             byte[] out = body.getBytes(StandardCharsets.UTF_8);
@@ -160,8 +175,8 @@ class AiMediaPipelineTest {
         UUID refAsset = UUID.randomUUID();
         jdbc.update("""
                 INSERT INTO asset (id, name, url, kind, owner_username, purpose)
-                VALUES (?, '实拍参考图', 'https://cdn.example.com/ref.png', 'IMAGE', 'admin', 'PRODUCT')
-                """, refAsset);
+                VALUES (?, '实拍参考图', ?, 'IMAGE', 'admin', 'PRODUCT')
+                """, refAsset, base + "/ref/ref.png");
 
         UUID jobId = media.enqueue(new AiMediaService.CreateJob(
                 MediaKind.IMAGE, "stub-image-ref", null, null, "DETAIL",
@@ -171,7 +186,7 @@ class AiMediaPipelineTest {
 
         assertThat(media.job(jobId)).containsEntry("status", "SUCCEEDED");
         assertThat(lastImageRequest.get())
-                .as("参考图必须作为参数发给供应商，而不是只留痕")
-                .contains("https://cdn.example.com/ref.png");
+                .as("参考图必须真实发给供应商（gpt-image-1 走 multipart image[]）")
+                .contains("name=\"image[]\"").contains("ref1.png");
     }
 }

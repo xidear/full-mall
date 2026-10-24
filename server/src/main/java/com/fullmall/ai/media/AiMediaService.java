@@ -190,6 +190,7 @@ public class AiMediaService {
             row.put("prompt", rs.getString("prompt"));
             row.put("negative", rs.getString("negative"));
             row.put("params", rs.getString("params"));
+            row.put("sources", rs.getString("sources"));
             row.put("provider", new ProviderConfig(
                     rs.getObject("provider_id", UUID.class),
                     MediaKind.valueOf(rs.getString("provider_kind")),
@@ -206,10 +207,18 @@ public class AiMediaService {
             if (adapter == null) {
                 throw new IllegalStateException("协议未实现：" + provider.protocol());
             }
+            // 参考图/引导图：按 source_asset_ids 取真实 URL 传给模型，而不是只留痕
+            java.util.List<String> referenceImages = referenceUrls(
+                    String.valueOf(row.get("sources")));
+            Map<String, Object> effective = new LinkedHashMap<>(params);
+            if (!referenceImages.isEmpty()) {
+                effective.put("referenceImageUrls", referenceImages);
+                effective.putIfAbsent("firstFrameUrl", referenceImages.get(0));
+            }
             GeneratedMedia media = adapter.generate(provider,
                     String.valueOf(row.get("prompt")),
                     row.get("negative") == null ? null : String.valueOf(row.get("negative")),
-                    params);
+                    effective);
             UUID assetId = registerAsset(jobId, provider, (String) row.get("kind"), media);
             jdbc.update("""
                     UPDATE ai_gen_job SET status = 'SUCCEEDED', asset_id = ?, error = NULL,
@@ -276,6 +285,30 @@ public class AiMediaService {
                             : ("供应商不可用：" + code));
         }
         return rows.get(0);
+    }
+
+    /** 从任务里记录的素材 id 取 URL（参考图/视频引导图）。 */
+    private java.util.List<String> referenceUrls(String sourcesJson) {
+        java.util.List<String> urls = new java.util.ArrayList<>();
+        if (sourcesJson == null || sourcesJson.isBlank() || "[]".equals(sourcesJson)) {
+            return urls;
+        }
+        for (com.fasterxml.jackson.databind.JsonNode node : Json.read(sourcesJson)) {
+            String id = node.asText("");
+            if (id.isBlank()) {
+                continue;
+            }
+            try {
+                var rows = jdbc.query("SELECT url FROM asset WHERE id = ?::uuid",
+                        (rs, rowNum) -> rs.getString("url"), id);
+                if (!rows.isEmpty()) {
+                    urls.add(rows.get(0));
+                }
+            } catch (RuntimeException error) {
+                throw new IllegalStateException("参考图不存在：" + id, error);
+            }
+        }
+        return urls;
     }
 
     private String decrypt(String stored) {

@@ -138,7 +138,7 @@ onMounted(load)
     <h1>AI 素材生成</h1>
     <el-alert type="info" :closable="false" show-icon class="mb-16"
               title="只做内容生产：商品图 / 规格图 / 详情图 / 视频 / 文案"
-              description="生成是异步的，完成后自动进入素材库；提示词与导图都会留痕，可复用。" />
+              description="生成是异步的，完成后自动进入素材库；提示词、参考图/引导图都会留痕并真实传给模型。" />
 
     <el-row :gutter="16">
       <el-col :span="14">
@@ -184,15 +184,15 @@ onMounted(load)
                 <el-option label="720×1280（竖图/主图）" value="720x1280" />
               </el-select>
             </el-form-item>
-            <el-form-item v-if="form.kind === 'VIDEO'" label="首帧图URL">
-              <el-input v-model="form.firstFrameUrl" placeholder="用已有商品图做首帧（可选）" />
+            <el-form-item v-if="form.kind === 'VIDEO'" label="引导图（首帧）URL">
+              <el-input v-model="form.firstFrameUrl" placeholder="不填则用下方选中的第一张参考图做首帧" />
             </el-form-item>
-            <el-form-item label="导图">
+            <el-form-item label="参考图 / 引导图">
               <div class="thumbs">
                 <img v-for="asset in imageAssets.slice(0, 24)" :key="asset.id" :src="asset.url"
                      class="thumb" :class="{ picked: form.sourceAssetIds.includes(asset.id) }"
                      @click="toggleSource(asset.id)" />
-                <span v-if="!imageAssets.length" class="muted">素材库还没有图片，先上传实拍图</span>
+                <span v-if="!imageAssets.length" class="muted">素材库还没有图片，先上传实拍图（参考图会真实传给模型）</span>
               </div>
             </el-form-item>
             <el-form-item>

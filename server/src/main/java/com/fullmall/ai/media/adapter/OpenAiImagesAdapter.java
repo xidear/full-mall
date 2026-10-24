@@ -37,6 +37,10 @@ public class OpenAiImagesAdapter implements MediaGenerationAdapter {
                 ? prompt : prompt + "\n（避免：" + negative + "）");
         body.put("n", 1);
         if (params != null) {
+            if (params.get("referenceImageUrls") instanceof java.util.List<?> refs && !refs.isEmpty()) {
+                // 多数兼容网关接受 image 字段（URL）；不支持的会被服务端忽略或明确报错
+                body.put("image", refs.get(0));
+            }
             if (params.get("size") != null) {
                 body.put("size", params.get("size"));
             }

@@ -44,6 +44,10 @@ public class DashScopeImageAdapter implements MediaGenerationAdapter {
                                    Map<String, Object> params) {
         Map<String, Object> input = new LinkedHashMap<>();
         input.put("prompt", prompt);
+        if (params != null && params.get("referenceImageUrls") instanceof java.util.List<?> refs
+                && !refs.isEmpty()) {
+            input.put("ref_img", refs.get(0));
+        }
         if (negative != null && !negative.isBlank()) {
             input.put("negative_prompt", negative);
         }

@@ -56,6 +56,8 @@ class AiMediaPipelineTest {
     }
 
     private HttpServer server;
+    private final java.util.concurrent.atomic.AtomicReference<String> lastImageRequest =
+            new java.util.concurrent.atomic.AtomicReference<>();
 
     @AfterEach
     void stop() {
@@ -90,6 +92,8 @@ class AiMediaPipelineTest {
     private String baseUrl() throws Exception {
         server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
         server.createContext("/images/generations", exchange -> {
+            lastImageRequest.set(new String(exchange.getRequestBody().readAllBytes(),
+                    StandardCharsets.UTF_8));
             String body = "{\"data\":[{\"b64_json\":\""
                     + Base64.getEncoder().encodeToString(PNG) + "\"}]}";
             byte[] out = body.getBytes(StandardCharsets.UTF_8);
@@ -147,5 +151,27 @@ class AiMediaPipelineTest {
 
         assertThatThrownBy(() -> media.optimizePrompt("x", "no-such-provider"))
                 .hasMessageContaining("供应商不可用");
+    }
+
+    @Test
+    void referenceImageIsSentToProvider() throws Exception {
+        String base = baseUrl();
+        upsertProvider("stub-image-ref", MediaKind.IMAGE, "openai-images", base);
+        UUID refAsset = UUID.randomUUID();
+        jdbc.update("""
+                INSERT INTO asset (id, name, url, kind, owner_username, purpose)
+                VALUES (?, '实拍参考图', 'https://cdn.example.com/ref.png', 'IMAGE', 'admin', 'PRODUCT')
+                """, refAsset);
+
+        UUID jobId = media.enqueue(new AiMediaService.CreateJob(
+                MediaKind.IMAGE, "stub-image-ref", null, null, "DETAIL",
+                "按参考图生成详情图", null, Map.of("size", "1024x1024"),
+                List.of(refAsset)), "admin");
+        media.runOne();
+
+        assertThat(media.job(jobId)).containsEntry("status", "SUCCEEDED");
+        assertThat(lastImageRequest.get())
+                .as("参考图必须作为参数发给供应商，而不是只留痕")
+                .contains("https://cdn.example.com/ref.png");
     }
 }

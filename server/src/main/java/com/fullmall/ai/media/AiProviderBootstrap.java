@@ -18,6 +18,9 @@ import java.util.UUID;
  * `app.ai.ollama.base-url` 覆盖（容器内访问宿主机时改成 host 地址）。
  */
 @Configuration
+// H2 建库测试（spring.flyway.enabled=false）没有业务表，不能跑种子
+@org.springframework.boot.autoconfigure.condition.ConditionalOnProperty(
+        name = "spring.flyway.enabled", havingValue = "true", matchIfMissing = true)
 public class AiProviderBootstrap {
 
     private static final Logger log = LoggerFactory.getLogger(AiProviderBootstrap.class);

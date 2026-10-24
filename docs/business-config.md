@@ -58,3 +58,12 @@
 | 后端接入 | `app.ai.ollama.base-url`（默认 `http://localhost:11434/v1`）；启动时自动注册 `ollama-chat` / `ollama-embedding` 两个供应商（已存在则不覆盖后台配置） |
 
 > 生产可换 vLLM：把 `ai_provider.endpoint` 指到 vLLM 的 OpenAI 兼容地址、`protocol` 保持 `openai-chat` / `openai-embedding` 即可，无需改代码。
+
+## 参考图 / 视频引导图
+
+| 类型 | 字段 | 说明 |
+|---|---|---|
+| 图片生成 | `params.referenceImageUrls[0]` | 由 `sourceAssetIds` 解析成真实 URL；DashScope 映射为 `ref_img`，OpenAI 兼容映射为 `image` |
+| 视频生成 | `params.firstFrameUrl` | 未显式填写时，自动用第一张参考图作首帧（引导图） |
+
+参考图只允许来自素材库（`asset`），任务里保留 `source_asset_ids` 以便追溯"用了哪张实拍图"。

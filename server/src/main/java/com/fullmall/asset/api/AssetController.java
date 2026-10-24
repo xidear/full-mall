@@ -43,12 +43,13 @@ public class AssetController extends BaseCrudController<AssetEntity, AssetContro
     }
 
     public record AssetDto(UUID id, long version, String name, String url, String kind,
-                           String ownerUsername, Instant createdAt, Instant updatedAt) {
+                           String ownerUsername, String purpose, Instant createdAt, Instant updatedAt) {
     }
 
     public record CreateAssetRequest(@NotBlank @Size(max = 200) String name,
                                      @NotBlank @Size(max = 1024) String url,
-                                     @NotBlank @Size(max = 32) String kind) {
+                                     @NotBlank @Size(max = 32) String kind,
+                                     String purpose) {
     }
 
     public record UpdateAssetRequest(@Size(max = 200) String name,
@@ -64,7 +65,8 @@ public class AssetController extends BaseCrudController<AssetEntity, AssetContro
     @Override
     protected AssetDto toDto(AssetEntity entity) {
         return new AssetDto(entity.getId(), entity.getVersion(), entity.getName(), entity.getUrl(),
-                entity.getKind(), entity.getOwnerUsername(), entity.getCreatedAt(), entity.getUpdatedAt());
+                entity.getKind(), entity.getOwnerUsername(), entity.getPurpose(),
+                entity.getCreatedAt(), entity.getUpdatedAt());
     }
 
     @Override
@@ -73,8 +75,11 @@ public class AssetController extends BaseCrudController<AssetEntity, AssetContro
             throw com.fullmall.platform.error.ApiException.badRequest(
                     "OWNER_REQUIRED", "平台管理员创建素材时需要通过 /admin/v1/assets/for/{owner} 指定归属人");
         }
-        return new AssetEntity(request.name().trim(), request.url().trim(),
+        AssetEntity entity = new AssetEntity(request.name().trim(), request.url().trim(),
                 request.kind().trim(), scope.ownerKey());
+        entity.setPurpose(request.purpose() == null || request.purpose().isBlank()
+                ? "PRODUCT" : request.purpose().trim().toUpperCase(java.util.Locale.ROOT));
+        return entity;
     }
 
     @Override

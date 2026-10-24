@@ -24,6 +24,10 @@ public class AssetEntity extends BaseEntity {
     @Column(name = "owner_username", nullable = false, length = 64)
     private String ownerUsername;
 
+    /** 素材用途：PRODUCT/SPEC/VIDEO/AI_GENERATED 进素材库；OTHER_SYSTEM 给审批附件等。 */
+    @Column(name = "purpose", length = 24)
+    private String purpose;
+
     protected AssetEntity() {
     }
 
@@ -48,6 +52,14 @@ public class AssetEntity extends BaseEntity {
 
     public void setUrl(String url) {
         this.url = url;
+    }
+
+    public String getPurpose() {
+        return purpose == null ? "PRODUCT" : purpose;
+    }
+
+    public void setPurpose(String purpose) {
+        this.purpose = purpose;
     }
 
     public String getKind() {

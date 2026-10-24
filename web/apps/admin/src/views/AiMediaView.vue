@@ -14,6 +14,8 @@ const providers = ref<Provider[]>([])
 const prompts = ref<PromptRow[]>([])
 const assets = ref<AssetRow[]>([])
 const jobs = ref<Job[]>([])
+const attachRole = ref<'MAIN' | 'GALLERY' | 'DETAIL' | 'VIDEO' | 'SPEC'>('MAIN')
+const attachingJob = ref('')
 const loading = ref(false)
 const submitting = ref(false)
 const optimizing = ref(false)
@@ -113,6 +115,26 @@ async function submit() {
     ElMessage.error(cause instanceof Error ? cause.message : '提交失败')
   } finally {
     submitting.value = false
+  }
+}
+
+async function attach(job: Job) {
+  if (!job.assetId) { ElMessage.error('任务还没有产出素材'); return }
+  if (!form.value.productId) { ElMessage.error('先填商品ID'); return }
+  attachingJob.value = job.id
+  try {
+    await api.post(`/admin/v1/products/${form.value.productId}/media`, {
+      assetId: job.assetId,
+      role: attachRole.value,
+      skuId: attachRole.value === 'SPEC' ? (form.value.skuId || null) : null,
+      sortOrder: 0,
+      source: 'AI'
+    })
+    ElMessage.success('已挂到商品素材')
+  } catch (cause) {
+    ElMessage.error(cause instanceof Error ? cause.message : '挂载失败')
+  } finally {
+    attachingJob.value = ''
   }
 }
 
@@ -234,6 +256,18 @@ onMounted(load)
               {{ job.status }}
             </el-tag>
             <span class="job-prompt">{{ job.prompt }}</span>
+            <el-button v-if="job.status === 'SUCCEEDED' && job.assetId" text type="primary"
+                       :loading="attachingJob === job.id" @click="attach(job)">挂到商品</el-button>
+          </div>
+          <div class="attach-bar">
+            <span class="muted">挂载角色</span>
+            <el-select v-model="attachRole" size="small" style="width: 120px">
+              <el-option label="主图" value="MAIN" />
+              <el-option label="图集" value="GALLERY" />
+              <el-option label="详情图" value="DETAIL" />
+              <el-option label="视频" value="VIDEO" />
+              <el-option label="规格图" value="SPEC" />
+            </el-select>
           </div>
           <el-empty v-if="!jobs.length" description="本页还没有提交记录" :image-size="60" />
         </el-card>
@@ -252,5 +286,6 @@ onMounted(load)
 .prompt-text { font-size: 13px; }
 .muted { color: #999; font-size: 12px; }
 .job-row { display: flex; gap: 8px; align-items: center; padding: 6px 0; }
+.attach-bar { display: flex; gap: 8px; align-items: center; margin-top: 8px; }
 .job-prompt { font-size: 12px; color: #666; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 </style>

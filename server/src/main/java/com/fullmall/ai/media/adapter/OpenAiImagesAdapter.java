@@ -54,6 +54,11 @@ public class OpenAiImagesAdapter implements MediaGenerationAdapter {
         String base = provider.endpoint().endsWith("/")
                 ? provider.endpoint().substring(0, provider.endpoint().length() - 1)
                 : provider.endpoint();
+        java.util.List<String> refs = referenceUrls(params);
+        if (!refs.isEmpty()) {
+            // gpt-image-1 官方多图编辑：POST /images/edits，multipart 里 image[] 可多份
+            return edit(base, provider, prompt, refs, params);
+        }
         HttpRequest request = HttpRequest.newBuilder()
                 .uri(URI.create(base + "/images/generations"))
                 .timeout(Duration.ofSeconds(180))
@@ -93,5 +98,94 @@ public class OpenAiImagesAdapter implements MediaGenerationAdapter {
             return "";
         }
         return text.length() > 300 ? text.substring(0, 300) : text;
+    }
+
+    private java.util.List<String> referenceUrls(java.util.Map<String, Object> params) {
+        java.util.List<String> urls = new java.util.ArrayList<>();
+        if (params == null || !(params.get("referenceImageUrls") instanceof java.util.List<?> list)) {
+            return urls;
+        }
+        for (Object item : list) {
+            if (item != null) {
+                urls.add(String.valueOf(item));
+            }
+        }
+        return urls;
+    }
+
+    /** multipart/form-data 手工拼装（避免为一次请求引入额外依赖）。 */
+    private GeneratedMedia edit(String base, ProviderConfig provider, String prompt,
+                                java.util.List<String> imageUrls, java.util.Map<String, Object> params) {
+        String boundary = "----fullmall" + java.util.UUID.randomUUID().toString().replace("-", "");
+        try (java.io.ByteArrayOutputStream out = new java.io.ByteArrayOutputStream()) {
+            writeField(out, boundary, "model", provider.model());
+            writeField(out, boundary, "prompt", prompt);
+            writeField(out, boundary, "n", "1");
+            if (params != null && params.get("size") != null) {
+                writeField(out, boundary, "size", String.valueOf(params.get("size")));
+            }
+            int index = 0;
+            for (String url : imageUrls) {
+                byte[] image = download(url);
+                index++;
+                out.write(("--" + boundary + "\r\n").getBytes(StandardCharsets.UTF_8));
+                out.write(("Content-Disposition: form-data; name=\"image[]\"; filename=\"ref"
+                        + index + ".png\"\r\n").getBytes(StandardCharsets.UTF_8));
+                out.write("Content-Type: image/png\r\n\r\n".getBytes(StandardCharsets.UTF_8));
+                out.write(image);
+                out.write("\r\n".getBytes(StandardCharsets.UTF_8));
+            }
+            out.write(("--" + boundary + "--\r\n").getBytes(StandardCharsets.UTF_8));
+
+            HttpRequest request = HttpRequest.newBuilder()
+                    .uri(URI.create(base + "/images/edits"))
+                    .timeout(Duration.ofSeconds(180))
+                    .header("Content-Type", "multipart/form-data; boundary=" + boundary)
+                    .header("Authorization", "Bearer " + provider.apiKey())
+                    .POST(HttpRequest.BodyPublishers.ofByteArray(out.toByteArray()))
+                    .build();
+            HttpResponse<String> response = http.send(request,
+                    HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
+            if (response.statusCode() / 100 != 2) {
+                throw new IllegalStateException(provider.code() + " 多图编辑失败 HTTP "
+                        + response.statusCode() + "：" + abbreviate(response.body()));
+            }
+            var data = Json.read(response.body()).path("data");
+            if (!data.isArray() || data.isEmpty()) {
+                throw new IllegalStateException(provider.code() + " 多图编辑返回缺少 data");
+            }
+            String b64 = data.get(0).path("b64_json").asText("");
+            if (!b64.isBlank()) {
+                return GeneratedMedia.bytes(Base64.getDecoder().decode(b64), "image/png");
+            }
+            String url = data.get(0).path("url").asText("");
+            if (url.isBlank()) {
+                throw new IllegalStateException(provider.code() + " 多图编辑返回缺少图片");
+            }
+            return GeneratedMedia.url(url, "image/png");
+        } catch (RuntimeException error) {
+            throw error;
+        } catch (Exception error) {
+            throw new IllegalStateException("多图编辑请求失败：" + error.getMessage(), error);
+        }
+    }
+
+    private void writeField(java.io.ByteArrayOutputStream out, String boundary, String name,
+                            String value) throws java.io.IOException {
+        out.write(("--" + boundary + "\r\n").getBytes(StandardCharsets.UTF_8));
+        out.write(("Content-Disposition: form-data; name=\"" + name + "\"\r\n\r\n")
+                .getBytes(StandardCharsets.UTF_8));
+        out.write(value.getBytes(StandardCharsets.UTF_8));
+        out.write("\r\n".getBytes(StandardCharsets.UTF_8));
+    }
+
+    private byte[] download(String url) throws Exception {
+        HttpRequest request = HttpRequest.newBuilder().uri(URI.create(url))
+                .timeout(Duration.ofSeconds(30)).GET().build();
+        HttpResponse<byte[]> response = http.send(request, HttpResponse.BodyHandlers.ofByteArray());
+        if (response.statusCode() / 100 != 2) {
+            throw new IllegalStateException("参考图下载失败 HTTP " + response.statusCode() + "：" + url);
+        }
+        return response.body();
     }
 }

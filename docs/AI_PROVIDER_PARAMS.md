@@ -45,3 +45,15 @@
 1. 任务创建时允许传 `images[{assetId, role}]`；服务端解析成 URL 列表再交给适配器。
 2. 适配器**只做协议映射**，不做业务判断；不支持多图的协议遇到多图要**明确报错**（不静默丢图）。
 3. 视频场景若同时给首帧和多张参考图，按供应商限制处理：Seedance 三种场景互斥 → 我们**优先**首帧模式并在提示词中引用参考图；若显式要求全模态，则走 `omni` 标记。
+
+## 已验证的请求体（官方形态，stub 断言）
+
+| 协议 | 断言点 | 用例 |
+|---|---|---|
+| `ark-image` | `content[]` 含全部参考图 URL 且 `role=reference_image` | `AiMultiReferenceTest` |
+| `ark-video` | `first_frame` 与 `reference_image` 同时出现 | `AiMultiReferenceTest` |
+| `openai-images`（多图） | `POST /images/edits`，`multipart/form-data`，`image[]` 出现 `ref1.png`/`ref2.png` | `AiProviderPayloadTest` |
+| `dashscope-multimodal` | `messages[0].content` 含多张 `{image}` + `{text}` | `AiProviderPayloadTest` |
+| `minimax-video` | `first_frame_image` + `subject_reference[].type=character` | `AiProviderPayloadTest` |
+
+> 这些都是"官方文档形态 + 本地 stub"，不需要真实 Key 即可回归；拿到 Key 后只换 `ai_provider` 的 endpoint/model 即可。

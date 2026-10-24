@@ -11,6 +11,7 @@ interface AssetRow { id: string; name: string; url: string; kind: string; purpos
 
 const uploaded = ref<Uploaded[]>([])
 const assets = ref<AssetRow[]>([])
+const aiJobs = ref<Array<{ id: string; kind: string; purpose: string; status: string; createdAt: string }>>([])
 const purposeFilter = ref('')
 const loading = ref(false)
 const purposeValue = ref<'PRODUCT' | 'SPEC' | 'VIDEO'>('PRODUCT')
@@ -47,6 +48,7 @@ async function loadAssets() {
   try {
     const page = await api.get<{ content: AssetRow[] }>('/admin/v1/assets?size=50&sort=createdAt,desc')
     assets.value = page.content ?? []
+    aiJobs.value = await api.get('/admin/v1/ai/media/jobs?limit=10')
   } finally {
     loading.value = false
   }
@@ -135,6 +137,21 @@ loadAssets()
         <template #default="{ row }">
           <el-button link type="primary" @click="copy(row.url)">复制链接</el-button>
           <el-button link type="primary" @click="variantFrom(row)">用它生成变体</el-button>
+        </template>
+      </el-table-column>
+    </el-table>
+
+    <h3>AI 生成记录</h3>
+    <el-table :data="aiJobs" empty-text="还没有 AI 生成任务">
+      <el-table-column prop="kind" label="类型" width="100" />
+      <el-table-column prop="purpose" label="用途" width="110" />
+      <el-table-column prop="status" label="状态" width="120" />
+      <el-table-column prop="createdAt" label="时间" min-width="180">
+        <template #default="{ row }">{{ new Date(row.createdAt).toLocaleString() }}</template>
+      </el-table-column>
+      <el-table-column label="操作" width="150">
+        <template #default>
+          <el-button link type="primary" @click="$router.push('/ai-media')">去 AI 素材生成</el-button>
         </template>
       </el-table-column>
     </el-table>

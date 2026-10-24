@@ -52,6 +52,24 @@ function addToCart() {
   setTimeout(() => { added.value = false }, 1800)
 }
 
+const { data: mediaList } = await useFetch<Array<{
+  url: string; role: string; kind: string; skuId?: string | null
+}>>(`${base}/api/v1/products/${route.params.id}/media`, {
+  key: `product-media-${route.params.id}`
+})
+
+/** 当前展示的主图：优先规格图，其次商品主图，最后回退 SKU 自带图。 */
+const heroImage = computed(() => {
+  const list = mediaList.value ?? []
+  const spec = list.find(item => item.role === 'SPEC' && item.skuId === selectedSku.value?.id)
+  const main = list.find(item => item.role === 'MAIN')
+  return spec?.url ?? main?.url ?? selectedSku.value?.imageUrl ?? ''
+})
+const gallery = computed(() =>
+  (mediaList.value ?? []).filter(item => item.role === 'GALLERY' && item.kind !== 'VIDEO'))
+const videos = computed(() =>
+  (mediaList.value ?? []).filter(item => item.role === 'VIDEO' || item.kind === 'VIDEO'))
+
 async function buyNow() {
   addToCart()
   await navigateTo('/checkout')
@@ -61,8 +79,13 @@ async function buyNow() {
 <template>
   <div v-if="product" class="product-detail">
     <div class="product-detail-media" :class="tone">
-      <img v-if="selectedSku?.imageUrl" :src="selectedSku.imageUrl" :alt="product.title">
+      <img v-if="heroImage" :src="heroImage" :alt="product.title">
       <span v-else class="product-placeholder large">{{ product.title.slice(0, 2) }}</span>
+    </div>
+
+    <div v-if="gallery.length || videos.length" class="product-media-strip">
+      <img v-for="item in gallery" :key="item.url" :src="item.url" :alt="product.title" loading="lazy">
+      <video v-for="item in videos" :key="item.url" :src="item.url" controls muted playsinline></video>
     </div>
     <div class="product-detail-body">
       <nav class="breadcrumb">
@@ -177,4 +200,9 @@ async function buyNow() {
   background: #fff5e0;
   color: #9c650d;
 }
+
+.product-media-strip {
+  display: flex; gap: 8px; overflow-x: auto; margin: 12px 0 0; padding-bottom: 4px;
+}
+
 </style>

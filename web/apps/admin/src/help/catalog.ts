@@ -446,6 +446,15 @@ export const HELP_ENTRIES: HelpEntry[] = [
     pitfalls: ['没配置对应类型的供应商时按钮不可用——先去第三方服务配置', '同类供应商可配多家，按优先级自动选，也可手动指定'],
     related: ['/materials', '/products']
   },
+  {
+    route: '/ai-storyboard',
+    title: '视频分镜',
+    description: '把商品短视频拆成多个镜头，逐镜头写提示词、选引导图并生成。',
+    steps: ['填标题与商品ID', '逐镜头写提示词、选引导图（首帧）、设时长', '保存分镜', '选视频供应商并点「按镜头生成」', '生成完成后点「同步结果」看视频'],
+    tips: ['引导图用实拍商品图，保证外观一致', '每个镜头可单独重生成'],
+    pitfalls: ['没保存分镜就点生成会提示先保存'],
+    related: ['/ai-media', '/materials']
+  },
 ]
 
 export function helpFor(route: string): HelpEntry | undefined {

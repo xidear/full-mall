@@ -232,18 +232,20 @@
 | P5 | core/lite compose 隔离 | ✅ | 口径：lite 仅作无 Docker 权宜方案，**不并行**；`make up-lite` 前置互斥检查，lite 使用 `LITE_*` 端口与独立 project（防御性） |
 | P6 | bind mount 属主（cookie 复发） | ⚠️ | api/worker 改宿主 UID 运行 + `HOME=/tmp` + Maven 仓库 `/tmp/.m2`，`.env` 加 `APP_UID/APP_GID`；**未实机验证**（本机无 Docker） |
 
-| N7 | AI 素材生产（多供应商 / 异步 / 提示词与导图资产化） | ✅ | `ai_provider`（同类多家、按优先级或指定；API Key 加密）、`ai_gen_job`（异步队列 + worker，多实例租约）、`ai_prompt_history`（历史提示词可直接上屏）、`source_asset_ids`（参考图/视频引导图，**真实传给模型**：dashscope `ref_img`、openai-images `image`、视频首帧）；协议 openai-images / dashscope-image / dashscope-video / openai-chat / openai-embedding；本机 Ollama `qwen2.5:0.5b` 已注册并实测优化提示词；stub 全链路测试 |
+| N7 | AI 素材生产（多供应商 / 异步 / 提示词与参考图资产化） | ✅ | `ai_provider`（同类多家、按优先级或指定；API Key 加密）、`ai_gen_job`（异步队列 + worker，多实例租约）、`ai_prompt_history`（历史提示词可直接上屏）、`source_asset_ids`（参考图/视频引导图，**真实传给模型**：dashscope `ref_img`、openai-images `image`、视频首帧）；协议 openai-images / dashscope-image / dashscope-video / openai-chat / openai-embedding；本机 Ollama `qwen2.5:0.5b` 已注册并实测优化提示词；stub 全链路测试 |
 | N8 | 商品多图 / 规格专用图 / 视频编排 | ✅ | `product_media`（MAIN/GALLERY/DETAIL/VIDEO/SPEC + 排序 + 来源 UPLOAD/AI；主图唯一由部分唯一索引兜底；规格图必须绑 SKU）；上传支持 `purpose`（PRODUCT/SPEC/VIDEO/OTHER_SYSTEM），审批附件标记 OTHER_SYSTEM **不入素材库** |
+
+| N9 | 视频分镜（分镜提示词 + 引导图） | ✅ | `ai_storyboard`/`ai_storyboard_shot`：镜头按序保存提示词、引导图（来自素材库实拍图）、时长（1–30s）；逐镜头入队生成、完成后按 job 回填资产；后台「视频分镜」页支持保存/生成/同步；含测试 |
 
 ## 统计
 
 | 状态 | 数量 |
 |---|---|
-| ✅ 已实现并验证 | 132 |
+| ✅ 已实现并验证 | 133 |
 | ⚠️ 已实现未验证 / 半接线 | 10 |
 | ⬜ 未实现 | 10 |
 | 🚫 有意不做 / 暂缓 | 7 |
-| **合计** | **160** |
+| **合计** | **161** |
 | 另：接口冒烟覆盖 | 43 个接口（读 33 / 写 10） |
 
 > 注：本表是当前代码与文档的真实汇总，不是"挑选重点"。后续每轮完成若干条即更新对应行。

@@ -128,12 +128,17 @@ public class DashScopeImageAdapter implements MediaGenerationAdapter {
     /** 从生成端点推导任务查询端点：`.../services/aigc/text2image/image-synthesis` -> `.../api/v1/tasks`。 */
     private String tasksEndpoint(ProviderConfig provider) {
         String endpoint = provider.endpoint();
-        int services = endpoint.indexOf("/services/");
-        String base = services > 0 ? endpoint.substring(0, services) : "https://dashscope.aliyuncs.com/api/v1";
-        return base + "/api/v1/tasks";
+        return tasksBase(endpoint) + "/tasks";
     }
 
     private String abbreviate(String text) {
         return text == null ? "" : (text.length() > 300 ? text.substring(0, 300) : text);
+    }
+
+    /** 由生成端点推导任务 API 前缀：`.../api/v1/services/...` -> `.../api/v1`。 */
+    private String tasksBase(String endpoint) {
+        int apiIndex = endpoint.indexOf("/api/v1/");
+        return apiIndex > 0 ? endpoint.substring(0, apiIndex + "/api/v1".length())
+                : "https://dashscope.aliyuncs.com/api/v1";
     }
 }

@@ -84,13 +84,12 @@ public class DashScopeVideoAdapter implements MediaGenerationAdapter {
 
     private String poll(ProviderConfig provider, String taskId) throws Exception {
         String endpoint = provider.endpoint();
-        int services = endpoint.indexOf("/services/");
-        String base = services > 0 ? endpoint.substring(0, services) : "https://dashscope.aliyuncs.com/api/v1";
+        String tasksBaseUrl = tasksBase(endpoint);
         long deadline = System.currentTimeMillis() + timeoutMs;
         while (System.currentTimeMillis() < deadline) {
             Thread.sleep(pollIntervalMs);
             HttpResponse<String> response = http.send(HttpRequest.newBuilder()
-                    .uri(URI.create(base + "/api/v1/tasks/" + taskId))
+                    .uri(URI.create(tasksBaseUrl + "/tasks/" + taskId))
                     .timeout(Duration.ofSeconds(30))
                     .header("Authorization", "Bearer " + provider.apiKey())
                     .GET().build(), HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
@@ -108,5 +107,12 @@ public class DashScopeVideoAdapter implements MediaGenerationAdapter {
             }
         }
         throw new IllegalStateException("视频任务超时（" + timeoutMs + "ms）");
+    }
+
+    /** 由生成端点推导任务 API 前缀：`.../api/v1/services/...` -> `.../api/v1`。 */
+    private String tasksBase(String endpoint) {
+        int apiIndex = endpoint.indexOf("/api/v1/");
+        return apiIndex > 0 ? endpoint.substring(0, apiIndex + "/api/v1".length())
+                : "https://dashscope.aliyuncs.com/api/v1";
     }
 }

@@ -23,8 +23,15 @@ files=(
   server/src/main/java/com/fullmall/supplier/webhook/WebhookDispatcher.java
   server/src/main/java/com/fullmall/i18n/UiTranslationService.java
   server/src/main/java/com/fullmall/analytics/tool/AiReadOnlyTools.java
-  server/src/main/java/com/fullmall/analytics/action/AiActionDraftService.java
   server/src/main/java/com/fullmall/analytics/ai/OpenAiCompatClient.java
+  server/src/main/java/com/fullmall/ai/media/AiMediaService.java
+  server/src/main/java/com/fullmall/ai/media/AiMediaWorkerTask.java
+  server/src/main/java/com/fullmall/ai/media/AiProviderBootstrap.java
+  server/src/main/java/com/fullmall/ai/media/adapter/OpenAiImagesAdapter.java
+  server/src/main/java/com/fullmall/ai/media/adapter/DashScopeImageAdapter.java
+  server/src/main/java/com/fullmall/ai/media/adapter/DashScopeVideoAdapter.java
+  server/src/main/java/com/fullmall/ai/media/adapter/OpenAiEmbeddingAdapter.java
+  server/src/main/java/com/fullmall/catalog/app/ProductMediaService.java
   server/src/main/java/com/fullmall/review/moderation/http/HttpModerationAdapter.java
   server/src/main/java/com/fullmall/platform/asset/cos/CosAssetStorage.java
   server/src/main/java/com/fullmall/platform/asset/qiniu/QiniuAssetStorage.java

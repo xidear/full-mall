@@ -67,6 +67,8 @@ const heroImage = computed(() => {
 })
 const gallery = computed(() =>
   (mediaList.value ?? []).filter(item => item.role === 'GALLERY' && item.kind !== 'VIDEO'))
+const detailImages = computed(() =>
+  (mediaList.value ?? []).filter(item => item.role === 'DETAIL' && item.kind !== 'VIDEO'))
 const videos = computed(() =>
   (mediaList.value ?? []).filter(item => item.role === 'VIDEO' || item.kind === 'VIDEO'))
 
@@ -95,6 +97,9 @@ async function buyNow() {
       </nav>
       <h1>{{ product.title }}</h1>
       <p class="product-description">{{ product.description }}</p>
+      <div v-if="detailImages.length" class="product-detail-images">
+        <img v-for="item in detailImages" :key="item.url" :src="item.url" :alt="product.title" loading="lazy">
+      </div>
       <div class="price-row">
         <strong class="price-large">{{ formatMoney(flashPromotion?.promoPrice ?? selectedSku?.price) }}</strong>
         <span v-if="flashPromotion" class="compare-price">{{ formatMoney(selectedSku?.price) }}</span>
@@ -205,4 +210,6 @@ async function buyNow() {
   display: flex; gap: 8px; overflow-x: auto; margin: 12px 0 0; padding-bottom: 4px;
 }
 
+.product-detail-images { display: flex; flex-direction: column; gap: 10px; margin: 12px 0; }
+.product-detail-images img { width: 100%; border-radius: 8px; }
 </style>

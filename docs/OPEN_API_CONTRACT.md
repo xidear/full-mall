@@ -95,3 +95,15 @@ ALLOCATED --accept--> ACCEPTED --ship--> SHIPPED
 - [ ] nonce 不复用
 - [ ] 重复调用 accept/ship 不报错（幂等）
 - [ ] 收到 429 会退避
+
+## 8. 接入流程（我方开通，供应商跟随）
+
+1. 平台在后台创建供应商档案（`POST /admin/v1/suppliers`）。
+2. 平台签发凭据：`POST /admin/v1/suppliers/{id}/credentials` 返回 `accessKey` 与 `secret`
+   （**secret 只返回一次**，平台侧加密存储）。
+3. 供应商按 §1 的 HMAC 规则签名调用 `/open/v1/**`；密钥泄露可重新签发（旧 key 立即失效）。
+4. Webhook 由平台登记（`POST /admin/v1/suppliers/{id}/webhooks`），供应商实现一个 HTTP 端点即可；
+   事件类型由平台定义，无需协商。
+5. 联调自检：先调 `GET /open/v1/ping`，再按 §7 清单逐项过。
+
+> 之所以"不协商"：路径、字段、错误码、签名都在本文档固定，供应商只需实现；平台保留新增字段与事件的权利（向后兼容）。

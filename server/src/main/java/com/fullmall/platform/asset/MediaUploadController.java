@@ -8,6 +8,7 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
+import java.util.UUID;
 import java.util.Map;
 
 /**
@@ -22,21 +23,52 @@ public class MediaUploadController {
 
     private final AssetStorage storage;
     private final ImageUploadValidator validator;
+    private final org.springframework.jdbc.core.JdbcTemplate jdbc;
 
-    public MediaUploadController(AssetStorage storage, ImageUploadValidator validator) {
+    public MediaUploadController(AssetStorage storage, ImageUploadValidator validator,
+                                 org.springframework.jdbc.core.JdbcTemplate jdbc) {
         this.storage = storage;
         this.validator = validator;
+        this.jdbc = jdbc;
     }
 
+    /**
+     * @param purpose 素材用途：PRODUCT（商品图）/SPEC（规格图）/VIDEO（视频封面等）/
+     *                OTHER_SYSTEM（审批附件等，**不进素材库**）
+     */
     @PostMapping
     @PreAuthorize("hasAnyRole('ADMIN','OPERATOR')")
-    public Map<String, Object> upload(@RequestParam("file") MultipartFile file) {
+    public Map<String, Object> upload(@RequestParam("file") MultipartFile file,
+                                      @RequestParam(defaultValue = "PRODUCT") String purpose,
+                                      org.springframework.security.core.Authentication authentication) {
         try {
+            String normalized = purpose == null ? "PRODUCT"
+                    : purpose.trim().toUpperCase(java.util.Locale.ROOT);
+            if (!java.util.Set.of("PRODUCT", "SPEC", "VIDEO", "OTHER_SYSTEM").contains(normalized)) {
+                throw com.fullmall.platform.error.ApiException.badRequest(
+                        "MEDIA_PURPOSE_INVALID", "purpose 只能是 PRODUCT/SPEC/VIDEO/OTHER_SYSTEM");
+            }
             byte[] content = file.getBytes();
             String key = validator.requireValidKey(file.getContentType(), content);
             String url = storage.put(key, content, file.getContentType());
-            return Map.of("url", url, "key", key,
-                    "bytes", content.length, "provider", storage.provider());
+            Map<String, Object> result = new java.util.LinkedHashMap<>();
+            result.put("url", url);
+            result.put("key", key);
+            result.put("bytes", content.length);
+            result.put("provider", storage.provider());
+            result.put("purpose", normalized);
+            if (!"OTHER_SYSTEM".equals(normalized)) {
+                UUID assetId = UUID.randomUUID();
+                jdbc.update("""
+                        INSERT INTO asset (id, name, url, kind, owner_username, purpose)
+                        VALUES (?, ?, ?, 'IMAGE', ?, ?)
+                        """, assetId, file.getOriginalFilename() == null ? "上传素材" : file.getOriginalFilename(),
+                        url, authentication.getName(), normalized);
+                result.put("assetId", assetId.toString());
+            } else {
+                result.put("assetId", null);
+            }
+            return result;
         } catch (IOException error) {
             throw com.fullmall.platform.error.ApiException.badRequest(
                     "ASSET_READ_FAILED", "读取上传文件失败：" + error.getMessage());

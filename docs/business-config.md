@@ -47,3 +47,14 @@
 
 协议：`openai-images`、`dashscope-image`、`dashscope-video`、`openai-chat`。
 执行：`ai-media-worker` 定时任务（多实例由调度器租约保证不重复）。
+
+## 本机小模型（Ollama，自有管理）
+
+| 项 | 值 |
+|---|---|
+| 启动 | `docker compose --profile ai up -d ollama`（宿主机端口 11434） |
+| 文本模型 | `qwen2.5:0.5b`（约 397MB，用于提示词优化/文案草稿） |
+| 向量模型 | `nomic-embed-text`（274MB，768 维，用于检索与相似素材） |
+| 后端接入 | `app.ai.ollama.base-url`（默认 `http://localhost:11434/v1`）；启动时自动注册 `ollama-chat` / `ollama-embedding` 两个供应商（已存在则不覆盖后台配置） |
+
+> 生产可换 vLLM：把 `ai_provider.endpoint` 指到 vLLM 的 OpenAI 兼容地址、`protocol` 保持 `openai-chat` / `openai-embedding` 即可，无需改代码。

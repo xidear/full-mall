@@ -4,6 +4,7 @@ import com.fullmall.ai.media.adapter.DashScopeImageAdapter;
 import com.fullmall.ai.media.adapter.DashScopeVideoAdapter;
 import com.fullmall.ai.media.adapter.MediaGenerationAdapter;
 import com.fullmall.ai.media.adapter.OpenAiChatAdapter;
+import com.fullmall.ai.media.adapter.OpenAiEmbeddingAdapter;
 import com.fullmall.ai.media.adapter.OpenAiImagesAdapter;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -30,5 +31,10 @@ public class AiMediaConfig {
     @Bean
     public MediaGenerationAdapter openAiChatAdapter() {
         return new OpenAiChatAdapter();
+    }
+
+    @Bean
+    public MediaGenerationAdapter openAiEmbeddingAdapter() {
+        return new OpenAiEmbeddingAdapter();
     }
 }

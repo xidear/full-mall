@@ -53,10 +53,10 @@ public class OpenAiEmbeddingAdapter implements MediaGenerationAdapter {
             if (!vector.isArray() || vector.isEmpty()) {
                 throw new IllegalStateException("embedding 返回为空");
             }
-            List<String> values = new ArrayList<>();
-            vector.forEach(node -> values.add(String.valueOf(node.asDouble())));
-            return GeneratedMedia.bytes(String.join(",", values).getBytes(StandardCharsets.UTF_8),
-                    "text/plain");
+            List<Double> values = new ArrayList<>();
+            vector.forEach(node -> values.add(node.asDouble()));
+            return GeneratedMedia.bytes(Json.write(values).getBytes(StandardCharsets.UTF_8),
+                    "application/json");
         } catch (RuntimeException error) {
             throw error;
         } catch (Exception error) {

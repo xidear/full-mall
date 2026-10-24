@@ -17,9 +17,12 @@ import java.util.UUID;
 public class FaqController {
 
     private final FaqService faq;
+    private final com.fullmall.ai.knowledge.SemanticIndexService semantic;
 
-    public FaqController(FaqService faq) {
+    public FaqController(FaqService faq,
+                         com.fullmall.ai.knowledge.SemanticIndexService semantic) {
         this.faq = faq;
+        this.semantic = semantic;
     }
 
     public record AdoptRequest(String question, String answer) {
@@ -34,6 +37,14 @@ public class FaqController {
             return Map.of("matched", false);
         }
         return Map.of("matched", true, "question", hit.question(), "answer", hit.answer());
+    }
+
+    /** 语义检索：需开启 app.ai.semantic.enabled，否则明确 409（不偷偷退关键词）。 */
+    @GetMapping("/api/v1/faq/semantic")
+    public java.util.List<java.util.Map<String, Object>> semanticSearch(
+            @RequestParam String q,
+            @RequestParam(defaultValue = "5") int limit) {
+        return semantic.search(q, "FAQ", limit, null);
     }
 
     @GetMapping("/admin/v1/faq")

@@ -385,4 +385,42 @@ public class AiMediaService {
                 null, Map.of("system", "你是资深电商视觉提示词工程师，输出中文，不超过 200 字。"));
         return new String(media.content() == null ? new byte[0] : media.content(), StandardCharsets.UTF_8);
     }
+
+    /** 同步取 embedding 文本（向量以 JSON 数组返回），供语义检索使用。 */
+    public String embedding(String text, String providerCode) {
+        // 必须按协议挑：TEXT 类型里还有 chat 供应商，按优先级盲选会选错
+        ProviderConfig provider = pickProviderByProtocol("openai-embedding", providerCode);
+        MediaGenerationAdapter adapter = adapters.get(provider.protocol());
+        if (adapter == null) {
+            throw ApiException.conflict("AI_EMBEDDING_UNAVAILABLE",
+                    "embedding 适配器未注册：" + provider.protocol());
+        }
+        GeneratedMedia media = adapter.generate(provider, text, null, Map.of());
+        if (!media.hasBytes()) {
+            throw new IllegalStateException("embedding 未返回内容");
+        }
+        return new String(media.content(), StandardCharsets.UTF_8);
+    }
+
+    private ProviderConfig pickProviderByProtocol(String protocol, String code) {
+        var rows = jdbc.query("""
+                SELECT id, kind, code, name, protocol, endpoint, api_key, model, extra::text AS extra,
+                       enabled, priority
+                  FROM ai_provider
+                 WHERE protocol = ? AND enabled
+                   AND (?::text IS NULL OR code = ?::text)
+                 ORDER BY priority, code LIMIT 1
+                """, (rs, rowNum) -> new ProviderConfig(
+                rs.getObject("id", UUID.class), MediaKind.valueOf(rs.getString("kind")),
+                rs.getString("code"), rs.getString("name"), rs.getString("protocol"),
+                rs.getString("endpoint"), decrypt(rs.getString("api_key")), rs.getString("model"),
+                Json.read(rs.getString("extra")), rs.getBoolean("enabled"), rs.getInt("priority")),
+                protocol, code, code);
+        if (rows.isEmpty()) {
+            throw ApiException.conflict("AI_EMBEDDING_UNAVAILABLE",
+                    "没有可用的 embedding 供应商（需要 protocol=openai-embedding"
+                            + (code == null ? "" : "，指定 code=" + code) + "）");
+        }
+        return rows.get(0);
+    }
 }

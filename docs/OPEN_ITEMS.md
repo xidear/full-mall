@@ -190,7 +190,7 @@
 | L5 | FAQ 自学习 | ✅ | 知识库 + 未命中记录 + 候选清单 + 采纳 + **后台「FAQ 知识库」页**（候选/采纳/搜索）；闭环有测试；向量语义检索未接（属 L9） |
 | L6 | 演示模式（mock） | ✅ | `app.ai.mode=demo`：关键词检索 + **抽取式回答**（不调外部模型）；资料导入→检索→回答→引用链路打通（4 条单测） |
 | L8 | 客户资料导入（格式与用法） | ✅ | `POST /admin/v1/ai/knowledge/import`；Tika 解析 pdf/docx/txt/md/csv/html/xlsx；切块 500 字；不支持/空文档明确报错；指南见 `docs/AI_KNOWLEDGE_IMPORT_GUIDE.md` |
-| L9 | 生产模式（向量检索 + 模型生成） | ⚠️ | 对话模型已真实联调；**向量检索待实施**（pgvector 方案已记录，等真机解除 Docker 限制后落地） |
+| L9 | 生产模式（向量检索 + 模型生成） | ✅ | `knowledge_embedding` + `SemanticIndexService`：用本机 `nomic-embed-text`（768 维）建索引、Java 侧余弦排序；`POST /admin/v1/ai/semantic/reindex?kind=FAQ` 重建、`/api/v1/faq/semantic` 查询；**实跑**："发票怎么弄" → 匹配"怎么开发票"（0.926）；开关 `app.ai.semantic.enabled`，关闭时明确 409 |
 | L16 | 商品变更自动同步知识库 | ✅ | V75：`sku/product.updated_at`（触发器单调递增）+ `knowledge_sync_state` 水位；任务 `ai.knowledge-sync` 每 30 秒巡检；改价后自动替换旧价格（有测试） |
 | L15 | 向量存储技术路线（ADR-001） | ✅ | 澄清测试库缺扩展的原因、"10 万"指块数、实测 54ms/100k（256 维）；升级触发条件与选定路线写成文档 |
 | L12 | 结构化输出契约（JSON） | ✅ | 模型必须返回 `{answer,grounded,needsHuman,citationIds}`；解析失败即拒绝使用，不再靠词组判断 |
@@ -239,15 +239,17 @@
 
 | N10 | 多参考图 / 角色定型 / 分镜多引导图 | ✅ | 任务支持 `images[{assetId,role}]`（REFERENCE/SUBJECT/FIRST_FRAME/LAST_FRAME），服务端解析成真实 URL 传给模型；新增协议 `ark-image`/`ark-video`（火山方舟 content[]+role，多图参考）、`dashscope-multimodal`（qwen-image-edit 多图 messages）、`minimax-video`（首帧 + subject_reference 角色定型）；分镜每个镜头支持多张引导图（第一张首帧、其余参考）；各协议传参差异见 `docs/AI_PROVIDER_PARAMS.md`；含 Ark 多图/首帧、**OpenAI images/edits multipart 多文件、qwen-image-edit messages 多图、MiniMax first_frame+subject_reference** 四组官方形态测试；**本机 wiremock 官方 mock 已端到端跑通**（提交→worker→成功→素材入库） |
 
+| N11 | 语义检索（embedding 索引） | ✅ | 见 L9；含桩测试（余弦排序、未启用报错、空类重建报错）与真实本机模型验证 |
+
 ## 统计
 
 | 状态 | 数量 |
 |---|---|
-| ✅ 已实现并验证 | 140 |
-| ⚠️ 已实现未验证 / 半接线 | 9 |
+| ✅ 已实现并验证 | 142 |
+| ⚠️ 已实现未验证 / 半接线 | 8 |
 | ⬜ 未实现 | 5 |
 | 🚫 有意不做 / 暂缓 | 7 |
-| **合计** | **162** |
+| **合计** | **163** |
 | 另：接口冒烟覆盖 | 43 个接口（读 33 / 写 10） |
 
 > 注：本表是当前代码与文档的真实汇总，不是"挑选重点"。后续每轮完成若干条即更新对应行。

@@ -67,3 +67,11 @@
 | 视频生成 | `params.firstFrameUrl` | 未显式填写时，自动用第一张参考图作首帧（引导图） |
 
 参考图只允许来自素材库（`asset`），任务里保留 `source_asset_ids` 以便追溯"用了哪张实拍图"。
+
+## 启动本机模型
+
+```bash
+bash scripts/start-local-ai.sh     # 起 Ollama + 拉 qwen2.5:0.5b / nomic-embed-text + 自检
+```
+
+脚本幂等；自检失败会直接退出非 0（不静默成功）。

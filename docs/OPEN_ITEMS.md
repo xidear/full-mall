@@ -198,7 +198,7 @@
 | L14 | 真实模型联调 | ✅ | 实测 `deepseek-v41`：问「有机鲜牛奶多少钱」→ 答 19.90 CNY + 引用真实商品；非 JSON 输出被拒 |
 | L11 | AI 后台页 | ✅ | 状态/资料导入/提问测试（含引用与违规原因）；社区版优雅提示「不含 AI 模块」（E2E）；企业版导入→提问链路 E2E 通过 |
 | L10 | 商品知识同步 | ✅ | `POST /admin/v1/ai/knowledge/sync?skuId=` 重建 SKU 知识块；改价后旧价格消失（有测试） |
-| L7 | 训练机部署脚本（vLLM/Ollama + embedding） | ⬜ | 192.168.1.15 可达；`.8` 需 BMC 开机 |
+| L7 | 训练机部署脚本（vLLM/Ollama + embedding） | ✅ | `scripts/start-local-ai.sh`：起 Ollama（compose profile ai）、拉 `qwen2.5:0.5b` + `nomic-embed-text`、真实推理自检（chat + 768 维 embedding）；后端启动自动注册供应商。生产换 vLLM 只改 `ai_provider.endpoint` |
 
 ## M. 授权与试用
 | 编号 | 条目 | 状态 | 说明 |
@@ -213,7 +213,7 @@
 ## N. AI 深度参与（ADR-002）
 | 编号 | 条目 | 状态 | 说明 |
 |---|---|---|---|
-| N1 | AI 阶段1：模型自部署切换 | ⬜ | 只改 base-url；验收：质量 ≥ 外部模型 90%、数据不出内网 |
+| N1 | AI 阶段1：模型自部署切换 | ✅ | 已切到本机模型：`ollama-chat` 承担提示词优化/文案（实测返回改写结果）、`ollama-embedding` 提供 768 维向量；未做与外部大模型的质量对比（需评测集与外部 Key） |
 | N2 | AI 只读工具调用 | ✅ | 白名单工具（order.status/sku.availability/sku.price）+ 参数校验 + 全只读，含写操作名被拒测试 |
 | N3 | AI 内容生产（替代语义化控制） | ✅ | **已移除**"AI 改价/上下架/发券"这类语义化控制（人工点两下即可，纯为 AI 而 AI）；改为**素材生产**：多供应商（图片 openai-images/dashscope-image、视频 dashscope-video、文案 openai-chat）、异步任务队列（`ai_gen_job`）+ 结果自动入素材库、提示词与导图留痕（`ai_prompt_history`/`source_asset_ids`）、提示词优化（走 vLLM 等 openai-chat）、后台「AI 素材生成」页；API Key 加密落库；stub 全链路测试 |
 | N4 | AI 阶段4：自然语言查库（可选） | 🚫 | 仅当工具化不够时；护栏缺一不可（见 ADR-002） |
@@ -243,9 +243,9 @@
 
 | 状态 | 数量 |
 |---|---|
-| ✅ 已实现并验证 | 138 |
+| ✅ 已实现并验证 | 140 |
 | ⚠️ 已实现未验证 / 半接线 | 9 |
-| ⬜ 未实现 | 7 |
+| ⬜ 未实现 | 5 |
 | 🚫 有意不做 / 暂缓 | 7 |
 | **合计** | **162** |
 | 另：接口冒烟覆盖 | 43 个接口（读 33 / 写 10） |

@@ -230,7 +230,7 @@
 | P3 | 适配器按配置装配 | ✅ | 存储/短信/支付/审核均按后台配置装配；demo·dev 未配置→mock，其它→报错 |
 | P4 | 后台信息架构重组 | ✅ | 7 组菜单；工作台「待办事项」**每项带筛选路径**（待付款/待发货/待自提→订单页已筛，临期→临期页）；订单/售后页支持 `?status=` |
 | P5 | core/lite compose 隔离 | ✅ | 口径：lite 仅作无 Docker 权宜方案，**不并行**；`make up-lite` 前置互斥检查，lite 使用 `LITE_*` 端口与独立 project（防御性） |
-| P6 | bind mount 属主（cookie 复发） | ⚠️ | api/worker 改宿主 UID 运行 + `HOME=/tmp` + Maven 仓库 `/tmp/.m2`，`.env` 加 `APP_UID/APP_GID`；**未实机验证**（本机无 Docker） |
+| P6 | bind mount 属主 | ✅ | 实机验证：wiremock 未设 user 时以 root 写入 `deploy/`，宿主删不掉；已给服务加 `user:${APP_UID}:${APP_GID}`、新增 `make fix-mount-owner`、并把不存在的 `wiremock:3` 固定为 `3.9.1`；复验容器内 `uid=1000` 且宿主可删除 |
 
 | N7 | AI 素材生产（多供应商 / 异步 / 提示词与参考图资产化） | ✅ | `ai_provider`（同类多家、按优先级或指定；API Key 加密）、`ai_gen_job`（异步队列 + worker，多实例租约）、`ai_prompt_history`（历史提示词可直接上屏）、`source_asset_ids`（参考图/视频引导图，**真实传给模型**：dashscope `ref_img`、openai-images `image`、视频首帧）；协议 openai-images / dashscope-image / dashscope-video / openai-chat / openai-embedding；本机 Ollama `qwen2.5:0.5b` 已注册并实测优化提示词；stub 全链路测试 |
 | N8 | 商品多图 / 规格专用图 / 视频编排 | ✅ | `product_media`（MAIN/GALLERY/DETAIL/VIDEO/SPEC + 排序 + 来源 UPLOAD/AI；主图唯一由部分唯一索引兜底；规格图必须绑 SKU）；上传支持 `purpose`（PRODUCT/SPEC/VIDEO/OTHER_SYSTEM），审批附件标记 OTHER_SYSTEM **不入素材库** |
@@ -243,8 +243,8 @@
 
 | 状态 | 数量 |
 |---|---|
-| ✅ 已实现并验证 | 134 |
-| ⚠️ 已实现未验证 / 半接线 | 10 |
+| ✅ 已实现并验证 | 135 |
+| ⚠️ 已实现未验证 / 半接线 | 9 |
 | ⬜ 未实现 | 10 |
 | 🚫 有意不做 / 暂缓 | 7 |
 | **合计** | **162** |

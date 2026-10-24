@@ -157,7 +157,13 @@ async function poll(jobId: string) {
   ElMessage.warning('仍在生成中，稍后到素材库查看')
 }
 
-onMounted(load)
+onMounted(async () => {
+  await load()
+  const preset = String(route.query.referenceAssetId ?? '')
+  if (preset && assets.value.some(asset => asset.id === preset)) {
+    form.value.referenceIds = [preset]
+  }
+})
 </script>
 
 <template>

@@ -142,3 +142,19 @@ docker rm -f fullmall-postgres-1 fullmall-valkey-1 fullmall-rabbitmq-1 \
 ```
 
 > meilisearch 只属于 lite，出现在 `fullmall-*` 前缀下即是历史遗留；core 用 opensearch。
+
+## bind mount 属主（P6，已实机验证）
+
+**问题**：容器默认以 root 运行，写宿主机 bind mount 后产生 `root:root` 文件，宿主用户（uid 1000）**删不掉**。
+实测：`wiremock` 未设 `user:` 时写入 `deploy/wiremock/.owner-probe` 属主为 `0:0`，宿主 `rm` 报 Permission denied。
+
+**修复**：
+
+1. 所有带 bind mount 的服务显式指定 `user: "${APP_UID:-1000}:${APP_GID:-1000}"`（wiremock 已补）。
+2. 首次部署/换机器后执行一次属主修正：
+   ```bash
+   make fix-mount-owner
+   ```
+3. 复验：容器内 `id` 应为 `uid=1000`，写入文件宿主可删除。
+
+**另外修掉一个镜像 tag 错误**：`wiremock/wiremock:3` 在 Docker Hub 不存在（pull 直接失败），已固定为 `3.9.1`。

@@ -27,8 +27,9 @@ up: env
 
 # lite 是"没有 Docker 时的权宜方案"，与 core 不并行：启动前检查另一套是否在跑
 check-lite-exclusive:
-	@if [ -n "$$(docker compose ps -q 2>/dev/null)" ]; then \
-		echo "错误：core 正在运行（fullmall-*）。lite 只用于无 Docker 环境，请先 make down。"; exit 1; \
+	@# 只检查 core 栈是否占用默认端口；tools/ai（wiremock、ollama）不算冲突
+	@if docker compose ps --format '{{.Ports}}' 2>/dev/null | grep -qE ':(5432|6379|5672|7700)->'; then \
+		echo "错误：core 栈正占用 5432/6379/5672/7700，请先 make down 再起 lite。"; exit 1; \
 	fi
 
 fix-mount-owner:

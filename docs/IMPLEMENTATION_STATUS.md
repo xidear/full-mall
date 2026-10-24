@@ -5908,3 +5908,12 @@ E2E 未跑（需要 5 个前端 + PG，下轮单独跑）。
 | dev 启动自动注册供应商 | ✅ `mock-image` / `mock-image-qwen` / `mock-video` / `ollama-chat` / `ollama-embedding` |
 | 提交 MAIN 图片任务 → worker 消费 | ✅ `SUCCEEDED`，生成 `asset` 记录 |
 | bind mount 属主 | ✅ 容器 `uid=1000`，宿主可删除（wiremock 镜像 tag 也已修正） |
+
+## compose 部署验证（第 6 轮，本机 Docker）
+
+| 项 | 结果 |
+|---|---|
+| lite 栈 | postgres / valkey / rabbitmq / meilisearch / mailpit 全部 healthy |
+| 端口 | 15432 / 16379 / 15674 / 17700 / 11025 均可连；PG 凭据 `fullmall/change-me-local` 验证通过 |
+| API 连 lite | 另起 8081 → 商品列表 200 → OTP → 下单成功 → mock 支付 200 |
+| 守卫 | core 栈占默认端口时 `make up-lite` 正确拒绝（按端口判断，不再被 wiremock/ollama 误伤） |

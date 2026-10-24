@@ -9,6 +9,53 @@ const router = useRouter()
 const route = useRoute()
 // 编辑态才有商品 id；新建态禁用 AI 生成入口（生成需要商品上下文留痕）
 const productId = String(route.params.id ?? route.query.productId ?? '')
+const mediaList = ref<Array<{ id: string; role: string; skuId?: string | null; assetId: string; url: string }>>([])
+const assetOptions = ref<Array<{ id: string; name: string; url: string; kind: string }>>([])
+const hasImageProvider = ref(false)
+const mediaForm = ref({ assetId: '', role: 'MAIN', skuId: '', sortOrder: 0 })
+
+async function loadMediaContext() {
+  try {
+    const providers = await api.get<Array<{ kind: string }>>('/admin/v1/ai/media/providers')
+    hasImageProvider.value = providers.some(p => p.kind === 'IMAGE')
+    const page = await api.get<{ content: Array<{ id: string; name: string; url: string; kind: string }> }>(
+      '/admin/v1/assets?size=100&sort=createdAt,desc')
+    assetOptions.value = page.content ?? []
+    if (productId) {
+      mediaList.value = await api.get(`/admin/v1/products/${productId}/media`)
+    }
+  } catch {
+    // 供应商/素材拉取失败不阻断商品编辑，但按钮会保持禁用并有提示
+    hasImageProvider.value = false
+  }
+}
+
+async function attachMedia() {
+  if (!productId) { ElMessage.error('先保存商品后再挂素材'); return }
+  if (!mediaForm.value.assetId) { ElMessage.error('先选择素材'); return }
+  try {
+    await api.post(`/admin/v1/products/${productId}/media`, {
+      assetId: mediaForm.value.assetId,
+      role: mediaForm.value.role,
+      skuId: mediaForm.value.role === 'SPEC' ? (mediaForm.value.skuId || null) : null,
+      sortOrder: mediaForm.value.sortOrder,
+      source: 'UPLOAD'
+    })
+    mediaList.value = await api.get(`/admin/v1/products/${productId}/media`)
+    ElMessage.success('已挂到商品')
+  } catch (cause) {
+    ElMessage.error(cause instanceof Error ? cause.message : '挂载失败')
+  }
+}
+
+async function detachMedia(id: string) {
+  try {
+    await api.delete(`/admin/v1/products/${productId}/media/${id}`)
+    mediaList.value = await api.get(`/admin/v1/products/${productId}/media`)
+  } catch (cause) {
+    ElMessage.error(cause instanceof Error ? cause.message : '移除失败')
+  }
+}
 const saving = ref(false)
 const error = ref('')
 
@@ -149,6 +196,8 @@ async function submit() {
     saving.value = false
   }
 }
+
+loadMediaContext()
 </script>
 
 <template>
@@ -195,6 +244,37 @@ async function submit() {
       </section>
 
       <section class="form-section">
+        <h3>商品素材（主图 / 图集 / 详情图 / 视频）</h3>
+        <p class="muted">素材只从素材库选择；规格专用图请用「规格图」并在规格区挂到具体 SKU。</p>
+        <div class="media-grid">
+          <div v-for="item in mediaList" :key="item.id" class="media-card">
+            <img :src="item.url" :alt="item.role" />
+            <div class="media-meta">
+              <el-tag size="small">{{ item.role }}</el-tag>
+              <el-button text type="danger" size="small" @click="detachMedia(item.id)">移除</el-button>
+            </div>
+          </div>
+          <div class="media-card empty">
+            <el-select v-model="mediaForm.assetId" placeholder="从素材库选择" style="width: 100%">
+              <el-option v-for="asset in assetOptions" :key="asset.id" :label="asset.name" :value="asset.id" />
+            </el-select>
+            <el-select v-model="mediaForm.role" style="width: 100%; margin-top: 6px">
+              <el-option label="主图" value="MAIN" />
+              <el-option label="图集" value="GALLERY" />
+              <el-option label="详情图" value="DETAIL" />
+              <el-option label="视频" value="VIDEO" />
+            </el-select>
+            <el-button style="margin-top: 6px" :disabled="!productId" @click="attachMedia">挂到商品</el-button>
+            <el-button text type="primary" @click="openAiMedia"
+                       :disabled="!productId || !hasImageProvider">
+              主图不够？AI 生成
+            </el-button>
+            <span v-if="!hasImageProvider" class="muted">未配置图片生成供应商</span>
+          </div>
+        </div>
+      </section>
+
+      <section class="form-section">
         <h3>规格</h3>
         <p>每行一个 SKU。规格名和规格值分开选择/输入，不使用逗号分隔字符串。</p>
         <div v-for="(variant, index) in form.variants" :key="index" class="variant-row">
@@ -211,7 +291,7 @@ async function submit() {
           <div class="image-cell">
             <el-input v-model="variant.imageUrl" placeholder="规格图 URL（可从素材库/AI 生成）" />
             <el-button text type="primary" @click="openMaterials">素材库</el-button>
-            <el-button text type="primary" :disabled="!productId" @click="openAiMedia">AI 生成主图</el-button>
+            <el-button text type="primary" :disabled="!productId || !hasImageProvider" @click="openAiMedia">AI 生成主图</el-button>
           </div>
           <el-button type="danger" text @click="removeVariant(index)">删除</el-button>
         </div>
@@ -263,4 +343,10 @@ async function submit() {
 .mb-16 {
   margin-bottom: 16px;
 }
+
+.media-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 12px; }
+.media-card { border: 1px solid #eee; border-radius: 6px; padding: 8px; display: flex; flex-direction: column; gap: 6px; }
+.media-card img { width: 100%; height: 110px; object-fit: cover; border-radius: 4px; }
+.media-card.empty { justify-content: center; }
+.media-meta { display: flex; align-items: center; justify-content: space-between; }
 </style>

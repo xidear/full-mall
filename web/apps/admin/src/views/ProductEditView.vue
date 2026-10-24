@@ -1,11 +1,14 @@
 <script setup lang="ts">
 import { reactive, ref } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import type { ProductUpsertRequest } from '@fullmall/api-client'
 import { api } from '../api'
 
 const router = useRouter()
+const route = useRoute()
+// 编辑态才有商品 id；新建态禁用 AI 生成入口（生成需要商品上下文留痕）
+const productId = String(route.params.id ?? route.query.productId ?? '')
 const saving = ref(false)
 const error = ref('')
 
@@ -20,6 +23,7 @@ const currencies = ['CNY', 'HKD', 'MOP', 'TWD']
 interface VariantForm {
   skuCode: string
   barcode: string
+  imageUrl: string
   priceYuan: number
   currency: string
   optionName: string
@@ -54,6 +58,7 @@ const form = reactive({
     {
       skuCode: '',
       barcode: '',
+      imageUrl: '',
       priceYuan: 0,
       currency: 'CNY',
       optionName: '规格',
@@ -66,6 +71,7 @@ function addVariant() {
   form.variants.push({
     skuCode: '',
     barcode: '',
+    imageUrl: '',
     priceYuan: 0,
     currency: 'CNY',
     optionName: '规格',
@@ -79,6 +85,15 @@ function removeVariant(index: number) {
     return
   }
   form.variants.splice(index, 1)
+}
+
+function openMaterials() {
+  router.push('/materials')
+}
+
+function openAiMedia() {
+  // 带上商品上下文：生成的提示词与导图会留痕到该商品，回到此页复制 URL 填到规格图
+  router.push({ path: '/ai-media', query: { productId: productId } })
 }
 
 async function submit() {
@@ -105,6 +120,7 @@ async function submit() {
     shelfLifeManaged: form.shelfLifeManaged,
     skus: form.variants.map(variant => ({
       skuCode: variant.skuCode.trim(),
+      imageUrl: variant.imageUrl?.trim() || undefined,
       barcode: variant.barcode.trim() || undefined,
       priceAmount: Math.round(variant.priceYuan * 100),
       currency: variant.currency,
@@ -192,6 +208,11 @@ async function submit() {
             <el-option v-for="name in optionNames" :key="name" :label="name" :value="name" />
           </el-select>
           <el-input v-model="variant.optionValue" placeholder="规格值" />
+          <div class="image-cell">
+            <el-input v-model="variant.imageUrl" placeholder="规格图 URL（可从素材库/AI 生成）" />
+            <el-button text type="primary" @click="openMaterials">素材库</el-button>
+            <el-button text type="primary" :disabled="!productId" @click="openAiMedia">AI 生成主图</el-button>
+          </div>
           <el-button type="danger" text @click="removeVariant(index)">删除</el-button>
         </div>
         <el-button @click="addVariant">+ 添加规格</el-button>

@@ -5899,3 +5899,12 @@ E2E 未跑（需要 5 个前端 + PG，下轮单独跑）。
 | Chromium 全量（**不带重试**） | ✅ **49 passed / 2 skipped / 0 failed** |
 | 修复 | 订单页物流面板空轨迹不渲染（产品缺陷）；E2E 断言改为状态无关 |
 
+
+## AI 素材生产端到端（第 5 轮）
+
+| 步骤 | 结果 |
+|---|---|
+| 本地官方 mock（wiremock 3.9.1） | ✅ 图片/多模态/视频任务三类映射均 200 |
+| dev 启动自动注册供应商 | ✅ `mock-image` / `mock-image-qwen` / `mock-video` / `ollama-chat` / `ollama-embedding` |
+| 提交 MAIN 图片任务 → worker 消费 | ✅ `SUCCEEDED`，生成 `asset` 记录 |
+| bind mount 属主 | ✅ 容器 `uid=1000`，宿主可删除（wiremock 镜像 tag 也已修正） |

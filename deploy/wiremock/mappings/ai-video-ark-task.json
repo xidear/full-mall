@@ -1,0 +1,5 @@
+{
+  "request": { "method": "POST", "urlPath": "/ark/contents/generations/tasks" },
+  "response": { "status": 200, "jsonBody": { "id": "mock-task-1" },
+    "headers": { "Content-Type": "application/json" } }
+}

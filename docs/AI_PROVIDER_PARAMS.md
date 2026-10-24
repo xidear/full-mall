@@ -57,3 +57,24 @@
 | `minimax-video` | `first_frame_image` + `subject_reference[].type=character` | `AiProviderPayloadTest` |
 
 > 这些都是"官方文档形态 + 本地 stub"，不需要真实 Key 即可回归；拿到 Key 后只换 `ai_provider` 的 endpoint/model 即可。
+
+## 本地官方 mock（无 Key 也能跑通）
+
+`deploy/wiremock/mappings` 内置三家的官方响应形态：
+
+| 映射 | 模拟 |
+|---|---|
+| `ai-image-openai.json` | `POST /v1/images/generations` → 返回 `data[0].url` |
+| `ai-image-qwen-multimodal.json` | `POST /v1/multimodal` → 返回 `output.choices[0].message.content[0].image` |
+| `ai-video-ark-task.json` + `ai-video-ark-query.json` | Seedance 提交 + 任务查询（`succeeded` + `video_url`） |
+
+启动：
+
+```bash
+docker compose up -d wiremock          # 宿主 8089
+# dev 配置默认带 app.ai.mock.base-url=http://localhost:8089
+```
+
+启动后会自动注册 `mock-image` / `mock-image-qwen` / `mock-video` 三个供应商（已存在则不覆盖）。
+
+**实跑验证（dev 环境）**：提交 `mock-image` 的 MAIN 任务 → 后台 worker 消费 → `SUCCEEDED` 且生成 `asset` 记录。

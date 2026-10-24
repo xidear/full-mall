@@ -1,0 +1,6 @@
+{
+  "request": { "method": "GET", "urlPath": "/ark/contents/generations/tasks/mock-task-1" },
+  "response": { "status": 200,
+    "jsonBody": { "status": "succeeded", "content": { "video_url": "http://localhost:8089/__files/ai-sample.mp4" } },
+    "headers": { "Content-Type": "application/json" } }
+}

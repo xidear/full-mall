@@ -30,13 +30,24 @@ public class AiProviderBootstrap {
             JdbcTemplate jdbc, SecretCipher cipher,
             @Value("${app.ai.ollama.base-url:http://localhost:11434/v1}") String baseUrl,
             @Value("${app.ai.ollama.text-model:qwen2.5:0.5b}") String textModel,
-            @Value("${app.ai.ollama.embedding-model:nomic-embed-text}") String embeddingModel) {
+            @Value("${app.ai.ollama.embedding-model:nomic-embed-text}") String embeddingModel,
+            @Value("${app.ai.mock.base-url:}") String mockBaseUrl) {
         return args -> {
             insertIfAbsent(jdbc, cipher, "ollama-chat", MediaKind.TEXT, "openai-chat",
                     baseUrl, textModel, 500);
             insertIfAbsent(jdbc, cipher, "ollama-embedding", MediaKind.TEXT, "openai-embedding",
                     baseUrl, embeddingModel, 510);
-            log.info("AI 默认供应商就绪：ollama-chat({}) / ollama-embedding({})", textModel, embeddingModel);
+            if (mockBaseUrl != null && !mockBaseUrl.isBlank()) {
+                // 本地官方 mock（wiremock）：无真实 Key 也能跑通生成链路
+                insertIfAbsent(jdbc, cipher, "mock-image", MediaKind.IMAGE, "openai-images",
+                        mockBaseUrl + "/v1", "mock-image-1", 900);
+                insertIfAbsent(jdbc, cipher, "mock-image-qwen", MediaKind.IMAGE, "dashscope-multimodal",
+                        mockBaseUrl + "/v1/multimodal", "qwen-image-edit", 910);
+                insertIfAbsent(jdbc, cipher, "mock-video", MediaKind.VIDEO, "ark-video",
+                        mockBaseUrl + "/ark", "seedance-mock", 900);
+            }
+            log.info("AI 默认供应商就绪：ollama-chat({}) / ollama-embedding({}) / mock={}",
+                    textModel, embeddingModel, mockBaseUrl);
         };
     }
 

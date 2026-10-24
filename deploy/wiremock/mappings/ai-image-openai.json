@@ -1,0 +1,10 @@
+{
+  "request": { "method": "POST", "urlPath": "/v1/images/generations" },
+  "response": {
+    "status": 200,
+    "jsonBody": {
+      "data": [ { "url": "http://localhost:8089/__files/ai-sample.png" } ]
+    },
+    "headers": { "Content-Type": "application/json" }
+  }
+}

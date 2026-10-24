@@ -1,0 +1,10 @@
+{
+  "request": { "method": "POST", "urlPath": "/v1/multimodal" },
+  "response": {
+    "status": 200,
+    "jsonBody": {
+      "output": { "choices": [ { "message": { "content": [ { "image": "http://localhost:8089/__files/ai-sample.png" } ] } } ] }
+    },
+    "headers": { "Content-Type": "application/json" }
+  }
+}

@@ -237,7 +237,7 @@
 
 | N9 | 视频分镜（分镜提示词 + 引导图） | ✅ | `ai_storyboard`/`ai_storyboard_shot`：镜头按序保存提示词、引导图（来自素材库实拍图）、时长（1–30s）；逐镜头入队生成、完成后按 job 回填资产；后台「视频分镜」页支持保存/生成/同步；含测试 |
 
-| N10 | 多参考图 / 角色定型 / 分镜多引导图 | ✅ | 任务支持 `images[{assetId,role}]`（REFERENCE/SUBJECT/FIRST_FRAME/LAST_FRAME），服务端解析成真实 URL 传给模型；新增协议 `ark-image`/`ark-video`（火山方舟 content[]+role，多图参考）、`dashscope-multimodal`（qwen-image-edit 多图 messages）、`minimax-video`（首帧 + subject_reference 角色定型）；分镜每个镜头支持多张引导图（第一张首帧、其余参考）；各协议传参差异见 `docs/AI_PROVIDER_PARAMS.md`；含 Ark 多图/首帧、**OpenAI images/edits multipart 多文件、qwen-image-edit messages 多图、MiniMax first_frame+subject_reference** 四组官方形态测试 |
+| N10 | 多参考图 / 角色定型 / 分镜多引导图 | ✅ | 任务支持 `images[{assetId,role}]`（REFERENCE/SUBJECT/FIRST_FRAME/LAST_FRAME），服务端解析成真实 URL 传给模型；新增协议 `ark-image`/`ark-video`（火山方舟 content[]+role，多图参考）、`dashscope-multimodal`（qwen-image-edit 多图 messages）、`minimax-video`（首帧 + subject_reference 角色定型）；分镜每个镜头支持多张引导图（第一张首帧、其余参考）；各协议传参差异见 `docs/AI_PROVIDER_PARAMS.md`；含 Ark 多图/首帧、**OpenAI images/edits multipart 多文件、qwen-image-edit messages 多图、MiniMax first_frame+subject_reference** 四组官方形态测试；**本机 wiremock 官方 mock 已端到端跑通**（提交→worker→成功→素材入库） |
 
 ## 统计
 

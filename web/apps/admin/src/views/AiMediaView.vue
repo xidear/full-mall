@@ -28,7 +28,8 @@ const form = ref({
   negative: '',
   size: '1024x1024',
   firstFrameUrl: '',
-  sourceAssetIds: [] as string[]
+  referenceIds: [] as string[],
+  subjectIds: [] as string[]
 })
 
 const kindProviders = computed(() => providers.value.filter(p => p.kind === form.value.kind))
@@ -78,10 +79,10 @@ function usePrompt(row: PromptRow) {
   if (row.providerCode) form.value.providerCode = row.providerCode
 }
 
-function toggleSource(id: string) {
-  const index = form.value.sourceAssetIds.indexOf(id)
-  if (index >= 0) form.value.sourceAssetIds.splice(index, 1)
-  else form.value.sourceAssetIds.push(id)
+function toggle(list: string[], id: string) {
+  const index = list.indexOf(id)
+  if (index >= 0) list.splice(index, 1)
+  else list.push(id)
 }
 
 async function submit() {
@@ -100,7 +101,11 @@ async function submit() {
       params: form.value.kind === 'VIDEO'
         ? { firstFrameUrl: form.value.firstFrameUrl || null }
         : { size: form.value.size },
-      sourceAssetIds: form.value.sourceAssetIds
+      sourceAssetIds: [],
+      images: [
+        ...form.value.referenceIds.map(id => ({ assetId: id, role: 'REFERENCE' })),
+        ...form.value.subjectIds.map(id => ({ assetId: id, role: 'SUBJECT' }))
+      ]
     })
     ElMessage.success('已提交，生成是异步的')
     await poll(created.jobId)
@@ -187,13 +192,21 @@ onMounted(load)
             <el-form-item v-if="form.kind === 'VIDEO'" label="引导图（首帧）URL">
               <el-input v-model="form.firstFrameUrl" placeholder="不填则用下方选中的第一张参考图做首帧" />
             </el-form-item>
-            <el-form-item label="参考图 / 引导图">
+            <el-form-item label="参考图（多角度）">
               <div class="thumbs">
                 <img v-for="asset in imageAssets.slice(0, 24)" :key="asset.id" :src="asset.url"
-                     class="thumb" :class="{ picked: form.sourceAssetIds.includes(asset.id) }"
-                     @click="toggleSource(asset.id)" />
-                <span v-if="!imageAssets.length" class="muted">素材库还没有图片，先上传实拍图（参考图会真实传给模型）</span>
+                     class="thumb" :class="{ picked: form.referenceIds.includes(asset.id) }"
+                     @click="toggle(form.referenceIds, asset.id)" />
+                <span v-if="!imageAssets.length" class="muted">素材库还没有图片，先上传实拍图</span>
               </div>
+            </el-form-item>
+            <el-form-item label="主体图（角色定型）">
+              <div class="thumbs">
+                <img v-for="asset in imageAssets.slice(0, 24)" :key="'s-' + asset.id" :src="asset.url"
+                     class="thumb" :class="{ picked: form.subjectIds.includes(asset.id) }"
+                     @click="toggle(form.subjectIds, asset.id)" />
+              </div>
+              <div class="muted">用于视频/图片中保持角色脸部与服装一致；会映射到 MiniMax subject_reference 等字段。</div>
             </el-form-item>
             <el-form-item>
               <el-button type="primary" :loading="submitting" @click="submit">提交生成</el-button>

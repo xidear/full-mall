@@ -28,14 +28,18 @@ public class AiStoryboardService {
         this.media = media;
     }
 
-    public record Shot(UUID id, int sortOrder, String prompt, UUID guideAssetId, int durationSec,
-                       UUID jobId, UUID assetId) {
+    public record Shot(UUID id, int sortOrder, String prompt, List<UUID> guideAssetIds,
+                       int durationSec, UUID jobId, UUID assetId) {
+        /** 兼容旧字段：第一张引导图。 */
+        public UUID guideAssetId() {
+            return guideAssetIds.isEmpty() ? null : guideAssetIds.get(0);
+        }
     }
 
     public record Storyboard(UUID id, String title, UUID productId, UUID skuId, List<Shot> shots) {
     }
 
-    public record ShotInput(String prompt, UUID guideAssetId, Integer durationSec) {
+    public record ShotInput(String prompt, List<UUID> guideAssetIds, Integer durationSec) {
     }
 
     @Transactional
@@ -62,12 +66,14 @@ public class AiStoryboardService {
                 throw ApiException.badRequest("STORYBOARD_SHOT_DURATION_INVALID",
                         "镜头时长必须在 1–30 秒，实际=" + duration);
             }
+            List<UUID> guides = shot.guideAssetIds() == null ? List.of() : shot.guideAssetIds();
             jdbc.update("""
                     INSERT INTO ai_storyboard_shot (id, storyboard_id, sort_order, prompt,
-                                                    guide_asset_id, duration_sec)
-                    VALUES (?, ?, ?, ?, ?, ?)
+                                                    guide_asset_id, guide_asset_ids, duration_sec)
+                    VALUES (?, ?, ?, ?, ?, CAST(? AS jsonb), ?)
                     """, UUID.randomUUID(), id, sort++, shot.prompt().trim(),
-                    shot.guideAssetId(), duration);
+                    guides.isEmpty() ? null : guides.get(0),
+                    com.fullmall.platform.json.Json.write(guides), duration);
         }
         return id;
     }
@@ -83,12 +89,12 @@ public class AiStoryboardService {
         }
         Object[] head = rows.get(0);
         List<Shot> shots = jdbc.query("""
-                SELECT id, sort_order, prompt, guide_asset_id, duration_sec, job_id, asset_id
+                SELECT id, sort_order, prompt, guide_asset_ids::text AS guides, duration_sec,
+                       job_id, asset_id
                   FROM ai_storyboard_shot WHERE storyboard_id = ? ORDER BY sort_order
                 """, (rs, rowNum) -> new Shot(
                 rs.getObject("id", UUID.class), rs.getInt("sort_order"), rs.getString("prompt"),
-                rs.getObject("guide_asset_id") == null ? null
-                        : rs.getObject("guide_asset_id", UUID.class),
+                guideIds(rs.getString("guides")),
                 rs.getInt("duration_sec"),
                 rs.getObject("job_id") == null ? null : rs.getObject("job_id", UUID.class),
                 rs.getObject("asset_id") == null ? null : rs.getObject("asset_id", UUID.class)),
@@ -104,10 +110,14 @@ public class AiStoryboardService {
         for (Shot shot : storyboard.shots()) {
             Map<String, Object> params = new LinkedHashMap<>();
             params.put("duration", shot.durationSec());
-            List<UUID> sources = shot.guideAssetId() == null ? List.of() : List.of(shot.guideAssetId());
+            List<AiMediaService.ImageRef> refs = new ArrayList<>();
+            for (int i = 0; i < shot.guideAssetIds().size(); i++) {
+                refs.add(new AiMediaService.ImageRef(shot.guideAssetIds().get(i),
+                        i == 0 ? "FIRST_FRAME" : "REFERENCE"));
+            }
             UUID jobId = media.enqueue(new AiMediaService.CreateJob(
                     MediaKind.VIDEO, providerCode, storyboard.productId(), storyboard.skuId(),
-                    "VIDEO", shot.prompt(), null, params, sources), actor);
+                    "VIDEO", shot.prompt(), null, params, List.of(), refs), actor);
             jdbc.update("UPDATE ai_storyboard_shot SET job_id = ? WHERE id = ?", jobId, shot.id());
             jobIds.add(jobId);
         }
@@ -132,5 +142,16 @@ public class AiStoryboardService {
             }
         }
         return updated;
+    }
+
+    private List<UUID> guideIds(String json) {
+        List<UUID> ids = new ArrayList<>();
+        if (json == null || json.isBlank() || "[]".equals(json)) {
+            return ids;
+        }
+        for (com.fasterxml.jackson.databind.JsonNode node : com.fullmall.platform.json.Json.read(json)) {
+            ids.add(UUID.fromString(node.asText()));
+        }
+        return ids;
     }
 }

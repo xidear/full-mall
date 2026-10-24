@@ -10,7 +10,7 @@ interface Shot {
   id: string
   sortOrder: number
   prompt: string
-  guideAssetId?: string | null
+  guideAssetIds: string[]
   durationSec: number
   jobId?: string | null
   assetId?: string | null
@@ -28,7 +28,7 @@ const form = ref({
   productId: String(route.query.productId ?? ''),
   skuId: '',
   providerCode: '',
-  shots: [{ prompt: '', guideAssetId: '', durationSec: 5 }]
+  shots: [{ prompt: '', guideAssetIds: [] as string[], durationSec: 5 }]
 })
 
 const videoProviders = () => providers.value.filter(p => p.kind === 'VIDEO')
@@ -46,7 +46,7 @@ async function load() {
 }
 
 function addShot() {
-  form.value.shots.push({ prompt: '', guideAssetId: '', durationSec: 5 })
+  form.value.shots.push({ prompt: '', guideAssetIds: [], durationSec: 5 })
 }
 
 function removeShot(index: number) {
@@ -67,7 +67,7 @@ async function save() {
       skuId: form.value.skuId || null,
       shots: form.value.shots.map(s => ({
         prompt: s.prompt,
-        guideAssetId: s.guideAssetId || null,
+        guideAssetIds: s.guideAssetIds,
         durationSec: s.durationSec
       }))
     })
@@ -149,7 +149,8 @@ onMounted(load)
           <div class="shot">
             <el-input v-model="shot.prompt" type="textarea" :rows="2" placeholder="画面内容、运镜（推近/旋转）、光线" />
             <div class="shot-row">
-              <el-select v-model="shot.guideAssetId" style="width: 260px" clearable placeholder="引导图（首帧，可选）">
+              <el-select v-model="shot.guideAssetIds" multiple collapse-tags style="width: 320px"
+                         placeholder="引导图/参考图（可多张，第一张作首帧）">
                 <el-option v-for="asset in images()" :key="asset.id" :label="asset.name" :value="asset.id" />
               </el-select>
               <el-input-number v-model="shot.durationSec" :min="1" :max="30" />
@@ -173,7 +174,7 @@ onMounted(load)
         <div>
           <strong>镜头 {{ shot.sortOrder + 1 }}</strong>
           <div class="muted">{{ shot.prompt }}</div>
-          <div class="muted">引导图：{{ assetUrl(shot.guideAssetId) || '未选' }}</div>
+          <div class="muted">引导图：{{ (shot.guideAssetIds ?? []).map(assetUrl).filter(Boolean).join(' , ') || '未选' }}</div>
         </div>
         <div>
           <video v-if="shot.assetId" :src="assetUrl(shot.assetId)" controls style="width: 260px" />

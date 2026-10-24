@@ -14,6 +14,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 
 /**
@@ -47,9 +48,21 @@ public class AiMediaService {
         }
     }
 
+    /** 单张参考图及其角色：REFERENCE 通用参考 / SUBJECT 主体(角色) / FIRST_FRAME / LAST_FRAME。 */
+    public record ImageRef(UUID assetId, String role) {
+    }
+
     public record CreateJob(MediaKind kind, String providerCode, UUID productId, UUID skuId,
                             String purpose, String prompt, String negative,
-                            Map<String, Object> params, List<UUID> sourceAssetIds) {
+                            Map<String, Object> params, List<UUID> sourceAssetIds,
+                            List<ImageRef> images) {
+        /** 兼容旧调用：只有素材 id 时按 REFERENCE 处理。 */
+        public CreateJob(MediaKind kind, String providerCode, UUID productId, UUID skuId,
+                         String purpose, String prompt, String negative,
+                         Map<String, Object> params, List<UUID> sourceAssetIds) {
+            this(kind, providerCode, productId, skuId, purpose, prompt, negative, params,
+                    sourceAssetIds, List.of());
+        }
     }
 
     public List<Map<String, Object>> providers(MediaKind kind) {
@@ -86,7 +99,7 @@ public class AiMediaService {
                 """, id, request.kind().name(), provider.id(), request.productId(), request.skuId(),
                 request.purpose(), request.prompt().trim(), request.negative(),
                 Json.write(request.params() == null ? Map.of() : request.params()),
-                Json.write(request.sourceAssetIds() == null ? List.of() : request.sourceAssetIds()),
+                Json.write(mergeSources(request.sourceAssetIds(), request.images())),
                 actor);
         jdbc.update("""
                 INSERT INTO ai_prompt_history (id, kind, purpose, product_id, sku_id, prompt,
@@ -208,12 +221,17 @@ public class AiMediaService {
                 throw new IllegalStateException("协议未实现：" + provider.protocol());
             }
             // 参考图/引导图：按 source_asset_ids 取真实 URL 传给模型，而不是只留痕
-            java.util.List<String> referenceImages = referenceUrls(
+            java.util.List<Map<String, Object>> images = resolveImages(
                     String.valueOf(row.get("sources")));
             Map<String, Object> effective = new LinkedHashMap<>(params);
-            if (!referenceImages.isEmpty()) {
-                effective.put("referenceImageUrls", referenceImages);
-                effective.putIfAbsent("firstFrameUrl", referenceImages.get(0));
+            if (!images.isEmpty()) {
+                effective.put("images", images);
+                effective.put("referenceImageUrls", images.stream()
+                        .map(image -> String.valueOf(image.get("url"))).toList());
+                images.stream()
+                        .filter(image -> "FIRST_FRAME".equals(image.get("role")))
+                        .findFirst()
+                        .ifPresent(image -> effective.put("firstFrameUrl", image.get("url")));
             }
             GeneratedMedia media = adapter.generate(provider,
                     String.valueOf(row.get("prompt")),
@@ -287,28 +305,55 @@ public class AiMediaService {
         return rows.get(0);
     }
 
-    /** 从任务里记录的素材 id 取 URL（参考图/视频引导图）。 */
-    private java.util.List<String> referenceUrls(String sourcesJson) {
-        java.util.List<String> urls = new java.util.ArrayList<>();
+    /** 合并旧参数（纯 id）与新参数（id+角色），统一成 [{assetId,role}]。 */
+    private List<Map<String, Object>> mergeSources(List<UUID> sourceAssetIds, List<ImageRef> images) {
+        List<Map<String, Object>> merged = new ArrayList<>();
+        if (images != null) {
+            for (ImageRef image : images) {
+                if (image.assetId() == null) {
+                    throw ApiException.badRequest("AI_IMAGE_ASSET_REQUIRED", "参考图缺少 assetId");
+                }
+                String role = image.role() == null || image.role().isBlank()
+                        ? "REFERENCE" : image.role().trim().toUpperCase(java.util.Locale.ROOT);
+                if (!Set.of("REFERENCE", "SUBJECT", "FIRST_FRAME", "LAST_FRAME").contains(role)) {
+                    throw ApiException.badRequest("AI_IMAGE_ROLE_INVALID",
+                            "参考图角色只能是 REFERENCE/SUBJECT/FIRST_FRAME/LAST_FRAME，实际=" + image.role());
+                }
+                merged.add(Map.of("assetId", image.assetId().toString(), "role", role));
+            }
+        }
+        if (sourceAssetIds != null) {
+            for (UUID id : sourceAssetIds) {
+                merged.add(Map.of("assetId", id.toString(), "role", "REFERENCE"));
+            }
+        }
+        return merged;
+    }
+
+    /** 把 [{assetId,role}] 解析成 [{url,role}]；素材不存在直接报错，不静默丢图。 */
+    private List<Map<String, Object>> resolveImages(String sourcesJson) {
+        List<Map<String, Object>> images = new ArrayList<>();
         if (sourcesJson == null || sourcesJson.isBlank() || "[]".equals(sourcesJson)) {
-            return urls;
+            return images;
         }
         for (com.fasterxml.jackson.databind.JsonNode node : Json.read(sourcesJson)) {
-            String id = node.asText("");
+            String id = node.path("assetId").asText("");
+            String role = node.path("role").asText("REFERENCE");
             if (id.isBlank()) {
                 continue;
             }
-            try {
-                var rows = jdbc.query("SELECT url FROM asset WHERE id = ?::uuid",
-                        (rs, rowNum) -> rs.getString("url"), id);
-                if (!rows.isEmpty()) {
-                    urls.add(rows.get(0));
-                }
-            } catch (RuntimeException error) {
-                throw new IllegalStateException("参考图不存在：" + id, error);
+            var rows = jdbc.query("SELECT url FROM asset WHERE id = ?::uuid",
+                    (rs, rowNum) -> rs.getString("url"), id);
+            if (rows.isEmpty()) {
+                throw new IllegalStateException("参考图不存在：" + id);
             }
+            Map<String, Object> image = new LinkedHashMap<>();
+            image.put("assetId", id);
+            image.put("url", rows.get(0));
+            image.put("role", role);
+            images.add(image);
         }
-        return urls;
+        return images;
     }
 
     private String decrypt(String stored) {

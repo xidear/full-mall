@@ -1,7 +1,11 @@
 package com.fullmall.ai.media;
 
+import com.fullmall.ai.media.adapter.ArkImageAdapter;
+import com.fullmall.ai.media.adapter.ArkVideoAdapter;
 import com.fullmall.ai.media.adapter.DashScopeImageAdapter;
+import com.fullmall.ai.media.adapter.DashScopeMultimodalImageAdapter;
 import com.fullmall.ai.media.adapter.DashScopeVideoAdapter;
+import com.fullmall.ai.media.adapter.MiniMaxVideoAdapter;
 import com.fullmall.ai.media.adapter.MediaGenerationAdapter;
 import com.fullmall.ai.media.adapter.OpenAiChatAdapter;
 import com.fullmall.ai.media.adapter.OpenAiEmbeddingAdapter;
@@ -36,5 +40,25 @@ public class AiMediaConfig {
     @Bean
     public MediaGenerationAdapter openAiEmbeddingAdapter() {
         return new OpenAiEmbeddingAdapter();
+    }
+
+    @Bean
+    public MediaGenerationAdapter arkImageAdapter() {
+        return new ArkImageAdapter();
+    }
+
+    @Bean
+    public MediaGenerationAdapter arkVideoAdapter() {
+        return new ArkVideoAdapter();
+    }
+
+    @Bean
+    public MediaGenerationAdapter dashScopeMultimodalImageAdapter() {
+        return new DashScopeMultimodalImageAdapter();
+    }
+
+    @Bean
+    public MediaGenerationAdapter miniMaxVideoAdapter() {
+        return new MiniMaxVideoAdapter();
     }
 }

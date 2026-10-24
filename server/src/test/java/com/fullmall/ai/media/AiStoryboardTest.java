@@ -106,8 +106,8 @@ class AiStoryboardTest {
         jdbc.update("INSERT INTO product (id, title, status) VALUES (?, '分镜商品', 'ACTIVE')", productId);
 
         UUID storyboardId = storyboards.create("主图视频", productId, null, List.of(
-                new AiStoryboardService.ShotInput("镜头1：正面推近", null, 5),
-                new AiStoryboardService.ShotInput("镜头2：侧面旋转", null, 5)), "admin");
+                new AiStoryboardService.ShotInput("镜头1：正面推近", List.of(), 5),
+                new AiStoryboardService.ShotInput("镜头2：侧面旋转", List.of(), 5)), "admin");
 
         var jobIds = storyboards.generate(storyboardId, "stub-video", "admin");
         assertThat(jobIds).hasSize(2);

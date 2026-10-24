@@ -237,15 +237,17 @@
 
 | N9 | 视频分镜（分镜提示词 + 引导图） | ✅ | `ai_storyboard`/`ai_storyboard_shot`：镜头按序保存提示词、引导图（来自素材库实拍图）、时长（1–30s）；逐镜头入队生成、完成后按 job 回填资产；后台「视频分镜」页支持保存/生成/同步；含测试 |
 
+| N10 | 多参考图 / 角色定型 / 分镜多引导图 | ✅ | 任务支持 `images[{assetId,role}]`（REFERENCE/SUBJECT/FIRST_FRAME/LAST_FRAME），服务端解析成真实 URL 传给模型；新增协议 `ark-image`/`ark-video`（火山方舟 content[]+role，多图参考）、`dashscope-multimodal`（qwen-image-edit 多图 messages）、`minimax-video`（首帧 + subject_reference 角色定型）；分镜每个镜头支持多张引导图（第一张首帧、其余参考）；各协议传参差异见 `docs/AI_PROVIDER_PARAMS.md`；含 Ark 多图/首帧测试 |
+
 ## 统计
 
 | 状态 | 数量 |
 |---|---|
-| ✅ 已实现并验证 | 133 |
+| ✅ 已实现并验证 | 134 |
 | ⚠️ 已实现未验证 / 半接线 | 10 |
 | ⬜ 未实现 | 10 |
 | 🚫 有意不做 / 暂缓 | 7 |
-| **合计** | **161** |
+| **合计** | **162** |
 | 另：接口冒烟覆盖 | 43 个接口（读 33 / 写 10） |
 
 > 注：本表是当前代码与文档的真实汇总，不是"挑选重点"。后续每轮完成若干条即更新对应行。

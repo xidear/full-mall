@@ -86,7 +86,6 @@ const menuGroups = [
     { path: '/materials', label: '素材库', roles: ['ADMIN', 'OPERATOR'] },
     { path: '/ai-media', label: 'AI 素材生成', roles: ['ADMIN', 'OPERATOR'] },
     { path: '/ai-storyboard', label: '视频分镜', roles: ['ADMIN', 'OPERATOR'] },
-    { path: '/ai-actions', label: 'AI 变更审批', roles: ['ADMIN'] },
     { path: '/integrations', label: '第三方服务', roles: ['ADMIN'] },
     { path: '/settings', label: '系统设置', roles: ['ADMIN'] }
   ] }

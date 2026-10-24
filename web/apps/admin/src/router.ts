@@ -23,7 +23,6 @@ import PriceRuleView from './views/PriceRuleView.vue'
 import ExpiringView from './views/ExpiringView.vue'
 import IntegrationsView from './views/IntegrationsView.vue'
 import MaterialView from './views/MaterialView.vue'
-import AiActionsView from './views/AiActionsView.vue'
 import PosPromotionsView from './views/PosPromotionsView.vue'
 import TranslationsView from './views/TranslationsView.vue'
 import FaqView from './views/FaqView.vue'
@@ -68,7 +67,6 @@ const router = createRouter({
     { path: '/expiring', name: 'expiring', component: ExpiringView, meta: { title: '临期商品' } },
     { path: '/integrations', name: 'integrations', component: IntegrationsView, meta: { title: '第三方服务' } },
     { path: '/materials', name: 'materials', component: MaterialView, meta: { title: '素材库' } },
-    { path: '/ai-actions', name: 'ai-actions', component: AiActionsView, meta: { title: 'AI 变更审批' } },
     { path: '/pos-promotions', name: 'pos-promotions', component: PosPromotionsView, meta: { title: 'POS 专属促销' } },
     { path: '/translations', name: 'translations', component: TranslationsView, meta: { title: '商品译文' } },
     { path: '/faq', name: 'faq', component: FaqView, meta: { title: 'FAQ 知识库' } },

@@ -589,3 +589,10 @@ make verify-fast   # 跳过 E2E
 
 **该规则由 `NotificationRoutingTest` 钉住**（会员单与游客单各一条用例），改动会立刻失败。
 
+## 开发端口（强制，2026-10 起）
+
+- 统一使用 **41280–41289**，禁止 3000/5173/8080 及其变体（15173、51731 等）。
+- 分配：API 41280、admin 41281、store-console 41282、supplier 41283、support 41284、storefront 41285、mobile H5 41286、wiremock 41288、Ollama 41289。
+- 新增服务必须从该段取空闲端口并登记到 `docs/DEVELOPMENT_PORTS.md`。
+- **`localhost` 只是本机调试地址，不属于对外服务**：对外交付必须显式给出绑定地址/域名/端口。
+

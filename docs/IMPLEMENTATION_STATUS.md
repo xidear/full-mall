@@ -5960,3 +5960,15 @@ E2E 未跑（需要 5 个前端 + PG，下轮单独跑）。
 | 前端构建 | ✅ admin / storefront / store-console / supplier-portal / support-console 全部通过 |
 | 移动端 | ✅ uni H5 实跑；`uni build -p mp-weixin` 通过（真机需 appId） |
 | 守卫 | ✅ 关键文件 31、接口对齐 290 路由、帮助 36 页、金额精度通过 |
+
+## 资源选择器与交互重构（当前轮）
+
+| 项 | 结果 |
+|---|---|
+| 新增组件 | `AssetPicker`（网格/搜索/上传/多选，可输出 id 或 url）、`ProductPicker`（远程搜索）、`SkuPicker` |
+| 替换范围 | 商品编辑规格图与商品素材、AI 素材页商品/规格/首帧、视频分镜商品/规格/引导图、素材库挂载、规格改价、SKU 矩阵、成本查询 |
+| 补齐功能 | 商品编辑路由 `/products/:id/edit`、`PUT /admin/v1/products/{id}`（标题/描述/类目），列表加「编辑」 |
+| 移动端 | 按钮最小可点高度 88rpx、输入字号 32rpx（避免 iOS 缩放） |
+| 后端测试 | ✅ 663 通过 / 0 失败（新增 `ProductBasicsUpdateTest`） |
+| E2E | ✅ 53 passed / 2 skipped / 0 failed（新增 `admin-pickers`） |
+| 守卫 | 关键文件 31、接口对齐 291 路由、帮助 36 页、金额精度通过 |

@@ -5950,3 +5950,13 @@ E2E 未跑（需要 5 个前端 + PG，下轮单独跑）。
 | 小程序构建 `uni build -p mp-weixin` | ✅ 产物 `dist/build/mp-weixin` |
 | 全量 Chromium E2E | ✅ 52 passed / 2 skipped / 0 failed |
 
+
+## 全量复核（联调收尾）
+
+| 检查 | 结果 |
+|---|---|
+| 后端全量 | ✅ 661 通过 / 0 失败 |
+| Chromium E2E | ✅ 52 passed / 2 skipped / 0 failed（含素材库变体、移动端 H5、前台商品素材） |
+| 前端构建 | ✅ admin / storefront / store-console / supplier-portal / support-console 全部通过 |
+| 移动端 | ✅ uni H5 实跑；`uni build -p mp-weixin` 通过（真机需 appId） |
+| 守卫 | ✅ 关键文件 31、接口对齐 290 路由、帮助 36 页、金额精度通过 |

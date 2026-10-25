@@ -119,7 +119,7 @@ async function handleFile(file: File) {
     form.append('file', file)
     const purpose = purposeValue.value
     const response = await fetch(
-      `${import.meta.env.VITE_API_BASE || 'http://localhost:41280'}/admin/v1/media?purpose=${purpose}`, {
+      `${import.meta.env.VITE_API_BASE ?? ''}/admin/v1/media?purpose=${purpose}`, {
         method: 'POST',
         headers: { Authorization: `Bearer ${localStorage.getItem('fullmall-admin-token') ?? ''}` },
         body: form

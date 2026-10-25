@@ -25,11 +25,13 @@ const authHeaders: Record<string, string> = {
 }
 const { data: order, error, refresh: refreshOrder } = await useFetch<Order>(
   `${base}/api/v1/orders/${route.params.id}`,
-  { headers: authHeaders }
+  {
+    key: `order-${route.params.id}`, headers: authHeaders }
 )
 const { data: fulfillments } = await useFetch<Fulfillment[]>(
   `${base}/api/v1/orders/${route.params.id}/fulfillments`,
-  { headers: authHeaders }
+  {
+    key: `fulfillments-${route.params.id}`, headers: authHeaders }
 )
 
 if (error.value || !order.value) {

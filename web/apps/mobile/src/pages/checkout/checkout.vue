@@ -3,7 +3,8 @@ import { computed, ref } from 'vue'
 
 interface CartItem { skuId: string; title: string; price: number; quantity: number }
 
-const apiBase = import.meta.env.VITE_API_BASE || 'http://localhost:41280'
+const apiBase = import.meta.env.VITE_API_BASE
+  || `${location.protocol}//${location.hostname}:41280`
 const key = 'fullmall.mobile.cart'
 const cart = ref<CartItem[]>(uni.getStorageSync(key) as CartItem[] || [])
 const form = ref({ name: '', phone: '', code: '', province: '', city: '', district: '', detail: '' })

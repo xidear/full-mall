@@ -12,7 +12,9 @@ import {
 import { api } from '../api'
 
 const appMode = import.meta.env.VITE_APP_MODE || 'dev'
-const wsBase = import.meta.env.VITE_WS_BASE || 'ws://localhost:41280'
+// 局域网访问时 localhost 指向客户端自身，按当前主机推导
+const wsBase = import.meta.env.VITE_WS_BASE
+  || `${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.hostname}:41280`
 const stores = ref<Store[]>([])
 const storeId = ref('')
 const tasks = ref<PickTask[]>([])

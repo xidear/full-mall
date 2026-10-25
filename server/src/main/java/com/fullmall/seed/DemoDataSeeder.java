@@ -42,6 +42,7 @@ public class DemoDataSeeder {
         if (productCount == null) {
             throw new IllegalStateException("Product count query returned null during demo seeding");
         }
+        ensurePromotionStock();
         if (productCount == 0) {
             execute("db/demo/seed.sql");
         } else {
@@ -68,5 +69,23 @@ public class DemoDataSeeder {
                 new ClassPathResource(classpathScript));
         populator.setSqlScriptEncoding("UTF-8");
         populator.execute(dataSource);
+    }
+
+    /**
+     * 演示环境防止"买赠名额"被反复联调耗尽：库存接近上限时补足。
+     * 只在非 prod 运行（seed 本身已保证），且仅在 sold_quantity 接近 stock_limit 时 +200。
+     */
+    private void ensurePromotionStock() {
+        int updated = jdbcTemplate.update("""
+                UPDATE promotion
+                   SET rules = jsonb_set(rules, '{stockLimit}',
+                                         to_jsonb((rules->>'stockLimit')::int + 200))
+                 WHERE stock_limit IS NOT NULL
+                   AND status = 'ACTIVE'
+                   AND sold_quantity >= stock_limit - 5
+                """);
+        if (updated > 0) {
+            log.info("演示促销名额已补足：{} 条", updated);
+        }
     }
 }

@@ -6,9 +6,12 @@ const route = useRoute()
 const config = useRuntimeConfig()
 const base = import.meta.server ? config.apiInternalBase : config.public.apiBase
 const { data: product, error } = await useFetch<Product>(`${base}/api/v1/products/${route.params.id}`, {
+  key: `product-${route.params.id}-${locale.value}`,
   query: { locale: locale.value }
 })
-const { data: promotions } = await useFetch<Promotion[]>(`${base}/api/v1/promotions`)
+const { data: promotions } = await useFetch<Promotion[]>(`${base}/api/v1/promotions`, {
+  key: 'promotions-active'
+})
 
 if (error.value || !product.value) {
   throw createError({ statusCode: 404, statusMessage: '商品不存在' })

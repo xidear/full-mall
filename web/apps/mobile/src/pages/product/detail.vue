@@ -10,7 +10,8 @@ interface Product {
   skus: Sku[]
 }
 
-const apiBase = import.meta.env.VITE_API_BASE || 'http://localhost:41280'
+const apiBase = import.meta.env.VITE_API_BASE
+  || `${location.protocol}//${location.hostname}:41280`
 const product = ref<Product | null>(null)
 const loading = ref(true)
 const error = ref('')

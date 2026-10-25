@@ -16,7 +16,8 @@ interface Product {
 }
 
 const { theme, vars: themeVars, presets, setTheme, loadRemote } = useMobileTheme()
-const apiBase = import.meta.env.VITE_API_BASE || 'http://localhost:41280'
+const apiBase = import.meta.env.VITE_API_BASE
+  || `${location.protocol}//${location.hostname}:41280`
 const products = ref<Product[]>([])
 const loading = ref(true)
 const error = ref('')

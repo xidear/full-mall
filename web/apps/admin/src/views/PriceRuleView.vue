@@ -19,7 +19,7 @@ function yuan(fen: number) { return (fen / 100).toFixed(2) }
 async function doPreview() {
   if (previewing.value) return
   if (!productId.value.trim() || !dimKey.value.trim() || !dimValue.value.trim()) {
-    ElMessage.error('请填写商品 ID、规格名与规格值')
+    ElMessage.error('请先选择商品，并填写规格名与规格值')
     return
   }
   previewing.value = true

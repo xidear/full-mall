@@ -1,7 +1,7 @@
 import { expect, test } from '@playwright/test'
 
 test('admin creates a POS-only promotion and sees it in the filtered list', async ({ page }) => {
-  await page.goto('http://localhost:5273/login')
+  await page.goto('http://localhost:41281/login')
   await page.getByPlaceholder('请输入账号').fill('admin')
   await page.getByPlaceholder('请输入密码').fill('Admin@123456')
   await expect(page.locator('.captcha-question')).toHaveText(/\d+ \+ \d+/)

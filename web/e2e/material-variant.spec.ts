@@ -2,9 +2,9 @@ import { expect, test } from '@playwright/test'
 
 /** 素材库内一键生成变体：选参考图 → 提交 → worker 生成 → 结果回显 → 挂到商品。 */
 test('material library generates a variant end to end', async ({ page, request }) => {
-  const captcha = await (await request.get('http://localhost:8080/admin/v1/auth/captcha')).json()
+  const captcha = await (await request.get('http://localhost:41280/admin/v1/auth/captcha')).json()
   const nums = (captcha.question.match(/\d+/g) ?? []).map(Number)
-  const login = await request.post('http://localhost:8080/admin/v1/auth/login', {
+  const login = await request.post('http://localhost:41280/admin/v1/auth/login', {
     data: { username: 'admin', password: 'Admin@123456', captchaId: captcha.captchaId, captchaAnswer: String(nums[0] + nums[1]) }
   })
   expect(login.ok()).toBeTruthy()
@@ -12,7 +12,7 @@ test('material library generates a variant end to end', async ({ page, request }
 
   // 造一张参考图（直接走上传接口，purpose=PRODUCT 才会进素材库）
   const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==', 'base64')
-  const uploaded = await request.post('http://localhost:8080/admin/v1/media?purpose=PRODUCT', {
+  const uploaded = await request.post('http://localhost:41280/admin/v1/media?purpose=PRODUCT', {
     headers: { Authorization: `Bearer ${token}` },
     multipart: { file: { name: 'ref.png', mimeType: 'image/png', buffer: png } }
   })
@@ -21,7 +21,7 @@ test('material library generates a variant end to end', async ({ page, request }
   await page.addInitScript((value) => {
     localStorage.setItem('fullmall.admin.token', value)
   }, token)
-  await page.goto('http://localhost:5273/materials')
+  await page.goto('http://localhost:41281/materials')
   await expect(page.locator('main h1, .page h1, h1').filter({ hasText: '素材库' }).first()).toBeVisible()
 
   await page.getByRole('button', { name: 'AI 生成变体' }).click()

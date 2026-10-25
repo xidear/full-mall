@@ -12,7 +12,7 @@ import {
 import { api } from '../api'
 
 const appMode = import.meta.env.VITE_APP_MODE || 'dev'
-const wsBase = import.meta.env.VITE_WS_BASE || 'ws://localhost:8080'
+const wsBase = import.meta.env.VITE_WS_BASE || 'ws://localhost:41280'
 const stores = ref<Store[]>([])
 const storeId = ref('')
 const tasks = ref<PickTask[]>([])

@@ -297,7 +297,7 @@ services:
     user: "${APP_UID:-1000}:${APP_GID:-1000}"
     profiles: [tools]
     ports:
-      - "${WIREMOCK_PORT:-8089}:8080"
+      - "${WIREMOCK_PORT:-41288}:8080"
     volumes:
       - ./deploy/wiremock:/home/wiremock
 
@@ -305,7 +305,7 @@ services:
     image: ollama/ollama:latest
     profiles: [ai]
     ports:
-      - "${OLLAMA_PORT:-11434}:11434"
+      - "${OLLAMA_PORT:-41289}:11434"
     volumes:
       - ollama-data:/root/.ollama
 

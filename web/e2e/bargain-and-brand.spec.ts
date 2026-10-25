@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test'
 
-const API = 'http://localhost:8080'
+const API = 'http://localhost:41280'
 
 async function adminToken(request: any) {
   const captcha = await (await request.get(`${API}/admin/v1/auth/captcha`)).json()
@@ -21,7 +21,7 @@ test('admin creates and deletes a brand; in-use brand cannot be deleted', async 
   })
   expect(created.ok(), await created.text()).toBeTruthy()
 
-  await page.goto('http://localhost:5273/login')
+  await page.goto('http://localhost:41281/login')
   await page.getByPlaceholder('请输入账号').fill('admin')
   await page.getByPlaceholder('请输入密码').fill('Admin@123456')
   const question = await page.locator('.captcha-question').innerText()

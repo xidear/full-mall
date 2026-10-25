@@ -2,7 +2,7 @@
 """检索评测：用关键词召回（与生产 keyword 模式同口径）计算 Top-K 命中率。
 
 用法：
-    python3 scripts/eval-retrieval.py --base http://localhost:8080 \
+    python3 scripts/eval-retrieval.py --base http://localhost:41280 \
         --token <admin-token> [--topk 3]
 
 数据来源：docs/ai/eval-set.json（50 条标注问题）+ 已导入知识库（商品/文档）。
@@ -27,7 +27,7 @@ def search(base, token, question, topk):
 
 def main() -> int:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--base", default="http://localhost:8080")
+    parser.add_argument("--base", default="http://localhost:41280")
     parser.add_argument("--token", required=True)
     parser.add_argument("--topk", type=int, default=3)
     parser.add_argument("--threshold", type=float, default=0.8)

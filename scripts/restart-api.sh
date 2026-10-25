@@ -51,10 +51,11 @@ export APP_SECRET_KEY
 export SPRING_PROFILES_ACTIVE="${SPRING_PROFILES_ACTIVE:-dev}"
 
 echo "[restart-api] 启动新 jar ..."
-nohup java -jar "$jar" > /tmp/fullmall-api.log 2>&1 &
+PORT="${APP_PORT:-41280}"
+nohup java -jar "$jar" --server.port="$PORT" > /tmp/fullmall-api.log 2>&1 &
 
 api_ready() {
-  python3 -c "import urllib.request; urllib.request.urlopen('http://localhost:8080/api/v1/products?size=1', timeout=3).read()" >/dev/null 2>&1
+  python3 -c "import urllib.request,os; urllib.request.urlopen('http://localhost:'+os.environ.get('APP_PORT','41280')+'/api/v1/products?size=1', timeout=3).read()" >/dev/null 2>&1
 }
 
 for _ in $(seq 1 90); do
@@ -68,4 +69,4 @@ if ! api_ready; then
   exit 1
 fi
 
-echo "[restart-api] 就绪：http://localhost:8080"
+echo "[restart-api] 就绪：http://localhost:${PORT}"

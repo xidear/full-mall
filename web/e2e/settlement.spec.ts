@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test'
 
-const API = 'http://localhost:8080'
+const API = 'http://localhost:41280'
 const SUPPLIER_ID = '33333333-3333-3333-3333-333333333333'
 const SUPPLIER_SKU = 'bbbb0000-0000-0000-0000-0000000000c1'
 
@@ -42,7 +42,7 @@ test('admin generates settlement and sees payable in dialog', async ({ page, req
   expect(generated.ok(), await generated.text()).toBeTruthy()
 
   // 界面：供应商页 → 结算 → 列表出现应付金额
-  await page.goto('http://localhost:5273/login')
+  await page.goto('http://localhost:41281/login')
   await page.getByPlaceholder('请输入账号').fill('admin')
   await page.getByPlaceholder('请输入密码').fill('Admin@123456')
   const question = await page.locator('.captcha-question').innerText()

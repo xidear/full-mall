@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test'
 
-const API = 'http://localhost:8080'
+const API = 'http://localhost:41280'
 const SKU = 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb'
 const STORE = '22222222-2222-2222-2222-222222222222'
 
@@ -48,7 +48,7 @@ test.beforeAll(async ({ request }) => {
 })
 
 test('store console picks by product row and verifies pickup after loading customer info', async ({ page, request }) => {
-  await page.goto('http://localhost:5274/')
+  await page.goto('http://localhost:41282/')
   await expect(page.getByText('实时推送已连接')).toBeVisible()
 
   const shortId = fulfillmentId.slice(0, 8)

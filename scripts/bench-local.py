@@ -3,7 +3,7 @@
 import json, statistics, sys, time, urllib.request
 from concurrent.futures import ThreadPoolExecutor
 
-BASE = sys.argv[1] if len(sys.argv) > 1 else "http://localhost:8080"
+BASE = sys.argv[1] if len(sys.argv) > 1 else "http://localhost:41280"
 CONCURRENCY = int(sys.argv[2]) if len(sys.argv) > 2 else 20
 REQUESTS = int(sys.argv[3]) if len(sys.argv) > 3 else 200
 

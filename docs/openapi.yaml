@@ -7,7 +7,7 @@ info:
     金额字段均为最小货币单位整数（如人民币分），并携带 currency。
     公开演示站仅允许 GET 和 /mock/**，禁止 POST/PUT/DELETE。
 servers:
-  - url: http://localhost:8080
+  - url: http://localhost:41280
     description: Local
 tags:
   - name: Catalog

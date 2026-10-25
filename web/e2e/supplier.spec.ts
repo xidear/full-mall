@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test'
 
-const API = 'http://localhost:8080'
+const API = 'http://localhost:41280'
 const SUPPLIER_ID = '33333333-3333-3333-3333-333333333333'
 const SUPPLIER_SKU = 'bbbb0000-0000-0000-0000-0000000000c1'
 
@@ -48,7 +48,7 @@ test('supplier portal signs requests, accepts and ships a dropship order', async
   const order = await checkoutResponse.json()
   expect((await request.post(`${API}/api/v1/payments/mock/${order.id}/pay`)).ok()).toBeTruthy()
 
-  await page.goto('http://localhost:5275')
+  await page.goto('http://localhost:41283')
   await page.getByPlaceholder('sup_...').fill(credential.accessKey)
   await page.getByPlaceholder('sec_...').fill(credential.secret)
   await page.getByRole('button', { name: '连接并校验签名' }).click()

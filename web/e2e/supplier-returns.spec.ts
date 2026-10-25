@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test'
 
-const API = 'http://localhost:8080'
+const API = 'http://localhost:41280'
 const SUPPLIER_ID = '33333333-3333-3333-3333-333333333333'
 const SKU = 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb'
 
@@ -46,7 +46,7 @@ test('supplier sees platform return request and can accept it', async ({ page, r
   const returnId = (await created.json()).id as string
 
   // 供应商门户：连接 → 看到退货 → 同意
-  await page.goto('http://localhost:5275')
+  await page.goto('http://localhost:41283')
   await page.getByPlaceholder('sup_...').fill(credential.accessKey)
   await page.getByPlaceholder('sec_...').fill(credential.secret)
   await page.getByRole('button', { name: '连接并校验签名' }).click()

@@ -1,7 +1,7 @@
 import { expect, test } from '@playwright/test'
 
 test('admin completes first-run setup wizard', async ({ page }) => {
-  await page.goto('http://localhost:5273/login')
+  await page.goto('http://localhost:41281/login')
   await page.getByPlaceholder('请输入账号').fill('admin')
   await page.getByPlaceholder('请输入密码').fill('Admin@123456')
   const question = await page.locator('.captcha-question').innerText()
@@ -10,7 +10,7 @@ test('admin completes first-run setup wizard', async ({ page }) => {
   await page.getByRole('button', { name: '登录' }).click()
   await expect(page.getByRole('heading', { name: '经营总览' })).toBeVisible()
 
-  await page.goto('http://localhost:5273/setup')
+  await page.goto('http://localhost:41281/setup')
   await expect(page.getByRole('heading', { name: '首次配置', level: 2 })).toBeVisible()
 
   // 第 1 步：站点名称

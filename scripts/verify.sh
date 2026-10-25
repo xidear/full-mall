@@ -16,9 +16,9 @@ RUN_E2E=1
 [[ "${1:-}" == "--no-e2e" ]] && RUN_E2E=0
 
 PG_PORT=55432
-API_PORT=8080
-WEB_PORT=3000
-CONSOLE_PORTS=(5273 5274 5275 5276)
+API_PORT=41280
+WEB_PORT=41285
+CONSOLE_PORTS=(41281 41282 41283 41284)
 CONSOLES=(admin store-console supplier-portal support-console)
 
 PIDS=()

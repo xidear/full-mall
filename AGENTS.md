@@ -164,3 +164,23 @@ cp -r "$SRC"/* "$DST"
 - **禁止自建字段权限矩阵/框架**：需要字段级时使用成熟策略引擎（OPA/Casbin 等）+ DTO 投影；Spring Security/Keycloak 不是字段级方案。
 - **优先采用成熟组件**：Spring Security、Spring Data JPA/Hibernate、MapStruct、JaVers、Flowable、Drools/Easy Rules、Unleash/FF4j、Spring AI/LangChain4j、Tolgee/Weblate、springdoc/OpenAPI Generator、Resilience4j、Bucket4j、Apache Tika/ClamAV、官方支付/云存储 SDK。
 - 没有调研记录、没有 ADR 的自研，不得进入开发。
+
+## 8. 开发/联调端口约束（强制）
+
+- **禁止**使用常见端口及其"变体"（如 `3000`、`5173`、`5174`、`8080`、`15173`、`51731` 等）。
+- 本项目统一使用一段**不常用端口**：`41280–41289`。
+
+| 服务 | 端口 |
+|---|---|
+| 后端 API（dev） | **41280** |
+| admin | **41281** |
+| store-console | **41282** |
+| supplier-portal | **41283** |
+| support-console | **41284** |
+| storefront | **41285** |
+| mobile（uni H5） | **41286** |
+| wiremock（AI/官方 mock） | **41288** |
+| Ollama（本机小模型） | **41289** |
+
+- 新增服务必须在该段内取空闲端口，并在 `docs/DEVELOPMENT_PORTS.md` 登记。
+- **`localhost` 仅代表本机调试地址，不属于对外服务**：对外访问必须显式配置绑定地址/域名/端口，不得把 `localhost` 当作可交付地址写进部署文档或验收口径。

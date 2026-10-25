@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test'
 
-const API = 'http://localhost:8080'
+const API = 'http://localhost:41280'
 const SKU = 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb'
 const STORE = '22222222-2222-2222-2222-222222222222'
 const PROMOTER = '11111111-1111-1111-1111-111111111111'

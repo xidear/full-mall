@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test'
 
-const API = 'http://localhost:8080'
+const API = 'http://localhost:41280'
 const OPERATOR = 'aaaaaaaa-0000-0000-0000-000000000002'
 const ADMIN = 'aaaaaaaa-0000-0000-0000-000000000001'
 
@@ -22,7 +22,7 @@ test('support agent claims conversation, sends product and transfers', async ({ 
   )
   expect(claimResponse.ok()).toBeTruthy()
 
-  await page.goto('http://localhost:5276')
+  await page.goto('http://localhost:41284')
   await page.locator('.agent-switch select').selectOption(OPERATOR)
   const item = page.locator('.conversation-item', { hasText: subject })
   await expect(item).toBeVisible()

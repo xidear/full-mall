@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test'
 
-const API = 'http://localhost:8080'
+const API = 'http://localhost:41280'
 
 /**
  * 写接口冒烟：**全部使用明显无效的参数**，让请求在校验层就被拒绝。

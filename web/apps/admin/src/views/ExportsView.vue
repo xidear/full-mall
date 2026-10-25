@@ -48,7 +48,7 @@ async function poll(jobId: string) {
 async function download(job: Job) {
   try {
     const response = await fetch(
-      `${import.meta.env.VITE_API_BASE || 'http://localhost:8080'}/admin/v1/export-jobs/${job.jobId}/download`,
+      `${import.meta.env.VITE_API_BASE || 'http://localhost:41280'}/admin/v1/export-jobs/${job.jobId}/download`,
       { headers: { Authorization: `Bearer ${localStorage.getItem('fullmall-admin-token') ?? ''}` } })
     if (!response.ok) {
       throw new Error(`下载失败：${response.status}`)

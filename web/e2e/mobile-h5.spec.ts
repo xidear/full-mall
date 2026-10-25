@@ -1,7 +1,7 @@
 import { expect, test } from '@playwright/test'
 
-const MOBILE = 'http://localhost:5173'
-const API = 'http://localhost:8080'
+const MOBILE = 'http://localhost:41286'
+const API = 'http://localhost:41280'
 
 /** 移动端 H5 用户端真实联调：首页 → 详情 → 加购 → 下单 → 看到订单号。 */
 test('mobile h5 browses products, adds to cart and checks out', async ({ page, request }) => {

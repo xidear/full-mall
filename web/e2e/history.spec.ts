@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test'
 
-const API = 'http://localhost:8080'
+const API = 'http://localhost:41280'
 const SKU = 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb'
 
 test('browse history page shows recorded product', async ({ page, request }) => {
@@ -26,7 +26,7 @@ test('browse history page shows recorded product', async ({ page, request }) => 
   await page.context().addCookies([{
     name: 'fullmall_member_token', value: token, domain: 'localhost', path: '/', sameSite: 'Lax'
   }])
-  await page.goto('http://localhost:3000/history')
+  await page.goto('http://localhost:41285/history')
   await expect(page.getByRole('heading', { name: '浏览足迹' })).toBeVisible()
   await expect(page.getByRole('link', { name: title })).toBeVisible()
   await expect(page.getByText(/看过 \d+ 次/)).toBeVisible()

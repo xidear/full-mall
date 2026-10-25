@@ -2,7 +2,7 @@ import { expect, test } from '@playwright/test'
 
 test('pos combined payment closes shift and refunds', async ({ page }) => {
   const cashier = `E2E收银员${Date.now()}`
-  await page.goto('http://localhost:5274')
+  await page.goto('http://localhost:41282')
   await page.getByRole('button', { name: '收银台' }).click()
   await expect(page.locator('.product-chip').first()).toBeVisible()
 

@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test'
 
-const API = 'http://localhost:8080'
+const API = 'http://localhost:41280'
 
 /** 顾客端只读接口：用会员 token 调用，任何 5xx 都是真 bug。 */
 const MEMBER_GETS = [

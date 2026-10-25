@@ -5981,3 +5981,20 @@ E2E 未跑（需要 5 个前端 + PG，下轮单独跑）。
 | 移动端购买条 | 窄屏（≤640px）吸底，按钮最小高度 44px |
 | 移动端按钮/输入 | 最小 88rpx、输入 32rpx（避免 iOS 聚焦缩放） |
 | E2E | ✅ 全量 53 passed / 2 skipped / 0 failed |
+
+## 端口迁移（41280–41289）
+
+| 服务 | 新端口 |
+|---|---|
+| API / admin / store-console / supplier / support / storefront / mobile H5 | 41280 / 41281 / 41282 / 41283 / 41284 / 41285 / 41286 |
+| wiremock / Ollama | 41288 / 41289 |
+
+同时修复：Vite 代理与各应用 `VITE_API_BASE` 默认值、后端 CORS 白名单、`restart-api.sh` 端口参数、AI mock 供应商端点随配置更新（此前会打旧端口导致任务 FAILED）、exchange E2E 先补库存再下单。
+
+| 检查 | 结果 |
+|---|---|
+| 后端全量 | ✅ 663 通过 |
+| 全量 Chromium E2E（新端口） | ✅ 53 passed / 2 skipped / 0 failed |
+| 前端构建 | ✅ 5 个应用全部通过 |
+| 守卫 | 关键文件 31 / 接口 291 / 帮助 36 / 金额精度通过 |
+

@@ -22,7 +22,7 @@ export function useMobileTheme() {
 
   function loadRemote() {
     uni.request({
-      url: `${import.meta.env.VITE_API_BASE || 'http://localhost:8080'}/api/v1/theme`,
+      url: `${import.meta.env.VITE_API_BASE || 'http://localhost:41280'}/api/v1/theme`,
       data: { channel: 'MINI', market: 'CN' },
       success: response => {
         const payload = response.data as { config?: ThemeConfig | null }

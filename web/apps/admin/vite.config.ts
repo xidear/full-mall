@@ -12,12 +12,12 @@ export default defineConfig({
   server: {
     port: 5173,
     proxy: {
-      '/api': 'http://localhost:8080',
-      '/admin': 'http://localhost:8080',
-      '/store': 'http://localhost:8080',
-      '/supplier': 'http://localhost:8080',
-      '/open': 'http://localhost:8080',
-      '/mock': 'http://localhost:8080'
+      '/api': 'http://localhost:41280',
+      '/admin': 'http://localhost:41280',
+      '/store': 'http://localhost:41280',
+      '/supplier': 'http://localhost:41280',
+      '/open': 'http://localhost:41280',
+      '/mock': 'http://localhost:41280'
     }
   }
 })

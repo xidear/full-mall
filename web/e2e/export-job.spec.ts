@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test'
 
-const API = 'http://localhost:8080'
+const API = 'http://localhost:41280'
 
 test('admin creates a member export job and downloads the csv', async ({ request }) => {
   const captcha = await (await request.get(`${API}/admin/v1/auth/captcha`)).json()

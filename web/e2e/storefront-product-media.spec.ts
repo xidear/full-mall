@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test'
 
-const API = 'http://localhost:8080'
+const API = 'http://localhost:41280'
 const PRODUCT = 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa'
 const PNG = Buffer.from(
   'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==',
@@ -48,7 +48,7 @@ test('storefront product page shows main, gallery and detail media', async ({ pa
   await attach(urls[1], 'GALLERY', 1)
   await attach(urls[2], 'DETAIL', 0)
 
-  await page.goto(`http://localhost:3000/product/${PRODUCT}`)
+  await page.goto(`http://localhost:41285/product/${PRODUCT}`)
   await page.waitForFunction(() => {
     const root = document.querySelector('#__nuxt') as (HTMLElement & { __vue_app__?: unknown }) | null
     return Boolean(root?.__vue_app__)

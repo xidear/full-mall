@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test'
 
-const API = 'http://localhost:8080'
+const API = 'http://localhost:41280'
 const SKU = 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb'
 const PHONE = `136${String(Date.now()).slice(-8)}`
 
@@ -25,7 +25,7 @@ test('admin refunds part of an order from the order detail', async ({ page, requ
   expect((await request.post(`${API}/api/v1/payments/mock/${order.id}/pay`)).ok()).toBeTruthy()
 
   // 后台登录并打开该订单
-  await page.goto('http://localhost:5273/login')
+  await page.goto('http://localhost:41281/login')
   await page.getByPlaceholder('请输入账号').fill('admin')
   await page.getByPlaceholder('请输入密码').fill('Admin@123456')
   const question = await page.locator('.captcha-question').innerText()

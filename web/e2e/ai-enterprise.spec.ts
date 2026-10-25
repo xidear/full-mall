@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test'
 
-const API = 'http://localhost:8080'
+const API = 'http://localhost:41280'
 
 test.skip(process.env.APP_EDITION !== 'enterprise', '仅企业版构建运行')
 

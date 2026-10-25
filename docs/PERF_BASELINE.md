@@ -14,7 +14,7 @@
 复跑命令：
 
 ```bash
-python3 scripts/bench-local.py http://localhost:8080 20 100
+python3 scripts/bench-local.py http://localhost:41280 20 100
 ```
 
 ## 已知未覆盖

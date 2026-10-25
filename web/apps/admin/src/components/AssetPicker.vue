@@ -117,7 +117,7 @@ async function upload(event: Event) {
     const form = new FormData()
     form.append('file', file)
     const response = await fetch(
-      `${import.meta.env.VITE_API_BASE || 'http://localhost:8080'}/admin/v1/media?purpose=PRODUCT`, {
+      `${import.meta.env.VITE_API_BASE || 'http://localhost:41280'}/admin/v1/media?purpose=PRODUCT`, {
         method: 'POST',
         headers: { Authorization: `Bearer ${localStorage.getItem('fullmall.admin.token') ?? ''}` },
         body: form

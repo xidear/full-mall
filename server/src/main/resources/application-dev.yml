@@ -1,3 +1,6 @@
+server:
+  port: 41280
+
 app:
   mode: dev
   demo:
@@ -5,7 +8,7 @@ app:
   ai:
     # 本地官方 mock（wiremock），无真实 Key 也能跑通生成链路；生产置空即可
     mock:
-      base-url: ${AI_MOCK_BASE_URL:http://localhost:8089}
+      base-url: ${AI_MOCK_BASE_URL:http://localhost:41288}
     semantic:
       enabled: true
   payment:

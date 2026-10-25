@@ -3,9 +3,9 @@ export default defineNuxtConfig({
   devtools: { enabled: true },
   css: ['~/assets/main.css', '~/assets/themes.css'],
   runtimeConfig: {
-    apiInternalBase: process.env.NUXT_API_INTERNAL_BASE || 'http://localhost:8080',
+    apiInternalBase: process.env.NUXT_API_INTERNAL_BASE || 'http://localhost:41280',
     public: {
-      apiBase: process.env.NUXT_PUBLIC_API_BASE || 'http://localhost:8080',
+      apiBase: process.env.NUXT_PUBLIC_API_BASE || 'http://localhost:41280',
       appMode: process.env.NUXT_PUBLIC_APP_MODE || 'dev',
       theme: process.env.NUXT_PUBLIC_THEME || 'mall'
     }

@@ -184,7 +184,7 @@ cost_ledger(id, sku_id, warehouse_id, occurred_at, qty_delta, unit_cost, value_d
 | 相对路径但未配置基址 | **拒绝**（不允许把相对路径写进快照） |
 
 配置项：`app.media.public-base-url`（环境变量 `MEDIA_PUBLIC_BASE_URL`），
-测试期 `http://localhost:8080/media`，上线改 CDN/云存储域名，**代码不动**。
+测试期 `http://localhost:41280/media`，上线改 CDN/云存储域名，**代码不动**。
 
 写入点：`OrderService` 生成订单行快照时调用 `mediaUrls.absolute(sku.imageUrl())`，
 因此快照里永远是绝对地址。

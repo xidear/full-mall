@@ -189,12 +189,12 @@ docker compose --profile core --profile app --profile tools up -d
 
 `.env` 已随仓库提供，无需创建。浏览器：
 
-- 商城 http://localhost:3000
-- 后台 http://localhost:5173
+- 商城 http://localhost:41285
+- 后台 http://localhost:41281
 - 门店 http://localhost:5174
 - 供应商 http://localhost:5175
 - 客服 http://localhost:5176
-- API http://localhost:8080
+- API http://localhost:41280
 
 ### 5.2 公开分叉（GitHub / Gitee）
 

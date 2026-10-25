@@ -379,7 +379,7 @@ docker run -d --name fullmall-api-pos --network host \
 ```
 
 - PostgreSQL 容器：`fullmall-postgres-test`，镜像 `postgres:16-alpine`，宿主机端口 **55432**，库 `fullmall`，用户 `fullmall`，密码 `change-me-local`（仅本地演示）。
-- API：`http://localhost:8080`，健康检查 `/actuator/health`。
+- API：`http://localhost:41280`，健康检查 `/actuator/health`。
 - 演示账号（仅 dev/demo，生产必须改）：
   - `admin / Admin@123456` 超级管理员
   - `operator / Operator@123456` 运营
@@ -538,7 +538,7 @@ SPRING_DATASOURCE_USERNAME=postgres SPRING_DATASOURCE_PASSWORD= \
 SPRING_PROFILES_ACTIVE=dev mvn -q -DskipTests spring-boot:run
 
 # 3) 起前端产物（先 npm run build）
-cd ../web && NUXT_PUBLIC_API_BASE=http://localhost:8080 PORT=3099 \
+cd ../web && NUXT_PUBLIC_API_BASE=http://localhost:41280 PORT=3099 \
   node apps/storefront/.output/server/index.mjs
 ```
 

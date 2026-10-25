@@ -4,7 +4,7 @@ import { onMounted, ref } from 'vue'
 interface LocalOrder { id: string; orderNo: string; totalAmount: number; at: number }
 interface OrderView { id: string; orderNo: string; status: string; totalAmount?: number }
 
-const apiBase = import.meta.env.VITE_API_BASE || 'http://localhost:8080'
+const apiBase = import.meta.env.VITE_API_BASE || 'http://localhost:41280'
 const orders = ref<{ local: LocalOrder; status: string }[]>([])
 const loading = ref(false)
 const error = ref('')

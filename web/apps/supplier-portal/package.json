@@ -4,10 +4,10 @@
   "version": "0.1.0",
   "type": "module",
   "scripts": {
-    "dev": "vite --host 0.0.0.0 --port 5175",
+    "dev": "vite --host 0.0.0.0 --port 41283",
     "build": "vue-tsc --noEmit && vite build",
-    "preview": "vite preview --host 0.0.0.0 --port 5175",
-    "dev:e2e": "vite --host 0.0.0.0 --port 5275"
+    "preview": "vite preview --host 0.0.0.0 --port 41283",
+    "dev:e2e": "vite --host 0.0.0.0 --port 41283"
   },
   "dependencies": {
     "@fullmall/api-client": "file:../../packages/api-client",

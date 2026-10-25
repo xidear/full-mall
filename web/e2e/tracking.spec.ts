@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test'
 
-const API = 'http://localhost:8080'
+const API = 'http://localhost:41280'
 const SKU = 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb'
 const PHONE = `137${String(Date.now()).slice(-8)}`
 
@@ -63,7 +63,7 @@ test('customer sees tracking on order page after shipment', async ({ page, reque
     name: 'fullmall_member_token', value: token,
     domain: 'localhost', path: '/', sameSite: 'Lax'
   }])
-  await page.goto(`http://localhost:3000/orders/${order.id}`)
+  await page.goto(`http://localhost:41285/orders/${order.id}`)
   // D11 验证：硬刷新（SSR）也能拿到会员身份并渲染履约
   await expect(page.getByRole('heading', { name: '履约' })).toBeVisible({ timeout: 15_000 })
   await expect(page.getByText('物流单号：SF-E2E-TRACK-1')).toBeVisible()

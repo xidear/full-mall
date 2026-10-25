@@ -85,8 +85,8 @@ bash scripts/start-local-ai.sh     # 起 Ollama + 拉 qwen2.5:0.5b / nomic-embed
 用法：
 ```bash
 # 重建 FAQ 索引（用本机 nomic-embed-text）
-curl -X POST 'http://localhost:8080/admin/v1/ai/semantic/reindex?kind=FAQ&providerCode=ollama-embedding'
+curl -X POST 'http://localhost:41280/admin/v1/ai/semantic/reindex?kind=FAQ&providerCode=ollama-embedding'
 # 语义查询
-curl 'http://localhost:8080/api/v1/faq/semantic?q=发票怎么弄&limit=3'
+curl 'http://localhost:41280/api/v1/faq/semantic?q=发票怎么弄&limit=3'
 ```
 数据量 >10 万条应改 pgvector / OpenSearch k-NN（compose 已含 OpenSearch）。

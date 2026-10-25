@@ -28,7 +28,7 @@ public class AiProviderBootstrap {
     @Bean
     public ApplicationRunner aiProviderBootstrapRunner(
             JdbcTemplate jdbc, SecretCipher cipher,
-            @Value("${app.ai.ollama.base-url:http://localhost:11434/v1}") String baseUrl,
+            @Value("${app.ai.ollama.base-url:http://localhost:41289/v1}") String baseUrl,
             @Value("${app.ai.ollama.text-model:qwen2.5:0.5b}") String textModel,
             @Value("${app.ai.ollama.embedding-model:nomic-embed-text}") String embeddingModel,
             @Value("${app.ai.mock.base-url:}") String mockBaseUrl) {
@@ -39,16 +39,32 @@ public class AiProviderBootstrap {
                     baseUrl, embeddingModel, 510);
             if (mockBaseUrl != null && !mockBaseUrl.isBlank()) {
                 // 本地官方 mock（wiremock）：无真实 Key 也能跑通生成链路
-                insertIfAbsent(jdbc, cipher, "mock-image", MediaKind.IMAGE, "openai-images",
-                        mockBaseUrl + "/v1", "mock-image-1", 900);
-                insertIfAbsent(jdbc, cipher, "mock-image-qwen", MediaKind.IMAGE, "dashscope-multimodal",
-                        mockBaseUrl + "/v1/multimodal", "qwen-image-edit", 910);
-                insertIfAbsent(jdbc, cipher, "mock-video", MediaKind.VIDEO, "ark-video",
-                        mockBaseUrl + "/ark", "seedance-mock", 900);
+                upsertProvider(jdbc, cipher, "mock-image", MediaKind.IMAGE, "openai-images",
+                        mockBaseUrl + "/v1", "mock-image-1", 900, "本地官方 mock（图片）");
+                upsertProvider(jdbc, cipher, "mock-image-qwen", MediaKind.IMAGE, "dashscope-multimodal",
+                        mockBaseUrl + "/v1/multimodal", "qwen-image-edit", 910, "本地官方 mock（千问编辑）");
+                upsertProvider(jdbc, cipher, "mock-video", MediaKind.VIDEO, "ark-video",
+                        mockBaseUrl + "/ark", "seedance-mock", 900, "本地官方 mock（视频）");
             }
             log.info("AI 默认供应商就绪：ollama-chat({}) / ollama-embedding({}) / mock={}",
                     textModel, embeddingModel, mockBaseUrl);
         };
+    }
+
+    /** mock 供应商：地址随配置变化必须更新，否则端口迁移后仍打旧端口。 */
+    private void upsertProvider(JdbcTemplate jdbc, SecretCipher cipher, String code, MediaKind kind,
+                                String protocol, String baseUrl, String model, int priority,
+                                String name) {
+        jdbc.update("""
+                INSERT INTO ai_provider (id, kind, code, name, protocol, endpoint, api_key, model,
+                                         extra, enabled, priority)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, '{}'::jsonb, TRUE, ?)
+                ON CONFLICT (code) DO UPDATE
+                   SET kind = EXCLUDED.kind, protocol = EXCLUDED.protocol,
+                       endpoint = EXCLUDED.endpoint, model = EXCLUDED.model,
+                       enabled = TRUE, priority = EXCLUDED.priority
+                """, UUID.randomUUID(), kind.name(), code, name, protocol, baseUrl,
+                cipher.encrypt("local"), model, priority);
     }
 
     private void insertIfAbsent(JdbcTemplate jdbc, SecretCipher cipher, String code, MediaKind kind,

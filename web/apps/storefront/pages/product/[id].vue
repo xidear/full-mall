@@ -24,6 +24,8 @@ const flashPromotion = computed(() => skuPromotions.value.find(promotion => prom
 const giftPromotion = computed(() => skuPromotions.value.find(promotion => promotion.type === 'BUY_GIFT'))
 const groupPromotion = computed(() => skuPromotions.value.find(promotion => promotion.type === 'GROUP_BUY'))
 const tone = computed(() => categoryTone(product.value?.categoryId))
+const activeHero = ref('')
+const heroShown = computed(() => activeHero.value || heroImage.value)
 const { add } = useCart()
 
 onMounted(() => {
@@ -81,12 +83,15 @@ async function buyNow() {
 <template>
   <div v-if="product" class="product-detail">
     <div class="product-detail-media" :class="tone">
-      <img v-if="heroImage" :src="heroImage" :alt="product.title">
+      <img v-if="heroShown" :src="heroShown" :alt="product.title">
       <span v-else class="product-placeholder large">{{ product.title.slice(0, 2) }}</span>
     </div>
 
     <div v-if="gallery.length || videos.length" class="product-media-strip">
-      <img v-for="item in gallery" :key="item.url" :src="item.url" :alt="product.title" loading="lazy">
+      <button v-for="item in gallery" :key="item.url" type="button" class="media-thumb"
+              :aria-label="`查看图片：${item.url}`" @click="activeHero = item.url">
+        <img :src="item.url" :alt="product.title" loading="lazy">
+      </button>
       <video v-for="item in videos" :key="item.url" :src="item.url" controls muted playsinline></video>
     </div>
     <div class="product-detail-body">
@@ -145,7 +150,7 @@ async function buyNow() {
         该商品按批次/效期管理，拣货时优先选择效期更早且满足最低剩余保质期的批次。
       </div>
 
-      <div class="purchase-row">
+      <div class="purchase-row purchase-actions">
         <label class="quantity">
           数量
           <input v-model.number="quantity" type="number" min="1" max="99">
@@ -207,6 +212,8 @@ async function buyNow() {
 }
 
 .product-detail-media img { width: 100%; aspect-ratio: 1 / 1; object-fit: cover; border-radius: 10px; }
+.media-thumb { padding: 0; border: 1px solid #e2e8f0; background: none; border-radius: 8px; cursor: pointer; }
+.media-thumb:focus-visible { outline: 2px solid #2563eb; outline-offset: 2px; }
 .product-media-strip img, .product-media-strip video { width: 84px; height: 84px; object-fit: cover; border-radius: 8px; }
 .product-media-strip {
   display: flex; gap: 8px; overflow-x: auto; margin: 12px 0 0; padding-bottom: 4px;
@@ -214,4 +221,12 @@ async function buyNow() {
 
 .product-detail-images { display: flex; flex-direction: column; gap: 10px; margin: 12px 0; }
 .product-detail-images img { width: 100%; border-radius: 8px; }
+@media (max-width: 640px) {
+  .purchase-row { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+@media (max-width: 640px) {
+  .purchase-actions { position: sticky; bottom: 0; background: #fff;
+    padding: 10px 0 14px; box-shadow: 0 -6px 16px rgba(15,23,42,.08); z-index: 5; }
+  .purchase-actions .button { min-height: 44px; }
+}
+}
 </style>

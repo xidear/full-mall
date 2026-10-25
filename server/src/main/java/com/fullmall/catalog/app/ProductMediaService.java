@@ -77,11 +77,17 @@ public class ProductMediaService {
             throw ApiException.notFound("ASSET_NOT_FOUND", "素材不存在：" + assetId);
         }
         UUID id = UUID.randomUUID();
-        jdbc.update("""
-                INSERT INTO product_media (id, product_id, sku_id, asset_id, role, sort_order,
-                                           source, created_by)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-                """, id, productId, skuId, assetId, normalized, sortOrder, src, actor);
+        try {
+            jdbc.update("""
+                    INSERT INTO product_media (id, product_id, sku_id, asset_id, role, sort_order,
+                                               source, created_by)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                    """, id, productId, skuId, assetId, normalized, sortOrder, src, actor);
+        } catch (org.springframework.dao.DuplicateKeyException error) {
+            // 唯一索引：同商品只能一个主图 / 同一素材重复挂同一角色
+            throw ApiException.conflict("MEDIA_DUPLICATE",
+                    "该商品已存在同类素材（主图只能一个；同一素材不能重复挂同一角色）");
+        }
         return id;
     }
 

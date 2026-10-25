@@ -206,6 +206,8 @@ async function buyNow() {
   color: #9c650d;
 }
 
+.product-detail-media img { width: 100%; aspect-ratio: 1 / 1; object-fit: cover; border-radius: 10px; }
+.product-media-strip img, .product-media-strip video { width: 84px; height: 84px; object-fit: cover; border-radius: 8px; }
 .product-media-strip {
   display: flex; gap: 8px; overflow-x: auto; margin: 12px 0 0; padding-bottom: 4px;
 }

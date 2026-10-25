@@ -89,7 +89,7 @@ class ProductMediaTest {
 
         UUID otherMain = asset("https://cdn.example.com/main2.png");
         assertThatThrownBy(() -> media.attach(productId, null, otherMain, "MAIN", 0, "UPLOAD", "admin"))
-                .isInstanceOf(org.springframework.dao.DuplicateKeyException.class);
+                .hasMessageContaining("主图只能一个");
     }
 
     @Test

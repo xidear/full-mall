@@ -34,15 +34,16 @@ else
 fi
 
 # 停旧进程（只杀本项目的 jar，不动别的 java）
-pids="$(pgrep -f "fullmall-server-0.1.0-SNAPSHOT.jar" || true)"
+pids="$(pgrep -f "java -jar .*fullmall-server-0\.1\.0-SNAPSHOT\.jar" || true)"
 if [[ -n "$pids" ]]; then
   echo "[restart-api] 停止旧进程: $pids"
   kill $pids 2>/dev/null || true
   for _ in $(seq 1 20); do
-    pgrep -f "fullmall-server-0.1.0-SNAPSHOT.jar" >/dev/null || break
+    pgrep -f "java -jar .*fullmall-server-0\.1\.0-SNAPSHOT\.jar" >/dev/null || break
     sleep 0.5
   done
-  pgrep -f "fullmall-server-0.1.0-SNAPSHOT.jar" | xargs -r kill -9
+  # 进程可能已在此期间退出：kill 失败不算错误，否则 set -e 会中断后续启动
+  pgrep -f "java -jar .*fullmall-server-0\.1\.0-SNAPSHOT\.jar" | xargs -r kill -9 || true
 fi
 
 : "${APP_SECRET_KEY:=MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=}"

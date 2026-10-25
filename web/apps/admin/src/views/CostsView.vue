@@ -20,6 +20,8 @@ interface CostView {
 }
 
 const skuId = ref('')
+const productId = ref('')
+const selectedProduct = ref<{ id: string; title: string; skus?: Array<{ id: string; skuCode: string }> } | null>(null)
 const loading = ref(false)
 const result = ref<CostView | null>(null)
 
@@ -37,6 +39,11 @@ async function query() {
   }
 }
 
+function onProductSelect(product: { id: string; title: string; skus?: Array<{ id: string; skuCode: string }> } | null) {
+  selectedProduct.value = product
+  skuId.value = ''
+}
+
 function yuan(fen?: number) {
   return fen === undefined ? '—' : (fen / 100).toFixed(2)
 }
@@ -50,8 +57,9 @@ function yuan(fen?: number) {
               description="无成本记录时显示「成本未知」而不是 0；成本字段仅 ADMIN 可见。" />
 
     <div class="query-row mb-16">
-      <el-input v-model="skuId" placeholder="输入 SKU ID（UUID）" style="max-width: 420px"
-                @keyup.enter="query" />
+      <ProductPicker v-model="productId" width="260px"
+                     @select="onProductSelect" />
+      <SkuPicker v-model="skuId" :product="selectedProduct" />
       <el-button type="primary" :loading="loading" @click="query">查询</el-button>
     </div>
 

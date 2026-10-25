@@ -45,6 +45,7 @@ const router = createRouter({
     { path: '/', name: 'dashboard', component: DashboardView, meta: { title: '经营总览' } },
     { path: '/products', name: 'products', component: ProductListView, meta: { title: '商品管理' } },
     { path: '/products/new', name: 'product-new', component: ProductEditView, meta: { title: '新建商品' } },
+    { path: '/products/:id/edit', name: 'product-edit', component: ProductEditView, meta: { title: '编辑商品' } },
     { path: '/inventory', name: 'inventory', component: InventoryView, meta: { title: '库存与批次' } },
     { path: '/notifications', name: 'notifications', component: NotificationsView, meta: { title: '通知中心' } },
     { path: '/themes', name: 'themes', component: ThemeStudioView, meta: { title: '主题配置' } },

@@ -234,4 +234,18 @@ public class CatalogService {
             return row;
         }, productId);
     }
+
+    /** 编辑商品基础信息（标题/描述/类目）。SKU 单独维护。 */
+    @Transactional
+    public void updateBasics(UUID productId, String title, String description, UUID categoryId) {
+        if (title == null || title.isBlank()) {
+            throw ApiException.badRequest("PRODUCT_TITLE_REQUIRED", "商品标题不能为空");
+        }
+        int updated = jdbcTemplate.update("""
+                UPDATE product SET title = ?, description = ?, category_id = ? WHERE id = ?
+                """, title.trim(), description, categoryId, productId);
+        if (updated != 1) {
+            throw ApiException.notFound("PRODUCT_NOT_FOUND", "商品不存在：" + productId);
+        }
+    }
 }

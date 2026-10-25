@@ -3,6 +3,9 @@ import { computed, onMounted, ref } from 'vue'
 import { useRoute } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { api } from '../api'
+import ProductPicker from '../components/ProductPicker.vue'
+import SkuPicker from '../components/SkuPicker.vue'
+import AssetPicker from '../components/AssetPicker.vue'
 
 interface Provider { code: string; kind: string; name: string; protocol: string; model: string }
 interface PromptRow { prompt: string; negative: string; providerCode: string; createdAt: string; purpose: string }
@@ -14,6 +17,7 @@ const providers = ref<Provider[]>([])
 const prompts = ref<PromptRow[]>([])
 const assets = ref<AssetRow[]>([])
 const jobs = ref<Job[]>([])
+const selectedProduct = ref<{ id: string; title: string; skus?: Array<{ id: string; skuCode: string }> } | null>(null)
 const attachRole = ref<'MAIN' | 'GALLERY' | 'DETAIL' | 'VIDEO' | 'SPEC'>('MAIN')
 const attachingJob = ref('')
 const loading = ref(false)
@@ -36,6 +40,11 @@ const form = ref({
 
 const kindProviders = computed(() => providers.value.filter(p => p.kind === form.value.kind))
 const imageAssets = computed(() => assets.value.filter(a => (a.kind || '').toUpperCase() !== 'VIDEO'))
+
+function onProductSelect(product: { id: string; title: string; skus?: Array<{ id: string; skuCode: string }> } | null) {
+  selectedProduct.value = product
+  form.value.skuId = ''
+}
 
 async function load() {
   loading.value = true
@@ -201,8 +210,12 @@ onMounted(async () => {
                            :label="`${p.name}（${p.model}）`" :value="p.code" />
               </el-select>
             </el-form-item>
-            <el-form-item label="商品ID"><el-input v-model="form.productId" placeholder="可选，用于留痕与筛选" /></el-form-item>
-            <el-form-item label="规格ID"><el-input v-model="form.skuId" placeholder="规格专用图时填写" /></el-form-item>
+            <el-form-item label="商品">
+              <ProductPicker v-model="form.productId" @select="onProductSelect" />
+            </el-form-item>
+            <el-form-item label="规格">
+              <SkuPicker v-model="form.skuId" :product="selectedProduct" />
+            </el-form-item>
             <el-form-item label="提示词">
               <el-input v-model="form.prompt" type="textarea" :rows="4" data-testid="ai-prompt"
                         placeholder="主体 + 构图 + 光线 + 背景 + 风格；可从右侧历史直接上屏" />
@@ -217,8 +230,8 @@ onMounted(async () => {
                 <el-option label="720×1280（竖图/主图）" value="720x1280" />
               </el-select>
             </el-form-item>
-            <el-form-item v-if="form.kind === 'VIDEO'" label="引导图（首帧）URL">
-              <el-input v-model="form.firstFrameUrl" placeholder="不填则用下方选中的第一张参考图做首帧" />
+            <el-form-item v-if="form.kind === 'VIDEO'" label="引导图（首帧）">
+              <AssetPicker v-model="form.firstFrameUrl" label="选择首帧图" value-type="url" />
             </el-form-item>
             <el-form-item label="参考图（多角度）">
               <div class="thumbs">
@@ -266,6 +279,7 @@ onMounted(async () => {
                        :loading="attachingJob === job.id" @click="attach(job)">挂到商品</el-button>
           </div>
           <div class="attach-bar">
+            <ProductPicker v-model="form.productId" width="240px" />
             <span class="muted">挂载角色</span>
             <el-select v-model="attachRole" size="small" style="width: 120px">
               <el-option label="主图" value="MAIN" />

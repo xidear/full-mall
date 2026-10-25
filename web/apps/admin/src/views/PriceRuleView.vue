@@ -76,7 +76,9 @@ async function doApply() {
               description="必须先预览再应用：预览只计算不落库，应用才会写入。" />
 
     <el-form label-width="100px" style="max-width: 680px">
-      <el-form-item label="商品 ID"><el-input v-model="productId" placeholder="UUID" /></el-form-item>
+      <el-form-item label="商品">
+        <ProductPicker v-model="productId" />
+      </el-form-item>
       <el-form-item label="规格条件">
         <div class="row">
           <el-input v-model="dimKey" placeholder="规格名，如 存储" style="width: 160px" />

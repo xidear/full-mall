@@ -266,6 +266,17 @@ public class AdminCatalogController {
         return productCsvImporter.importCsv(body.content());
     }
 
+    public record BasicsRequest(String title, String description, UUID categoryId) {
+    }
+
+    /** 编辑商品基础信息（标题/描述/类目）。 */
+    @PutMapping("/{productId}")
+    public java.util.Map<String, Object> updateBasics(@PathVariable UUID productId,
+                                                      @RequestBody BasicsRequest body) {
+        catalogService.updateBasics(productId, body.title(), body.description(), body.categoryId());
+        return java.util.Map.of("updated", true);
+    }
+
     @PatchMapping("/{productId}/status")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void updateStatus(@PathVariable UUID productId,

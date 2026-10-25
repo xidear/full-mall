@@ -132,7 +132,8 @@ function price(product: Product) {
           >
             {{ row.status === 'ACTIVE' ? '下架' : '上架' }}
           </el-button>
-          <el-button link type="primary" @click="router.push('/products/new')">新建相似</el-button>
+          <el-button link type="primary" @click="router.push(`/products/${row.id}/edit`)">编辑</el-button>
+          <el-button link @click="router.push('/products/new')">新建相似</el-button>
         </template>
       </el-table-column>
     </el-table>

@@ -124,7 +124,7 @@ async function generate() {
 
     <el-form label-width="110px" style="max-width: 640px">
       <el-form-item label="商品 ID">
-        <el-input v-model="productId" placeholder="UUID" />
+        <ProductPicker v-model="productId" />
       </el-form-item>
       <el-form-item label="SKU 前缀">
         <el-input v-model="prefix" placeholder="例如 MUG" />

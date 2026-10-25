@@ -170,5 +170,7 @@ async function submit() {
 .ok { font-size: 32rpx; font-weight: 700; color: #18a058; }
 .hint { font-size: 24rpx; color: #888; }
 .error { color: #cf1322; font-size: 26rpx; margin: 8rpx 0 16rpx; }
-.submit { margin-top: 8rpx; }
+.submit { margin-top: 8rpx; min-height: 88rpx; line-height: 88rpx; }
+button { min-height: 88rpx; }
+input, textarea { font-size: 32rpx; }
 </style>

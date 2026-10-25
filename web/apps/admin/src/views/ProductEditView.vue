@@ -4,15 +4,44 @@ import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import type { ProductUpsertRequest } from '@fullmall/api-client'
 import { api } from '../api'
+import AssetPicker from '../components/AssetPicker.vue'
 
 const router = useRouter()
 const route = useRoute()
 // 编辑态才有商品 id；新建态禁用 AI 生成入口（生成需要商品上下文留痕）
 const productId = String(route.params.id ?? route.query.productId ?? '')
+const editing = Boolean(route.params.id)
 const mediaList = ref<Array<{ id: string; role: string; skuId?: string | null; assetId: string; url: string }>>([])
 const assetOptions = ref<Array<{ id: string; name: string; url: string; kind: string }>>([])
 const hasImageProvider = ref(false)
 const mediaForm = ref({ assetId: '', role: 'MAIN', skuId: '', sortOrder: 0 })
+
+async function loadExisting() {
+  if (!editing) return
+  try {
+    const product = await api.get<{
+      title: string; description?: string; categoryId?: string
+      skus?: Array<{ skuCode: string; barcode?: string; imageUrl?: string
+        price: { amount: number; currency: string }; options?: Record<string, string> }>
+    }>(`/admin/v1/products/${productId}`)
+    form.title = product.title
+    form.description = product.description ?? ''
+    if (product.categoryId) form.categoryId = product.categoryId
+    if (product.skus?.length) {
+      form.variants = product.skus.map(sku => ({
+        skuCode: sku.skuCode,
+        barcode: sku.barcode ?? '',
+        imageUrl: sku.imageUrl ?? '',
+        priceYuan: sku.price.amount / 100,
+        currency: sku.price.currency,
+        optionName: Object.keys(sku.options ?? {})[0] ?? '规格',
+        optionValue: Object.values(sku.options ?? {})[0] ?? ''
+      }))
+    }
+  } catch (cause) {
+    ElMessage.error(cause instanceof Error ? cause.message : '加载商品失败')
+  }
+}
 
 async function loadMediaContext() {
   try {
@@ -29,6 +58,9 @@ async function loadMediaContext() {
     hasImageProvider.value = false
   }
 }
+
+loadExisting()
+void loadMediaContext()
 
 async function attachMedia() {
   if (!productId) { ElMessage.error('先保存商品后再挂素材'); return }
@@ -187,6 +219,15 @@ async function submit() {
 
   saving.value = true
   try {
+    if (editing) {
+      await api.put(`/admin/v1/products/${productId}`, {
+        title: payload.title,
+        description: payload.description,
+        categoryId: form.categoryId || null
+      })
+      ElMessage.success('已保存')
+      return
+    }
     await api.post('/admin/v1/products', payload)
     ElMessage.success('商品已创建')
     await router.push('/products')
@@ -203,7 +244,7 @@ loadMediaContext()
 <template>
   <div class="panel">
     <div class="panel-header">
-      <h2>新建商品</h2>
+      <h2>{{ editing ? '编辑商品' : '新建商品' }}</h2>
       <div>
         <el-button @click="router.back()">取消</el-button>
         <el-button type="primary" :loading="saving" @click="submit">保存草稿</el-button>
@@ -255,9 +296,7 @@ loadMediaContext()
             </div>
           </div>
           <div class="media-card empty">
-            <el-select v-model="mediaForm.assetId" placeholder="从素材库选择" style="width: 100%">
-              <el-option v-for="asset in assetOptions" :key="asset.id" :label="asset.name" :value="asset.id" />
-            </el-select>
+            <AssetPicker v-model="mediaForm.assetId" label="选择素材" />
             <el-select v-model="mediaForm.role" style="width: 100%; margin-top: 6px">
               <el-option label="主图" value="MAIN" />
               <el-option label="图集" value="GALLERY" />
@@ -289,8 +328,7 @@ loadMediaContext()
           </el-select>
           <el-input v-model="variant.optionValue" placeholder="规格值" />
           <div class="image-cell">
-            <el-input v-model="variant.imageUrl" placeholder="规格图 URL（可从素材库/AI 生成）" />
-            <el-button text type="primary" @click="openMaterials">素材库</el-button>
+            <AssetPicker v-model="variant.imageUrl" label="选择规格图" :value-type="'url'" />
             <el-button text type="primary" :disabled="!productId || !hasImageProvider" @click="openAiMedia">AI 生成主图</el-button>
           </div>
           <el-button type="danger" text @click="removeVariant(index)">删除</el-button>

@@ -3,6 +3,9 @@ import { onMounted, ref } from 'vue'
 import { useRoute } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { api } from '../api'
+import ProductPicker from '../components/ProductPicker.vue'
+import SkuPicker from '../components/SkuPicker.vue'
+import AssetPicker from '../components/AssetPicker.vue'
 
 interface Provider { code: string; kind: string; name: string; model: string }
 interface AssetRow { id: string; url: string; name: string; kind: string }
@@ -22,6 +25,7 @@ const providers = ref<Provider[]>([])
 const assets = ref<AssetRow[]>([])
 const storyboard = ref<Storyboard | null>(null)
 const busy = ref(false)
+const selectedProduct = ref<{ id: string; title: string; skus?: Array<{ id: string; skuCode: string }> } | null>(null)
 
 const form = ref({
   title: '商品主图视频',
@@ -33,6 +37,11 @@ const form = ref({
 
 const videoProviders = () => providers.value.filter(p => p.kind === 'VIDEO')
 const images = () => assets.value.filter(a => (a.kind || '').toUpperCase() !== 'VIDEO')
+
+function onProductSelect(product: { id: string; title: string; skus?: Array<{ id: string; skuCode: string }> } | null) {
+  selectedProduct.value = product
+  form.value.skuId = ''
+}
 
 async function load() {
   try {
@@ -137,7 +146,12 @@ onMounted(load)
     <el-card shadow="never" class="mb-16">
       <el-form label-width="96px">
         <el-form-item label="标题"><el-input v-model="form.title" style="width: 320px" /></el-form-item>
-        <el-form-item label="商品ID"><el-input v-model="form.productId" style="width: 320px" placeholder="用于留痕" /></el-form-item>
+        <el-form-item label="商品">
+          <ProductPicker v-model="form.productId" @select="onProductSelect" />
+        </el-form-item>
+        <el-form-item label="规格">
+          <SkuPicker v-model="form.skuId" :product="selectedProduct" />
+        </el-form-item>
         <el-form-item label="视频供应商">
           <el-select v-model="form.providerCode" style="width: 300px"
                      :placeholder="videoProviders().length ? '选择供应商' : '未配置视频供应商'">
@@ -149,10 +163,7 @@ onMounted(load)
           <div class="shot">
             <el-input v-model="shot.prompt" type="textarea" :rows="2" placeholder="画面内容、运镜（推近/旋转）、光线" />
             <div class="shot-row">
-              <el-select v-model="shot.guideAssetIds" multiple collapse-tags style="width: 320px"
-                         placeholder="引导图/参考图（可多张，第一张作首帧）">
-                <el-option v-for="asset in images()" :key="asset.id" :label="asset.name" :value="asset.id" />
-              </el-select>
+              <AssetPicker v-model="shot.guideAssetIds" multiple label="引导图/参考图（可多张）" />
               <el-input-number v-model="shot.durationSec" :min="1" :max="30" />
               <span class="muted">秒</span>
               <el-button text type="danger" @click="removeShot(index)">删除镜头</el-button>

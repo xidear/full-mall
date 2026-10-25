@@ -67,6 +67,7 @@ const money = (v?: number) => `¥${((v ?? 0) / 100).toFixed(2)}`
 
 <style scoped>
 .page { padding: 24rpx; background: #f6f5f2; min-height: 100vh; }
+button { min-height: 88rpx; }
 .order { background: #fff; border-radius: 12rpx; padding: 20rpx; margin-bottom: 16rpx; }
 .row { display: flex; justify-content: space-between; align-items: center; }
 .no { font-size: 28rpx; font-weight: 600; }

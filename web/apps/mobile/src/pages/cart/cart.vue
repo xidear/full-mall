@@ -68,6 +68,7 @@ function checkout() {
 .price { color: #d4380d; font-size: 26rpx; }
 .qty { display: flex; align-items: center; gap: 12rpx; }
 .count { min-width: 40rpx; text-align: center; }
+button { min-height: 88rpx; }
 .summary { display: flex; justify-content: space-between; align-items: center;
   margin-top: 24rpx; background: #fff; border-radius: 12rpx; padding: 20rpx; }
 </style>

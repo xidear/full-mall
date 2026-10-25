@@ -132,7 +132,7 @@ function changePage(next: number) {
                   description="用于核对某条记录的历史版本；普通业务变更请看「操作事件」。" />
         <div class="snapshot-actions mb-16">
           <el-input v-model="snapshotType" placeholder="实体类型，如 asset" style="width: 200px" />
-          <el-input v-model="snapshotId" placeholder="实体 ID（UUID）" style="width: 320px" />
+          <el-input v-model="snapshotId" aria-label="按实体 ID 查看历史快照" placeholder="调试：实体 ID（UUID）" style="width: 320px" />
           <el-button type="primary" :loading="snapshotLoading" @click="loadSnapshots">查询</el-button>
         </div>
         <el-alert v-if="snapshotError" :title="snapshotError" type="error" show-icon

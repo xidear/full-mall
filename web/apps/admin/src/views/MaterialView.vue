@@ -324,7 +324,7 @@ loadAssets()
 
           <template v-if="variantJob?.status === 'SUCCEEDED'">
             <h4>4. 挂到商品</h4>
-            <el-input v-model="attachProductId" placeholder="商品ID" />
+            <ProductPicker v-model="attachProductId" width="100%" />
             <el-select v-model="attachRole" style="width: 100%; margin-top: 8px">
               <el-option label="主图" value="MAIN" />
               <el-option label="图集" value="GALLERY" />

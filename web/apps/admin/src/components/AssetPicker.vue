@@ -21,6 +21,9 @@ const uploading = ref(false)
 const assets = ref<Asset[]>([])
 const keyword = ref('')
 const selected = ref<string[]>([])
+const page = ref(0)
+const hasMore = ref(true)
+const loadingMore = ref(false)
 
 const chosen = computed<string[]>(() => {
   const value = props.modelValue
@@ -40,13 +43,38 @@ const selectedAssets = computed(() => assets.value.filter(asset =>
 
 async function load() {
   loading.value = true
+  page.value = 0
+  hasMore.value = true
   try {
-    const page = await api.get<{ content: Asset[] }>('/admin/v1/assets?size=100&sort=createdAt,desc')
-    assets.value = page.content ?? []
+    const result = await api.get<{ content: Asset[]; last?: boolean; totalPages?: number }>(
+      '/admin/v1/assets?size=60&page=0&sort=createdAt,desc')
+    assets.value = result.content ?? []
+    hasMore.value = result.last === undefined
+      ? (result.content ?? []).length >= 60
+      : !result.last
   } catch (cause) {
     ElMessage.error(cause instanceof Error ? cause.message : '素材加载失败')
   } finally {
     loading.value = false
+  }
+}
+
+async function loadMore() {
+  if (!hasMore.value || loadingMore.value) return
+  loadingMore.value = true
+  try {
+    const next = page.value + 1
+    const result = await api.get<{ content: Asset[]; last?: boolean }>(
+      `/admin/v1/assets?size=60&page=${next}&sort=createdAt,desc`)
+    assets.value = [...assets.value, ...(result.content ?? [])]
+    page.value = next
+    hasMore.value = result.last === undefined
+      ? (result.content ?? []).length >= 60
+      : !result.last
+  } catch (cause) {
+    ElMessage.error(cause instanceof Error ? cause.message : '加载更多失败')
+  } finally {
+    loadingMore.value = false
   }
 }
 
@@ -150,6 +178,9 @@ onMounted(load)
           <span class="name">{{ asset.name }}</span>
         </button>
       </div>
+      <div v-if="hasMore && !loading" class="more">
+        <el-button size="small" :loading="loadingMore" @click="loadMore">加载更多</el-button>
+      </div>
 
       <template #footer>
         <el-button @click="dialog = false">取消</el-button>
@@ -169,6 +200,7 @@ onMounted(load)
 .upload input { display: none; }
 .hint { color: #94a3b8; font-size: 12px; }
 .empty { padding: 40px 0; text-align: center; color: #94a3b8; }
+.more { text-align: center; margin-top: 12px; }
 .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 10px;
   max-height: 52vh; overflow-y: auto; }
 .cell { padding: 0; border: 2px solid transparent; border-radius: 8px; background: #f8fafc;

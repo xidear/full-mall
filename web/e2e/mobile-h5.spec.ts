@@ -31,22 +31,27 @@ test('mobile h5 browses products, adds to cart and checks out', async ({ page, r
 
   // uni-app H5 的 placeholder 在自定义元素上，直接按输入顺序填
   const fields = page.locator('uni-input input')
-  await expect(fields).toHaveCount(6)
+  await expect(fields).toHaveCount(7)
   const phone = `137${String(Date.now()).slice(-8)}`
   await fields.nth(0).fill('移动端验证')
   await fields.nth(1).fill(phone)
-  await fields.nth(2).fill('上海市')
+  // nth(2) 是验证码，由「获取验证码」自动填入
   await fields.nth(3).fill('上海市')
-  await fields.nth(4).fill('静安区')
-  await fields.nth(5).fill('测试路 1 号')
+  await fields.nth(4).fill('上海市')
+  await fields.nth(5).fill('静安区')
+  await fields.nth(6).fill('测试路 1 号')
 
-  // 该手机号需先 OTP 验证，否则后端明确返回 CHECKOUT_OTP_REQUIRED
-  const issued = await request.post(`${API}/api/v1/member/auth/otp`, { data: { phone } })
-  expect(issued.ok()).toBeTruthy()
-  const code = (await issued.json()).debugCode
-  await request.post(`${API}/api/v1/member/auth/verify`, { data: { phone, code } })
+  // 页面内走真实 OTP（dev 会回传验证码并自动填入）
+  await page.getByText('获取验证码', { exact: true }).click()
+  await expect.poll(async () =>
+    page.locator('uni-input input').nth(2).inputValue(), { timeout: 15_000 }).not.toBe('')
 
   await page.getByText('提交订单', { exact: true }).click()
-  await expect(page.getByText('下单成功')).toBeVisible({ timeout: 20_000 })
+  await expect(page.getByText('下单成功')).toBeVisible({ timeout: 25_000 })
   await expect(page.getByText(/订单号：FM/)).toBeVisible()
+
+  // 订单查询：看到状态（待支付/已支付等）
+  await page.getByText('查看我的订单', { exact: true }).click()
+  await expect(page).toHaveURL(/pages\/orders\/orders/, { timeout: 15_000 })
+  await expect(page.getByText(/FM\d{8}/)).toBeVisible({ timeout: 20_000 })
 })

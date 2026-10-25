@@ -45,6 +45,10 @@ function load() {
   })
 }
 
+function goOrders() {
+  uni.navigateTo({ url: '/pages/orders/orders' })
+}
+
 function toDetail(product: Product) {
   uni.navigateTo({ url: `/pages/product/detail?id=${product.id}` })
 }
@@ -69,6 +73,11 @@ function price(product: Product) {
       >
         {{ preset.label }}
       </view>
+    </view>
+
+    <view class="quick-links">
+      <button size="mini" @click="goOrders">我的订单</button>
+      <button size="mini" @click="uni.navigateTo({ url: '/pages/cart/cart' })">购物车</button>
     </view>
 
     <view class="hero">
@@ -225,4 +234,5 @@ function price(product: Product) {
 .state.error {
   color: var(--accent);
 }
+.quick-links { display: flex; gap: 12rpx; padding: 16rpx 24rpx 0; }
 </style>

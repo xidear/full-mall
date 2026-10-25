@@ -5939,3 +5939,14 @@ E2E 未跑（需要 5 个前端 + PG，下轮单独跑）。
 | 前台商品素材 | ✅ 主图/图集/详情图由真实接口渲染（E2E 断言） |
 | 全量 Chromium E2E | ✅ **52 passed / 2 skipped / 0 failed** |
 | 后端修复 | 重复挂主图由 500 改为 **409 `MEDIA_DUPLICATE`**（含测试） |
+
+## 移动端用户端（真实联调）
+
+| 步骤 | 结果 |
+|---|---|
+| 首页列表 → 详情 → 加购 → 购物车 → 下单 | ✅ Playwright（uni H5，视口 390×844） |
+| 页面内 OTP（dev 自动回填验证码）→ 下单成功 | ✅ |
+| 我的订单（读取本地订单 + 调 `/api/v1/orders/{id}` 显示真实状态） | ✅ |
+| 小程序构建 `uni build -p mp-weixin` | ✅ 产物 `dist/build/mp-weixin` |
+| 全量 Chromium E2E | ✅ 52 passed / 2 skipped / 0 failed |
+

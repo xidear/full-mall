@@ -6,9 +6,15 @@ export default defineNuxtConfig({
   runtimeConfig: {
     apiInternalBase: process.env.NUXT_API_INTERNAL_BASE || 'http://localhost:41280',
     public: {
-      apiBase: process.env.NUXT_PUBLIC_API_BASE || 'http://192.168.1.15:41280',
+      // 同源相对路径：客户端经 Nitro/edge 代理到 API，避免 CORS、混合内容与三地址行为不一致
+      apiBase: process.env.NUXT_PUBLIC_API_BASE || '',
       appMode: process.env.NUXT_PUBLIC_APP_MODE || 'dev',
       theme: process.env.NUXT_PUBLIC_THEME || 'mall'
+    }
+  },
+  vite: {
+    server: {
+      allowedHosts: ['company.binnarui.com', '192.168.1.15', 'localhost']
     }
   },
   app: {

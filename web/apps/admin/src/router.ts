@@ -37,6 +37,7 @@ import NotificationsView from './views/NotificationsView.vue'
 import CustomersView from './views/CustomersView.vue'
 import StaffView from './views/StaffView.vue'
 import SettingsView from './views/SettingsView.vue'
+import OpsView from './views/OpsView.vue'
 
 const router = createRouter({
   history: createWebHistory(),
@@ -78,7 +79,8 @@ const router = createRouter({
     { path: '/reviews', name: 'reviews', component: ReviewsView, meta: { title: '评价审核' } },
     { path: '/customers', name: 'customers', component: CustomersView, meta: { title: '客户管理' } },
     { path: '/staff', name: 'staff', component: StaffView, meta: { title: '员工与权限' } },
-    { path: '/settings', name: 'settings', component: SettingsView, meta: { title: '系统设置' } }
+    { path: '/settings', name: 'settings', component: SettingsView, meta: { title: '系统设置' } },
+    { path: '/ops', name: 'ops', component: OpsView, meta: { title: '运维中心' } }
   ]
 })
 

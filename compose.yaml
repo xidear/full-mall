@@ -9,9 +9,9 @@ x-app-env: &app-env
   SMS_PROVIDER: ${SMS_PROVIDER:-mock}
   MAIL_PROVIDER: ${MAIL_PROVIDER:-mailpit}
   DEMO_READ_ONLY: ${DEMO_READ_ONLY:-false}
-  SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB:-fullmall}
-  SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER:-fullmall}
-  SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:-change-me-local}
+  SPRING_DATASOURCE_URL: ${SPRING_DATASOURCE_URL:-jdbc:postgresql://postgres:5432/${POSTGRES_DB:-fullmall}}
+  SPRING_DATASOURCE_USERNAME: ${SPRING_DATASOURCE_USERNAME:-fullmall}
+  SPRING_DATASOURCE_PASSWORD: ${SPRING_DATASOURCE_PASSWORD:-change-me-local}
   SPRING_DATA_REDIS_HOST: valkey
   SPRING_DATA_REDIS_PORT: 6379
   SPRING_RABBITMQ_HOST: rabbitmq
@@ -25,6 +25,9 @@ x-app-env: &app-env
   S3_BUCKET: fullmall
   OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-lgtm:4317
   OTEL_SERVICE_NAME: fullmall-api
+  OPS_AGENTS: ${OPS_AGENTS:-local=http://host.docker.internal:41287}
+  OPS_TOKEN: ${OPS_TOKEN:-}
+  SSL_HELPER_URL: ${SSL_HELPER_URL:-http://host.docker.internal:41287}
 
 services:
   postgres:
@@ -138,6 +141,8 @@ services:
     ports:
       - "${API_PORT:-8080}:8080"
       - "${API_DEBUG_PORT:-5005}:5005"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     depends_on:
       postgres:
         condition: service_healthy

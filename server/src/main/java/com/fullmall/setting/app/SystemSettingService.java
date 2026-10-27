@@ -19,12 +19,12 @@ public class SystemSettingService {
     private static final Set<String> PUBLIC_KEYS = Set.of(
             "site_name", "company_name", "icp_number", "public_security_record",
             "service_phone", "service_email", "site_status", "maintenance_message",
-            "default_locale", "default_currency");
+            "default_locale", "default_currency", "site_domain", "site_scheme", "business_license_no");
 
     private static final Set<String> ALLOWED_KEYS = Set.of(
             "site_name", "company_name", "icp_number", "public_security_record",
             "service_phone", "service_email", "site_status", "maintenance_message",
-            "default_locale", "default_currency",
+            "default_locale", "default_currency", "site_domain", "site_scheme", "business_license_no",
             "storage_provider", "sms_provider", "payment_provider", "logistics_provider",
             // 第三方服务的凭据（后台填写，读写时脱敏；演示模式不生效）
             "sms_access_key", "sms_secret_key", "sms_sign_name",
@@ -49,6 +49,8 @@ public class SystemSettingService {
     public static final String SITE_STATUS_KEY = "site_status";
     public static final String MAINTENANCE_MESSAGE_KEY = "maintenance_message";
     public static final String DEFAULT_LOCALE_KEY = "default_locale";
+    public static final String SITE_DOMAIN_KEY = "site_domain";
+    public static final String SITE_SCHEME_KEY = "site_scheme";
 
     public static final String SITE_STATUS_OPEN = "OPEN";
     public static final String SITE_STATUS_MAINTENANCE = "MAINTENANCE";
@@ -141,10 +143,60 @@ public class SystemSettingService {
                 throw ApiException.badRequest("INVALID_SITE_STATUS",
                         "site_status 只能是 OPEN / MAINTENANCE / CLOSED，实际=" + value);
             }
+            if (SITE_DOMAIN_KEY.equals(entry.getKey())) {
+                value = normalizeSiteDomain(value);
+            }
+            if (SITE_SCHEME_KEY.equals(entry.getKey()) && !value.matches("https?")) {
+                throw ApiException.badRequest("INVALID_SITE_SCHEME",
+                        "site_scheme 只能是 http 或 https，实际=" + value);
+            }
             repository.upsert(entry.getKey(), value);
         }
         siteCache = null;
         return adminSettings();
+    }
+
+    /**
+     * 对外域名只接受 host[:port]（例如 company.binnarui.com:443、192.168.1.15:41285）。
+     * 不接受协议、路径或空白：协议由部署层（HTTP/HTTPS）决定，写进配置会让
+     * storefront 的 canonical/分享链接出现 http://https:// 这类拼接错误。
+     */
+    private static String normalizeSiteDomain(String value) {
+        if (value == null || value.isBlank()) {
+            return "";
+        }
+        if (value.contains("://") || value.contains("/") || value.contains("?")
+                || value.contains("#") || value.contains("@") || !value.equals(value.trim())) {
+            throw ApiException.badRequest("INVALID_SITE_DOMAIN",
+                    "site_domain 只能是 host[:port]，不能包含协议、路径或空格，实际=" + value);
+        }
+        String host = value;
+        int port = -1;
+        int colon = value.lastIndexOf(':');
+        if (colon >= 0) {
+            host = value.substring(0, colon);
+            String portText = value.substring(colon + 1);
+            if (!portText.matches("\\d{1,5}")) {
+                throw ApiException.badRequest("INVALID_SITE_DOMAIN",
+                        "site_domain 端口必须是 1-65535 的整数，实际=" + value);
+            }
+            port = Integer.parseInt(portText);
+            if (port < 1 || port > 65535) {
+                throw ApiException.badRequest("INVALID_SITE_DOMAIN",
+                        "site_domain 端口必须是 1-65535 的整数，实际=" + value);
+            }
+        }
+        if (host.isBlank() || host.length() > 253
+                || !host.matches("^[a-zA-Z0-9](?:[a-zA-Z0-9.-]*[a-zA-Z0-9])?$")) {
+            throw ApiException.badRequest("INVALID_SITE_DOMAIN",
+                    "site_domain 主机名格式不正确，实际=" + value);
+        }
+        if (host.contains("..") || host.startsWith(".") || host.endsWith(".")) {
+            throw ApiException.badRequest("INVALID_SITE_DOMAIN",
+                    "site_domain 主机名格式不正确，实际=" + value);
+        }
+        String normalized = host.toLowerCase(java.util.Locale.ROOT);
+        return port > 0 ? normalized + ":" + port : normalized;
     }
 
     private SiteState siteState() {

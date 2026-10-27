@@ -9,7 +9,10 @@ const error = ref('')
 
 const form = reactive<Record<string, string>>({
   site_name: '',
+  site_domain: '',
+  site_scheme: 'https',
   company_name: '',
+  business_license_no: '',
   icp_number: '',
   public_security_record: '',
   service_phone: '',
@@ -68,6 +71,16 @@ async function runChannelTest() {
     testing.value = false
   }
 }
+
+const siteUrlPreview = computed(() => {
+  const raw = (form.site_domain || '').trim()
+  if (!raw) return ''
+  const port = raw.includes(':') ? raw.slice(raw.lastIndexOf(':') + 1) : ''
+  const scheme = form.site_scheme === 'http' ? 'http'
+    : form.site_scheme === 'https' ? 'https'
+      : (!port || port === '443' ? 'https' : 'http')
+  return scheme + '://' + raw
+})
 
 const minWithdrawalYuan = computed({
   get: () => Number(form['distribution.min-withdrawal'] || 0) / 100,
@@ -136,11 +149,34 @@ async function save() {
           <el-form-item label="公网安备">
             <el-input v-model="form.public_security_record" placeholder="如：京公网安备 xxxxxxxxxxxxxx号" />
           </el-form-item>
+          <el-form-item label="营业执照 / 经营编号">
+            <el-input v-model="form.business_license_no" placeholder="如：统一社会信用代码 91xxxxxxxxxxxxxxxx" />
+          </el-form-item>
           <el-form-item label="客服电话">
             <el-input v-model="form.service_phone" />
           </el-form-item>
           <el-form-item label="客服邮箱">
             <el-input v-model="form.service_email" />
+          </el-form-item>
+        </div>
+      </section>
+
+      <section class="form-section">
+        <h3>访问域名</h3>
+        <p class="muted">只填写 <code>域名[:端口]</code>，不要带 http:// 或路径。商城分享链接、SEO canonical、支付回调都会使用它；HTTPS 证书在「运维中心 → 证书」管理。</p>
+        <div class="policy-grid">
+          <el-form-item label="商城对外域名">
+            <el-input v-model="form.site_domain" placeholder="company.binnarui.com:443" />
+            <span v-if="siteUrlPreview" class="muted">对外地址预览：{{ siteUrlPreview }}</span>
+          </el-form-item>
+          <el-form-item label="对外协议">
+            <el-select v-model="form.site_scheme" style="width: 100%">
+              <el-option label="HTTPS" value="https" />
+              <el-option label="HTTP" value="http" />
+            </el-select>
+          </el-form-item>
+          <el-form-item label="说明">
+            <span class="muted">示例：<code>company.binnarui.com:15443</code>、<code>192.168.1.15:41285</code>。协议按实际入口选择，不按端口猜。</span>
           </el-form-item>
         </div>
       </section>

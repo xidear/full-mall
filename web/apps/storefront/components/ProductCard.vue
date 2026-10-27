@@ -2,15 +2,15 @@
 import type { Product } from '~/types'
 
 const props = defineProps<{ product: Product }>()
+const { t } = useLocale()
 
 const firstSku = computed(() => props.product.skus[0])
 const tone = computed(() => categoryTone(props.product.categoryId))
 const initials = computed(() => props.product.title.slice(0, 2))
-const sold = computed(() => 100 + [...props.product.title].reduce((sum, char) => sum + char.charCodeAt(0), 0) % 900)
 const badge = computed(() => {
-  if (firstSku.value?.compareAtPrice) return '限时价'
-  if (props.product.shelfLifeManaged) return '批次/效期'
-  return '自营'
+  if (firstSku.value?.compareAtPrice) return t('product.badge.deal')
+  if (props.product.shelfLifeManaged) return t('product.badge.batch')
+  return t('product.badge.self')
 })
 </script>
 
@@ -25,9 +25,9 @@ const badge = computed(() => {
       <NuxtLink :to="`/product/${product.id}`" class="product-title">{{ product.title }}</NuxtLink>
       <p>{{ product.description }}</p>
       <div class="product-tags">
-        <span>包邮</span>
-        <span>七天无理由</span>
-        <span v-if="product.shelfLifeManaged">门店自提</span>
+        <span>{{ t('product.tag.freeShipping') }}</span>
+        <span>{{ t('product.tag.returns') }}</span>
+        <span v-if="product.shelfLifeManaged">{{ t('product.tag.pickup') }}</span>
       </div>
       <div class="product-meta">
         <strong>{{ formatMoney(firstSku?.price) }}</strong>
@@ -36,8 +36,7 @@ const badge = computed(() => {
         </span>
       </div>
       <div class="product-actions">
-        <NuxtLink :to="`/product/${product.id}`" class="button button-secondary">查看详情</NuxtLink>
-        <span class="sold">已售 {{ sold }}+</span>
+        <NuxtLink :to="`/product/${product.id}`" class="button button-secondary">{{ t('product.view') }}</NuxtLink>
       </div>
     </div>
   </article>

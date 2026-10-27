@@ -11,6 +11,7 @@ export default defineConfig({
   },
   server: {
     port: 5173,
+    allowedHosts: ['company.binnarui.com', '192.168.1.15', 'localhost'],
     proxy: {
       '/api': 'http://localhost:41280',
       '/admin': 'http://localhost:41280',

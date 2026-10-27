@@ -11,8 +11,20 @@
 | mobile H5 | 41286 | `npm run dev:h5 --workspace @fullmall/mobile` |
 | wiremock | 41288 | `docker compose up -d wiremock` |
 | Ollama | 41289 | `bash scripts/start-local-ai.sh` |
+| ops/SSL 辅助容器 | 41287 | `docker compose --env-file .env.ops -f compose.ops.yaml up -d ops` |
 
 规则见 `AGENTS.md` §8：只用 41280–41289，禁止 3000/5173/8080 及其变体；`localhost` 只是本机调试，不算对外服务。
+
+## 公网映射（iKuai，非 80/443）
+
+| 公网端口 | 内网目标 | 用途 |
+|---|---|---|
+| 15051 | 192.168.1.15:41285 | 商城直连 HTTP |
+| 15052 | 192.168.1.15:41281 | admin 直连 HTTP |
+| 15080 | 192.168.1.15:80 | edge HTTP（301 → 15443） |
+| 15443 | 192.168.1.15:443 | edge HTTPS（Let's Encrypt DNS-01） |
+
+公网访问：`https://company.binnarui.com:15443`；admin：`http://company.binnarui.com:15052`。
 
 ## 局域网访问（客户端在另一台机器）
 

@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import type { LegalDocument, Order, Store } from '~/types'
+import { randomUuid } from '~/utils/uuid'
 
+useHead({ title: '结算 · Full Mall' })
 const config = useRuntimeConfig()
 const base = import.meta.client ? config.public.apiBase : config.apiInternalBase
 const { cart, total, clear } = useCart()
@@ -14,11 +16,13 @@ const otpCode = ref('')
 const otpSending = ref(false)
 const devOtpCode = ref('')
 const memberToken = ref<string>(process.client ? (localStorage.getItem('fullmall.memberToken') ?? '') : '')
+const memberCookie = useCookie<string | null>('fullmall_member_token', { sameSite: 'lax', maxAge: 60 * 60 * 24 * 30 })
 const addressDetail = ref('上海市静安区演示路 1 号')
 const legal = ref<LegalDocument | null>(null)
 const legalAccepted = ref(false)
 const submitting = ref(false)
 const errorMessage = ref('')
+const noticeMessage = ref('')
 const demoResult = ref<Record<string, unknown> | null>(null)
 const idempotencyKey = ref('')
 const referral = ref<{ staffId: string; mode: string } | null>(null)
@@ -28,7 +32,7 @@ const groupBuyId = ref('')
 const groupBuyCode = ref('')
 
 onMounted(async () => {
-  idempotencyKey.value = crypto.randomUUID()
+  idempotencyKey.value = randomUuid()
   groupBuyId.value = localStorage.getItem('fullmall.groupBuyId') ?? ''
   groupBuyCode.value = localStorage.getItem('fullmall.groupBuyCode') ?? ''
   const rawReferral = localStorage.getItem('fullmall.referral')
@@ -98,7 +102,10 @@ async function requestOtp() {
       devOtpCode.value = issued.debugCode
       otpCode.value = issued.debugCode
     }
-    ElMessage.success('验证码已发送')
+    noticeMessage.value = issued.debugCode
+      ? `验证码已发送（演示码 ${issued.debugCode}）`
+      : '验证码已发送，请查收短信'
+    setTimeout(() => { noticeMessage.value = '' }, 5000)
   } catch (cause) {
     errorMessage.value = cause instanceof Error ? cause.message : '获取验证码失败'
   } finally {
@@ -121,6 +128,7 @@ async function ensureMemberToken(): Promise<string> {
   if (process.client) {
     // 同时写 cookie：订单页在服务端渲染时读不到 localStorage，只能靠 cookie 带身份
     localStorage.setItem('fullmall.memberToken', session.token)
+    memberCookie.value = session.token
     // 拉一次会员资料：把时区写入 cookie，供页面按会员时区格式化时间
     try {
       const profile = await $fetch<{ timezone?: string }>(
@@ -291,6 +299,7 @@ async function submit() {
         <button type="button" class="button full-width" :disabled="submitting" @click="submit">
           {{ submitting ? '提交中…' : config.public.appMode === 'demo' ? '查看演示结果' : 'Mock 支付并下单' }}
         </button>
+        <p v-if="noticeMessage" class="notice-text">{{ noticeMessage }}</p>
         <p v-if="errorMessage" class="error-text">{{ errorMessage }}</p>
         <div v-if="demoResult" class="demo-result-card">
           <strong>演示模式：流程已模拟</strong>
@@ -303,6 +312,21 @@ async function submit() {
 </template>
 
 <style scoped>
+.notice-text {
+  margin: 8px 0;
+  color: #0f766e;
+  background: #ecfdf5;
+  border: 1px solid #99f6e4;
+  border-radius: 8px;
+  padding: 8px 10px;
+  font-size: 13px;
+}
+
+.error-text {
+  color: #b91c1c;
+  font-size: 13px;
+}
+
 .group-buy-note {
   display: grid;
   gap: 4px;

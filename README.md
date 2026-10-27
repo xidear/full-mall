@@ -121,6 +121,23 @@ docker compose -f compose.lite.yaml up -d
 
 供应商端是独立应用，包含 API 推送说明；客服端是独立 WS 工作台。
 
+## 域名、SSL 与运维
+
+- 后台「系统设置 → 访问域名」只填 `host[:port]`（例如 `company.binnarui.com:443`），商城 canonical/分享/支付回调用它；演示库已写入该值。
+- 「运维中心」展示服务器、技术栈、安全基线、辅助容器（支持多机 agent 聚合）与 SSL 证书来源/到期时间，可手工续签。
+- SSL 辅助容器：`ops`（acme.sh + 主机/容器监控，端口 41287）；边缘 Nginx：`edge`（容器内 80/443，公网映射 15080/15443）。
+- 当前生产：`https://company.binnarui.com:15443`（Let's Encrypt DNS-01），admin `http://company.binnarui.com:15052`。
+
+```bash
+cp deploy/deploy.env.example .env.deploy
+sudo bash init.sh --yes
+sudo bash setup.sh --yes
+bash start.sh          # 默认同时启动 ops + edge
+bash stop.sh           # 保留所有数据卷
+```
+
+详见 [分布式部署](docs/DEPLOYMENT_DISTRIBUTED.md)、[运维与 SSL](docs/OPS_AND_SSL.md)、[Storefront 浏览器审计](docs/STOREFRONT_BROWSER_AUDIT.md)。
+
 ## 多主题
 
 - PC 商城预设：`mall`（通用零售）、`industrial`（机械设备/工业品）、`fresh`、`minimal`。
@@ -181,6 +198,9 @@ cd web && npx playwright test
 - [OpenAPI 契约](docs/openapi.yaml)
 - [参考项目与 clean-room 规则](docs/references/README.md)
 - [功能对照矩阵](docs/parity-matrix.md)
+- [分布式部署与初始化脚本](docs/DEPLOYMENT_DISTRIBUTED.md)
+- [运维中心与 SSL 自动续签](docs/OPS_AND_SSL.md)
+- [Storefront 浏览器审计与修复](docs/STOREFRONT_BROWSER_AUDIT.md)
 
 ## 规则
 

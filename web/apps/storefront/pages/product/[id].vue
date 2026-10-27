@@ -13,6 +13,8 @@ const { data: promotions } = await useFetch<Promotion[]>(`${base}/api/v1/promoti
   key: 'promotions-active'
 })
 
+useHead(() => ({ title: product.value ? `${product.value.title} · Full Mall` : '商品详情 · Full Mall' }))
+
 if (error.value || !product.value) {
   throw createError({ statusCode: 404, statusMessage: '商品不存在' })
 }
@@ -50,12 +52,73 @@ function addToCart() {
     skuId: sku.id,
     skuCode: sku.skuCode,
     title: `${product.value.title} ${Object.values(sku.options).join(' / ')}`.trim(),
+    imageUrl: sku.imageUrl,
     price: sku.price,
     quantity: quantity.value
   })
   added.value = true
   setTimeout(() => { added.value = false }, 1800)
 }
+
+const { token: memberToken } = useMember()
+const favorite = ref(false)
+const favoriteBusy = ref(false)
+const favoriteMessage = ref('')
+
+interface Review { id: string; rating: number; content: string; createdAt: string }
+const { data: reviews } = await useAsyncData<Review[]>('product-reviews', () =>
+  $fetch<Review[]>(`${base}/api/v1/products/${selectedSkuId.value}/reviews`),
+  { watch: [selectedSkuId] }
+)
+
+async function loadFavorite() {
+  favoriteMessage.value = ''
+  if (!memberToken.value) {
+    favorite.value = false
+    return
+  }
+  try {
+    const list = await $fetch<Array<{ skuId: string }>>(`${config.public.apiBase}/api/v1/favorites`, {
+      headers: { Authorization: `Bearer ${memberToken.value}` }
+    })
+    favorite.value = list.some(item => item.skuId === selectedSkuId.value)
+  } catch {
+    favoriteMessage.value = '收藏状态加载失败，可稍后重试'
+  }
+}
+
+async function toggleFavorite() {
+  if (!memberToken.value) {
+    favoriteMessage.value = '请先登录后收藏'
+    return
+  }
+  favoriteBusy.value = true
+  favoriteMessage.value = ''
+  try {
+    if (favorite.value) {
+      await $fetch(`${config.public.apiBase}/api/v1/favorites/${selectedSkuId.value}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${memberToken.value}` }
+      })
+      favorite.value = false
+      favoriteMessage.value = '已取消收藏'
+    } else {
+      await $fetch(`${config.public.apiBase}/api/v1/favorites/${selectedSkuId.value}`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${memberToken.value}` }
+      })
+      favorite.value = true
+      favoriteMessage.value = '已加入收藏'
+    }
+  } catch {
+    favoriteMessage.value = '收藏操作失败，请稍后重试'
+  } finally {
+    favoriteBusy.value = false
+  }
+}
+
+onMounted(loadFavorite)
+watch(selectedSkuId, loadFavorite)
 
 const { data: mediaList } = await useFetch<Array<{
   url: string; role: string; kind: string; skuId?: string | null
@@ -133,7 +196,7 @@ async function buyNow() {
         <span>七天无理由</span>
       </div>
 
-      <div v-if="product.skus.length > 1" class="option-group">
+      <div v-if="product.skus.length" class="option-group">
         <span class="option-label">规格</span>
         <div class="option-list">
           <button
@@ -160,9 +223,26 @@ async function buyNow() {
         </label>
         <button type="button" class="button" @click="addToCart">加入购物车</button>
         <button type="button" class="button button-secondary" @click="buyNow">立即购买</button>
+        <button type="button" class="button button-ghost" :disabled="favoriteBusy" @click="toggleFavorite">
+          {{ favorite ? '已收藏' : '收藏' }}
+        </button>
       </div>
       <p v-if="added" class="success-text">已加入购物车</p>
+      <p v-if="favoriteMessage" class="muted">{{ favoriteMessage }}</p>
       <p v-if="flashPromotion" class="notice">秒杀价在结算时由服务端校验活动库存与限购。</p>
+
+      <section class="reviews-panel">
+        <div class="reviews-head">
+          <h2>用户评价</h2>
+          <span class="muted">{{ reviews?.length ?? 0 }} 条</span>
+        </div>
+        <article v-for="review in reviews" :key="review.id" class="review-item">
+          <div class="review-stars" :aria-label="`评分 ${review.rating} / 5`">{{ '★'.repeat(review.rating) }}{{ '☆'.repeat(5 - review.rating) }}</div>
+          <p>{{ review.content || '该用户未填写文字评价' }}</p>
+          <span class="muted">{{ new Date(review.createdAt).toLocaleDateString('zh-CN') }}</span>
+        </article>
+        <p v-if="!reviews?.length" class="muted reviews-empty">暂无评价，购买后可在订单页发表评价。</p>
+      </section>
 
       <div class="product-extra">
         <div>
@@ -184,6 +264,14 @@ async function buyNow() {
 </template>
 
 <style scoped>
+.reviews-panel { margin-top: 24px; border-top: 1px solid var(--line); padding-top: 18px; }
+.reviews-head { display: flex; align-items: baseline; justify-content: space-between; }
+.reviews-head h2 { margin: 0; }
+.review-item { padding: 12px 0; border-bottom: 1px solid var(--line); }
+.review-item p { margin: 6px 0; }
+.review-stars { color: #d97706; letter-spacing: 2px; }
+.reviews-empty { margin-top: 18px; }
+
 .promotion-tags {
   display: flex;
   flex-wrap: wrap;

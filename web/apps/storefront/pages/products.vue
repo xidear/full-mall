@@ -15,6 +15,10 @@ const extraItems = ref<Product[]>([])
 const loadingMore = ref(false)
 const loadMoreError = ref('')
 
+const { data: categories } = await useAsyncData<Category[]>('products-categories', () =>
+  $fetch<Category[]>(`${base}/api/v1/categories`)
+)
+
 const { data, pending, error, refresh } = await useAsyncData<ProductPage>(
   'products',
   () => $fetch<ProductPage>(`${base}/api/v1/products`, {
@@ -81,6 +85,8 @@ function togglePriceSort() {
 const activeCategory = computed(() =>
   categories.value?.find(category => category.id === categoryId.value)
 )
+
+useHead(() => ({ title: `${activeCategory.value?.name || (keyword.value ? '搜索：' + keyword.value : '全部商品')} · Full Mall` }))
 </script>
 
 <template>
@@ -100,10 +106,10 @@ const activeCategory = computed(() =>
         </NuxtLink>
       </div>
       <div class="filter-block">
-        <h3>服务</h3>
-        <span class="filter-note">门店自提</span>
-        <span class="filter-note">七天无理由</span>
-        <span class="filter-note">批次效期</span>
+        <h3>服务与政策</h3>
+        <NuxtLink to="/legal/PICKUP" class="filter-note">门店自提</NuxtLink>
+        <NuxtLink to="/legal/REFUND" class="filter-note">七天无理由</NuxtLink>
+        <NuxtLink to="/legal/TERMS" class="filter-note">服务条款</NuxtLink>
       </div>
     </aside>
 
@@ -123,7 +129,10 @@ const activeCategory = computed(() =>
       <div class="product-grid">
         <ProductCard v-for="product in products" :key="product.id" :product="product" />
       </div>
-      <p v-if="!products.length && !pending" class="empty-state">没有找到符合条件的商品</p>
+      <div v-if="!products.length && !pending" class="empty-state">
+        <p>没有找到符合条件的商品</p>
+        <NuxtLink to="/products" class="button button-secondary">查看全部商品</NuxtLink>
+      </div>
 
       <div v-if="hasMore" class="load-more">
         <button type="button" :disabled="loadingMore" @click="loadMore">

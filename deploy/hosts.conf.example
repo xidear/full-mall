@@ -1,0 +1,8 @@
+# 分布式部署主机清单：name|ssh目标|角色|代码目录|数据目录
+# 角色可组合：edge,ops,app,db-primary,db-replica
+# 本机可写 local 或 -；远程目标需已配置 SSH key 免密登录，并已 clone 本仓库
+# 复制为 deploy/hosts.conf 后按实际修改
+edge|root@192.168.1.15|edge,ops|/data/full-mall|/opt/fullmall
+app|root@192.168.1.16|app|/data/full-mall|/opt/fullmall
+db-primary|root@192.168.1.17|db-primary,app|/data/full-mall|/opt/fullmall
+db-replica|root@192.168.1.18|db-replica|/data/full-mall|/opt/fullmall

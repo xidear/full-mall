@@ -75,6 +75,9 @@ const menuGroups = [
     { path: '/costs', label: '成本查询', roles: ['ADMIN'] },
     { path: '/exports', label: '导出中心', roles: ['ADMIN', 'OPERATOR'] }
   ] },
+  { key: 'ops', label: '运维', items: [
+    { path: '/ops', label: '运维中心', roles: ['ADMIN'] }
+  ] },
   { key: 'system', label: '系统', items: [
     { path: '/notifications', label: '通知中心', roles: ['ADMIN', 'OPERATOR'] },
     { path: '/ai', label: 'AI 客服', roles: ['ADMIN'] },

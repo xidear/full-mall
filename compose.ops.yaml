@@ -1,0 +1,51 @@
+name: fullmall-ops
+
+# 边缘节点：Nginx(80/443) + ops/SSL 辅助容器（同一台机器）
+# 远程机器：只启动 ops 服务，OPS_AGENTS 在 admin 后端配置为 name=http://host:41287
+services:
+  edge:
+    profiles: [edge]
+    build:
+      context: ./deploy/edge
+    network_mode: host
+    environment:
+      DOMAIN: ${SSL_DOMAIN:-}
+      UPSTREAM: ${EDGE_UPSTREAM:-http://127.0.0.1:41285}
+      API_UPSTREAM: ${EDGE_API_UPSTREAM:-http://127.0.0.1:41280}
+      HTTPS_PORT: ${PUBLIC_HTTPS_PORT:-15443}
+    volumes:
+      - ssl-certs:/etc/nginx/certs
+      - ssl-webroot:/var/www/acme
+    restart: unless-stopped
+    depends_on:
+      - ops
+
+  ops:
+    build:
+      context: ./deploy/ops
+    network_mode: host
+    environment:
+      PORT: ${OPS_AGENT_PORT:-41287}
+      OPS_TOKEN: ${OPS_TOKEN:-}
+      SSL_DOMAIN: ${SSL_DOMAIN:-}
+      SSL_EMAIL: ${SSL_EMAIL:-}
+      SSL_CA: ${SSL_CA:-letsencrypt}
+      SSL_CHALLENGE: ${SSL_CHALLENGE:-http}
+      DP_ID: ${DP_ID:-}
+      DP_KEY: ${DP_KEY:-}
+      SSL_AUTO_ISSUE: ${SSL_AUTO_ISSUE:-true}
+      SSL_DAYS_BEFORE: ${SSL_DAYS_BEFORE:-30}
+      SSL_WAIT_SECONDS: ${SSL_WAIT_SECONDS:-45}
+      OPS_MANAGE_PREFIX: ${OPS_MANAGE_PREFIX:-fullmall-}
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - /etc:/host/etc:ro
+      - ssl-certs:/certs
+      - ssl-webroot:/var/www/acme
+      - acme-data:/acme-data
+    restart: unless-stopped
+
+volumes:
+  ssl-certs:
+  ssl-webroot:
+  acme-data:

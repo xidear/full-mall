@@ -1,11 +1,14 @@
 export function useOrders() {
   const orderIds = useState<string[]>('orderIds', () => [])
 
-  if (import.meta.client && orderIds.value.length === 0) {
-    const raw = localStorage.getItem('fullmall.orderIds')
-    if (raw) {
-      orderIds.value = JSON.parse(raw) as string[]
-    }
+  if (import.meta.client) {
+    onMounted(() => {
+      if (orderIds.value.length > 0) return
+      const raw = localStorage.getItem('fullmall.orderIds')
+      if (raw) {
+        orderIds.value = JSON.parse(raw) as string[]
+      }
+    })
   }
 
   function remember(orderId: string) {

@@ -88,6 +88,36 @@ class SystemSettingServiceTest {
         assertThat(service.siteStatus()).isEqualTo("CLOSED");
     }
 
+    @Test
+    void normalizesSiteDomainHostAndPort() {
+        when(repository.findAll()).thenReturn(new LinkedHashMap<>(settings("OPEN")));
+
+        service.save(Map.of(SystemSettingService.SITE_DOMAIN_KEY, " Company.BinNarui.COM:443 "));
+
+        verify(repository).upsert(SystemSettingService.SITE_DOMAIN_KEY, "company.binnarui.com:443");
+    }
+
+    @Test
+    void rejectsSiteDomainWithSchemeOrPath() {
+        assertThatThrownBy(() -> service.save(
+                Map.of(SystemSettingService.SITE_DOMAIN_KEY, "https://company.binnarui.com")))
+                .isInstanceOf(ApiException.class)
+                .hasMessageContaining("host[:port]");
+
+        assertThatThrownBy(() -> service.save(
+                Map.of(SystemSettingService.SITE_DOMAIN_KEY, "company.binnarui.com/mall")))
+                .isInstanceOf(ApiException.class)
+                .hasMessageContaining("host[:port]");
+    }
+
+    @Test
+    void rejectsSiteDomainWithInvalidPort() {
+        assertThatThrownBy(() -> service.save(
+                Map.of(SystemSettingService.SITE_DOMAIN_KEY, "company.binnarui.com:70000")))
+                .isInstanceOf(ApiException.class)
+                .hasMessageContaining("1-65535");
+    }
+
     private static final class MutableClock extends Clock {
 
         private Instant instant;

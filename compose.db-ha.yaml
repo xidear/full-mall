@@ -1,0 +1,49 @@
+name: fullmall
+
+# 主从数据库（PostgreSQL 17 流复制）。只用于 DB_MODE=primary-replica。
+# 注意：与 compose.yaml 的 postgres 不要同时启动，否则 5432 冲突。
+services:
+  postgres-primary:
+    image: postgres:17-alpine
+    command: ["postgres", "-c", "wal_level=replica", "-c", "max_wal_senders=10", "-c", "max_replication_slots=10", "-c", "hot_standby=on"]
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-fullmall}
+      POSTGRES_USER: ${POSTGRES_USER:-fullmall}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-change-me-local}
+      POSTGRES_REPLICATION_USER: ${POSTGRES_REPLICATION_USER:-repl}
+      POSTGRES_REPLICATION_PASSWORD: ${POSTGRES_REPLICATION_PASSWORD:-change-me-repl}
+    ports:
+      - "${DB_HA_PRIMARY_PORT:-5432}:5432"
+    volumes:
+      - postgres-primary-data:/var/lib/postgresql/data
+      - ./deploy/db/primary-init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-fullmall} -d ${POSTGRES_DB:-fullmall}"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+
+  postgres-replica:
+    build:
+      context: ./deploy/db/replica
+    environment:
+      PRIMARY_HOST: postgres-primary
+      PRIMARY_PORT: "5432"
+      POSTGRES_REPLICATION_USER: ${POSTGRES_REPLICATION_USER:-repl}
+      POSTGRES_REPLICATION_PASSWORD: ${POSTGRES_REPLICATION_PASSWORD:-change-me-repl}
+    ports:
+      - "${DB_HA_REPLICA_PORT:-5433}:5432"
+    volumes:
+      - postgres-replica-data:/var/lib/postgresql/data
+    depends_on:
+      postgres-primary:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-fullmall} -d ${POSTGRES_DB:-fullmall}"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+
+volumes:
+  postgres-primary-data:
+  postgres-replica-data:

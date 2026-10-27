@@ -1,0 +1,59 @@
+# 挂载模式：镜像只提供运行时，代码/构建产物通过 volume 挂载，更新代码无需重建镜像。
+services:
+  api:
+    image: eclipse-temurin:21-jre-alpine
+    command: ["java", "-jar", "/app/app.jar"]
+    environment:
+      JAVA_TOOL_OPTIONS: ""
+    volumes: !override
+      - ./server/target/fullmall-server-0.1.0-SNAPSHOT.jar:/app/app.jar:ro
+      - ./server/data:/app/data
+
+  worker:
+    image: eclipse-temurin:21-jre-alpine
+    command: ["java", "-jar", "/app/app.jar"]
+    environment:
+      JAVA_TOOL_OPTIONS: ""
+    volumes: !override
+      - ./server/target/fullmall-server-0.1.0-SNAPSHOT.jar:/app/app.jar:ro
+      - ./server/data:/app/data
+
+  ws:
+    image: eclipse-temurin:21-jre-alpine
+    command: ["java", "-jar", "/app/app.jar"]
+    environment:
+      JAVA_TOOL_OPTIONS: ""
+    volumes: !override
+      - ./server/target/fullmall-server-0.1.0-SNAPSHOT.jar:/app/app.jar:ro
+      - ./server/data:/app/data
+
+  storefront:
+    image: node:22-alpine
+    working_dir: /app
+    command: ["node", "/app/.output/server/index.mjs"]
+    volumes: !override
+      - ./web/apps/storefront/.output:/app/.output:ro
+
+  admin:
+    image: nginx:1.27-alpine
+    volumes: !override
+      - ./web/apps/admin/dist:/usr/share/nginx/html:ro
+      - ./deploy/nginx-spa.conf:/etc/nginx/conf.d/default.conf:ro
+
+  store-console:
+    image: nginx:1.27-alpine
+    volumes: !override
+      - ./web/apps/store-console/dist:/usr/share/nginx/html:ro
+      - ./deploy/nginx-spa.conf:/etc/nginx/conf.d/default.conf:ro
+
+  supplier-portal:
+    image: nginx:1.27-alpine
+    volumes: !override
+      - ./web/apps/supplier-portal/dist:/usr/share/nginx/html:ro
+      - ./deploy/nginx-spa.conf:/etc/nginx/conf.d/default.conf:ro
+
+  support-console:
+    image: nginx:1.27-alpine
+    volumes: !override
+      - ./web/apps/support-console/dist:/usr/share/nginx/html:ro
+      - ./deploy/nginx-spa.conf:/etc/nginx/conf.d/default.conf:ro

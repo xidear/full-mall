@@ -2,6 +2,8 @@
  * 埋点（K7）：只上报行为，不阻断交互。
  * 失败**不重试、不弹窗**，但会打 console.warn，便于发现"埋点全挂了"。
  */
+import { randomUuid } from './uuid'
+
 type EventType = 'VIEW' | 'ADD_TO_CART' | 'SEARCH' | 'CLICK' | 'PURCHASE'
 
 interface EventPayload {
@@ -18,7 +20,7 @@ export function track(eventType: EventType, payload: EventPayload = {}) {
   const config = useRuntimeConfig()
   const base = config.public.apiBase
   const anonymousId = localStorage.getItem('fullmall-anon') ?? (() => {
-    const value = crypto.randomUUID()
+    const value = randomUuid()
     localStorage.setItem('fullmall-anon', value)
     return value
   })()

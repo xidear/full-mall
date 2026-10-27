@@ -1,10 +1,11 @@
 <script setup lang="ts">
-const { locale } = useLocale()
+const { locale, t } = useLocale()
 import type { Category, Product, ProductPage } from '~/types'
 
 const config = useRuntimeConfig()
 const base = import.meta.server ? config.apiInternalBase : config.public.apiBase
 const { data, error } = await useFetch<ProductPage>(`${base}/api/v1/products`, {
+  key: 'home-products',
   query: { locale: locale.value, page: 0, size: 50 }
 })
 const { data: categories } = await useAsyncData<Category[]>('categories', () =>
@@ -19,6 +20,7 @@ if (error.value) {
 }
 
 const products = computed(() => data.value?.items ?? [])
+useHead({ title: 'Full Mall · 全品类商城' })
 const deals = computed(() => products.value.filter(product => product.skus[0]?.compareAtPrice).slice(0, 4))
 const shelfLife = computed(() => products.value.filter(product => product.shelfLifeManaged).slice(0, 4))
 const industrial = computed(() =>
@@ -30,19 +32,19 @@ const industrial = computed(() =>
   <section class="hero">
     <img class="hero-art" src="/images/hero.svg" alt="">
     <div class="hero-main">
-      <p class="eyebrow">FULL MALL · 品质生活</p>
-      <h1>好物直达，门店自提更快</h1>
+      <p class="eyebrow">{{ t('home.eyebrow') }}</p>
+      <h1>{{ t('home.title') }}</h1>
       <p class="hero-copy">
-        覆盖生鲜、数码、家居、美妆、运动和工业品。支持多仓发货、门店自提、供应商代发与批次效期管理。
+        {{ t('home.copy') }}
       </p>
       <div class="hero-actions">
-        <NuxtLink to="/products" class="button">立即选购</NuxtLink>
-        <NuxtLink to="/legal/PICKUP" class="button button-ghost">查看自提规则</NuxtLink>
+        <NuxtLink to="/products" class="button">{{ t('home.shop') }}</NuxtLink>
+        <NuxtLink to="/legal/PICKUP" class="button button-ghost">{{ t('home.pickup') }}</NuxtLink>
       </div>
       <div class="hero-stats">
-        <span><strong>2 小时</strong>门店自提</span>
-        <span><strong>7 天</strong>无理由退货</span>
-        <span><strong>100%</strong>正品保障</span>
+        <span><strong>2 小时</strong>{{ t('home.stat.pickup') }}</span>
+        <span><strong>7 天</strong>{{ t('home.stat.returns') }}</span>
+        <span><strong>100%</strong>{{ t('home.stat.auth') }}</span>
       </div>
     </div>
     <div class="hero-side">
@@ -76,9 +78,9 @@ const industrial = computed(() =>
     <div class="section-heading">
       <div>
         <p class="eyebrow">限时好价</p>
-        <h2>今日特惠</h2>
+        <h2>{{ t('home.deals') }}</h2>
       </div>
-      <NuxtLink to="/products" class="section-more">查看全部 →</NuxtLink>
+      <NuxtLink to="/products" class="section-more">{{ t('home.dealsMore') }}</NuxtLink>
     </div>
     <div class="product-grid">
       <ProductCard v-for="product in deals" :key="product.id" :product="product" />
@@ -89,9 +91,9 @@ const industrial = computed(() =>
     <div class="section-heading">
       <div>
         <p class="eyebrow">热卖推荐</p>
-        <h2>大家都在买</h2>
+        <h2>{{ t('home.hot') }}</h2>
       </div>
-      <NuxtLink to="/products" class="section-more">更多商品 →</NuxtLink>
+      <NuxtLink to="/products" class="section-more">{{ t('home.hotMore') }}</NuxtLink>
     </div>
     <div class="product-grid">
       <ProductCard v-for="product in products.slice(0, 8)" :key="product.id" :product="product" />
@@ -103,7 +105,7 @@ const industrial = computed(() =>
       <div class="section-heading">
         <div>
           <p class="eyebrow">新鲜直达</p>
-          <h2>生鲜与批次效期</h2>
+          <h2>{{ t('home.fresh') }}</h2>
         </div>
       </div>
       <div class="product-grid compact">
@@ -112,16 +114,16 @@ const industrial = computed(() =>
     </div>
     <div class="industrial-panel">
       <p class="eyebrow">企业采购</p>
-      <h2>工业品与设备选型</h2>
-      <p>步进电机、法兰、标准件，支持批量采购和供应商直发。</p>
+      <h2>{{ t('home.industrial') }}</h2>
+      <p>{{ t('home.industrialCopy') }}</p>
       <div class="industrial-list">
         <NuxtLink v-for="product in industrial" :key="product.id" :to="`/product/${product.id}`">
           {{ product.title }} <span>{{ formatMoney(product.skus[0]?.price) }}</span>
         </NuxtLink>
       </div>
-      <NuxtLink to="/products?keyword=工业" class="button">进入工业品专区</NuxtLink>
+      <NuxtLink to="/products?keyword=工业" class="button">{{ t('home.industrialCta') }}</NuxtLink>
     </div>
   </section>
 
-  <p v-if="!products.length" class="empty-state">暂无商品，请确认后端已启动并完成 seed。</p>
+  <p v-if="!products.length" class="empty-state">{{ t('home.empty') }}</p>
 </template>

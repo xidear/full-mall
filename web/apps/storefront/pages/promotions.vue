@@ -3,7 +3,9 @@ import type { GroupBuy, Money, Promotion } from '~/types'
 
 const config = useRuntimeConfig()
 const base = import.meta.server ? config.apiInternalBase : config.public.apiBase
-const { data: promotions, error } = await useFetch<Promotion[]>(`${base}/api/v1/promotions`)
+const { data: promotions, error } = await useFetch<Promotion[]>(`${base}/api/v1/promotions`, {
+  key: 'active-promotions'
+})
 const { add, clear } = useCart()
 
 if (error.value) {
@@ -207,6 +209,25 @@ function money(value?: Money) {
       </div>
     </section>
 
+    <section class="promotion-section promo-links">
+      <div class="section-heading">
+        <div>
+          <p class="eyebrow">MORE</p>
+          <h2>更多优惠</h2>
+        </div>
+      </div>
+      <div class="promo-link-row">
+        <NuxtLink to="/coupons" class="promo-link-card">
+          <strong>领券中心</strong>
+          <span>查看可领取的优惠券</span>
+        </NuxtLink>
+        <NuxtLink to="/bargain" class="promo-link-card">
+          <strong>砍价活动</strong>
+          <span>邀请好友帮你砍到低价</span>
+        </NuxtLink>
+      </div>
+    </section>
+
     <p v-if="!(promotions ?? []).length" class="empty-state">当前没有进行中的促销活动。</p>
 
     <div v-if="groupDialog" class="promotion-modal-mask" @click.self="groupDialog = false">
@@ -239,6 +260,10 @@ function money(value?: Money) {
 </template>
 
 <style scoped>
+.promo-link-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; }
+.promo-link-card { display: flex; flex-direction: column; gap: 4px; padding: 18px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); }
+.promo-link-card strong { font-size: 16px; }
+.promo-link-card span { color: var(--muted); font-size: 13px; }
 .promotion-page {
   padding: 12px 0 48px;
 }

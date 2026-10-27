@@ -1,7 +1,7 @@
 SHELL := /bin/bash
 COMPOSE := docker compose
 
-.PHONY: help env up up-lite up-obs down logs ps reset db-reset fix-mount-owner build build-demo build-prod test backend-test frontend-test e2e fmt
+.PHONY: help env up up-lite up-obs down logs ps reset db-reset fix-mount-owner build build-demo build-prod test backend-test frontend-test e2e fmt init setup start stop ops-up ops-down db-ha-up db-ha-down
 
 help:
 	@echo "Full Mall commands:"
@@ -17,6 +17,12 @@ help:
 	@echo "  make build-prod   Build production images"
 	@echo "  make test         Run backend + frontend tests"
 	@echo "  make e2e          Run Playwright"
+	@echo "  make init         初始化宿主机 Docker/镜像/目录（需 sudo）"
+	@echo "  make setup        生成配置、构建、初始化数据库并启动"
+	@echo "  make start        启动（保留数据卷）"
+	@echo "  make stop         停止（保留数据卷）"
+	@echo "  make ops-up       启动运维/SSL 辅助容器与边缘代理"
+	@echo "  make ops-down     停止运维/SSL 容器"
 
 env:
 	@test -f .env || cp .env.example .env
@@ -96,3 +102,27 @@ verify-fast: ## 同上但跳过 E2E
 
 api-restart:
 	@bash scripts/restart-api.sh
+
+init:
+	@bash init.sh
+
+setup:
+	@bash setup.sh
+
+start:
+	@bash start.sh
+
+stop:
+	@bash stop.sh
+
+ops-up:
+	@bash start.sh --no-edge
+
+ops-down:
+	@docker compose --env-file .env.ops -f compose.ops.yaml --profile edge down
+
+db-ha-up:
+	@docker compose --env-file .env -f compose.db-ha.yaml up -d
+
+db-ha-down:
+	@docker compose --env-file .env -f compose.db-ha.yaml down

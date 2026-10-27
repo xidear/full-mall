@@ -1,0 +1,36 @@
+# 镜像模式：镜像由 CI 构建并推送到仓库，运行时只拉取，不挂载源码。
+services:
+  api:
+    image: ${API_IMAGE:?API_IMAGE is required for image mode}
+    command: ["java", "-jar", "/app/app.jar"]
+    environment:
+      JAVA_TOOL_OPTIONS: ""
+    volumes: !override
+      - ./server/data:/app/data
+
+  worker:
+    image: ${API_IMAGE:?API_IMAGE is required for image mode}
+    command: ["java", "-jar", "/app/app.jar"]
+    environment:
+      JAVA_TOOL_OPTIONS: ""
+    volumes: !override
+      - ./server/data:/app/data
+
+  ws:
+    image: ${API_IMAGE:?API_IMAGE is required for image mode}
+    command: ["java", "-jar", "/app/app.jar"]
+    environment:
+      JAVA_TOOL_OPTIONS: ""
+    volumes: !override
+      - ./server/data:/app/data
+
+  storefront:
+    image: ${STOREFRONT_IMAGE:?STOREFRONT_IMAGE is required for image mode}
+  admin:
+    image: ${ADMIN_IMAGE:?ADMIN_IMAGE is required for image mode}
+  store-console:
+    image: ${ADMIN_IMAGE:?ADMIN_IMAGE is required for image mode}
+  supplier-portal:
+    image: ${ADMIN_IMAGE:?ADMIN_IMAGE is required for image mode}
+  support-console:
+    image: ${ADMIN_IMAGE:?ADMIN_IMAGE is required for image mode}

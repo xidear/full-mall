@@ -17,7 +17,7 @@ public class SetupService {
 
     /** 判定"已配置"所需的键（空或 mock 视为未完成）。 */
     private static final List<String> REQUIRED = List.of(
-            "site_name", "default_locale", "default_currency",
+            "site_name", "site_domain", "default_locale", "default_currency",
             "payment_provider", "logistics_provider", "sms_provider",
             "distribution.level1-value", "member.points.expiry-mode");
 
@@ -60,6 +60,7 @@ public class SetupService {
             case "sms_provider" -> "未配置真实短信（当前 mock 仅演示可用）";
             case "distribution.level1-value" -> "未设置一级佣金比例";
             case "member.points.expiry-mode" -> "未选择积分过期规则（默认永不过期）";
+            case "site_domain" -> "未配置对外访问域名（商城分享/SEO/支付回调需要）";
             default -> "未填写";
         };
     }

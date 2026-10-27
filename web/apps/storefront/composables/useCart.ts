@@ -5,6 +5,7 @@ export interface CartLine {
   skuId: string
   skuCode: string
   title: string
+  imageUrl?: string
   price: Money
   quantity: number
 }
@@ -15,15 +16,18 @@ export function useCart() {
   const cart = useState<CartLine[]>('cart', () => [])
 
   if (import.meta.client) {
-    const raw = localStorage.getItem(STORAGE_KEY)
-    if (raw && cart.value.length === 0) {
-      try {
-        cart.value = JSON.parse(raw) as CartLine[]
-      } catch {
-        localStorage.removeItem(STORAGE_KEY)
-        throw new Error('购物车数据损坏，已清除本地购物车')
+    // 不能在 setup 阶段直接改 cart：SSR 渲染数量 0、客户端首帧变成 N，会触发 hydration mismatch
+    onMounted(() => {
+      const raw = localStorage.getItem(STORAGE_KEY)
+      if (raw && cart.value.length === 0) {
+        try {
+          cart.value = JSON.parse(raw) as CartLine[]
+        } catch {
+          localStorage.removeItem(STORAGE_KEY)
+          throw new Error('购物车数据损坏，已清除本地购物车')
+        }
       }
-    }
+    })
   }
 
   function persist() {

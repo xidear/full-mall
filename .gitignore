@@ -52,6 +52,8 @@ tmp/
 
 # Docker
 docker-data/
+# 部署清单可能含内网 IP
+deploy/hosts.conf
 
 # Local only
 .zcode/

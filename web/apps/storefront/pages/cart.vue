@@ -1,4 +1,5 @@
 <script setup lang="ts">
+useHead({ title: '购物车 · Full Mall' })
 const { cart, total, updateQuantity, remove } = useCart()
 </script>
 
@@ -15,7 +16,10 @@ const { cart, total, updateQuantity, remove } = useCart()
     <div v-if="cart.length" class="cart-layout">
       <div class="panel cart-list">
         <div v-for="line in cart" :key="line.skuId" class="cart-line">
-          <div class="cart-thumb">FM</div>
+          <div class="cart-thumb">
+            <img v-if="line.imageUrl" :src="line.imageUrl" :alt="line.title">
+            <span v-else>{{ line.title.slice(0, 1) }}</span>
+          </div>
           <div class="cart-info">
             <strong>{{ line.title }}</strong>
             <span class="muted">{{ line.skuCode }}</span>

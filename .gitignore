@@ -113,3 +113,6 @@ docs/**/*.mp4
 docs/**/*.webm
 docs/**/*.pdf
 docs/**/*.zip
+# 评审快照目录整体不入库：里面除截图还有 acceptance/*.json，按扩展名逐个列会漏
+# （admin-results.json 就漏过一次，导致目录一直以 ?? 出现在 git status）。
+docs/review-*/

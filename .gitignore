@@ -85,3 +85,17 @@ id_ed25519*
 !.env.sample
 !.env.template
 *credentials*
+
+# --- 运行时产物（2026-10-29 补）---
+# 本地上传的对象存储目录：里面全是运行时素材，进库只会让 clone 变慢且泄露顾客上传内容。
+# 之前有 105 个相同占位图被误提交（同一 blob），已 git rm --cached 从索引移除。
+server/data/
+data/
+
+# 以 root 跑构建时留下的 target.<时间戳>/（普通用户读不了，也不该入库）
+target.*/
+*.original
+
+# Python 缓存（scripts/*.py 的伴生物）
+__pycache__/
+*.pyc

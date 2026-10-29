@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { formatMemberDate, formatMemberDateTime } from '~/utils/datetime'
-// 会员时区：由会员资料接口提供；未登录时为 undefined（退回浏览器本地时区）
-const memberTimezone = useCookie<string | null>('fullmall_member_timezone').value ?? undefined
+// 会员时区优先，未登录时用站点默认时区（避免 SSR 与浏览器显示不一致）。
+const memberTimezone = useDisplayTimeZone()
 import { computed, reactive, ref } from 'vue'
 import {
   fulfillmentStatusLabel,
@@ -13,25 +13,27 @@ import type { AfterSale, Fulfillment, Order } from '~/types'
 const route = useRoute()
 const config = useRuntimeConfig()
 const base = import.meta.server ? config.apiInternalBase : config.public.apiBase
+// 顾客看到的订单地址使用业务订单号，而不是数据库 UUID。
+const orderNo = String(route.params.orderNo || '')
 // 会员/访客下单后都需要带 token 才能查看自己的订单（服务端按归属校验）
 // 服务端渲染读 cookie、客户端也读 cookie（localStorage 在 SSR 取不到，曾导致硬刷新 404）
 const memberToken = useCookie<string | null>('fullmall_member_token').value ?? ''
 const guestToken = process.client
-  ? (localStorage.getItem(`fullmall.orderToken.${route.params.id}`) ?? '')
+  ? (localStorage.getItem(`fullmall.orderToken.${orderNo}`) ?? '')
   : ''
 const authHeaders: Record<string, string> = {
   ...(memberToken ? { Authorization: `Bearer ${memberToken}` } : {}),
   ...(guestToken ? { 'X-Order-Token': guestToken } : {})
 }
 const { data: order, error, refresh: refreshOrder } = await useFetch<Order>(
-  `${base}/api/v1/orders/${route.params.id}`,
+  `${base}/api/v1/orders/no/${orderNo}`,
   {
-    key: `order-${route.params.id}`, headers: authHeaders }
+    key: `order-${orderNo}`, headers: authHeaders }
 )
 const { data: fulfillments } = await useFetch<Fulfillment[]>(
-  `${base}/api/v1/orders/${route.params.id}/fulfillments`,
+  `${base}/api/v1/orders/${order.value?.id}/fulfillments`,
   {
-    key: `fulfillments-${route.params.id}`, headers: authHeaders }
+    key: `fulfillments-${order.value?.id}`, headers: authHeaders }
 )
 
 if (error.value || !order.value) {
@@ -53,17 +55,17 @@ async function loadTracking() {
   trackingError.value = ''
   try {
     tracking.value = await $fetch<TrackingEvent[]>(
-      `${base}/api/v1/orders/${route.params.id}/tracking`,
+      `${base}/api/v1/orders/${order.value?.id}/tracking`,
       { headers: authHeaders })
   } catch (cause) {
-    trackingError.value = cause instanceof Error ? cause.message : '物流查询失败'
+    trackingError.value = apiErrorMessage(cause, '物流查询失败，请稍后重试')
   } finally {
     trackingLoading.value = false
   }
 }
 
 const { data: afterSales, refresh: refreshAfterSales } = await useFetch<AfterSale[]>(
-  `${base}/api/v1/orders/${route.params.id}/after-sales`,
+  `${base}/api/v1/orders/${order.value?.id}/after-sales`,
   { query: { phone: order.value.contactPhone } }
 )
 
@@ -79,6 +81,9 @@ const formError = ref('')
 
 const canApply = computed(() => ['PAID', 'ALLOCATED', 'PARTIALLY_FULFILLED', 'FULFILLED']
   .includes(order.value?.status ?? ''))
+
+// 评价只能对已支付/已完成的订单发起（后端同样校验，这里只是提前隐藏入口）。
+const canReview = computed(() => ['PAID', 'FULFILLED'].includes(order.value?.status ?? ''))
 
 const statusLabels: Record<string, string> = {
   REQUESTED: '待审核',
@@ -121,7 +126,7 @@ async function submitAfterSale() {
     Object.keys(quantities).forEach(key => delete quantities[key])
     await Promise.all([refreshOrder(), refreshAfterSales()])
   } catch (cause) {
-    formError.value = cause instanceof Error ? cause.message : '售后申请提交失败'
+    formError.value = apiErrorMessage(cause, '售后申请提交失败，请稍后重试')
   } finally {
     submitting.value = false
   }
@@ -147,6 +152,12 @@ async function submitAfterSale() {
         <span>合计</span>
         <strong>{{ formatMoney(order.total) }}</strong>
       </div>
+    </div>
+
+    <div v-if="canReview && memberToken" class="panel">
+      <h2>评价商品</h2>
+      <p class="muted">可以传图片或视频，上限由站方配置；评价审核通过后展示在商品页。</p>
+      <ReviewForm :order-id="order.id" :lines="order.lines" :token="memberToken" />
     </div>
 
     <div class="panel">
@@ -223,7 +234,7 @@ async function submitAfterSale() {
       <div v-for="afterSale in afterSales" :key="afterSale.id" class="after-sale-record">
         <div>
           <strong>{{ afterSale.afterSaleNo }}</strong>
-          <span class="status-badge">{{ statusLabels[afterSale.status] || afterSale.status }}</span>
+          <span class="status-badge">{{ statusLabels[afterSale.status] || '处理中' }}</span>
         </div>
         <p>{{ afterSale.type === 'RETURN' ? '退货退款' : '换货' }} · {{ afterSale.reason }} · 退款 {{ formatMoney(afterSale.refundAmount) }}</p>
         <p v-if="afterSale.adminNote" class="muted">处理备注：{{ afterSale.adminNote }}</p>
@@ -250,14 +261,14 @@ async function submitAfterSale() {
   flex-direction: column;
   gap: 6px;
   font-size: 13px;
-  color: #5c574e;
+  color: var(--muted);
 }
 
 .after-sale-form input,
 .after-sale-form select,
 .after-sale-form textarea {
   padding: 9px 10px;
-  border: 1px solid #d8d4ca;
+  border: 1px solid var(--line);
   border-radius: 8px;
   font: inherit;
 }
@@ -268,7 +279,7 @@ async function submitAfterSale() {
   gap: 8px;
   padding: 12px;
   border-radius: 10px;
-  background: #f7f5ef;
+  background: var(--surface-muted);
 }
 
 .after-sale-line {
@@ -284,19 +295,19 @@ async function submitAfterSale() {
 
 .form-error {
   margin: 0;
-  color: #a51f18;
+  color: var(--danger);
   font-size: 13px;
 }
 
 .form-success {
   margin: 0;
-  color: #22643d;
+  color: var(--brand-dark);
   font-size: 13px;
 }
 
 .after-sale-record {
   padding: 12px 0;
-  border-top: 1px dashed #dedbd3;
+  border-top: 1px dashed var(--line);
 }
 
 .after-sale-record:first-of-type {
@@ -310,7 +321,7 @@ async function submitAfterSale() {
   padding: 0;
   border: none;
   background: none;
-  color: #2563eb;
+  color: var(--brand);
   cursor: pointer;
 }
 
@@ -330,6 +341,6 @@ async function submitAfterSale() {
 }
 
 .tracking-time {
-  color: #6b7280;
+  color: var(--muted);
 }
 </style>

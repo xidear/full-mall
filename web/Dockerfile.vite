@@ -7,13 +7,20 @@ ARG VITE_WS_BASE=ws://localhost:8081
 ENV VITE_API_BASE=${VITE_API_BASE}
 ENV VITE_APP_MODE=${VITE_APP_MODE}
 ENV VITE_WS_BASE=${VITE_WS_BASE}
+# 依赖锁定：COPY 根 package-lock.json 并改用 npm ci。
+# 用 npm install 时 heic2any@^0.0.4 这类范围版本会在每次构建时重新解析，
+# "昨天能传 HEIC、今天构建出来的包不能"这种问题就无从复现。
+# --workspace ${APP_DIR} 只装目标 app 的依赖，不下载其它四个前端的包。
+COPY package.json package-lock.json ./
 COPY packages ./packages
 COPY ${APP_DIR} ${APP_DIR}
+RUN npm ci --workspace ${APP_DIR}
 WORKDIR /workspace/${APP_DIR}
-RUN npm install
 RUN npm run build
 
 FROM nginx:alpine
+# ARG 不跨 FROM 继承：最终阶段必须重新声明，否则 ${APP_DIR} 展开成空，变成 COPY /workspace//dist（旧写法就踩了这个坑）。
+ARG APP_DIR
 COPY nginx.conf /etc/nginx/conf.d/default.conf
 COPY --from=build /workspace/${APP_DIR}/dist /usr/share/nginx/html
 EXPOSE 80

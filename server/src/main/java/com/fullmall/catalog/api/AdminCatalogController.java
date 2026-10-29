@@ -17,6 +17,10 @@ import org.springframework.web.bind.annotation.RestController;
 
 import java.util.UUID;
 
+/**
+ * 商品管理后台 HTTP 入口。`/admin/**` 只校验“已登录”，成本/译文发布靠方法级 {@code @PreAuthorize}
+ * 收口，其余方法不限角色——新增敏感接口必须自己补注解；{@code *Amount} 一律是最小货币单位（分）。
+ */
 @RestController
 @RequestMapping("/admin/v1/products")
 public class AdminCatalogController {
@@ -29,6 +33,7 @@ public class AdminCatalogController {
     private final com.fullmall.catalog.app.SkuOptionsMigrationService skuOptionsMigrationService;
     private final com.fullmall.catalog.app.ProductCsvImporter productCsvImporter;
     private final com.fullmall.catalog.app.ProductTranslationWorkflowService translationWorkflow;
+    private final com.fullmall.catalog.app.AdminProductDetailService detailService;
 
     public AdminCatalogController(CatalogService catalogService,
                                   com.fullmall.catalog.app.ProductTranslationWorkflowService translationWorkflow,
@@ -37,7 +42,8 @@ public class AdminCatalogController {
                                   com.fullmall.catalog.app.SkuMatrixMultiService skuMatrixMultiService,
                                   com.fullmall.catalog.app.SkuPriceRuleService skuPriceRuleService,
                                   com.fullmall.catalog.app.SkuOptionsMigrationService skuOptionsMigrationService,
-                                  com.fullmall.catalog.app.ProductCsvImporter productCsvImporter) {
+                                  com.fullmall.catalog.app.ProductCsvImporter productCsvImporter,
+                                  com.fullmall.catalog.app.AdminProductDetailService detailService) {
         this.catalogService = catalogService;
         this.translationWorkflow = translationWorkflow;
         this.skuCostService = skuCostService;
@@ -46,6 +52,20 @@ public class AdminCatalogController {
         this.skuPriceRuleService = skuPriceRuleService;
         this.skuOptionsMigrationService = skuOptionsMigrationService;
         this.productCsvImporter = productCsvImporter;
+        this.detailService = detailService;
+    }
+
+    /**
+     * 后台商品详情（编辑页唯一数据源）。
+     *
+     * <p>过去前端调用本路径的 GET，但后端没有实现，Spring 抛
+     * HttpRequestMethodNotSupportedException 又被兜底成 500，
+     * 编辑页只能拿到 "Internal server error"——接口契约缺一条就整页不可用。
+     */
+    @GetMapping("/{productId}")
+    @org.springframework.security.access.prepost.PreAuthorize("hasAnyRole('ADMIN','OPERATOR')")
+    public com.fullmall.catalog.api.ProductDetailView detail(@PathVariable UUID productId) {
+        return detailService.detail(productId);
     }
 
     /**
@@ -71,8 +91,8 @@ public class AdminCatalogController {
         return body;
     }
 
-    /** 译文送审（I18N-003）。 */
-    public record TranslationDraft(String title, String description) {
+    /** 译文送审（I18N-003）。imageUrl 为本地化商品图（可空）。 */
+    public record TranslationDraft(String title, String description, String imageUrl) {
     }
 
     /** 录入译文（运营手填或机翻结果），进入 DRAFT 待审核。 */
@@ -83,7 +103,7 @@ public class AdminCatalogController {
             @RequestBody TranslationDraft body,
             org.springframework.security.core.Authentication authentication) {
         return translationWorkflow.saveDraft(productId, locale, body.title(), body.description(),
-                authentication.getName());
+                body.imageUrl(), authentication.getName());
     }
 
     @PostMapping("/{productId}/translations/{locale}/review")
@@ -121,6 +141,7 @@ public class AdminCatalogController {
         return catalogService.createProduct(request);
     }
 
+    // costAmount 单位=分；null 表示“清除成本（未维护）”，与“成本为 0”不同——下游不能按 0 算毛利。
     public record CostRequest(Long costAmount) {
     }
 
@@ -145,6 +166,7 @@ public class AdminCatalogController {
         return java.util.Collections.singletonMap("costAmount", cost);
     }
 
+    // priceAmount 单位=分，作为本批 SKU 的初始价；currency 为空时从既有 SKU 推断，无 SKU 会明确报错。
     public record MatrixRequest(String prefix, String optionName, java.util.List<String> values,
                                 long priceAmount, String currency) {
     }
@@ -195,6 +217,8 @@ public class AdminCatalogController {
         return java.util.Map.of("updated", updated);
     }
 
+    // 维度顺序决定 SKU 编码（前缀-值1-值2…），换顺序就是另一批编码、不会被当作已存在而跳过；
+    // disabled 每项只写要禁的维度取值（如 {颜色:黑, 存储:512G}），其余维度不参与比较。
     public record MatrixMultiRequest(String prefix,
                                      java.util.Map<String, java.util.List<String>> dimensions,
                                      java.util.List<java.util.Map<String, String>> disabled,
@@ -224,7 +248,13 @@ public class AdminCatalogController {
         return catalogService.availability(productId);
     }
 
+    // mode=ADD 时 value 是加减金额、SET 时是目标价；ADD 允许负数（降价）但不允许 0。
     public record PriceRuleRequest(java.util.Map<String, String> match, String mode, long value) {
+    }
+
+    /** 规格改价（多值）：match 是"维度 → 勾选的取值集合"，维度间 AND、取值间 OR。 */
+    public record MultiPriceRuleRequest(java.util.Map<String, java.util.List<String>> match,
+                                        String mode, long value) {
     }
 
     private com.fullmall.catalog.app.SkuPriceRuleService.Mode priceMode(String raw) {
@@ -235,6 +265,32 @@ public class AdminCatalogController {
             throw com.fullmall.platform.error.ApiException.badRequest(
                     "SKU_PRICE_MODE_INVALID", "模式只能是 ADD 或 SET");
         }
+    }
+
+    /** 商品的规格维度与取值（后台"规格改价"弹窗用）。 */
+    @GetMapping("/{productId}/sku-dimensions")
+    @org.springframework.security.access.prepost.PreAuthorize("hasAnyRole('ADMIN','OPERATOR')")
+    public java.util.Map<String, java.util.List<String>> skuDimensions(@PathVariable UUID productId) {
+        return skuPriceRuleService.dimensions(productId);
+    }
+
+    /** 多值预览：勾选维度值集合 → 命中 SKU 的改价预览（不落库）。 */
+    @PostMapping("/{productId}/price-rule/preview-multi")
+    @org.springframework.security.access.prepost.PreAuthorize("hasAnyRole('ADMIN','OPERATOR')")
+    public java.util.List<com.fullmall.catalog.app.SkuPriceRuleService.Change> previewPriceRuleMulti(
+            @PathVariable UUID productId, @RequestBody MultiPriceRuleRequest body) {
+        return skuPriceRuleService.previewMulti(productId, body.match(), priceMode(body.mode()),
+                body.value());
+    }
+
+    /** 多值应用：整批成功或整批失败。 */
+    @PostMapping("/{productId}/price-rule/apply-multi")
+    @org.springframework.security.access.prepost.PreAuthorize("hasAnyRole('ADMIN','OPERATOR')")
+    public java.util.Map<String, Object> applyPriceRuleMulti(
+            @PathVariable UUID productId, @RequestBody MultiPriceRuleRequest body) {
+        int updated = skuPriceRuleService.applyMulti(productId, body.match(), priceMode(body.mode()),
+                body.value());
+        return java.util.Map.of("updated", updated);
     }
 
     /** 预览：只计算不落库（改价前必须看一眼）。 */
@@ -260,20 +316,21 @@ public class AdminCatalogController {
     }
 
     /** 商品 CSV 导入（title,skuCode,price）。任一行不合法则整批不落库。 */
-    @PostMapping("/products/import")
+    @PostMapping("/import")
     @org.springframework.security.access.prepost.PreAuthorize("hasAnyRole('ADMIN','OPERATOR')")
     public com.fullmall.catalog.app.ProductCsvImporter.Result importCsv(@RequestBody ImportCsv body) {
         return productCsvImporter.importCsv(body.content());
     }
 
-    public record BasicsRequest(String title, String description, UUID categoryId) {
+    public record BasicsRequest(String title, String description, UUID categoryId, String detailHtml) {
     }
 
     /** 编辑商品基础信息（标题/描述/类目）。 */
     @PutMapping("/{productId}")
     public java.util.Map<String, Object> updateBasics(@PathVariable UUID productId,
                                                       @RequestBody BasicsRequest body) {
-        catalogService.updateBasics(productId, body.title(), body.description(), body.categoryId());
+        catalogService.updateBasics(productId, body.title(), body.description(), body.categoryId(),
+                body.detailHtml());
         return java.util.Map.of("updated", true);
     }
 

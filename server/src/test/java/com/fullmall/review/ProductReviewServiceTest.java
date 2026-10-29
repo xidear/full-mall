@@ -91,7 +91,7 @@ class ProductReviewServiceTest {
 
     @Test
     void memberCanReviewPurchasedSkuOnce() {
-        UUID id = reviews.create(MEMBER, orderId, SKU, 5, "很好用");
+        UUID id = reviews.create(MEMBER, orderId, SKU, 5, "很好用", java.util.List.of());
 
         // 未配置审核供应商 → 评价进入待人工（PENDING），不对顾客展示
         assertThat(jdbc.queryForObject(
@@ -100,14 +100,14 @@ class ProductReviewServiceTest {
         assertThat(reviews.listForSku(SKU, 10)).extracting(ProductReviewService.Review::id)
                 .doesNotContain(id);
 
-        assertThatThrownBy(() -> reviews.create(MEMBER, orderId, SKU, 4, "重复"))
+        assertThatThrownBy(() -> reviews.create(MEMBER, orderId, SKU, 4, "重复", java.util.List.of()))
                 .isInstanceOf(com.fullmall.platform.error.ApiException.class)
                 .hasMessageContaining("已经评价过");
     }
 
     @Test
     void otherMemberCannotReviewSomeoneElsesOrder() {
-        assertThatThrownBy(() -> reviews.create(MEMBER2, orderId, SKU, 5, "越权"))
+        assertThatThrownBy(() -> reviews.create(MEMBER2, orderId, SKU, 5, "越权", java.util.List.of()))
                 .isInstanceOf(com.fullmall.platform.error.ApiException.class)
                 .hasMessageContaining("不属于当前会员");
     }
@@ -120,7 +120,7 @@ class ProductReviewServiceTest {
                 VALUES (?, ?, 'SKU-OTHER', 1000, 'CNY') ON CONFLICT (id) DO NOTHING
                 """, otherSku, PRODUCT);
 
-        assertThatThrownBy(() -> reviews.create(MEMBER, orderId, otherSku, 5, "不在订单里"))
+        assertThatThrownBy(() -> reviews.create(MEMBER, orderId, otherSku, 5, "不在订单里", java.util.List.of()))
                 .isInstanceOf(com.fullmall.platform.error.ApiException.class)
                 .hasMessageContaining("不在此订单中");
     }
@@ -129,8 +129,37 @@ class ProductReviewServiceTest {
     void unpaidOrderCannotBeReviewed() {
         jdbc.update("UPDATE orders SET status = 'PENDING_PAYMENT' WHERE id = ?", orderId);
 
-        assertThatThrownBy(() -> reviews.create(MEMBER, orderId, SKU, 5, "未支付"))
+        assertThatThrownBy(() -> reviews.create(MEMBER, orderId, SKU, 5, "未支付", java.util.List.of()))
                 .isInstanceOf(com.fullmall.platform.error.ApiException.class)
                 .hasMessageContaining("不可评价");
+    }
+
+    @Test
+    void reviewMediaUrlsAreStoredInOrder() throws java.sql.SQLException {
+        UUID id = reviews.create(MEMBER, orderId, SKU, 5, "看图", java.util.List.of(
+                "/assets/reviews/202610/a.jpg", "https://cdn.example.com/b.mp4"));
+
+        java.sql.Array stored = jdbc.queryForObject(
+                "SELECT media_urls FROM product_review WHERE id = ?", java.sql.Array.class, id);
+        assertThat((String[]) stored.getArray())
+                .containsExactly("/assets/reviews/202610/a.jpg", "https://cdn.example.com/b.mp4");
+    }
+
+    @Test
+    void tooManyReviewMediaRejected() {
+        java.util.List<String> tooMany = java.util.Collections.nCopies(
+                com.fullmall.platform.validation.ValidationRules.REVIEW_MEDIA_MAX + 1, "/a.jpg");
+
+        assertThatThrownBy(() -> reviews.create(MEMBER, orderId, SKU, 5, "太多图", tooMany))
+                .isInstanceOf(com.fullmall.platform.error.ApiException.class)
+                .hasMessageContaining("最多附带");
+    }
+
+    @Test
+    void nonHttpMediaUrlRejectedToPreventScriptInjection() {
+        assertThatThrownBy(() -> reviews.create(MEMBER, orderId, SKU, 5, "xss",
+                java.util.List.of("javascript:alert(1)")))
+                .isInstanceOf(com.fullmall.platform.error.ApiException.class)
+                .hasMessageContaining("http(s)://");
     }
 }

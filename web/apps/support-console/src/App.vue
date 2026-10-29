@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { formatDateTime } from '@fullmall/api-client'
+import { formatDateTime, roleLabel } from '@fullmall/api-client'
 import { computed, onBeforeUnmount, onMounted, reactive, ref } from 'vue'
 
 interface Agent {
@@ -42,7 +42,12 @@ interface ProductPage {
 }
 
 const API = import.meta.env.VITE_API_BASE || ''
+// API 空串 = 同源（vite dev 把 /api、/support 代理到 41280）。
+// 社区版没有登录：坐席身份就是 localStorage 里的 agentId，后端信任该参数——
+// 知道 agentId 的人就能以该坐席发言，接 SSO/PIN 之前不要把它当权限边界。
 const STOREFRONT = import.meta.env.VITE_STOREFRONT_BASE || 'http://localhost:3000'
+// 商品卡要指回顾客端：未配 VITE_STOREFRONT_BASE 时退回 localhost:3000（AGENTS.md §8 是 41285），
+// 部署必须显式配置，否则卡片链接指向不存在的端口。
 const agents = ref<Agent[]>([])
 const agentId = ref(localStorage.getItem('fullmall.support.agent') || '')
 const conversations = ref<Conversation[]>([])
@@ -53,6 +58,7 @@ const loading = ref(false)
 const error = ref('')
 const success = ref('')
 const products = ref<ProductPage | null>(null)
+const productsError = ref('')
 const productDialog = ref(false)
 const productForm = reactive({ productId: '' })
 const helpDialog = ref(false)
@@ -68,6 +74,7 @@ onMounted(async () => {
   await loadAgents()
   await loadConversations()
   pollTimer = setInterval(async () => {
+    // 用 10s 轮询代替 WebSocket；onBeforeUnmount 必须清掉，否则 HMR/切页后定时器叠加、请求翻倍。
     await loadConversations()
     if (selected.value) {
       await loadMessages(selected.value.id)
@@ -103,6 +110,7 @@ async function loadAgents() {
     agents.value = await request<Agent[]>('/support/v1/agents')
     if (!agentId.value || !agents.value.some(agent => agent.id === agentId.value)) {
       agentId.value = agents.value[0]?.id ?? ''
+      // 记住的坐席可能已离职/被删：回落到第一个，否则整个工作台会因 agentId 无效而空转。
     }
     if (agentId.value) {
       localStorage.setItem('fullmall.support.agent', agentId.value)
@@ -135,11 +143,15 @@ async function loadConversations() {
 }
 
 async function loadProducts() {
+  // 商品列表失败单独用 productsError，不占用会话错误位：客服仍要能正常回复顾客。
   try {
     products.value = await request<ProductPage>('/api/v1/products?locale=zh-CN&size=50')
     productForm.productId = products.value.items[0]?.id ?? ''
-  } catch {
+  } catch (cause) {
     products.value = null
+    productsError.value = cause instanceof Error
+      ? '商品列表加载失败：' + cause.message
+      : '商品列表加载失败，无法选择关联商品'
   }
 }
 
@@ -278,6 +290,7 @@ function metadata(message: Message) {
 }
 
 function productLink(message: Message) {
+  // 卡片链接拼在顾客端域名下，推广关系才落在同一站点；meta 缺失时退回首页，避免给出坏链。
   const meta = metadata(message)
   return meta ? `${STOREFRONT}${meta.link}` : STOREFRONT
 }
@@ -306,7 +319,7 @@ function messageOf(cause: unknown) {
       <div class="agent-switch">
         <select v-model="agentId" @change="onAgentChange">
           <option v-for="agent in agents" :key="agent.id" :value="agent.id">
-            {{ agent.displayName }}（{{ agent.role }}）
+            {{ agent.displayName }}（{{ roleLabel(agent.role) }}）
           </option>
         </select>
       </div>
@@ -396,6 +409,7 @@ function messageOf(cause: unknown) {
             {{ product.title }} · {{ product.skus[0]?.skuCode }}
           </option>
         </select>
+        <p v-if="productsError" class="muted" style="color: #a33232">{{ productsError }}</p>
         <p class="hint">客服发商品不产生分销绑定：佣金走工资（PAYROLL）。</p>
         <p class="muted">顾客通过卡片下单并支付后，佣金记入当前客服；绑定策略与分销模块共用。</p>
         <div class="modal-actions">
@@ -426,7 +440,7 @@ function messageOf(cause: unknown) {
         <label>转交给</label>
         <select v-model="transferForm.toAgentId">
           <option v-for="agent in agents.filter(item => item.id !== agentId)" :key="agent.id" :value="agent.id">
-            {{ agent.displayName }}（{{ agent.role }}）
+            {{ agent.displayName }}（{{ roleLabel(agent.role) }}）
           </option>
         </select>
         <label>原因</label>

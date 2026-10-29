@@ -33,6 +33,19 @@ public class CatalogController {
         return catalogService.listProducts(locale, keyword, categoryId, page, size, sort, direction);
     }
 
+    /**
+     * 商品富文本详情（商城详情页用）。
+     *
+     * <p>单独一个接口而不是塞进 Product：详情是大字段，列表接口不需要；
+     * 且它要按 locale 取"已发布译文"，与商品主数据的读取规则不同。
+     */
+    @GetMapping("/{productId}/detail")
+    public java.util.Map<String, Object> detail(@PathVariable UUID productId,
+                                               @RequestParam(defaultValue = "zh-CN") String locale) {
+        String html = catalogService.detailHtmlFor(productId, locale);
+        return java.util.Map.of("html", html == null ? "" : html);
+    }
+
     @GetMapping("/{productId}")
     public ResponseEntity<Product> get(
             @PathVariable UUID productId,

@@ -248,6 +248,12 @@
             <artifactId>h2</artifactId>
             <scope>test</scope>
         </dependency>
+        <!-- HTML 解析（富文本详情翻译：只替换文本节点，结构原样保留）。jsoup：MIT 许可的成熟库 -->
+        <dependency>
+            <groupId>org.jsoup</groupId>
+            <artifactId>jsoup</artifactId>
+            <version>1.18.3</version>
+        </dependency>
     </dependencies>
 
     <build>

@@ -19,7 +19,11 @@ const loading = ref(false)
 async function load() {
   loading.value = true
   try {
+    // limit=200 是硬上限：批次更多时后端只返回到期最近的 200 条且页面不提示“被截断”，
+    // 所以下方“共 N 个批次”是已加载数，不是全量——要全量请走导出中心。
     rows.value = await api.get<Expiring[]>('/admin/v1/inventory/batches/expiring?limit=200')
+  // 失败只弹 toast 并保留上一次的 rows：刷新失败时列表看起来仍正常，看不出是旧数据
+  //（与 AGENTS.md §10.1“错误要能定位”有差距，页面级错误块尚未加）。
   } catch (cause) {
     ElMessage.error(cause instanceof Error ? cause.message : '加载失败')
   } finally {
@@ -67,5 +71,5 @@ onMounted(load)
 
 <style scoped>
 .mb-16 { margin-bottom: 16px; }
-.muted { color: #909399; margin-left: 12px; }
+.muted { margin-left: 12px; }
 </style>

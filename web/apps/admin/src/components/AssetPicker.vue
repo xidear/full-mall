@@ -2,6 +2,9 @@
 import { computed, onMounted, ref } from 'vue'
 import { ElMessage } from 'element-plus'
 import { api } from '../api'
+import { apiErrorMessage } from '../composables/useAsyncState'
+import MediaPreview from './MediaPreview.vue'
+import { acceptAttribute, loadUploadLimits, uploadMedia, type UploadLimits } from '../upload'
 
 interface Asset { id: string; name: string; url: string; kind: string; purpose?: string }
 
@@ -24,12 +27,30 @@ const selected = ref<string[]>([])
 const page = ref(0)
 const hasMore = ref(true)
 const loadingMore = ref(false)
+const limits = ref<UploadLimits | null>(null)
+
+// 选择框能上传什么由后端配置决定：VIDEO 场景只给视频与图片（封面），ANY 给全部。
+const accept = computed(() => {
+  if (!limits.value) return ''
+  const types = props.accept === 'VIDEO'
+    ? [...limits.value.videoTypes, ...limits.value.imageTypes]
+    : [...limits.value.imageTypes, ...limits.value.videoTypes]
+  return types.join(',')
+})
+
+onMounted(() => {
+  loadUploadLimits()
+    .then(value => { limits.value = value })
+    .catch((cause: unknown) => { ElMessage.error(apiErrorMessage(cause, '读取上传规则失败')) })
+})
 
 const chosen = computed<string[]>(() => {
   const value = props.modelValue
   return Array.isArray(value) ? value : (value ? [value] : [])
 })
 
+// 关键词过滤是纯前端的，只作用于“已加载的那几页”：配合 60 条分页，更早/更晚的素材搜不到；
+// accept 的 kind 过滤也在这里（/admin/v1/assets 只按 kind 返回，不区分用途）。
 const filtered = computed(() => assets.value.filter(asset => {
   const purpose = asset.purpose ?? 'PRODUCT'
   if (purpose === 'OTHER_SYSTEM') return false
@@ -41,6 +62,8 @@ const filtered = computed(() => assets.value.filter(asset => {
 const selectedAssets = computed(() => assets.value.filter(asset =>
   props.valueType === 'url' ? chosen.value.includes(asset.url) : chosen.value.includes(asset.id)))
 
+// 后端返回 Spring 分页结构 { content, last, totalPages }。last 缺失时只能按“本页返回满 60 条”推断
+// 还有下一页——兼容旧后端，代价是末页恰好 60 条时会多一次空请求。
 async function load() {
   loading.value = true
   page.value = 0
@@ -95,6 +118,8 @@ function toggle(id: string) {
   }
 }
 
+// url 模式只能从“已加载的 assets”反查地址：跨页选中的素材查不到会被 filter 丢掉，
+// 表现为“确定后少了几个值”。要根治得让后端在选择接口里直接返回 url。
 function toOutput(ids: string[]): string | string[] {
   if (props.valueType === 'url') {
     const urls = ids.map(id => assets.value.find(asset => asset.id === id)?.url ?? '').filter(Boolean)
@@ -146,8 +171,8 @@ onMounted(load)
 <template>
   <div class="asset-picker">
     <div v-if="chosen.length" class="preview-row">
-      <img v-for="asset in selectedAssets" :key="asset.id" :src="asset.url"
-           :alt="asset.name" class="preview" loading="lazy" />
+      <MediaPreview v-for="asset in selectedAssets" :key="asset.id" :src="asset.url"
+                    :alt="asset.name" class="preview" />
       <span v-if="!selectedAssets.length" class="hint">已选 {{ chosen.length }} 项</span>
     </div>
     <div class="actions">
@@ -157,11 +182,12 @@ onMounted(load)
       <el-button v-if="chosen.length" size="small" text @click="clear">清除</el-button>
     </div>
 
-    <el-dialog v-model="dialog" title="选择素材" width="720px">
+    <!-- append-to-body：选择器可能被放进 el-tabs 等容器，内联渲染会被标签栏盖住（点不到素材） -->
+    <el-dialog v-model="dialog" title="选择素材" width="720px" append-to-body>
       <div class="toolbar">
         <el-input v-model="keyword" placeholder="按名称搜索" clearable style="width: 220px" />
         <label class="upload">
-          <input type="file" accept="image/*" :disabled="uploading" @change="upload" />
+          <input type="file" :accept="accept" :disabled="uploading" @change="upload" />
           <span>{{ uploading ? '上传中…' : '上传新素材' }}</span>
         </label>
         <span class="hint">只展示商品/规格素材（审批附件等不在此处）</span>
@@ -174,7 +200,7 @@ onMounted(load)
                 :class="{ picked: selected.includes(asset.id) }"
                 :aria-pressed="selected.includes(asset.id)"
                 :alt="asset.name" @click="toggle(asset.id)">
-          <img :src="asset.url" :alt="asset.name" loading="lazy" />
+          <MediaPreview :src="asset.url" :alt="asset.name" />
           <span class="name">{{ asset.name }}</span>
         </button>
       </div>

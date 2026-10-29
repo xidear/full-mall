@@ -23,12 +23,23 @@ import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
+/**
+ * 员工认证（app 层）：会话 token 只存 SHA-256 摘要，库被读走也换不回可用 token（靠 32 字节随机熵，不靠盐）。
+ *
+ * <p>失败计数在进程内 Map 里，属于"每实例"限流：重启清零、多副本不共享——挡住在线爆破没问题，
+ * 挡不住分布式撞库。本类只回答"你是谁"；能做什么由角色与门店绑定在鉴权层裁决。
+ */
 @Service
 public class StaffAuthService {
 
     private static final Duration SESSION_TTL = Duration.ofHours(8);
     private static final Duration LOCK_TTL = Duration.ofMinutes(10);
     private static final int MAX_FAILURES = 5;
+    /** 与 docs/validation.schema.json 共享同一组规则。 */
+    private static final int MIN_PASSWORD_LENGTH =
+            com.fullmall.platform.validation.ValidationRules.PASSWORD_MIN_LENGTH;
+    private static final int MAX_PIN_LENGTH =
+            com.fullmall.platform.validation.ValidationRules.PIN_MAX_LENGTH;
     private static final SecureRandom RANDOM = new SecureRandom();
     private final ConcurrentHashMap<String, Attempt> attempts = new ConcurrentHashMap<>();
 
@@ -46,6 +57,10 @@ public class StaffAuthService {
         this.auditEvents = auditEvents;
     }
 
+    /**
+     * 用户不存在、账号被停用、密码错误统一返回 INVALID_CREDENTIALS，避免被拿来枚举账号；
+     * 计数仍按输入的用户名累加，连续 5 次锁 10 分钟，成功即清零。
+     */
     @Transactional
     public LoginResponse login(String username, String password, String captchaId, String captchaAnswer) {
         if (!captchaService.verify(captchaId, captchaAnswer)) {
@@ -101,8 +116,13 @@ public class StaffAuthService {
 
     @Transactional
     public StaffUser setPin(UUID staffId, String pin) {
-        if (pin == null || pin.trim().length() < 4) {
+        if (pin == null || pin.trim().length()
+                < com.fullmall.platform.validation.ValidationRules.PIN_MIN_LENGTH) {
             throw new ApiException(HttpStatus.BAD_REQUEST, "PIN_TOO_SHORT", "PIN 至少 4 位");
+        }
+        if (pin.trim().length() > MAX_PIN_LENGTH) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "PIN_TOO_LONG",
+                    "PIN 最多 " + MAX_PIN_LENGTH + " 位");
         }
         StaffAccount account = repository.findAccountById(staffId);
         if (account == null) {
@@ -112,6 +132,7 @@ public class StaffAuthService {
         return account.user();
     }
 
+    /** PIN 与会话相互独立：账号停用、未设 PIN、PIN 错一律返回 null，不暴露"该账号有没有设置 PIN"。 */
     public StaffUser verifyPin(String username, String pin) {
         StaffAccount account = repository.findAccountByUsername(username);
         if (account == null || !"ACTIVE".equals(account.user().status())) {
@@ -156,8 +177,13 @@ public class StaffAuthService {
         return repository.findStoreIds(staffId);
     }
 
+    /** 改密后删除该员工全部会话：旧 token 立即失效，避免共享设备上残留的会话继续可用。 */
     @Transactional
     public void changePassword(StaffUser user, String oldPassword, String newPassword) {
+        if (newPassword == null || newPassword.length() < MIN_PASSWORD_LENGTH) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "PASSWORD_TOO_SHORT",
+                    "新密码至少 " + MIN_PASSWORD_LENGTH + " 位");
+        }
         StaffAccount account = repository.findAccountByUsername(user.username());
         if (account == null || !passwordHasher.verify(oldPassword, account.passwordHash())) {
             throw new ApiException(HttpStatus.BAD_REQUEST, "OLD_PASSWORD_MISMATCH", "原密码不正确");

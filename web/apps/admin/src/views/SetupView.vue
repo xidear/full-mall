@@ -1,10 +1,19 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from 'vue'
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import { api } from '../api'
 
 interface SetupItem { key: string; value: string; configured: boolean; hint: string }
 interface SetupStatus { completed: boolean; ready: boolean; items: SetupItem[] }
+interface DataStatus {
+  mode: string | null
+  decided: boolean
+  products: number
+  orders: number
+  members: number
+  stores: number
+  seederAvailable: boolean
+}
 
 const active = ref(0)
 const loading = ref(false)
@@ -14,6 +23,8 @@ const status = ref<SetupStatus | null>(null)
 // 只保存本向导负责的键；其余键由系统设置页维护，避免互相覆盖
 const form = reactive<Record<string, string>>({
   site_name: '',
+  // 对外域名只填 host[:port]（不带协议），由后端统一校验，避免 canonical/分享链接拼出 http://https://
+  site_domain: '',
   default_locale: 'zh-CN',
   default_currency: 'CNY',
   'member.points.expiry-mode': 'NEVER',
@@ -28,6 +39,11 @@ const form = reactive<Record<string, string>>({
   logistics_key: '',
   logistics_customer: ''
 })
+
+// 首次进入的"示例数据"选择：默认勾选（演示最省事），取消勾选则清空为完全空白的商城
+const installDemoData = ref(true)
+const dataStatus = ref<DataStatus | null>(null)
+const dataError = ref('')
 
 const missing = computed(() => (status.value?.items ?? []).filter(item => !item.configured))
 
@@ -45,10 +61,57 @@ async function load() {
       }
     }
     status.value = await api.get<SetupStatus>('/admin/v1/setup/status')
+    dataStatus.value = await api.get<DataStatus>('/admin/v1/setup/data')
+    // 已有明确选择就沿用；没决定过则默认勾选（安装示例数据）
+    installDemoData.value = dataStatus.value.mode !== 'BLANK'
   } catch (cause) {
     ElMessage.error(cause instanceof Error ? cause.message : '配置加载失败')
   } finally {
     loading.value = false
+  }
+}
+
+/** 保存基础信息，并把"示例数据 / 空白"的选择落到后端（会真正安装或清空）。 */
+async function saveBasics() {
+  saving.value = true
+  dataError.value = ''
+  try {
+    // 取消勾选会真的清空业务数据：有数据时先确认（订单/会员是运营最怕误删的）
+    if (!installDemoData.value) {
+      const products = dataStatus.value?.products ?? 0
+      const orders = dataStatus.value?.orders ?? 0
+      const members = dataStatus.value?.members ?? 0
+      if (products + orders + members > 0) {
+        try {
+          await ElMessageBox.confirm(
+            `将清空商品 ${products} 个、订单 ${orders} 单、会员 ${members} 人（员工与系统设置保留），且不可撤销。确定吗？`,
+            '清空为空白商城', { type: 'warning', confirmButtonText: '清空', cancelButtonText: '取消' })
+        } catch {
+          saving.value = false
+          return
+        }
+      }
+    }
+    // 只提交 4 个基础键而不是 { ...form }：服务商那屏还没填，把它们默认的 mock 一起写进去
+    // 会把已配置的真实服务商改成 mock。
+    await api.put('/admin/v1/settings', {
+      site_name: form.site_name,
+      site_domain: form.site_domain,
+      default_locale: form.default_locale,
+      default_currency: form.default_currency
+    })
+    dataStatus.value = await api.post<DataStatus>('/admin/v1/setup/data', {
+      mode: installDemoData.value ? 'DEMO' : 'BLANK'
+    })
+    status.value = await api.get<SetupStatus>('/admin/v1/setup/status')
+    ElMessage.success(installDemoData.value
+      ? `已安装示例数据（商品 ${dataStatus.value.products} 个）`
+      : '已清空为空白商城')
+    active.value = Math.min(active.value + 1, 3)
+  } catch (cause) {
+    dataError.value = cause instanceof Error ? cause.message : '保存失败'
+  } finally {
+    saving.value = false
   }
 }
 
@@ -66,6 +129,7 @@ async function saveStep() {
   }
 }
 
+// 顺序不能反：先落配置再 /setup/complete。先标记完成再保存失败，会让后台以为“已配置好”而隐藏缺项提示。
 async function finish() {
   saving.value = true
   try {
@@ -105,8 +169,14 @@ async function finish() {
     </el-steps>
 
     <el-form label-width="160px" v-if="active === 0">
-      <el-form-item label="站点名称">
+      <el-form-item label="商城名称">
         <el-input v-model="form.site_name" placeholder="例如 Full Mall" />
+      </el-form-item>
+      <el-form-item label="对外域名">
+        <el-input v-model="form.site_domain" placeholder="例如 shop.example.com 或 shop.example.com:15052" />
+        <p class="muted">
+          只填 host[:port]，不要带 http://；商城分享、SEO canonical、支付回调都用它。可稍后在「系统设置」修改。
+        </p>
       </el-form-item>
       <el-form-item label="默认语言">
         <el-select v-model="form.default_locale" style="width: 100%">
@@ -120,7 +190,20 @@ async function finish() {
           <el-option label="港币 HKD" value="HKD" />
         </el-select>
       </el-form-item>
-      <el-button type="primary" :loading="saving" @click="saveStep">保存并下一步</el-button>
+      <el-form-item label="示例数据">
+        <el-checkbox v-model="installDemoData" data-testid="setup-install-demo">
+          安装示例商品与演示订单（推荐先用它熟悉后台）
+        </el-checkbox>
+        <p class="muted">
+          取消勾选 = 完全空白：只保留员工账号与系统设置，商品/订单/会员/促销全部清空；
+          之后仍可在「系统设置」或本页重新安装。当前：商品 {{ dataStatus?.products ?? 0 }} 个、订单 {{ dataStatus?.orders ?? 0 }} 单、会员 {{ dataStatus?.members ?? 0 }} 人。
+        </p>
+        <p v-if="dataStatus && !dataStatus.seederAvailable" class="muted">
+          当前环境未启用示例数据种子（需要 dev/demo profile），勾选后可能安装失败。
+        </p>
+      </el-form-item>
+      <el-alert v-if="dataError" :title="dataError" type="error" show-icon :closable="false" class="mb-16" />
+      <el-button type="primary" :loading="saving" @click="saveBasics">保存并下一步</el-button>
     </el-form>
 
     <el-form label-width="160px" v-else-if="active === 1">

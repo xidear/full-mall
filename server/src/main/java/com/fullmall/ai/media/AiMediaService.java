@@ -35,14 +35,26 @@ public class AiMediaService {
     private final JdbcTemplate jdbc;
     private final AssetStorage storage;
     private final com.fullmall.platform.secret.SecretCipher cipher;
+    private final org.springframework.context.ApplicationEventPublisher events;
     private final Map<String, MediaGenerationAdapter> adapters = new LinkedHashMap<>();
+
+    /**
+     * 生成成功事件：素材入库后由 asset 模块补标签/描述并建向量索引。
+     *
+     * <p>用事件而不是直接注入：AssetSearchService 依赖 SemanticIndexService，
+     * 后者又依赖本类，直接注入会形成构造器循环依赖。
+     */
+    public record AssetGenerated(UUID assetId, String prompt, String kind) {
+    }
 
     public AiMediaService(JdbcTemplate jdbc, AssetStorage storage,
                           com.fullmall.platform.secret.SecretCipher cipher,
+                          org.springframework.context.ApplicationEventPublisher events,
                           List<MediaGenerationAdapter> adapterBeans) {
         this.jdbc = jdbc;
         this.storage = storage;
         this.cipher = cipher;
+        this.events = events;
         for (MediaGenerationAdapter adapter : adapterBeans) {
             adapters.put(adapter.protocol(), adapter);
         }
@@ -242,6 +254,9 @@ public class AiMediaService {
                     UPDATE ai_gen_job SET status = 'SUCCEEDED', asset_id = ?, error = NULL,
                                          updated_at = now() WHERE id = ?
                     """, assetId, jobId);
+            // 生成结果要能被"理解型搜索"找到：用提示词当描述与标签来源
+            events.publishEvent(new AssetGenerated(assetId, String.valueOf(row.get("prompt")),
+                    String.valueOf(row.get("kind"))));
             return true;
         } catch (RuntimeException error) {
             jdbc.update("""
@@ -386,6 +401,32 @@ public class AiMediaService {
         return new String(media.content() == null ? new byte[0] : media.content(), StandardCharsets.UTF_8);
     }
 
+    /**
+     * 图片理解：让视觉模型描述图片内容并给出检索标签（VLM，需要支持图片输入的供应商）。
+     *
+     * @param imageUrl 必须是**模型侧可访问**的绝对地址（本地文件先转成 data URL 或公网地址）
+     * @return 模型返回的自然语言描述（由调用方解析成 caption/tags）
+     */
+    public String describe(String imageUrl, String providerCode) {
+        if (imageUrl == null || imageUrl.isBlank()) {
+            throw ApiException.badRequest("AI_DESCRIBE_IMAGE_REQUIRED", "图片地址不能为空");
+        }
+        ProviderConfig provider = visionProvider(providerCode);
+        MediaGenerationAdapter adapter = adapters.get(provider.protocol());
+        if (adapter == null) {
+            throw ApiException.conflict("AI_VISION_UNAVAILABLE",
+                    "视觉模型适配器未注册：" + provider.protocol());
+        }
+        GeneratedMedia media = adapter.generate(provider,
+                "用一句中文描述这张商品图片（主体、材质、颜色、场景、光线），"
+                        + "再用顿号列出 3-6 个检索标签。输出严格 JSON："
+                        + "{\"caption\":\"...\",\"tags\":[\"...\"]}",
+                null, Map.of("images", List.of(imageUrl),
+                        "system", "你是电商视觉分析助手，只输出 JSON，不要解释。"));
+        return new String(media.content() == null ? new byte[0] : media.content(),
+                java.nio.charset.StandardCharsets.UTF_8);
+    }
+
     /** 同步取 embedding 文本（向量以 JSON 数组返回），供语义检索使用。 */
     public String embedding(String text, String providerCode) {
         // 必须按协议挑：TEXT 类型里还有 chat 供应商，按优先级盲选会选错
@@ -400,6 +441,34 @@ public class AiMediaService {
             throw new IllegalStateException("embedding 未返回内容");
         }
         return new String(media.content(), StandardCharsets.UTF_8);
+    }
+
+    /**
+     * 视觉供应商：优先用显式指定的 code；否则取第一个 enabled 且 vision=true 的供应商。
+     *
+     * <p>**没有可用的视觉模型时明确失败**：视觉能力是可选配置（远端公共模型/本地 CPU 服务都可能缺席），
+     * 不能静默降级成"用文件名当描述"。
+     */
+    private ProviderConfig visionProvider(String code) {
+        var rows = jdbc.query("""
+                SELECT id, kind, code, name, protocol, endpoint, api_key, model, extra::text AS extra,
+                       enabled, priority
+                  FROM ai_provider
+                 WHERE enabled AND vision
+                   AND (?::text IS NULL OR code = ?::text)
+                 ORDER BY priority, code LIMIT 1
+                """, (rs, rowNum) -> new ProviderConfig(
+                rs.getObject("id", UUID.class), MediaKind.valueOf(rs.getString("kind")),
+                rs.getString("code"), rs.getString("name"), rs.getString("protocol"),
+                rs.getString("endpoint"), decrypt(rs.getString("api_key")), rs.getString("model"),
+                Json.read(rs.getString("extra")), rs.getBoolean("enabled"), rs.getInt("priority")),
+                code, code);
+        if (rows.isEmpty()) {
+            throw ApiException.conflict("AI_VISION_UNAVAILABLE",
+                    "未配置视觉模型供应商（把支持图片输入的供应商标记为 vision=true 后重试）"
+                            + (code == null ? "" : "，指定 code=" + code));
+        }
+        return rows.get(0);
     }
 
     private ProviderConfig pickProviderByProtocol(String protocol, String code) {

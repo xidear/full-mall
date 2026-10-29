@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { onMounted, reactive, ref } from 'vue'
 import { ElMessage } from 'element-plus'
+import { VALIDATION } from '@fullmall/api-client'
 import { api } from '../api'
 
 interface CouponTemplate {
@@ -113,12 +114,20 @@ async function submit() {
     ElMessage.error('非全场券必须选择范围')
     return
   }
+  // 券编码规则来自 @fullmall/api-client 的 VALIDATION（生成自 docs/validation.schema.json），
+  // 前端不另写正则；先 toUpperCase 再匹配，等于允许输小写——比后端宽松，权威校验仍在后端。
+  if (!new RegExp(VALIDATION.couponCodePattern).test(form.code.trim().toUpperCase())) {
+    ElMessage.error('券编码只能是大写字母/数字/-/_，2–64 位')
+    return
+  }
   saving.value = true
   try {
     await api.post('/admin/v1/coupons/templates', {
       code: form.code.trim().toUpperCase(),
       title: form.title.trim(),
       type: form.type,
+      // 金额口径二选一：AMOUNT 存「分」（元×100 后取整），PERCENT 存 1–99 的折扣值（展示时 /10 折）。
+      // 两者混用会让 9 折变成 0.09 元或 9 元，改这里必须同时确认后端 CouponService 的解读。
       value: form.type === 'AMOUNT' ? Math.round(form.valueYuan * 100) : form.percent,
       minOrderAmount: Math.round(form.minOrderYuan * 100),
       totalQuantity: form.totalQuantity,
@@ -178,6 +187,8 @@ onMounted(load)
       <el-table-column prop="code" label="编码" width="160" />
       <el-table-column prop="title" label="名称" min-width="160" />
       <el-table-column label="面额" width="120">
+        <!-- 统计弹窗被放在「面额」列的单元格模板里：表格每行都会渲染一份 el-dialog（共享同一 v-model），
+             同时打断了面额列的内容。可正常工作但属结构错位，改列时要连它一起搬出去。 -->
         <template #default="{ row }">{{ valueLabel(row) }}  <el-dialog v-model="statsDialog" title="券效果统计" width="460px" v-loading="statsLoading">
     <el-descriptions v-if="stats" :column="2" border>
       <el-descriptions-item label="模板编码">{{ stats.code }}</el-descriptions-item>
@@ -225,7 +236,7 @@ onMounted(load)
     <el-dialog v-model="dialog" title="新建券模板" width="520px">
       <el-form label-width="110px">
         <el-form-item label="编码">
-          <el-input v-model="form.code" placeholder="例如 NEW-YEAR-50" />
+          <el-input v-model="form.code" :maxlength="64" placeholder="例如 NEW-YEAR-50" />
         </el-form-item>
         <el-form-item label="名称">
           <el-input v-model="form.title" placeholder="例如 新年满减券" />

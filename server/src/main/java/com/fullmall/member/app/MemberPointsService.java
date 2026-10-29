@@ -44,7 +44,8 @@ public class MemberPointsService {
         if (phone == null || phone.isBlank() || requestedPoints <= 0) {
             return new Redemption(0, 0, 0);
         }
-        MemberBalance member = requireMember(phone);
+        // 先锁会员行，再锁 points_ledger：所有积分扣减都按这个顺序，避免并发超扣与死锁。
+        MemberBalance member = requireMemberForUpdate(phone);
         if (requestedPoints > member.points()) {
             throw ApiException.conflict("INSUFFICIENT_POINTS",
                     "积分不足：可用 " + member.points() + "，请求 " + requestedPoints);
@@ -71,8 +72,13 @@ public class MemberPointsService {
                     "该订单已使用过积分抵扣: " + orderId);
         }
         consumeFifo(member.id(), used);
-        jdbcTemplate.update("UPDATE member SET points_balance = points_balance - ? WHERE id = ?",
-                used, member.id());
+        int updated = jdbcTemplate.update(
+                "UPDATE member SET points_balance = points_balance - ? WHERE id = ? AND points_balance >= ?",
+                used, member.id(), used);
+        if (updated != 1) {
+            throw ApiException.conflict("POINTS_CONCURRENT_MODIFIED",
+                    "积分余额被并发修改，请重试：member=" + member.id());
+        }
         return new Redemption(used, amount, member.points() - used);
     }
 
@@ -97,9 +103,13 @@ public class MemberPointsService {
                 break;
             }
             long take = Math.min(row.getValue(), remaining);
-            jdbcTemplate.update(
-                    "UPDATE points_ledger SET remaining_points = remaining_points - ? WHERE id = ?",
-                    take, row.getKey());
+            int updated = jdbcTemplate.update(
+                    "UPDATE points_ledger SET remaining_points = remaining_points - ?"
+                            + " WHERE id = ? AND remaining_points >= ?",
+                    take, row.getKey(), take);
+            if (updated != 1) {
+                throw new IllegalStateException("积分账本并发冲突：ledger=" + row.getKey());
+            }
             remaining -= take;
         }
         if (remaining > 0) {
@@ -122,7 +132,7 @@ public class MemberPointsService {
             return 0;
         }
         long used = -redeems.get(0);
-        MemberBalance member = requireMember(phone);
+        MemberBalance member = requireMemberForUpdate(phone);
         int inserted = jdbcTemplate.update("""
                 INSERT INTO points_ledger (id, member_id, sale_id, entry_type, points,
                                            balance_after, reason, business_key)
@@ -133,14 +143,18 @@ public class MemberPointsService {
         if (inserted != 1) {
             return 0;
         }
-        jdbcTemplate.update("UPDATE member SET points_balance = points_balance + ? WHERE id = ?",
+        int updated = jdbcTemplate.update(
+                "UPDATE member SET points_balance = points_balance + ? WHERE id = ?",
                 used, member.id());
+        if (updated != 1) {
+            throw ApiException.conflict("MEMBER_NOT_FOUND", "会员不存在：" + member.id());
+        }
         return used;
     }
 
-    private MemberBalance requireMember(String phone) {
+    private MemberBalance requireMemberForUpdate(String phone) {
         return jdbcTemplate.query("""
-                SELECT id, points_balance FROM member WHERE phone = ?
+                SELECT id, points_balance FROM member WHERE phone = ? FOR UPDATE
                 """, (rs, rowNum) -> new MemberBalance(
                 rs.getObject("id", UUID.class), rs.getLong("points_balance")), phone.trim())
                 .stream().findFirst()

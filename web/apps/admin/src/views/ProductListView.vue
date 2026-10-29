@@ -9,6 +9,8 @@ import {
   type ProductPage
 } from '@fullmall/api-client'
 import { api } from '../api'
+import AdminThumb from '../components/AdminThumb.vue'
+import SkuPriceDialog from '../components/SkuPriceDialog.vue'
 
 const router = useRouter()
 const products = ref<Product[]>([])
@@ -20,12 +22,22 @@ const size = ref(20)
 const total = ref(0)
 // 正在切换状态的商品 ID：避免重复点击导致上下架抖动
 const actionId = ref('')
+// 规格改价弹窗：作用域是"当前这一行商品"
+const priceDialog = ref(false)
+const priceProduct = ref<Product | null>(null)
+
+function openPriceDialog(product: Product) {
+  priceProduct.value = product
+  priceDialog.value = true
+}
 
 onMounted(load)
 
 const sortKey = ref('createdAt')
 const sortDirection = ref<'asc' | 'desc'>('desc')
 
+// 服务端排序（本页数据无法全局排序），且必须同时 page=0：停在第 5 页换排序会落到新结果的第 5 页，
+// 看起来像“数据没了”。
 function onSortChange(payload: { prop: string | null; order: 'ascending' | 'descending' | null }) {
   sortKey.value = payload.prop ?? 'createdAt'
   sortDirection.value = payload.order === 'ascending' ? 'asc' : 'desc'
@@ -46,6 +58,8 @@ async function load() {
       { locale: 'zh-CN', page: page.value, size: size.value,
         sort: sortKey.value, direction: sortDirection.value })
     products.value = response.items
+    // total 兜底用本页长度：后端正常会返回 total，这个兜底只影响分页器显示，
+    // 却会掩盖“后端漏返回 total”的契约问题——排查分页异常先看这里拿到的值。
     total.value = response.total ?? response.items.length
   } catch (cause) {
     error.value = cause instanceof Error ? cause.message : '加载失败'
@@ -69,6 +83,8 @@ async function toggleStatus(product: Product) {
   }
 }
 
+// 起售价取第一个 SKU（列表不做最低价聚合，那要后端算）；没有 SKU 返回 "-" 而不是 0，
+// 0 会被误读成“免费”。amount 单位是分，展示前 /100，币种用后端给的 currency。
 function price(product: Product) {
   const money = product.skus[0]?.price
   if (!money) return '-'
@@ -89,13 +105,8 @@ function price(product: Product) {
     <el-table :data="products" stripe @sort-change="onSortChange">
       <el-table-column label="图片" width="76">
         <template #default="{ row }">
-          <img
-            v-if="row.skus[0]?.imageUrl"
-            :src="row.skus[0].imageUrl"
-            :alt="row.title"
-            class="product-thumb"
-          >
-          <span v-else class="product-thumb placeholder">FM</span>
+          <!-- 统一缩略图组件：地址为空或加载失败都回落到占位块，不再出现裂图 + 文案溢出 -->
+          <AdminThumb :src="row.skus[0]?.imageUrl" :alt="row.title" />
         </template>
       </el-table-column>
       <el-table-column prop="title" label="商品" min-width="220" />
@@ -122,7 +133,7 @@ function price(product: Product) {
       <el-table-column label="起售价" width="130">
         <template #default="{ row }">{{ price(row) }}</template>
       </el-table-column>
-      <el-table-column label="操作" width="220">
+      <el-table-column label="操作" width="330">
         <template #default="{ row }">
           <el-button
             link
@@ -133,6 +144,8 @@ function price(product: Product) {
             {{ row.status === 'ACTIVE' ? '下架' : '上架' }}
           </el-button>
           <el-button link type="primary" @click="router.push(`/products/${row.id}/edit`)">编辑</el-button>
+          <el-button link type="primary" @click="openPriceDialog(row)">规格改价</el-button>
+          <el-button link type="primary" @click="router.push({ path: `/products/${row.id}/edit`, query: { tab: 'translations' } })">译文</el-button>
           <el-button link @click="router.push('/products/new')">新建相似</el-button>
         </template>
       </el-table-column>
@@ -148,28 +161,18 @@ function price(product: Product) {
         @current-change="changePage" />
     </div>
     <el-empty v-if="!loading && !products.length" description="暂无商品，点击右上角新建" />
+
+    <SkuPriceDialog
+      v-model="priceDialog"
+      :product-id="priceProduct?.id ?? ''"
+      :product-title="priceProduct?.title"
+      @applied="load"
+    />
   </div>
 </template>
 
 <style scoped>
 .mb-16 {
   margin-bottom: 16px;
-}
-
-.product-thumb {
-  display: block;
-  width: 44px;
-  height: 44px;
-  object-fit: cover;
-  border-radius: 8px;
-}
-
-.product-thumb.placeholder {
-  display: grid;
-  place-items: center;
-  background: #f0efe9;
-  color: #8a8f8a;
-  font-size: 12px;
-  font-weight: 800;
 }
 </style>

@@ -118,6 +118,66 @@ class SystemSettingServiceTest {
                 .hasMessageContaining("1-65535");
     }
 
+
+    @Test
+    void uploadLimitsFallBackToSchemaDefaultsWhenRowsMissing() {
+        when(repository.findAll()).thenReturn(settings("OPEN"));
+
+        assertThat(service.adminImageMaxBytes())
+                .isEqualTo(com.fullmall.platform.validation.ValidationRules.UPLOAD_ADMIN_IMAGE_DEFAULT_BYTES);
+        assertThat(service.adminVideoMaxBytes())
+                .isEqualTo(com.fullmall.platform.validation.ValidationRules.UPLOAD_ADMIN_VIDEO_DEFAULT_BYTES);
+        assertThat(service.memberImageMaxBytes())
+                .isEqualTo(com.fullmall.platform.validation.ValidationRules.UPLOAD_MEMBER_IMAGE_DEFAULT_BYTES);
+        assertThat(service.memberVideoMaxBytes())
+                .isEqualTo(com.fullmall.platform.validation.ValidationRules.UPLOAD_MEMBER_VIDEO_DEFAULT_BYTES);
+    }
+
+    @Test
+    void adminSettingsExposeEffectiveUploadLimits() {
+        when(repository.findAll()).thenReturn(settings("OPEN"));
+
+        assertThat(service.adminSettings())
+                .containsEntry(SystemSettingService.UPLOAD_ADMIN_VIDEO_MAX_KEY, "10485760")
+                .containsEntry(SystemSettingService.UPLOAD_MEMBER_IMAGE_MAX_KEY, "2097152");
+    }
+
+    @Test
+    void savedUploadLimitIsUsedInsteadOfDefault() {
+        Map<String, String> stored = new LinkedHashMap<>(settings("OPEN"));
+        stored.put(SystemSettingService.UPLOAD_ADMIN_VIDEO_MAX_KEY, "20971520");
+        when(repository.findAll()).thenReturn(stored);
+
+        assertThat(service.adminVideoMaxBytes()).isEqualTo(20L * 1024 * 1024);
+    }
+
+    @Test
+    void invalidUploadLimitIsRejectedInsteadOfSilentlyClamped() {
+        assertThatThrownBy(() -> service.save(
+                Map.of(SystemSettingService.UPLOAD_ADMIN_VIDEO_MAX_KEY, "abc")))
+                .isInstanceOf(ApiException.class)
+                .hasMessageContaining("整数字节数");
+        assertThatThrownBy(() -> service.save(
+                Map.of(SystemSettingService.UPLOAD_ADMIN_VIDEO_MAX_KEY, "1024")))
+                .isInstanceOf(ApiException.class)
+                .hasMessageContaining("必须在");
+        assertThatThrownBy(() -> service.save(
+                Map.of(SystemSettingService.UPLOAD_ADMIN_IMAGE_MAX_KEY, "104857600")))
+                .isInstanceOf(ApiException.class)
+                .hasMessageContaining("必须在");
+    }
+
+    @Test
+    void corruptedStoredUploadLimitFailsLoudly() {
+        Map<String, String> stored = new LinkedHashMap<>(settings("OPEN"));
+        stored.put(SystemSettingService.UPLOAD_MEMBER_VIDEO_MAX_KEY, "999999999999");
+        when(repository.findAll()).thenReturn(stored);
+
+        assertThatThrownBy(service::memberVideoMaxBytes)
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("超出允许范围");
+    }
+
     private static final class MutableClock extends Clock {
 
         private Instant instant;

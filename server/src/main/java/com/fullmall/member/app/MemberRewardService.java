@@ -28,7 +28,7 @@ public class MemberRewardService {
         List<MemberRow> members = jdbcTemplate.query("""
                 SELECT m.id, m.tier, m.points_balance, m.growth_value, l.points_multiplier
                   FROM member m JOIN member_level l ON l.code = m.tier
-                 WHERE m.phone = ?
+                 WHERE m.phone = ? FOR UPDATE
                 """, (rs, rowNum) -> new MemberRow(
                 rs.getObject("id", UUID.class), rs.getString("tier"),
                 rs.getLong("points_balance"), rs.getLong("growth_value"),
@@ -49,8 +49,12 @@ public class MemberRewardService {
                     """, UUID.randomUUID(), member.id(), points,
                     member.points() + points, "订单消费积分", "order:" + orderId + ":points");
             if (inserted == 1) {
-                jdbcTemplate.update("UPDATE member SET points_balance = points_balance + ? WHERE id = ?",
+                int updated = jdbcTemplate.update(
+                        "UPDATE member SET points_balance = points_balance + ? WHERE id = ?",
                         points, member.id());
+                if (updated != 1) {
+                    throw new IllegalStateException("会员积分入账失败：member=" + member.id());
+                }
             }
         }
 
@@ -64,8 +68,12 @@ public class MemberRewardService {
                     """, UUID.randomUUID(), member.id(), growth,
                     member.growth() + growth, "订单成长值", "order:" + orderId + ":growth");
             if (inserted == 1) {
-                jdbcTemplate.update("UPDATE member SET growth_value = growth_value + ? WHERE id = ?",
+                int updated = jdbcTemplate.update(
+                        "UPDATE member SET growth_value = growth_value + ? WHERE id = ?",
                         growth, member.id());
+                if (updated != 1) {
+                    throw new IllegalStateException("会员成长值入账失败：member=" + member.id());
+                }
             }
         }
 
@@ -87,7 +95,7 @@ public class MemberRewardService {
         List<MemberRow> members = jdbcTemplate.query("""
                 SELECT m.id, m.tier, m.points_balance, m.growth_value, l.points_multiplier
                   FROM member m JOIN member_level l ON l.code = m.tier
-                 WHERE m.phone = ?
+                 WHERE m.phone = ? FOR UPDATE
                 """, (rs, rowNum) -> new MemberRow(
                 rs.getObject("id", UUID.class), rs.getString("tier"),
                 rs.getLong("points_balance"), rs.getLong("growth_value"),
@@ -111,8 +119,12 @@ public class MemberRewardService {
                     """, UUID.randomUUID(), member.id(), -reversePoints,
                     member.points() - reversePoints, "订单退款回退积分", "order:" + orderId + ":points-rollback");
             if (inserted == 1) {
-                jdbcTemplate.update("UPDATE member SET points_balance = points_balance - ? WHERE id = ?",
-                        reversePoints, member.id());
+                int updated = jdbcTemplate.update(
+                        "UPDATE member SET points_balance = points_balance - ? WHERE id = ? AND points_balance >= ?",
+                        reversePoints, member.id(), reversePoints);
+                if (updated != 1) {
+                    throw new IllegalStateException("会员积分回退并发冲突：member=" + member.id());
+                }
             }
         }
         if (reverseGrowth > 0) {
@@ -125,8 +137,12 @@ public class MemberRewardService {
                     member.growth() - reverseGrowth, "订单退款回退成长值",
                     "order:" + orderId + ":growth-rollback");
             if (inserted == 1) {
-                jdbcTemplate.update("UPDATE member SET growth_value = growth_value - ? WHERE id = ?",
-                        reverseGrowth, member.id());
+                int updated = jdbcTemplate.update(
+                        "UPDATE member SET growth_value = growth_value - ? WHERE id = ? AND growth_value >= ?",
+                        reverseGrowth, member.id(), reverseGrowth);
+                if (updated != 1) {
+                    throw new IllegalStateException("会员成长值回退并发冲突：member=" + member.id());
+                }
             }
         }
         return new Reward(reversePoints, reverseGrowth, member.tier());
@@ -151,7 +167,7 @@ public class MemberRewardService {
         List<MemberRow> members = jdbcTemplate.query("""
                 SELECT m.id, m.tier, m.points_balance, m.growth_value, l.points_multiplier
                   FROM member m JOIN member_level l ON l.code = m.tier
-                 WHERE m.phone = ?
+                 WHERE m.phone = ? FOR UPDATE
                 """, (rs, rowNum) -> new MemberRow(
                 rs.getObject("id", UUID.class), rs.getString("tier"),
                 rs.getLong("points_balance"), rs.getLong("growth_value"),
@@ -178,8 +194,12 @@ public class MemberRewardService {
                     member.points() - reversePoints, "部分退款按比例回退积分",
                     "order:" + orderId + ":points-partial:" + refundedAmount);
             if (inserted == 1) {
-                jdbcTemplate.update("UPDATE member SET points_balance = points_balance - ? WHERE id = ?",
-                        reversePoints, member.id());
+                int updated = jdbcTemplate.update(
+                        "UPDATE member SET points_balance = points_balance - ? WHERE id = ? AND points_balance >= ?",
+                        reversePoints, member.id(), reversePoints);
+                if (updated != 1) {
+                    throw new IllegalStateException("会员积分回退并发冲突：member=" + member.id());
+                }
             }
         }
         if (reverseGrowth > 0) {
@@ -192,8 +212,12 @@ public class MemberRewardService {
                     member.growth() - reverseGrowth, "部分退款按比例回退成长值",
                     "order:" + orderId + ":growth-partial:" + refundedAmount);
             if (inserted == 1) {
-                jdbcTemplate.update("UPDATE member SET growth_value = growth_value - ? WHERE id = ?",
-                        reverseGrowth, member.id());
+                int updated = jdbcTemplate.update(
+                        "UPDATE member SET growth_value = growth_value - ? WHERE id = ? AND growth_value >= ?",
+                        reverseGrowth, member.id(), reverseGrowth);
+                if (updated != 1) {
+                    throw new IllegalStateException("会员成长值回退并发冲突：member=" + member.id());
+                }
             }
         }
         return new Reward(reversePoints, reverseGrowth, member.tier());

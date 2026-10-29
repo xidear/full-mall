@@ -112,7 +112,7 @@ public class BirthdayGiftService {
     private Granted grant(Candidate member, int year) {
         // 幂等：当年已发则跳过（`birthday_gift_year`）
         Integer already = jdbcTemplate.queryForObject(
-                "SELECT birthday_gift_year FROM member WHERE id = ?", Integer.class, member.id());
+                "SELECT birthday_gift_year FROM member WHERE id = ? FOR UPDATE", Integer.class, member.id());
         if (already != null && already == year) {
             return null;
         }
@@ -127,9 +127,13 @@ public class BirthdayGiftService {
         if (inserted != 1) {
             return null;
         }
-        jdbcTemplate.update("UPDATE member SET points_balance = points_balance + ?,"
-                + " birthday_gift_year = ? WHERE id = ?",
-                member.birthdayPoints(), year, member.id());
+        int updated = jdbcTemplate.update("UPDATE member SET points_balance = points_balance + ?,"
+                + " birthday_gift_year = ? WHERE id = ?"
+                + " AND (birthday_gift_year IS NULL OR birthday_gift_year <> ?)",
+                member.birthdayPoints(), year, member.id(), year);
+        if (updated != 1) {
+            throw new IllegalStateException("生日礼积分入账并发冲突：member=" + member.id());
+        }
         log.info("生日礼积分发放：member={} year={} points={}", member.id(), year, member.birthdayPoints());
         return new Granted(member.id(), member.birthdayPoints());
     }

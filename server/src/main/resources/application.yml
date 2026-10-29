@@ -10,6 +10,15 @@ spring:
     hikari:
       maximum-pool-size: 20
       minimum-idle: 2
+  servlet:
+    multipart:
+      # 上传文件解析层上限。为什么必须显式配置：Spring Boot 默认单文件 1MB，
+      # 比业务侧 5MB/10MB 的图片视频上限小得多，超过时请求在进 Controller 之前就抛
+      # MaxUploadSizeExceededException，看起来像"上传功能坏了"。
+      # 必须与 ValidationRules.UPLOAD_MULTIPART_CEILING_BYTES 一致，UploadMultipartGuard 启动即校验。
+      max-file-size: ${UPLOAD_MULTIPART_MAX_FILE_SIZE:64MB}
+      # 单请求总上限：一个请求里除文件外还有 multipart 头部，留 8MB 余量。
+      max-request-size: ${UPLOAD_MULTIPART_MAX_REQUEST_SIZE:72MB}
   flyway:
     enabled: true
     locations: classpath:db/migration
@@ -65,8 +74,14 @@ app:
   # 媒体公共基址：相对路径在写入快照/对外输出前统一转成绝对 http(s) URL
   # 测试期本地上传，上线改为 CDN/云存储域名（只改配置，不改代码）
   media:
-    public-base-url: ${MEDIA_PUBLIC_BASE_URL:http://localhost:8080/media}
+    # 必须是“可被浏览器/小程序直接访问”的绝对基址：开发默认 API 端口，生产设为 https://<公开域名>，
+    # 换 CDN/对象存储时只改这里；数据库里的相对路径不需要迁移。
+    public-base-url: ${MEDIA_PUBLIC_BASE_URL:http://localhost:${server.port:8080}}
   mode: ${APP_MODE:dev}
+  # 语义检索（素材/FAQ 的向量索引）：默认开启；没有 embedding 供应商时明确报 409，不静默降级成"按标题搜"
+  ai:
+    semantic:
+      enabled: ${APP_AI_SEMANTIC_ENABLED:true}
   # 构建分版标识：community（开源）/ enterprise（含 AI 与许可）。
   # 由 Maven profile 注入环境变量 APP_EDITION，缺省按社区版处理。
   edition: ${APP_EDITION:community}

@@ -8,8 +8,11 @@ const { data: promotions, error } = await useFetch<Promotion[]>(`${base}/api/v1/
 })
 const { add, clear } = useCart()
 
+// 取数失败直接整页报错（502），与页面底部“当前没有进行中的促销”严格区分：
+// 后者只在请求成功但返回空数组时出现，失败时绝不能拿空态顶替，否则顾客会以为活动全下线了。
 if (error.value) {
-  throw createError({ statusCode: 502, statusMessage: `促销加载失败：${error.value.message}` })
+  console.error('[promotions] 加载失败:', error.value)
+  throw createError({ statusCode: 502, statusMessage: '促销活动加载失败，请稍后重试' })
 }
 
 const flashSales = computed(() => (promotions.value ?? []).filter(item => item.type === 'FLASH_SALE'))
@@ -25,6 +28,8 @@ const groupBusy = ref(false)
 const createdGroup = ref<GroupBuy | null>(null)
 
 function addPromotion(promotion: Promotion, quantity: number) {
+  // 购物车里只放活动展示价，作为结算页的预估；秒杀库存、限购与最终应付由结算服务端重算，
+  // 前端不能自己乘数量或叠加其它优惠，否则会与后端算出的金额对不上。
   const price = promotion.promoPrice ?? promotion.originalPrice
   add({
     productId: promotion.productId,
@@ -46,6 +51,8 @@ function openGroup(promotion: Promotion) {
 }
 
 function groupCart(group: GroupBuy, promotion: Promotion) {
+  // 先清空购物车：拼团订单规定只能包含 1 件拼团商品（结算页会再校验一次）。
+  // 这是会丢掉顾客原有购物车内容的副作用，且不可撤销，所以只在确认团已存在/已创建后执行。
   clear()
   add({
     productId: promotion.productId,
@@ -77,7 +84,7 @@ async function createGroup() {
     createdGroup.value = group
     groupCart(group, selectedPromotion.value)
   } catch (cause) {
-    groupError.value = cause instanceof Error ? cause.message : '发起拼团失败'
+    groupError.value = apiErrorMessage(cause, '发起拼团失败，请稍后重试')
   } finally {
     groupBusy.value = false
   }
@@ -111,7 +118,7 @@ async function joinGroup() {
     }
     groupCart(group, promotion)
   } catch (cause) {
-    groupError.value = cause instanceof Error ? cause.message : '加入拼团失败'
+    groupError.value = apiErrorMessage(cause, '加入拼团失败，请稍后重试')
   } finally {
     groupBusy.value = false
   }
@@ -141,7 +148,7 @@ function money(value?: Money) {
         <article v-for="promotion in flashSales" :key="promotion.id" class="promotion-card flash">
           <span class="promotion-badge">秒杀</span>
           <h3>{{ promotion.title }}</h3>
-          <p class="muted">{{ promotion.productTitle }} · {{ promotion.skuCode }}</p>
+          <p class="muted">{{ promotion.productTitle }}</p>
           <div class="promotion-price">
             <strong>{{ money(promotion.promoPrice) }}</strong>
             <del>{{ money(promotion.originalPrice) }}</del>
@@ -196,7 +203,7 @@ function money(value?: Money) {
         <article v-for="promotion in groups" :key="promotion.id" class="promotion-card group">
           <span class="promotion-badge">拼团</span>
           <h3>{{ promotion.title }}</h3>
-          <p class="muted">{{ promotion.productTitle }} · {{ promotion.skuCode }}</p>
+          <p class="muted">{{ promotion.productTitle }}</p>
           <div class="promotion-price">
             <strong>{{ money(promotion.promoPrice) }}</strong>
             <del>{{ money(promotion.originalPrice) }}</del>
@@ -271,7 +278,7 @@ function money(value?: Money) {
 .promotion-hero {
   padding: 42px 32px;
   border-radius: 24px;
-  background: linear-gradient(135deg, #1f3d2b, #4f7658);
+  background: linear-gradient(135deg, var(--brand-dark), var(--brand));
   color: #fff;
 }
 
@@ -302,8 +309,8 @@ function money(value?: Money) {
   gap: 10px;
   padding: 24px;
   border-radius: 20px;
-  background: #fff;
-  border: 1px solid #e7ebe6;
+  background: var(--surface);
+  border: 1px solid var(--line);
   box-shadow: 0 16px 40px rgba(29, 52, 36, 0.08);
 }
 
@@ -313,22 +320,22 @@ function money(value?: Money) {
 }
 
 .promotion-card.flash {
-  border-top: 5px solid #c0392b;
+  border-top: 5px solid var(--danger);
 }
 
 .promotion-card.gift {
-  border-top: 5px solid #2f7d4f;
+  border-top: 5px solid var(--brand);
 }
 
 .promotion-card.group {
-  border-top: 5px solid #b7791f;
+  border-top: 5px solid var(--accent);
 }
 
 .promotion-badge {
   align-self: flex-start;
   padding: 3px 10px;
   border-radius: 999px;
-  background: #f3f5f2;
+  background: var(--surface-muted);
   font-size: 12px;
   font-weight: 700;
 }
@@ -341,15 +348,15 @@ function money(value?: Money) {
 
 .promotion-price strong {
   font-size: 26px;
-  color: #b23b2e;
+  color: var(--brand);
 }
 
 .promotion-price del {
-  color: #8b948c;
+  color: var(--muted);
 }
 
 .promotion-meta {
-  color: #68726a;
+  color: var(--muted);
   font-size: 13px;
 }
 
@@ -371,7 +378,7 @@ function money(value?: Money) {
   width: min(440px, 100%);
   padding: 28px;
   border-radius: 20px;
-  background: #fff;
+  background: var(--surface);
   box-shadow: 0 24px 60px rgba(0, 0, 0, 0.24);
 }
 
@@ -380,12 +387,12 @@ function money(value?: Money) {
   gap: 6px;
   margin: 12px 0;
   font-size: 14px;
-  color: #4d574f;
+  color: var(--text);
 }
 
 .promotion-field input {
   padding: 11px 12px;
-  border: 1px solid #d7ded7;
+  border: 1px solid var(--line);
   border-radius: 10px;
   font: inherit;
 }
@@ -395,7 +402,7 @@ function money(value?: Money) {
   align-items: center;
   gap: 12px;
   margin: 18px 0 6px;
-  color: #8b948c;
+  color: var(--muted);
   font-size: 12px;
 }
 
@@ -404,7 +411,7 @@ function money(value?: Money) {
   content: '';
   flex: 1;
   height: 1px;
-  background: #e3e8e3;
+  background: var(--line);
 }
 
 .promotion-close {
@@ -412,7 +419,7 @@ function money(value?: Money) {
   margin: 16px auto 0;
   border: 0;
   background: transparent;
-  color: #68726a;
+  color: var(--muted);
   cursor: pointer;
 }
 </style>

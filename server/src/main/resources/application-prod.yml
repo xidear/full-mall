@@ -1,5 +1,9 @@
 app:
   mode: prod
+  media:
+    # 生产优先用 MEDIA_PUBLIC_BASE_URL（CDN/对象存储）；未配置时由 MediaUrlResolver
+    # 跟随系统设置里的 site_domain + site_scheme，换域名无需改库。
+    public-base-url: ${MEDIA_PUBLIC_BASE_URL:}
   security:
     hsts-enabled: true
   demo:

@@ -57,6 +57,10 @@ public class MemberAuthService {
     private static final int MAX_OTP_PER_WINDOW = 5;
     private static final Duration OTP_WINDOW = Duration.ofMinutes(10);
 
+    /**
+     * 限流是"先 COUNT 再 INSERT"，没有唯一约束/行锁兜底，并发请求可略超上限——
+     * 只算尽力而为的防轰炸，不能当短信费用的硬预算。
+     */
     @Transactional
     public OtpIssued requestOtp(String phone) {
         String normalized = normalizePhone(phone);
@@ -83,6 +87,10 @@ public class MemberAuthService {
         return new OtpIssued(normalized, returnCode ? code : null, expiresAt);
     }
 
+    /**
+     * 只认最近一条未消费的验证码：重新取码让旧码间接失效（旧行保留便于排查）；
+     * 过期与次数分开报错，前端据此决定"重新获取"还是"稍后再试"。
+     */
     @Transactional
     public SessionIssued verifyOtp(String phone, String code) {
         String normalized = normalizePhone(phone);
@@ -117,6 +125,7 @@ public class MemberAuthService {
         jdbcTemplate.update("UPDATE member_otp SET consumed_at = now() WHERE id = ?", row.id());
         UUID memberId = findOrCreateMember(normalized);
         String token = newToken();
+        // token 明文只在本次响应返回一次，库里只有 SHA-256；过期时间固定 30 天、不滑动续期（每次请求都会查库判过期）
         jdbcTemplate.update("""
                 INSERT INTO member_session (token_hash, member_id, expires_at)
                 VALUES (?, ?, ?)
@@ -191,12 +200,14 @@ public class MemberAuthService {
         if (token == null || token.isBlank()) {
             return java.util.Optional.empty();
         }
+        // 过期用数据库 now() 判断而不是 JVM 时钟：多节点时钟漂移会让会话提前或推迟失效
         List<UUID> rows = jdbcTemplate.queryForList("""
                 SELECT member_id FROM member_session WHERE token_hash = ? AND expires_at > now()
                 """, UUID.class, sha256Hex(token.trim()));
         return rows.stream().findFirst();
     }
 
+    // 先查后插的竞态由 member.phone 唯一约束（V8__pos.sql）兜住：并发首登会直接抛唯一冲突，不会建出两个会员
     private UUID findOrCreateMember(String phone) {
         List<UUID> existing = jdbcTemplate.queryForList(
                 "SELECT id FROM member WHERE phone = ?", UUID.class, phone);
@@ -214,7 +225,7 @@ public class MemberAuthService {
     }
 
     private String normalizePhone(String phone) {
-        if (phone == null || !phone.trim().matches("^\\+?[0-9]{6,20}$")) {
+        if (!com.fullmall.platform.validation.PhoneNumber.isValid(phone)) {
             throw ApiException.badRequest("INVALID_PHONE", "手机号格式不正确");
         }
         return phone.trim();

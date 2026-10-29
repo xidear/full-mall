@@ -981,7 +981,11 @@ public class PosService {
         if (deduct == 0) {
             return 0;
         }
-        repository.decrementPoints(sale.memberId(), deduct);
+        if (!repository.decrementPoints(sale.memberId(), deduct)) {
+            throw com.fullmall.platform.error.ApiException.conflict(
+                    "POS_POINTS_CONCURRENT_MODIFIED",
+                    "退款扣回积分时余额被并发修改，请重试：member=" + sale.memberId());
+        }
         long balanceAfter = repository.pointsBalance(sale.memberId());
         repository.insertPointsLedger(sale.memberId(), sale.id(), PointsEntryType.REFUND,
                 -deduct, balanceAfter, "销售退款扣回积分",

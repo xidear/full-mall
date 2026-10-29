@@ -1,13 +1,14 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
 import { ElMessage } from 'element-plus'
-import { roleLabel, type StaffUser, type Store } from '@fullmall/api-client'
+import { roleLabel, VALIDATION, type StaffUser, type Store } from '@fullmall/api-client'
 import { api } from '../api'
 
 const staff = ref<StaffUser[]>([])
 const stores = ref<Store[]>([])
 const bindings = ref<Record<string, string[]>>({})
 const loading = ref(false)
+// 排序状态目前只是占位：列都没加 sortable，onSortChange 实际不会触发，load() 也不接收排序参数。
 const sortKey = ref('displayName')
 const sortDirection = ref<'asc' | 'desc'>('asc')
 
@@ -41,6 +42,8 @@ async function load() {
     ])
     staff.value = staffList
     stores.value = storeList
+    // N+1 请求：每个员工一次 /admin/v1/staff/{id}/stores。人数少时可接受，上百人首屏会明显变慢；
+    // 根治需要后端在员工列表里直接带 storeIds。
     const entries = await Promise.all(staffList.map(async user => {
       const ids = await api.get<string[]>(`/admin/v1/staff/${user.id}/stores`)
       return [user.id, ids] as const
@@ -64,8 +67,10 @@ function openPin(user: StaffUser) {
 }
 
 async function savePin() {
-  if (!pinStaff.value || pin.value.trim().length < 4) {
-    ElMessage.error('PIN 至少 4 位')
+  if (!pinStaff.value
+      || pin.value.trim().length < VALIDATION.pinMinLength
+      || pin.value.trim().length > VALIDATION.pinMaxLength) {
+    ElMessage.error(`PIN 需要 ${VALIDATION.pinMinLength}–${VALIDATION.pinMaxLength} 位`)
     return
   }
   pinSaving.value = true
@@ -87,6 +92,9 @@ function openStores(user: StaffUser) {
   storeDialog.value = true
 }
 
+// 差异提交（逐条 bind/unbind）而不是整体替换：后端没有“设置门店集合”的接口。
+// 代价是没有事务——中途某条失败时，前面已成功的绑定已生效，而本地 bindings 不更新，
+// 必须刷新才能看到真实状态；串行而非并发是为了失败时能定位到具体 storeId。
 async function saveStores() {
   if (!storeStaff.value) return
   storeSaving.value = true
@@ -156,7 +164,7 @@ async function saveStores() {
       <p class="muted">
         为 {{ pinStaff?.displayName }}（{{ pinStaff?.username }}）设置 PIN，用于收银台锁屏解锁与退款店长授权。
       </p>
-      <el-input v-model="pin" type="password" show-password maxlength="12" placeholder="至少 4 位数字或字符" />
+      <el-input v-model="pin" type="password" show-password :maxlength="VALIDATION.pinMaxLength" :placeholder="`${VALIDATION.pinMinLength}–${VALIDATION.pinMaxLength} 位数字或字符`" />
       <template #footer>
         <el-button @click="pinDialog = false">取消</el-button>
         <el-button type="primary" :loading="pinSaving" @click="savePin">保存 PIN</el-button>

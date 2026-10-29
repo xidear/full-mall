@@ -1,34 +1,43 @@
 package com.fullmall.platform.asset;
 
 import com.fullmall.platform.asset.local.LocalAssetStorage;
-import com.fullmall.platform.asset.qiniu.QiniuAssetStorage;
+import com.fullmall.setting.app.SystemSettingService;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
 /**
- * 素材存储装配：`app.asset.storage=local|qiniu`。
+ * 素材存储装配：**服务商由数据库 system_setting.storage_provider 决定**，
+ * 环境变量 app.asset.storage 仅作为未配置时的启动兜底。
  *
- * <p>未指定时默认 local（开发可用）；指定 qiniu 但缺配置 → **启动失败**，不静默回落到 local。
+ * <p>切换服务商不需要重启：下一次上传会按新的 DB 配置路由；缺密钥时明确失败，不静默回落 local。
  */
 @Configuration
 public class AssetStorageConfig {
 
+    // 只装配委托器；真实服务商由 ConfigurableAssetStorage.delegate 在每次上传时查 system_setting.storage_provider，
+    // 所以后台切换不必重启。代价是密钥缺失要到上传时才抛错——有意为之，不能静默降级回 local。
     @Bean
     public AssetStorage assetStorage(
-            @Value("${app.asset.storage:local}") String provider,
+            @Value("${app.asset.storage:local}") String fallbackProvider,
+            // 必须与 StaticAssetConfig 读同一个 app.asset.local.directory，否则上传成功但 /assets/** 404。
             @Value("${app.asset.local.directory:./data/assets}") String localDirectory,
+            // 默认 /assets 是相对基址（key 以 assets/ 开头，故 URL 形如 /assets/assets/202610/x.jpg），
+            // 绝对化交给 MediaUrlResolver；生产应配 CDN 域名。
             @Value("${app.asset.local.public-base-url:/assets}") String localBaseUrl,
             @Value("${app.asset.qiniu.access-key:}") String qiniuAccessKey,
             @Value("${app.asset.qiniu.secret-key:}") String qiniuSecretKey,
             @Value("${app.asset.qiniu.bucket:}") String qiniuBucket,
-            @Value("${app.asset.qiniu.domain:}") String qiniuDomain) {
-        String normalized = provider == null ? "" : provider.trim().toLowerCase();
-        return switch (normalized) {
-            case "qiniu" -> new QiniuAssetStorage(qiniuAccessKey, qiniuSecretKey, qiniuBucket, qiniuDomain);
-            case "local", "" -> new LocalAssetStorage(localDirectory, localBaseUrl);
-            default -> throw new IllegalStateException(
-                    "不支持的 app.asset.storage=" + provider + "（可选 local / qiniu）");
-        };
+            @Value("${app.asset.qiniu.domain:}") String qiniuDomain,
+            @Value("${app.asset.cos.secret-id:}") String cosSecretId,
+            @Value("${app.asset.cos.secret-key:}") String cosSecretKey,
+            @Value("${app.asset.cos.region:}") String cosRegion,
+            @Value("${app.asset.cos.bucket:}") String cosBucket,
+            @Value("${app.asset.cos.domain:}") String cosDomain,
+            SystemSettingService settings) {
+        LocalAssetStorage local = new LocalAssetStorage(localDirectory, localBaseUrl);
+        return new ConfigurableAssetStorage(local, settings, fallbackProvider,
+                qiniuAccessKey, qiniuSecretKey, qiniuBucket, qiniuDomain,
+                cosSecretId, cosSecretKey, cosRegion, cosBucket, cosDomain);
     }
 }

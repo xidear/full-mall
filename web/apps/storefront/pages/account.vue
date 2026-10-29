@@ -3,14 +3,19 @@ import { formatMemberDateTime } from '~/utils/datetime'
 import { orderStatusLabel } from '@fullmall/api-client'
 import type { Order } from '~/types'
 
-const memberTimezone = useCookie<string | null>('fullmall_member_timezone').value ?? undefined
+// 会员时区优先，未登录时用站点默认时区（避免 SSR 与浏览器显示不一致）。
+const memberTimezone = useDisplayTimeZone()
 const memberCookie = useCookie<string | null>('fullmall_member_token')
 const config = useRuntimeConfig()
+// orderIds 是本机 localStorage 记住的最近 50 笔订单号（useOrders），不是后端按会员返回的全部订单：
+// 换设备、清缓存或换个浏览器登录同一账号，这里就看不到旧订单——这是已知边界，不是加载失败。
 const { orderIds } = useOrders()
 const orders = ref<Order[]>([])
 const loading = ref(false)
 const error = ref('')
 
+// 会员令牌同时从 cookie（SSR 可读）和 localStorage（兼容历史登录）取，优先 cookie；
+// 访客订单另带 X-Order-Token。两个令牌都没有时请求会 401，由下面按单条失败汇总，不静默丢弃。
 function authHeaders(orderId: string): Record<string, string> {
   const cookieToken = memberCookie.value ?? ''
   const localToken = import.meta.client ? (localStorage.getItem('fullmall.memberToken') ?? '') : ''
@@ -28,6 +33,8 @@ onMounted(async () => {
   loading.value = true
   error.value = ''
   try {
+    // 用 allSettled 而不是 all：单笔订单失败（令牌过期/不属于本账号）不该让已经取到的订单全部消失，
+    // 所以部分失败时仍然展示成功的那些，并把“有几笔没加载出来”如实告诉顾客，文案不暴露状态码与路径。
     const results = await Promise.allSettled(
       orderIds.value.map(id =>
         $fetch<Order>(`${config.public.apiBase}/api/v1/orders/${id}`, {
@@ -51,7 +58,8 @@ onMounted(async () => {
   }
 })
 
-useHead({ title: '我的订单 · Full Mall' })
+const { siteName } = useSite()
+useHead(() => ({ title: `我的订单 · ${siteName.value}` }))
 </script>
 
 <template>
@@ -80,7 +88,7 @@ useHead({ title: '我的订单 · Full Mall' })
       <NuxtLink
         v-for="order in orders"
         :key="order.id"
-        :to="`/orders/${order.id}`"
+        :to="`/orders/${order.orderNo}`"
         class="order-card panel"
       >
         <div class="order-card-head">
@@ -96,9 +104,10 @@ useHead({ title: '我的订单 · Full Mall' })
           <strong>{{ formatMoney(order.total) }}</strong>
         </div>
       </NuxtLink>
-      <p v-if="!loading && !orders.length && !error" class="empty-state">
-        还没有订单。完成一次下单后会在这里看到。
-      </p>
+      <!-- 三个条件缺一不可：加载中或出错时都还没有完整结论，此时说“还没有订单”等于把失败当空态。 -->
+      <EmptyState v-if="!loading && !orders.length && !error" icon="box" title="还没有订单" description="完成一次下单后，订单会出现在这里。">
+        <NuxtLink to="/products" class="button">去逛商品</NuxtLink>
+      </EmptyState>
     </div>
   </section>
 </template>

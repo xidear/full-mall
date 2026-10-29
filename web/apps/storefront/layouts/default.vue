@@ -5,18 +5,33 @@ import type { Category } from '~/types'
 const { count } = useCart()
 const { token: memberToken } = useMember()
 const { init: initLocale, t, locale, error: localeError } = useLocale()
+// 顺序有依赖且全部 await：文案 t() → 站点设置（market 决定主题与法律文档）→ 主题 → 分类，
+// 缺了任一环 SSR 首屏就会先闪一遍默认值。
 await initLocale()
 const runtimeConfig = useRuntimeConfig()
-const { public: runtime } = runtimeConfig
 const { theme, themeVars } = useTheme()
 const base = import.meta.server ? runtimeConfig.apiInternalBase : runtimeConfig.public.apiBase
 const route = useRoute()
-const { data: savedTheme } = await useAsyncData<ThemeConfig | null>('pc-theme-config', async () => {
-  const response = await $fetch<{ config: ThemeConfig | null }>(`${base}/api/v1/theme`, {
-    query: { channel: 'PC', market: 'CN' }
+// 站点设置必须先加载：主题、法律文档、地区政策都依赖 market。
+// 它失败不抛错，只退回默认值（品牌名 Full Mall、market=CN）：
+// 线上“品牌名/地区不对”通常是这个接口挂了，不是样式问题。
+const { data: siteSettings } = await useSiteSettings()
+const siteState = useState<Record<string, string>>('site-settings-state', () => ({}))
+siteState.value = siteSettings.value ?? {}
+const { siteName, siteTagline, market, isDemo, showAttribution, showIcp, showPublicSecurity, showBusinessLicense } = useSite()
+const categoryLabel = useCategoryLabel()
+// 副标题是站点配置；英文界面下用翻译值，避免中文副标题混在英文页里。
+const displayTagline = computed(() => locale.value === 'zh-CN'
+  ? (siteTagline.value || t('site.tagline'))
+  : t('site.tagline'))
+// 必须返回对象而不是 null：useAsyncData 对 null/undefined 会告警并可能重复请求。
+const { data: themeResponse } = await useAsyncData<{ config: ThemeConfig | null }>('pc-theme-config', () =>
+  $fetch<{ config: ThemeConfig | null }>(`${base}/api/v1/theme`, {
+    query: { channel: 'PC', market: market.value }
   })
-  return response.config
-})
+)
+const savedTheme = computed(() => themeResponse.value?.config ?? null)
+// 带 ?theme= 时忽略市场已保存的配色，否则验收看到的不是模板本身。
 const effectiveVars = computed(() => {
   if (route.query.theme) {
     return themeVars.value
@@ -32,12 +47,25 @@ const effectiveTheme = computed(() => {
 const { data: categories } = await useAsyncData('categories', () =>
   $fetch<Category[]>(`${base}/api/v1/categories`)
 )
-const { data: siteSettings } = await useAsyncData<Record<string, string>>('site-settings', () =>
-  $fetch<Record<string, string>>(`${base}/api/v1/site/settings`)
-)
+// 维护模式命中时整站只渲染公告、不渲染 <slot>，避免“首页能开、详情页 500”的半停机。
 const siteStatus = computed(() => siteSettings.value?.site_status || 'OPEN')
 const keyword = ref('')
 const mobileNavOpen = ref(false)
+
+// URL 用分类 code（可读、可分享），内部接口仍用 id；旧链接的 categoryId 继续兼容。
+const categoryCode = computed(() =>
+  typeof route.query.category === 'string' ? route.query.category : ''
+)
+const legacyCategoryId = computed(() =>
+  typeof route.query.categoryId === 'string' ? route.query.categoryId : ''
+)
+const isAllProducts = computed(() => route.path === '/products' && !categoryCode.value && !legacyCategoryId.value)
+function isCategoryActive(category: { id: string; code: string }) {
+  return route.path === '/products'
+    && (categoryCode.value ? category.code === categoryCode.value : legacyCategoryId.value === category.id)
+}
+const isPromotions = computed(() => route.path === '/promotions' || route.path.startsWith('/promotions/'))
+const isPickupLegal = computed(() => route.path === '/legal/PICKUP')
 
 const siteUrl = computed(() => {
   const domain = (siteSettings.value?.site_domain || '').trim()
@@ -84,13 +112,13 @@ async function search() {
         <span>{{ t('topbar.welcome') }}</span>
         <nav>
           <LocaleSwitcher class="locale-slot" />
-          <NuxtLink v-if="!memberToken" to="/login">登录 / 注册</NuxtLink>
-          <NuxtLink v-else to="/account">你好，会员</NuxtLink>
+          <NuxtLink v-if="!memberToken" to="/login">{{ t('nav.login') }}</NuxtLink>
+          <NuxtLink v-else to="/account">{{ t('nav.member') }}</NuxtLink>
           <NuxtLink to="/favorites">{{ t('nav.favorites') }}</NuxtLink>
           <NuxtLink to="/history">{{ t('nav.history') }}</NuxtLink>
           <NuxtLink to="/notifications">{{ t('nav.notifications') }}</NuxtLink>
           <NuxtLink to="/legal/TERMS">{{ t('nav.help') }}</NuxtLink>
-          <span v-if="runtime.appMode === 'demo'" class="demo-pill">只读演示</span>
+          <span v-if="isDemo" class="demo-pill" title="演示数据，不会产生真实交易">演示站</span>
         </nav>
       </div>
       <p v-if="localeError" class="container topbar-warning">语言包加载失败：{{ localeError }}</p>
@@ -101,8 +129,8 @@ async function search() {
         <NuxtLink to="/" class="brand">
           <span class="brand-mark">FM</span>
           <span>
-            <strong>Full Mall</strong>
-            <small>全品类商城</small>
+            <strong>{{ siteName }}</strong>
+            <small>{{ displayTagline }}</small>
           </span>
         </NuxtLink>
 
@@ -135,16 +163,36 @@ async function search() {
         ☰ 全部分类
       </button>
       <nav class="container category-nav" :class="{ open: mobileNavOpen }">
-        <NuxtLink to="/products">{{ t('nav.allProducts') }}</NuxtLink>
+        <NuxtLink
+          to="/products"
+          :class="{ active: isAllProducts }"
+          :aria-current="isAllProducts ? 'page' : undefined"
+        >
+          {{ t('nav.allProducts') }}
+        </NuxtLink>
         <NuxtLink
           v-for="category in categories ?? []"
           :key="category.id"
-          :to="{ path: '/products', query: { categoryId: category.id } }"
+          :to="{ path: '/products', query: { category: category.code } }"
+          :class="{ active: isCategoryActive(category) }"
+          :aria-current="isCategoryActive(category) ? 'page' : undefined"
         >
-          {{ category.name }}
+          {{ categoryLabel(category) }}
         </NuxtLink>
-        <NuxtLink to="/promotions">{{ t('nav.promotions') }}</NuxtLink>
-        <NuxtLink to="/legal/PICKUP">{{ t('nav.pickup') }}</NuxtLink>
+        <NuxtLink
+          to="/promotions"
+          :class="{ active: isPromotions }"
+          :aria-current="isPromotions ? 'page' : undefined"
+        >
+          {{ t('nav.promotions') }}
+        </NuxtLink>
+        <NuxtLink
+          to="/legal/PICKUP"
+          :class="{ active: isPickupLegal }"
+          :aria-current="isPickupLegal ? 'page' : undefined"
+        >
+          {{ t('nav.pickup') }}
+        </NuxtLink>
       </nav>
     </header>
 
@@ -180,15 +228,15 @@ async function search() {
       <div class="container footer-inner">
         <span>
           {{ siteSettings?.company_name || 'Full Mall' }}
-          <template v-if="siteSettings?.icp_number">
+          <template v-if="showIcp">
             · <a :href="icpUrl" target="_blank" rel="noopener noreferrer">{{ siteSettings.icp_number }}</a>
           </template>
         </span>
-        <span>
-          <template v-if="siteSettings?.public_security_record">
+        <span v-if="showPublicSecurity || showBusinessLicense">
+          <template v-if="showPublicSecurity">
             <a :href="policeUrl" target="_blank" rel="noopener noreferrer">{{ siteSettings.public_security_record }}</a>
           </template>
-          <template v-if="siteSettings?.business_license_no">
+          <template v-if="showBusinessLicense">
             · <a :href="licenseUrl" target="_blank" rel="noopener noreferrer">{{ t('footer.license') }}：{{ siteSettings.business_license_no }}</a>
           </template>
         </span>
@@ -200,8 +248,11 @@ async function search() {
         </span>
       </div>
       <div class="container footer-bottom">
-        <span>Full Mall · 开源跨境商城</span>
-        <span>{{ t('footer.note') }}</span>
+        <span class="footer-copy">
+          {{ siteName }}<template v-if="displayTagline"> · {{ displayTagline }}</template>
+          <span v-if="showAttribution" class="footer-attribution">{{ t('footer.attribution') }}</span>
+        </span>
+        <span>{{ isDemo ? t('footer.note') : t('footer.note.prod') }}</span>
       </div>
     </footer>
   </div>
@@ -214,16 +265,16 @@ async function search() {
   top: 0;
   z-index: 1000;
   padding: 8px 14px;
-  background: #fff;
-  color: #111;
-  border: 1px solid var(--brand, #e1251b);
+  background: var(--surface);
+  color: var(--text);
+  border: 1px solid var(--brand);
   border-radius: 0 0 8px 0;
 }
 .skip-link:focus { left: 0; }
-.topbar-warning { margin: 0; padding-bottom: 6px; color: #b45309; font-size: 12px; }
+.topbar-warning { margin: 0; padding-bottom: 6px; color: var(--accent); font-size: 12px; }
 .footer-links { display: flex; flex-wrap: wrap; gap: 18px; padding: 14px 0 8px; border-top: 1px solid rgba(0, 0, 0, .06); }
-.footer-links a { color: var(--muted, #666); font-size: 13px; }
-.footer-links a:hover { color: var(--brand, #e1251b); }
+.footer-links a { color: var(--muted); font-size: 13px; }
+.footer-links a:hover { color: var(--brand); }
 .menu-toggle { display: none; }
 @media (max-width: 768px) {
   .menu-toggle {
@@ -233,9 +284,9 @@ async function search() {
     min-height: 44px;
     margin: 8px 16px 0;
     padding: 0 14px;
-    border: 1px solid var(--line, #ddd);
+    border: 1px solid var(--line);
     border-radius: 999px;
-    background: #fff;
+    background: var(--surface);
     color: var(--text, #222);
     font-size: 14px;
   }

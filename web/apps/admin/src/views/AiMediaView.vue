@@ -6,6 +6,8 @@ import { api } from '../api'
 import ProductPicker from '../components/ProductPicker.vue'
 import SkuPicker from '../components/SkuPicker.vue'
 import AssetPicker from '../components/AssetPicker.vue'
+import AssetImage from '../components/AssetImage.vue'
+import { aiJobStatusLabels, labelOf } from '../labels'
 
 interface Provider { code: string; kind: string; name: string; protocol: string; model: string }
 interface PromptRow { prompt: string; negative: string; providerCode: string; createdAt: string; purpose: string }
@@ -55,8 +57,9 @@ async function load() {
       skuId: form.value.skuId || undefined,
       limit: 20
     })
-    const page = await api.get<{ content: AssetRow[] }>('/admin/v1/assets?size=50&sort=createdAt,desc')
-    assets.value = page.content ?? []
+    // 用检索接口而不是 BaseCrud 列表：后者不过滤软删除，会把已删素材也画出来（缩略图 404）
+    const page = await api.get<{ items: AssetRow[] }>('/admin/v1/assets/search?page=0&size=50')
+    assets.value = page.items ?? []
     if (!form.value.providerCode) {
       form.value.providerCode = kindProviders.value[0]?.code ?? ''
     }
@@ -147,6 +150,8 @@ async function attach(job: Job) {
   }
 }
 
+// 轮询 60 次 × 3s（≈3 分钟）后放弃。任务只存在本页内存（jobs.unshift）：
+// 刷新页面“最近任务”就空了——后端有 /admin/v1/ai/media/jobs 列表接口，本页没有拉取。
 async function poll(jobId: string) {
   for (let i = 0; i < 60; i++) {
     const job = await api.get<Job>(`/admin/v1/ai/media/jobs/${jobId}`)
@@ -235,17 +240,19 @@ onMounted(async () => {
             </el-form-item>
             <el-form-item label="参考图（多角度）">
               <div class="thumbs">
-                <img v-for="asset in imageAssets.slice(0, 24)" :key="asset.id" :src="asset.url"
-                     class="thumb" :class="{ picked: form.referenceIds.includes(asset.id) }"
-                     @click="toggle(form.referenceIds, asset.id)" />
+                <!-- 候选图只从“最近 50 个素材”里取前 24 张：更早的实拍图在这个页面选不到，
+                     需要去素材库/高级模式先找到再回来。 -->
+                <AssetImage v-for="asset in imageAssets.slice(0, 24)" :key="asset.id" :src="asset.url"
+                            class="thumb" :class="{ picked: form.referenceIds.includes(asset.id) }"
+                            :alt="asset.name" @click="toggle(form.referenceIds, asset.id)" />
                 <span v-if="!imageAssets.length" class="muted">素材库还没有图片，先上传实拍图</span>
               </div>
             </el-form-item>
             <el-form-item label="主体图（角色定型）">
               <div class="thumbs">
-                <img v-for="asset in imageAssets.slice(0, 24)" :key="'s-' + asset.id" :src="asset.url"
-                     class="thumb" :class="{ picked: form.subjectIds.includes(asset.id) }"
-                     @click="toggle(form.subjectIds, asset.id)" />
+                <AssetImage v-for="asset in imageAssets.slice(0, 24)" :key="'s-' + asset.id" :src="asset.url"
+                            class="thumb" :class="{ picked: form.subjectIds.includes(asset.id) }"
+                            :alt="asset.name" @click="toggle(form.subjectIds, asset.id)" />
               </div>
               <div class="muted">用于视频/图片中保持角色脸部与服装一致；会映射到 MiniMax subject_reference 等字段。</div>
             </el-form-item>
@@ -272,16 +279,18 @@ onMounted(async () => {
           <template #header>最近任务</template>
           <div v-for="job in jobs" :key="job.id" class="job-row">
             <el-tag :type="job.status === 'SUCCEEDED' ? 'success' : job.status === 'FAILED' ? 'danger' : 'warning'">
-              {{ job.status }}
+              {{ labelOf(aiJobStatusLabels, job.status) }}
             </el-tag>
             <span class="job-prompt">{{ job.prompt }}</span>
             <el-button v-if="job.status === 'SUCCEEDED' && job.assetId" text type="primary"
                        :loading="attachingJob === job.id" @click="attach(job)">挂到商品</el-button>
           </div>
           <div class="attach-bar">
+            <!-- 这里的 ProductPicker 与左侧“生成参数”共用 form.productId / form.skuId：
+                 在挂载区选商品会同时改掉待生成参数里的商品，反之亦然（单表单双用途）。 -->
             <ProductPicker v-model="form.productId" width="240px" />
             <span class="muted">挂载角色</span>
-            <el-select v-model="attachRole" size="small" style="width: 120px">
+            <el-select v-model="attachRole" style="width: 120px">
               <el-option label="主图" value="MAIN" />
               <el-option label="图集" value="GALLERY" />
               <el-option label="详情图" value="DETAIL" />
@@ -304,7 +313,7 @@ onMounted(async () => {
 .prompt-row { padding: 8px 0; border-bottom: 1px dashed #eee; cursor: pointer; }
 .prompt-row:hover { background: #fafafa; }
 .prompt-text { font-size: 13px; }
-.muted { color: #999; font-size: 12px; }
+
 .job-row { display: flex; gap: 8px; align-items: center; padding: 6px 0; }
 .attach-bar { display: flex; gap: 8px; align-items: center; margin-top: 8px; }
 .job-prompt { font-size: 12px; color: #666; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

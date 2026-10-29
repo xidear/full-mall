@@ -28,6 +28,10 @@ public class FaqService {
     }
 
     /** 检索：命中返回答案；未命中记录 miss 并返回 null。 */
+    /**
+     * 命中返回答案，未命中写一条 faq_miss 作为候选来源（与业务同事务，外层回滚不会留下假候选）。
+     * 多个命中里取问题最短的那条：越短越概括，免得长问题里偶然包含关键词就抢答。
+     */
     @Transactional
     public Hit search(String question, UUID memberId) {
         if (question == null || question.isBlank()) {
@@ -53,6 +57,7 @@ public class FaqService {
         return null;
     }
 
+    // 空列表表示"这段时间没有值得采纳的问题"，不是查询失败（失败会抛 SQL 异常）；窗口会被夹在 1~90 天。
     /** 候选：近 N 天未命中且库里没有对应 FAQ，按出现次数降序。 */
     public List<Map<String, Object>> candidates(int days, int minCount) {
         int window = Math.min(Math.max(days, 1), 90);
@@ -77,6 +82,10 @@ public class FaqService {
                 String.valueOf(window), threshold);
     }
 
+    /**
+     * 按 question 唯一键 upsert：重复采纳只覆盖答案并复活软删条目，同一问题不会裂成两条 FAQ；
+     * 返回的 id 以库里那行为准，冲突时不是新生成的 UUID。
+     */
     @Transactional
     public Hit adopt(String question, String answer) {
         if (question == null || question.isBlank() || answer == null || answer.isBlank()) {
@@ -94,15 +103,28 @@ public class FaqService {
         return rows.get(0);
     }
 
+    /**
+     * 后台列表：关键词为空时**不带过滤条件**，而不是传 null 让 Postgres 猜类型。
+     *
+     * <p>原来的 `(? IS NULL OR ...)` 在 Postgres 上会报
+     * "could not determine data type of parameter $1"，整个接口 500。
+     */
     public List<Hit> list(String keyword) {
+        if (keyword == null || keyword.isBlank()) {
+            return jdbc.query("""
+                    SELECT id, question, answer FROM faq_entry
+                     WHERE status = 'ACTIVE'
+                     ORDER BY created_at DESC LIMIT 100
+                    """, (rs, rowNum) -> new Hit(rs.getObject("id", UUID.class),
+                    rs.getString("question"), rs.getString("answer")));
+        }
+        String pattern = "%" + keyword.trim().toLowerCase(java.util.Locale.ROOT) + "%";
         return jdbc.query("""
                 SELECT id, question, answer FROM faq_entry
                  WHERE status = 'ACTIVE'
-                   AND (? IS NULL OR lower(question) LIKE '%' || lower(?) || '%')
+                   AND lower(question) LIKE ?
                  ORDER BY created_at DESC LIMIT 100
                 """, (rs, rowNum) -> new Hit(rs.getObject("id", UUID.class),
-                rs.getString("question"), rs.getString("answer")),
-                keyword == null || keyword.isBlank() ? null : keyword,
-                keyword == null || keyword.isBlank() ? null : keyword);
+                rs.getString("question"), rs.getString("answer")), pattern);
     }
 }

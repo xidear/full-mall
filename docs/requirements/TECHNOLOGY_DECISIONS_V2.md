@@ -81,7 +81,7 @@ Full Mall 的落地：
 | AI 编排 | Spring AI（Apache-2.0）、LangChain4j（Apache-2.0） | 采用其一；Spring AI 与 Spring Boot 集成更直接 |
 | 向量库 | pgvector、OpenSearch k-NN | 已有 Postgres/OpenSearch，优先 pgvector；规模大再 OpenSearch |
 | 文档解析 | Apache Tika | 采用；不自写 PDF/Office 解析 |
-| 附件安全 | ClamAV、Apache Tika MIME | 采用；病毒扫描 + MIME 校验 |
+| 附件安全 | Apache Tika MIME（已实施）、ClamAV（未实施） | Tika 嗅探已用于上传类型校验；**ClamAV 尚未接入**（代码与 compose 中都没有），接入前不得对外宣称有病毒扫描 |
 | 客服产品参考 | Chatwoot、Zammad | 只借鉴会话/分组/SLA，不复制代码 |
 
 ### 1.6 多语言 / 翻译
@@ -100,8 +100,20 @@ Full Mall 的落地：
 | 对象存储 | AWS SDK v2 S3（兼容 MinIO/SeaweedFS）、七牛官方 SDK、阿里云 OSS SDK | 采用官方 SDK；不手写签名 |
 | 图片处理 | imgproxy / Thumbor | 采用；不自写缩略图/裁剪 |
 | 文件类型 | Apache Tika | 采用 |
-| 病毒扫描 | ClamAV | 采用 |
+| 病毒扫描 | ClamAV | **未实施**：compose 无 clamd、服务端无调用；上传目前只做类型/体积校验。要接入需加 clamd 容器 + 扫描适配器 + 超时/失败策略 |
 | 素材库产品参考 | ResourceSpace、Pimcore | 借鉴公共/个人库、引用、软删除；不整体引入 |
+| 上传类型判定 | Apache Tika `Tika.detect(byte[])`、手写魔术字节、ImageIO 解码探测 | 采用 Tika：已在依赖里（文档解析用同一套），只读文件头即可判型，避免为上传再引入一套 |
+| 浏览器端 HEIC 转码 | heic2any（MIT，2.7MB wasm）、heic-to（LGPL-3.0，26MB）、libheif-js（LGPL-3.0）、后端 libheif JNI（imageio-heif） | 采用 heic2any：MIT 许可证干净、体积可控、浏览器端完成转码不增加容器原生依赖；heic-to 虽活跃但 LGPL + 26MB，后端 JNI 方案在容器里维护成本高 |
+
+### 1.7.1 上传类型与体积校验（2026-10-29 落地）
+
+结论与实现位置：
+
+- **类型以 magic bytes 为准**：`MediaUploadValidator` 用 Tika 嗅探，客户端 Content-Type 只做一致性核对，落库扩展名取自嗅探结果。
+- **白名单与默认上限的唯一来源**是 `docs/validation.schema.json` 的 `$defs.assetUpload`，由 `npm run generate:validation` 生成前端常量，Java 侧 `ValidationRules` 由 `ValidationRulesContractTest` 守护。
+- **上限按上传者区分**：管理端（商品/素材）默认图片 5MB、视频 10MB；顾客端（评价）默认图片 2MB、视频 5MB。运行时值存 `system_setting`，后台「系统设置 → 素材上传」图形化修改，下一次上传即生效。
+- **SVG 不在白名单**：SVG 是 XML 文档，直出同源会带来脚本执行风险；且无法栅格化做缩略图。HEIC/HEIF 可识别但必须先在浏览器转 JPEG（服务端返回 `ASSET_HEIC_NOT_CONVERTED`，前端自动转码）。
+- **multipart 天花板**：Spring Boot 默认单文件 1MB，比业务上限小得多，必须显式配置并与 `ValidationRules.UPLOAD_MULTIPART_CEILING_BYTES` 一致，由 `UploadMultipartGuard` 启动自检。
 
 ### 1.8 API / 安全 / 文档
 
@@ -278,6 +290,31 @@ Full Mall 的落地：
 - **所有对外 Provider 配置走 Web 图形界面**：每 provider+mode 独立表单、证书文件上传、枚举下拉、
   禁止手写 JSON/粘贴 PEM、保存时强校验 + 连通性测试 + 审计。
 - 详见 `docs/PAYMENT_PROVIDER_MODES_AND_CONFIG_UI.md`。
+
+## 3.7 已决策：后台（admin）前端栈与组件复用（2026-10-28）
+
+背景：admin 只有 Vue 3 + Element Plus + vue-router，菜单没有图标、不能折叠，页面各自实现请求状态；
+商品页因此出现"裂图、切语言后表单与选择框不一致、编辑页 500 无人发现"等问题（见 docs/ADMIN_DESIGN_REVIEW_2026-10-28.md）。
+
+候选（均为成熟开源方案，MIT）：
+
+| 候选 | 许可证 | 结论 | 理由 |
+|---|---|---|---|
+| vben-admin / vue-vben-admin | MIT | 不整体引入 | 功能完整，但会引入 antd/主题/权限/多标签一整套约定；当前后台是 Element Plus 风格，迁移成本高 |
+| vue-element-admin / vue-pure-admin | MIT | 不整体引入 | 模板成熟，但 Vue 2 血统（前者）或重路由/多页签约定，替换成本大于收益 |
+| Element Plus（现用） | MIT | 继续使用 | 与现有页面一致，社区活跃，官方提供 icons 包与 el-sub-menu 折叠 |
+| @element-plus/icons-vue | MIT | **采用** | 官方图标包，补齐菜单/操作图标，避免自绘 SVG |
+| @vueuse/core | MIT | **采用** | useLocalStorage / useMediaQuery 等组合式工具，避免自写浏览器状态逻辑 |
+| Pinia | MIT | 暂不引入 | 当前跨页共享状态只有登录态与设置，reactive 模块足够；出现跨页复杂状态时再引入 |
+| @tanstack/vue-query | MIT | 暂不引入 | 请求状态已由 useAsyncState() 统一（含竞态保护）；若需要缓存/失效策略再引入 |
+
+结论：
+
+1. 保留 **Element Plus**，补齐 @element-plus/icons-vue（图标）与 @vueuse/core（组合式工具）；
+2. 后台骨架：el-sub-menu 分组 + el-menu collapse + useLocalStorage 持久化折叠状态；
+3. 请求状态统一走 composables/useAsyncState.ts（loading / error / data + 过期响应丢弃）；
+4. 图片统一走 media.ts#resolveMediaUrl() + components/AdminThumb.vue（失败回落到占位块）；
+5. 模块按"任务"而不是"表"划分：译文并入商品编辑页（按启用语言 tab），规格矩阵改为可复用模板（ADR-006）。
 
 ## 4. 禁止事项
 

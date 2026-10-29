@@ -46,8 +46,10 @@ function onProductSelect(product: { id: string; title: string; skus?: Array<{ id
 async function load() {
   try {
     providers.value = await api.get<Provider[]>('/admin/v1/ai/media/providers')
-    const page = await api.get<{ content: AssetRow[] }>('/admin/v1/assets?size=50&sort=createdAt,desc')
-    assets.value = page.content ?? []
+    // 与素材选择器统一用检索接口（过滤软删除、支持标签/关键词）；只取最近 50 条，
+    // 这决定了下文 assetUrl() 的反查边界。
+    const page = await api.get<{ items: AssetRow[] }>('/admin/v1/assets/search?page=0&size=50')
+    assets.value = page.items ?? []
     form.value.providerCode = videoProviders()[0]?.code ?? ''
   } catch (cause) {
     ElMessage.error(cause instanceof Error ? cause.message : '加载失败')
@@ -106,6 +108,9 @@ async function generate() {
   }
 }
 
+// 轮询 60 次 × 4s（≈4 分钟）后放弃，交给用户手动“同步结果”；没有 WebSocket，用轮询换实现简单。
+// 循环内没有 try：任一次 sync 失败都会冒泡成 generate() 里的“生成失败”，而视频可能仍在生成；
+// 同理 syncNow() 完全没有 catch，后端 5xx 时页面不会有任何提示（只有控制台报错）。
 async function poll() {
   if (!storyboard.value) return
   for (let i = 0; i < 60; i++) {
@@ -129,6 +134,8 @@ async function syncNow() {
   ElMessage.success(`已同步 ${synced.synced} 个镜头`)
 }
 
+// 视频地址只能从“最近 50 个素材”里反查：回填的视频若不在这个窗口内（生成慢/素材多）会返回空串，
+// <video> 显示空白播放器。要根治得让后端在分镜里直接返回 url。
 function assetUrl(id?: string | null) {
   return assets.value.find(a => a.id === id)?.url ?? ''
 }
@@ -200,6 +207,6 @@ onMounted(load)
 .mb-16 { margin-bottom: 16px; }
 .shot { display: flex; flex-direction: column; gap: 8px; width: 100%; }
 .shot-row { display: flex; gap: 8px; align-items: center; }
-.muted { color: #999; font-size: 12px; }
+
 .result { display: flex; justify-content: space-between; gap: 16px; padding: 12px 0; border-bottom: 1px dashed #eee; }
 </style>

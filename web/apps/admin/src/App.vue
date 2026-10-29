@@ -1,14 +1,34 @@
 <script setup lang="ts">
 import HelpDrawer from './components/HelpDrawer.vue'
-import { computed, reactive, ref } from 'vue'
+import { computed, nextTick, reactive, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
+import { useLocalStorage } from '@vueuse/core'
+import {
+  Bell, Box, Brush, ChatDotRound, Coin, Collection, Connection, CreditCard, DataBoard,
+  Discount, Document, Download, Expand, Film, Fold, Goods, Grid, Key, List, MagicStick,
+  Monitor, OfficeBuilding, Odometer, Picture, Present, PriceTag, Service, Setting, Ticket,
+  Tickets, Timer, UserFilled, Wallet
+} from '@element-plus/icons-vue'
+import { VALIDATION } from '@fullmall/api-client'
 import { api } from './api'
 import { auth, changePassword, logout } from './auth'
 
 const route = useRoute()
 const router = useRouter()
-router.afterEach((to) => { if (to.name !== 'login') { void loadSetupStatus() } })
+// 首次配置提示放 afterEach 而不是路由守卫：守卫里 await 会拖慢每次跳转，而“缺配置”只是提醒，
+// 晚出现可接受、失败也不该阻断导航（loadSetupStatus 内部失败时静默清空）。
+router.afterEach((to) => {
+  if (to.name !== 'login') {
+    void loadSetupStatus()
+  }
+  // 后台是"侧栏固定 + 主区独立滚动"：换页必须把主区滚回顶部，
+  // 否则从长页面点菜单进入短页面会看到一片空白（要手动往上拖，拖上去左侧菜单又看不到）。
+  void nextTick(() => {
+    document.querySelector('.admin-main')?.scrollTo({ top: 0 })
+    window.scrollTo({ top: 0 })
+  })
+})
 const passwordDialog = ref(false)
 const passwordSaving = ref(false)
 const passwordError = ref('')
@@ -17,6 +37,10 @@ const passwordForm = reactive({
   newPassword: '',
   confirmPassword: ''
 })
+
+// 菜单折叠：状态持久化，刷新后保持（后台长时间使用，不该每次重新展开）
+const collapsed = useLocalStorage('fullmall.admin.menu-collapsed', false)
+const asideWidth = computed(() => (collapsed.value ? '72px' : '236px'))
 
 const setupMissing = ref<string[]>([])
 // 登录后进入任意页面时刷新一次（避免在路由守卫里做请求）
@@ -41,58 +65,70 @@ const activeMenu = computed(() => {
   return route.path
 })
 
+/**
+ * 菜单：分组带图标，条目带图标；分组用 el-sub-menu，折叠时显示分组图标 + 悬浮子菜单。
+ * 商品译文已并入商品管理（编辑页「译文」标签），不再是独立模块。
+ */
 const menuGroups = [
-  { key: 'workbench', label: '工作台', items: [
-    { path: '/', label: '经营总览', roles: ['ADMIN', 'OPERATOR'] }
+  { key: 'workbench', label: '工作台', icon: DataBoard, items: [
+    { path: '/', label: '经营总览', icon: Odometer, roles: ['ADMIN', 'OPERATOR'] }
   ] },
-  { key: 'catalog', label: '商品', items: [
-    { path: '/products', label: '商品管理', roles: ['ADMIN', 'OPERATOR'] },
-    { path: '/translations', label: '商品译文', roles: ['ADMIN', 'OPERATOR'] },
-    { path: '/sku-matrix', label: 'SKU 规格矩阵', roles: ['ADMIN', 'OPERATOR'] },
-    { path: '/price-rule', label: '规格改价', roles: ['ADMIN', 'OPERATOR'] },
-    { path: '/brands', label: '品牌管理', roles: ['ADMIN', 'OPERATOR'] },
-    { path: '/reviews', label: '评价审核', roles: ['ADMIN', 'OPERATOR'] }
+  { key: 'catalog', label: '商品', icon: Goods, items: [
+    { path: '/products', label: '商品管理', icon: Goods, roles: ['ADMIN', 'OPERATOR'] },
+    { path: '/sku-matrix', label: '规格矩阵模板', icon: Grid, roles: ['ADMIN', 'OPERATOR'] },
+    { path: '/brands', label: '品牌管理', icon: Collection, roles: ['ADMIN', 'OPERATOR'] },
+    { path: '/reviews', label: '评价审核', icon: ChatDotRound, roles: ['ADMIN', 'OPERATOR'] }
   ] },
-  { key: 'trade', label: '交易', items: [
-    { path: '/orders', label: '订单管理', roles: ['ADMIN', 'OPERATOR'] },
-    { path: '/after-sales', label: '售后处理', roles: ['ADMIN', 'OPERATOR'] },
-    { path: '/pos', label: '门店收银', roles: ['ADMIN', 'OPERATOR'] },
-    { path: '/warehouse', label: '仓储作业', roles: ['ADMIN', 'OPERATOR'] },
-    { path: '/suppliers', label: '供应商', roles: ['ADMIN', 'OPERATOR'] }
+  { key: 'trade', label: '交易', icon: List, items: [
+    { path: '/orders', label: '订单管理', icon: Tickets, roles: ['ADMIN', 'OPERATOR'] },
+    { path: '/after-sales', label: '售后处理', icon: Service, roles: ['ADMIN', 'OPERATOR'] },
+    { path: '/pos', label: '门店收银', icon: CreditCard, roles: ['ADMIN', 'OPERATOR'] },
+    { path: '/warehouse', label: '仓储作业', icon: Box, roles: ['ADMIN', 'OPERATOR'] },
+    { path: '/suppliers', label: '供应商', icon: OfficeBuilding, roles: ['ADMIN', 'OPERATOR'] }
   ] },
-  { key: 'stock', label: '库存', items: [
-    { path: '/inventory', label: '库存与批次', roles: ['ADMIN', 'OPERATOR'] },
-    { path: '/expiring', label: '临期商品', roles: ['ADMIN', 'OPERATOR'] }
+  { key: 'stock', label: '库存', icon: Box, items: [
+    { path: '/inventory', label: '库存与批次', icon: Box, roles: ['ADMIN', 'OPERATOR'] },
+    { path: '/expiring', label: '临期商品', icon: Timer, roles: ['ADMIN', 'OPERATOR'] }
   ] },
-  { key: 'marketing', label: '营销', items: [
-    { path: '/promotions', label: '促销管理', roles: ['ADMIN', 'OPERATOR'] },
-    { path: '/pos-promotions', label: 'POS 专属促销', roles: ['ADMIN', 'OPERATOR'] },
-    { path: '/coupons', label: '优惠券', roles: ['ADMIN', 'OPERATOR'] },
-    { path: '/pos-members', label: '会员与优惠券', roles: ['ADMIN', 'OPERATOR'] },
-    { path: '/customers', label: '客户管理', roles: ['ADMIN', 'OPERATOR'] }
+  { key: 'marketing', label: '营销', icon: Present, items: [
+    { path: '/promotions', label: '促销管理', icon: Present, roles: ['ADMIN', 'OPERATOR'] },
+    { path: '/pos-promotions', label: 'POS 专属促销', icon: Discount, roles: ['ADMIN', 'OPERATOR'] },
+    { path: '/coupons', label: '优惠券', icon: Ticket, roles: ['ADMIN', 'OPERATOR'] },
+    { path: '/pos-members', label: '会员与优惠券', icon: UserFilled, roles: ['ADMIN', 'OPERATOR'] },
+    { path: '/customers', label: '客户管理', icon: UserFilled, roles: ['ADMIN', 'OPERATOR'] }
   ] },
-  { key: 'finance', label: '财务', items: [
-    { path: '/costs', label: '成本查询', roles: ['ADMIN'] },
-    { path: '/exports', label: '导出中心', roles: ['ADMIN', 'OPERATOR'] }
+  { key: 'finance', label: '财务', icon: Wallet, items: [
+    { path: '/costs', label: '成本查询', icon: Coin, roles: ['ADMIN'] },
+    { path: '/exports', label: '导出中心', icon: Download, roles: ['ADMIN', 'OPERATOR'] }
   ] },
-  { key: 'ops', label: '运维', items: [
-    { path: '/ops', label: '运维中心', roles: ['ADMIN'] }
+  { key: 'ops', label: '运维', icon: Monitor, items: [
+    { path: '/ops', label: '运维中心', icon: Monitor, roles: ['ADMIN'] }
   ] },
-  { key: 'system', label: '系统', items: [
-    { path: '/notifications', label: '通知中心', roles: ['ADMIN', 'OPERATOR'] },
-    { path: '/ai', label: 'AI 客服', roles: ['ADMIN'] },
-    { path: '/themes', label: '主题配置', roles: ['ADMIN', 'OPERATOR'] },
-    { path: '/staff', label: '员工与权限', roles: ['ADMIN'] },
-    { path: '/permissions', label: '权限矩阵', roles: ['ADMIN'] },
-    { path: '/license', label: '许可证', roles: ['ADMIN'] },
-    { path: '/audit', label: '操作审计', roles: ['ADMIN'] },
-    { path: '/materials', label: '素材库', roles: ['ADMIN', 'OPERATOR'] },
-    { path: '/ai-media', label: 'AI 素材生成', roles: ['ADMIN', 'OPERATOR'] },
-    { path: '/ai-storyboard', label: '视频分镜', roles: ['ADMIN', 'OPERATOR'] },
-    { path: '/integrations', label: '第三方服务', roles: ['ADMIN'] },
-    { path: '/settings', label: '系统设置', roles: ['ADMIN'] }
+  { key: 'system', label: '系统', icon: Setting, items: [
+    { path: '/notifications', label: '通知中心', icon: Bell, roles: ['ADMIN', 'OPERATOR'] },
+    { path: '/ai', label: 'AI 客服', icon: Service, roles: ['ADMIN'] },
+    { path: '/themes', label: '主题配置', icon: Brush, roles: ['ADMIN', 'OPERATOR'] },
+    { path: '/staff', label: '员工与权限', icon: UserFilled, roles: ['ADMIN'] },
+    { path: '/permissions', label: '权限矩阵', icon: Key, roles: ['ADMIN'] },
+    { path: '/license', label: '许可证', icon: Document, roles: ['ADMIN'] },
+    { path: '/audit', label: '操作审计', icon: Tickets, roles: ['ADMIN'] },
+    { path: '/materials', label: '素材库', icon: Picture, roles: ['ADMIN', 'OPERATOR'] },
+    { path: '/ai-media', label: 'AI 素材生成', icon: MagicStick, roles: ['ADMIN', 'OPERATOR'] },
+    { path: '/ai-storyboard', label: '视频分镜', icon: Film, roles: ['ADMIN', 'OPERATOR'] },
+    { path: '/integrations', label: '第三方服务', icon: Connection, roles: ['ADMIN'] },
+    { path: '/settings', label: '系统设置', icon: Setting, roles: ['ADMIN'] }
   ] }
 ]
+// 默认全部展开：后台是"常用入口直达"的形态，分组只是归类，不应该让运营每次额外点开。
+//
+// 做法：等登录态就绪后再渲染 el-menu，用 default-openeds 一次性初始化。
+// 不要用 menu.open() 手动补开：Element Plus 的展开是折叠动画，连续对 8 个分组 open()
+// 会把动画打断在半途，留下"位置占着、内容看不见"的菜单（2026-10-28 用户截图现象）。
+const openGroupKeys = menuGroups.map(group => group.key)
+// 必须等 auth.user 就绪再渲染菜单：初始化时若可见项为空，default-openeds 会落空，
+// 表现为分组全部收起、菜单看起来是空的。
+const menuReady = computed(() => Boolean(auth.user))
+
 const visibleGroups = computed(() => menuGroups
   .map(group => ({
     ...group,
@@ -116,8 +152,10 @@ function openPasswordDialog() {
 
 async function submitPassword() {
   passwordError.value = ''
+  // 阈值 8 与 VALIDATION.passwordMinLength 重复（AGENTS.md §9 要求单一来源）；若 schema 调大，
+  // 这里会先放行再由后端拒绝，而提示文案读的是常量，会出现“提示 N 位、8 位却放行”的错觉。
   if (passwordForm.newPassword.length < 8) {
-    passwordError.value = '新密码至少 8 位'
+    passwordError.value = `新密码至少 ${VALIDATION.passwordMinLength} 位`
     return
   }
   if (passwordForm.newPassword !== passwordForm.confirmPassword) {
@@ -142,36 +180,59 @@ async function submitPassword() {
   <router-view v-if="isLoginPage" />
 
   <el-container v-else class="admin-shell">
-    <el-aside width="236px" class="admin-aside">
-      <div class="admin-brand">
+    <el-aside :width="asideWidth" class="admin-aside">
+      <div class="admin-brand" :class="{ 'is-collapsed': collapsed }">
         <span class="admin-brand-mark">FM</span>
-        <div>
+        <div v-if="!collapsed">
           <strong>Full Mall</strong>
           <small>运营后台</small>
         </div>
       </div>
-      <el-menu :default-active="activeMenu" router class="admin-menu">
-        <template v-for="group in visibleGroups" :key="group.key">
-          <div class="admin-menu-group">{{ group.label }}</div>
+      <el-menu
+        v-if="menuReady"
+        :default-active="activeMenu"
+        :default-openeds="openGroupKeys"
+        :collapse="collapsed"
+        :collapse-transition="false"
+        router
+        class="admin-menu"
+      >
+        <el-sub-menu v-for="group in visibleGroups" :key="group.key" :index="group.key">
+          <template #title>
+            <el-icon><component :is="group.icon" /></el-icon>
+            <span>{{ group.label }}</span>
+          </template>
           <el-menu-item v-for="menu in group.items" :key="menu.path" :index="menu.path">
-            {{ menu.label }}
+            <el-icon><component :is="menu.icon" /></el-icon>
+            <template #title>{{ menu.label }}</template>
           </el-menu-item>
-        </template>
+        </el-sub-menu>
       </el-menu>
-      <div class="admin-aside-footer">
-        <div class="admin-user">
+      <div class="admin-aside-footer" :class="{ 'is-collapsed': collapsed }">
+        <div v-if="!collapsed" class="admin-user">
           <strong>{{ auth.user?.displayName || '未登录' }}</strong>
           <span>@{{ auth.user?.username || '-' }}</span>
         </div>
-        <el-button link class="logout-button" @click="handleLogout">退出</el-button>
+        <el-button v-if="!collapsed" link class="logout-button" @click="handleLogout">退出</el-button>
       </div>
     </el-aside>
 
     <el-container>
       <el-header class="admin-header">
-        <div>
-          <h1>{{ route.meta.title }}</h1>
-          <p>商品、订单、库存、门店与主题配置统一管理。</p>
+        <div class="header-title">
+          <el-button
+            text
+            class="collapse-toggle"
+            :title="collapsed ? '展开菜单' : '收起菜单'"
+            data-testid="menu-collapse-toggle"
+            @click="collapsed = !collapsed"
+          >
+            <el-icon :size="18"><component :is="collapsed ? Expand : Fold" /></el-icon>
+          </el-button>
+          <div>
+            <h1>{{ route.meta.title }}</h1>
+            <p>商品、订单、库存、门店与主题配置统一管理。</p>
+          </div>
         </div>
         <div class="header-actions">
           <el-button @click="openPasswordDialog">修改密码</el-button>
@@ -179,6 +240,7 @@ async function submitPassword() {
           <el-button type="primary" plain @click="handleLogout">退出登录</el-button>
         </div>
       </el-header>
+      <!-- 首次配置提醒只提示不阻断：缺支付/短信配置时后台仍要能用，否则进不来把配置补完。 -->
       <el-main class="admin-main">
         <el-alert
           v-if="setupMissing.length"

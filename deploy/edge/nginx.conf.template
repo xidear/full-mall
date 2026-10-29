@@ -42,7 +42,11 @@ server {
     add_header Referrer-Policy strict-origin-when-cross-origin always;
     add_header Permissions-Policy "camera=(), microphone=(), geolocation=()" always;
 
-    client_max_body_size 32m;
+    # 上传体积：必须 ≥ 应用侧 multipart 单请求上限（默认 72MB，见 application.yml 的
+    # UPLOAD_MULTIPART_MAX_REQUEST_SIZE）。nginx 默认只有 1MB，不写这一行时
+    # 任何 1MB 以上的图片/视频都会在边缘被 413 拒掉，且返回的是 nginx 的 HTML 错误页，
+    # 前端拿不到我们的 ASSET_TOO_LARGE 文案，看起来像"上传没反应"。
+    client_max_body_size 72m;
 
     location = /healthz {
         access_log off;

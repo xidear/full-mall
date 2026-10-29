@@ -18,6 +18,8 @@ import { expect, test, type APIRequestContext, type Page, type Response } from '
  * 4) 结算用例会向演示库写入 1 笔演示订单（与现有 e2e 一致），不改代码/表结构。
  */
 
+// 三个来源都要测：localhost 与 127.0.0.1 是安全上下文（crypto.randomUUID 可用），
+// 局域网 IP 不是——这正是“同一页面在某些地址加购失败”的真实原因（见最后一个用例）。
 const BASE_URL = process.env.STOREFRONT_BASE_URL ?? 'http://localhost:41285'
 const LOOPBACK_URL = process.env.STOREFRONT_LOOPBACK_URL ?? 'http://127.0.0.1:41285'
 const LAN_URL = process.env.STOREFRONT_LAN_URL ?? 'http://192.168.1.15:41285'
@@ -73,6 +75,7 @@ async function waitForHydration(page: Page) {
   })
 }
 
+// 加购前必须等 hydration：SSR 出来的按钮还没挂事件，点早了静默失效（就是“点击无响应”那个回归）。
 async function addCurrentProductToCart(page: Page) {
   await open(page, `/product/${PRODUCT_ID}`)
   await waitForHydration(page)
@@ -128,6 +131,7 @@ test('商品列表：筛选、排序、搜索、分页、空态', async ({ page 
   expect.soft(status, '/products 应返回 200（实际 SSR 500）').toBe(200)
 
   if (status !== 200) {
+    // 500 时记 blocked 注解并提前返回，但上面的 soft 断言已让用例失败，不会变成静默跳过。
     test.info().annotations.push({
       type: 'blocked',
       description: '/products 返回 500，筛选/排序/分页/空态无法在真实页面上验证；以下断言仅用于记录页面内容'
@@ -138,7 +142,15 @@ test('商品列表：筛选、排序、搜索、分页、空态', async ({ page 
 
   await expect.soft(page.getByRole('heading', { level: 1, name: '全部商品' })).toBeVisible()
   await expect.soft(page.locator('.filter-sidebar .filter-link')).toHaveCount(7)
-  await expect.soft(page.locator('.product-card')).toHaveCount(11)
+  await expect.soft(page.locator('.product-card')).toHaveCount(20)
+
+  // 演示库扩容后应能验证“加载更多”链路
+  const loadMore = page.locator('.load-more button')
+  await expect.soft(loadMore).toBeVisible()
+  if (await loadMore.isVisible()) {
+    await loadMore.click()
+    await expect.poll(async () => page.locator('.product-card').count()).toBeGreaterThan(20)
+  }
 
   // 价格排序按钮
   const sortButton = page.locator('.sort-select')
@@ -148,7 +160,7 @@ test('商品列表：筛选、排序、搜索、分页、空态', async ({ page 
 
   // 分类筛选
   await page.locator('.filter-sidebar').getByRole('link', { name: '生鲜食品' }).click()
-  await expect.soft(page).toHaveURL(/categoryId=/)
+  await expect.soft(page).toHaveURL(/category=FRESH/)
   await expect.soft(page.getByRole('heading', { level: 1 })).toHaveText('生鲜食品')
 
   // 搜索与空态
@@ -157,11 +169,16 @@ test('商品列表：筛选、排序、搜索、分页、空态', async ({ page 
   await expect.soft(page.locator('.product-card').first()).toContainText('牛奶')
 
   await open(page, `/products?keyword=${encodeURIComponent('绝对不存在的商品xyz')}`)
-  await expect.soft(page.locator('.empty-state')).toContainText('没有找到符合条件的商品')
-  await expect.soft(page.locator('.empty-state').getByRole('link')).toHaveCount(1)
+  await expect.soft(page.locator('.empty-state-card')).toContainText('没有找到符合条件的商品')
+  await expect.soft(page.locator('.empty-state-card').getByRole('link')).toHaveCount(1)
 
   await open(page, '/products')
-  await expect.soft(page.locator('.empty-state')).toContainText('已经到底了')
+  // 41 件演示商品、每页 20 件：反复加载直到终态，验证 ListEnd 只在真正到底时出现
+  const loadAll = page.locator('.load-more button')
+  for (let i = 0; i < 5 && await loadAll.isVisible(); i++) {
+    await loadAll.click()
+  }
+  await expect.soft(page.locator('.list-end-copy')).toContainText('已展示全部')
 })
 
 /* ------------------------------------------------------------------ */
@@ -194,6 +211,7 @@ test('商品详情：主图、规格、加购、收藏、评价', async ({ page 
 
   // 主图必须真实加载（实际 /assets/assets/... 404）
   const heroLoaded = await page.locator('.product-detail-media img').evaluate((img: HTMLImageElement) => img.naturalWidth > 0)
+  // 用 naturalWidth 判定主图是否真的加载：src 有值不代表加载成功（出现过 /assets/assets/... 404）。
   expect.soft(heroLoaded, '商品详情主图应成功加载（naturalWidth > 0）').toBe(true)
 
   // 规格：演示数据中没有多规格商品，规格切换 UI 不渲染
@@ -571,6 +589,7 @@ test('来源一致性：三个访问地址都应能加购且无 CORS 报错', as
     expect.soft(cart, `${origin} 加购后应写入购物车`).not.toBeNull()
 
     const cors = [...rec.consoleErrors, ...rec.pageErrors].filter((entry) => /CORS|Failed to fetch|randomUUID/i.test(entry))
+    // 安全上下文相关：局域网 IP 下 crypto.randomUUID 缺失会直接抛错，必须在这里暴露而不是被吞。
     expect.soft(cors, `${origin} 不应出现 CORS / 安全上下文错误`).toEqual([])
 
     await context.close()

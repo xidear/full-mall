@@ -23,9 +23,11 @@ public class ProductMediaService {
     public static final Set<String> ROLES = Set.of("MAIN", "GALLERY", "DETAIL", "VIDEO", "SPEC");
 
     private final JdbcTemplate jdbc;
+    private final com.fullmall.platform.media.MediaUrlResolver mediaUrls;
 
-    public ProductMediaService(JdbcTemplate jdbc) {
+    public ProductMediaService(JdbcTemplate jdbc, com.fullmall.platform.media.MediaUrlResolver mediaUrls) {
         this.jdbc = jdbc;
+        this.mediaUrls = mediaUrls;
     }
 
     public List<Map<String, Object>> list(UUID productId) {
@@ -44,13 +46,23 @@ public class ProductMediaService {
             row.put("role", rs.getString("role"));
             row.put("sortOrder", rs.getInt("sort_order"));
             row.put("source", rs.getString("source"));
-            row.put("url", rs.getString("url"));
+            row.put("url", mediaUrls.absolute(rs.getString("url")));
             row.put("name", rs.getString("name"));
             row.put("kind", rs.getString("kind"));
             return row;
         }, productId);
     }
 
+    /**
+     * 把素材挂到商品（或某个规格）上，并记录角色与排序。
+     *
+     * <p>角色决定语义，因此组合有硬约束：MAIN 是商品级、不许带 skuId（规格图应挂 SPEC），
+     * SPEC 必须带 skuId。违反时返回 400 而不是自动纠正，避免“图挂到错规格上还看得见”。
+     *
+     * <p>重复挂载由库里的唯一索引拦下（同商品只能一个主图、同一素材不能重复挂同一角色），
+     * 这里把 {@code DuplicateKeyException} 翻译成 409 {@code MEDIA_DUPLICATE}，
+     * 而不是让原始 SQL 异常冒成 500。
+     */
     @Transactional
     public UUID attach(UUID productId, UUID skuId, UUID assetId, String role, int sortOrder,
                        String source, String actor) {

@@ -12,12 +12,17 @@ async function adminToken(request: any) {
   return login.token as string
 }
 
-test('admin creates and deletes a brand; in-use brand cannot be deleted', async ({ page, request }) => {
+// 守住两条不变量：品牌名唯一（重名返回 409 + BRAND_NAME_DUPLICATED）、
+// 砍价必须满 minHelpers 才能把会话绑到订单（状态机 ONGOING → ORDERED）。
+// 用例自己清理数据：历史上没清理时累积过 24 条同名“E2E 品牌”，会污染演示库。
+test('admin creates a brand, duplicates rejected by name, then cleans up', async ({ page, request }) => {
   const token = await adminToken(request)
   const code = `E2E-BR-${Date.now().toString().slice(-6)}`
+  // 名字带随机后缀：品牌名唯一，固定名字会让多次运行互相冲突（测试自身要能重复跑）
+  const name = `E2E 品牌 ${code.slice(-6)}`
   const created = await request.post(`${API}/admin/v1/brands`, {
     headers: { Authorization: `Bearer ${token}` },
-    data: { code, name: 'E2E 品牌', sortOrder: 1 }
+    data: { code, name, sortOrder: 1 }
   })
   expect(created.ok(), await created.text()).toBeTruthy()
 
@@ -33,8 +38,28 @@ test('admin creates and deletes a brand; in-use brand cannot be deleted', async 
   await page.locator('.admin-menu').getByText('品牌管理', { exact: true }).click()
   await expect(page.getByRole('main').getByRole('heading', { name: '品牌管理' })).toBeVisible()
   await expect(page.getByRole('cell', { name: code })).toBeVisible({ timeout: 10_000 })
+
+  // 同名品牌不允许重复创建（品牌名唯一）——必须在删除之前校验，否则校验的是"已删掉的名字"
+  const duplicate = await request.post(`${API}/admin/v1/brands`, {
+    headers: { Authorization: `Bearer ${token}` },
+    data: { code: `${code}-DUP`, name, sortOrder: 1 }
+  })
+  expect(duplicate.status()).toBe(409)
+  expect(await duplicate.text()).toContain('BRAND_NAME_DUPLICATED')
+
+  // 测试自己清理：名字与编码都不会复用，留着会污染演示库（曾累积 24 条同名"E2E 品牌"）
+  const listed = await request.get(`${API}/admin/v1/brands`, { headers: { Authorization: `Bearer ${token}` } })
+  const brands = await listed.json() as Array<{ id: string; code: string }>
+  const createdBrand = brands.find(brand => brand.code === code)
+  expect(createdBrand, '新建的品牌应出现在列表里').toBeTruthy()
+  const removed = await request.delete(`${API}/admin/v1/brands/${createdBrand!.id}`, {
+    headers: { Authorization: `Bearer ${token}` }
+  })
+  expect(removed.ok(), await removed.text()).toBeTruthy()
 })
 
+// 纯 API 用例（不开浏览器）：验证砍价最小闭环。
+// 依赖后端 dev 会把验证码放在 debugCode 里返回；生产关掉该字段后本用例会失败。
 test('bargain flow reaches READY then binds an order', async ({ request }) => {
   const token = await adminToken(request)
   const phone = `136${String(Date.now()).slice(-8)}`

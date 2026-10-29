@@ -1,0 +1,8 @@
+# 构建上下文瘦身：镜像只 COPY package.json / package-lock.json / packages / 目标 app，
+# 这些目录不需要进上下文（否则每次 docker build 都要打包 269MB 的 node_modules）。
+node_modules
+**/node_modules
+**/dist
+**/.output
+**/.nuxt
+**/.vite

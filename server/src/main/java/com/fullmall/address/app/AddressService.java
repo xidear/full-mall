@@ -41,6 +41,14 @@ public class AddressService {
                                String city, String district, String detail, String postalCode) {
     }
 
+    /**
+     * 新增地址；归属人名下第一条地址自动成为默认。
+     *
+     * <p>"是否首条"用 COUNT 判断而不是查 is_default：默认地址可能被删干净（只剩非默认），
+     * 那种情况下再新增会留下"没有默认地址"的名单，结算时选不到地址。
+     * 并发新增两条时两次都可能判定为首条，由 DB 的"每归属人最多一个默认"部分唯一索引兜底报错，
+     * 不静默接受两个默认。
+     */
     @Transactional
     public UUID create(String ownerKey, AddressInput input) {
         requireOwner(ownerKey);
@@ -77,6 +85,15 @@ public class AddressService {
         }
     }
 
+    /**
+     * 设为默认：两步更新必须同事务，且顺序不能反。
+     *
+     * <p>先清旧默认再置新默认：反过来的话会短暂出现两个默认地址，撞上
+     * {@code member_address_default_idx}（每个归属人最多一个未删除默认地址）直接失败。
+     *
+     * <p>{@code requireOwned} 同时收紧归属：id 不属于该 ownerKey 时按 404 处理，
+     * 避免靠猜 UUID 改别人的地址簿。
+     */
     @Transactional
     public void setDefault(String ownerKey, UUID id) {
         requireOwner(ownerKey);
@@ -89,6 +106,13 @@ public class AddressService {
                 "UPDATE member_address SET is_default = TRUE, updated_at = now() WHERE id = ?", id);
     }
 
+    /**
+     * 删除地址：软删除（置 {@code deleted_at} 并清默认标记，让部分唯一索引释放名额）。
+     *
+     * <p>删的是默认地址且名下还有别的地址时**拒绝**，要求用户先指定新默认：
+     * 让系统替用户挑一个默认地址，等于在他没同意的情况下把货发到别处。
+     * 只剩最后一条时允许删除（清空地址簿是用户的权利）。
+     */
     @Transactional
     public void delete(String ownerKey, UUID id) {
         requireOwner(ownerKey);
@@ -108,6 +132,12 @@ public class AddressService {
                 """, id);
     }
 
+    /**
+     * 列表里的手机号做掩码（PII），且只返回未删除地址；默认地址排最前。
+     *
+     * <p>掩码只在列表做：详情 {@link #get} 返回完整号码，因为那是本人查看自己的地址——
+     * 后台/导出场景若要展示号码，请走 {@code FieldMasker} 统一口径，而不是各自截字符串。
+     */
     public List<AddressView> list(String ownerKey) {
         requireOwner(ownerKey);
         return jdbcTemplate.query("""
@@ -145,7 +175,7 @@ public class AddressService {
         if (input.recipient() == null || input.recipient().isBlank()) {
             throw ApiException.badRequest("RECIPIENT_REQUIRED", "收件人不能为空");
         }
-        if (input.phone() == null || !input.phone().trim().matches("^\\+?[0-9]{6,20}$")) {
+        if (!com.fullmall.platform.validation.PhoneNumber.isValid(input.phone())) {
             throw ApiException.badRequest("INVALID_PHONE", "手机号格式不正确");
         }
         if (input.detail() == null || input.detail().isBlank()) {

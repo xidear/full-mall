@@ -10,8 +10,10 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.UUID;
 
 /**
@@ -94,40 +96,80 @@ public class PointsExpiryService {
         }
         Instant cutoff = now.minus(config.days(), ChronoUnit.DAYS);
 
-        List<Row> rows = jdbcTemplate.query("""
+        // 先收集候选，再按会员逐个加锁：所有积分扣减统一按「会员行 → 积分账本行」顺序，
+        // 避免与 redeem / reward 的加锁顺序相反造成死锁。
+        List<Row> candidates = jdbcTemplate.query("""
                 SELECT id, member_id, remaining_points FROM points_ledger
                  WHERE entry_type = 'EARN' AND remaining_points > 0 AND created_at <= ?
                  ORDER BY created_at, id
-                 FOR UPDATE
                 """, (rs, rowNum) -> new Row(rs.getObject("id", UUID.class),
                 rs.getObject("member_id", UUID.class), rs.getLong("remaining_points")),
                 java.sql.Timestamp.from(cutoff));
+        Map<UUID, List<Row>> byMember = new LinkedHashMap<>();
+        for (Row row : candidates) {
+            byMember.computeIfAbsent(row.memberId(), ignored -> new java.util.ArrayList<>()).add(row);
+        }
 
         List<Expired> expired = new java.util.ArrayList<>();
-        for (Row row : rows) {
-            long balance = balanceOf(row.memberId());
-            long amount = Math.min(row.remaining(), Math.max(balance, 0));
-            if (amount <= 0) {
-                continue;   // 余额已为 0：只清逐笔余量，不写流水（避免产生"过期了但不是从余额扣"的记录）
+        for (Map.Entry<UUID, List<Row>> entry : byMember.entrySet()) {
+            UUID memberId = entry.getKey();
+            lockMember(memberId);
+            // 加锁后重新读取，避免候选阶段与并发消费/过期重叠。
+            List<Row> rows = jdbcTemplate.query("""
+                    SELECT id, member_id, remaining_points FROM points_ledger
+                     WHERE member_id = ? AND entry_type = 'EARN' AND remaining_points > 0
+                       AND created_at <= ?
+                     ORDER BY created_at, id
+                     FOR UPDATE
+                    """, (rs, rowNum) -> new Row(rs.getObject("id", UUID.class),
+                    rs.getObject("member_id", UUID.class), rs.getLong("remaining_points")),
+                    memberId, java.sql.Timestamp.from(cutoff));
+            for (Row row : rows) {
+                long balance = balanceOf(memberId);
+                long amount = Math.min(row.remaining(), Math.max(balance, 0));
+                if (amount <= 0) {
+                    continue;
+                }
+                int inserted = jdbcTemplate.update("""
+                        INSERT INTO points_ledger (id, member_id, sale_id, entry_type, points,
+                                                   balance_after, reason, business_key)
+                        VALUES (?, ?, NULL, 'EXPIRE', ?, ?, '积分过期', ?)
+                        ON CONFLICT (business_key) DO NOTHING
+                        """, UUID.randomUUID(), memberId, -amount, balance - amount,
+                        "expire:" + row.id());
+                if (inserted != 1) {
+                    throw new IllegalStateException("积分过期流水冲突：ledger=" + row.id());
+                }
+                int ledgerUpdated = jdbcTemplate.update(
+                        "UPDATE points_ledger SET remaining_points = remaining_points - ?"
+                                + " WHERE id = ? AND remaining_points >= ?",
+                        amount, row.id(), amount);
+                if (ledgerUpdated != 1) {
+                    throw new IllegalStateException("积分账本过期扣减冲突：ledger=" + row.id());
+                }
+                int memberUpdated = jdbcTemplate.update(
+                        "UPDATE member SET points_balance = points_balance - ?"
+                                + " WHERE id = ? AND points_balance >= ?",
+                        amount, memberId, amount);
+                if (memberUpdated != 1) {
+                    throw new IllegalStateException("会员积分过期扣减冲突：member=" + memberId);
+                }
+                expired.add(new Expired(memberId, amount));
             }
-            jdbcTemplate.update("""
-                    INSERT INTO points_ledger (id, member_id, sale_id, entry_type, points,
-                                               balance_after, reason, business_key)
-                    VALUES (?, ?, NULL, 'EXPIRE', ?, ?, '积分过期', ?)
-                    ON CONFLICT (business_key) DO NOTHING
-                    """, UUID.randomUUID(), row.memberId(), -amount, balance - amount,
-                    "expire:" + row.id());
-            jdbcTemplate.update("UPDATE points_ledger SET remaining_points = remaining_points - ?"
-                    + " WHERE id = ?", amount, row.id());
-            jdbcTemplate.update("UPDATE member SET points_balance = points_balance - ? WHERE id = ?",
-                    amount, row.memberId());
-            expired.add(new Expired(row.memberId(), amount));
         }
         if (!expired.isEmpty()) {
             log.info("积分过期完成：{} 笔，共 {} 分", expired.size(),
                     expired.stream().mapToLong(Expired::points).sum());
         }
         return expired;
+    }
+
+    private void lockMember(UUID memberId) {
+        List<UUID> locked = jdbcTemplate.queryForList(
+                "SELECT id FROM member WHERE id = ? FOR UPDATE", UUID.class, memberId);
+        if (locked.isEmpty()) {
+            throw new IllegalStateException("会员不存在：" + memberId);
+        }
     }
 
     private long balanceOf(UUID memberId) {

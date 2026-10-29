@@ -166,6 +166,11 @@ openssl rand -base64 32
 | `ALIYUN_OSS_ACCESS_KEY_SECRET` | 阿里云 SK | 未配置 |
 | `ALIYUN_OSS_BUCKET` | OSS Bucket | 未配置 |
 | `ALIYUN_OSS_ENDPOINT` | OSS Endpoint | 未配置 |
+| `UPLOAD_MULTIPART_MAX_FILE_SIZE` | 单文件解析层天花板（Spring multipart），必须等于 `ValidationRules.UPLOAD_MULTIPART_CEILING_BYTES`，不一致启动失败 | 默认 `64MB` |
+| `UPLOAD_MULTIPART_MAX_REQUEST_SIZE` | 单请求总上限（文件 + multipart 头） | 默认 `72MB` |
+
+> 图片/视频的**业务上限**不在环境变量里：它们存在 `system_setting`（键 `upload.admin-image-max-bytes` 等），
+> 由后台「系统设置 → 素材上传」修改，保存后下一次上传生效。环境变量只负责解析层天花板。
 
 ### 4.7 供应商 API
 

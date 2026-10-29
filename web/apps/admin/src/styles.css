@@ -1,7 +1,14 @@
+/* 边界：这里只放跨页面的基础布局原子类与 Element Plus 的对比度修正；
+   页面私有样式写在各自 SFC 的 <style scoped>，否则一次临时调整会连带改坏别的页面。 */
 :root {
   font-family: "PingFang SC", "Microsoft YaHei", "Noto Sans SC", system-ui, sans-serif;
   color: #1f2421;
   background: #f4f3ef;
+  /* Element Plus 默认占位色 #a8abb2 在白底上只有 2.3:1；提示文字读不清 */
+  --el-text-color-placeholder: #767b81;
+  --el-text-color-secondary: #5f666d;
+  /* 默认 success 绿 #67c23a 上放白字只有 2.2:1；加深到 4.5:1 */
+  --el-color-success: #3d8b2f;
   --el-color-primary: #e1251b;
   --el-color-primary-light-3: #ea5a52;
   --el-color-primary-light-5: #f08c86;
@@ -20,13 +27,42 @@ body {
   background: #f4f3ef;
 }
 
+/* 后台壳：视口高度固定，侧栏与主区各自滚动（Element Plus admin 的常规做法）。
+   以前是整页滚动：菜单长时点菜单→右侧内容停在原滚动位置，看起来像"空白页"；
+   往上拖能看到内容，但侧栏已经滚出视野。 */
+html,
+body,
+#app {
+  height: 100%;
+}
+
+body {
+  overflow: hidden;
+}
+
 .admin-shell {
-  min-height: 100vh;
+  height: 100vh;
+  overflow: hidden;
+}
+
+.admin-shell > .el-container {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  min-width: 0;
+}
+
+.admin-main {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
 }
 
 .admin-aside {
   display: flex;
   flex-direction: column;
+  height: 100vh;
+  overflow-y: auto;
   border-right: 1px solid #dedbd3;
   background: #1b1b1d;
   color: #fff;
@@ -64,12 +100,31 @@ body {
   flex: 1;
   border-right: 0;
   background: transparent;
+  /* 深色侧栏必须通过 Element Plus 自己的变量覆盖，而不是只写 .el-menu-item { color }：
+     组件库的内置规则（--el-menu-text-color 默认 #303133）会因为加载顺序/特异性赢过自定义颜色，
+     结果就是深底 + 深字 = 看不见（2026-10-28 用户截图现象）。 */
+  --el-menu-bg-color: transparent;
+  --el-menu-text-color: rgba(255, 255, 255, 0.78);
+  --el-menu-hover-text-color: #ffffff;
+  --el-menu-active-color: #ffffff;
+  --el-menu-hover-bg-color: rgba(255, 255, 255, 0.08);
 }
 
-.admin-menu .el-menu-item {
-  margin: 6px 12px;
+.admin-menu .el-menu-item,
+.admin-menu .el-sub-menu__title {
+  margin: 4px 12px;
   border-radius: 10px;
-  color: rgba(255, 255, 255, 0.72);
+  color: var(--el-menu-text-color);
+}
+
+/* 二级菜单（el-menu--inline）不要自带白底 */
+.admin-menu .el-menu--inline {
+  background: transparent;
+}
+
+.admin-menu .el-sub-menu__title .el-icon,
+.admin-menu .el-menu-item .el-icon {
+  color: inherit;
 }
 
 .admin-menu .el-menu-item.is-active {
@@ -77,9 +132,44 @@ body {
   color: #fff !important;
 }
 
-.admin-menu .el-menu-item:hover {
+.admin-menu .el-menu-item:hover,
+.admin-menu .el-sub-menu__title:hover {
   background: rgba(255, 255, 255, 0.08);
   color: #fff;
+}
+
+.admin-menu .el-sub-menu.is-active > .el-sub-menu__title {
+  color: #fff;
+}
+
+/* 折叠态：只剩图标，分组靠悬浮子菜单展开 */
+.admin-menu.el-menu--collapse .el-menu-item,
+.admin-menu.el-menu--collapse .el-sub-menu__title {
+  margin: 4px 8px;
+  justify-content: center;
+}
+
+.admin-menu.el-menu--collapse .el-icon {
+  margin-right: 0;
+}
+
+.admin-brand.is-collapsed {
+  justify-content: center;
+  padding: 22px 8px;
+}
+
+.admin-aside-footer.is-collapsed {
+  justify-content: center;
+}
+
+.header-title {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.collapse-toggle {
+  padding: 6px;
 }
 
 .admin-aside-footer {
@@ -108,8 +198,10 @@ body {
   color: rgba(255, 255, 255, 0.5);
 }
 
-.logout-button {
-  color: rgba(255, 255, 255, 0.65);
+/* 深色侧栏上的次要按钮：Element Plus 的 .el-button 默认 #606266，在深底上只有 2.8:1。
+   选择器要压过组件库（.admin-aside .el-button.logout-button = 0,3,0） */
+.admin-aside .el-button.logout-button {
+  color: rgba(255, 255, 255, 0.86);
 }
 
 .header-actions {
@@ -118,6 +210,7 @@ body {
   gap: 10px;
 }
 
+/* height: auto 压掉 el-header 的固定高度（默认 60px），否则 24px 标题 + 副标题会被裁掉。 */
 .admin-header {
   display: flex;
   align-items: center;
@@ -137,6 +230,107 @@ body {
   margin: 4px 0 0;
   color: #6b716c;
   font-size: 13px;
+}
+
+/* Element Plus 默认的警告色（#e6a23c）在浅黄底上只有 2:1，标题/正文读不清。
+   选择器要压过 .el-alert.is-light .el-alert__description（0,3,0） */
+/* 注意：dialog 会被 teleport 到 body，不能只在 .admin-main 里覆盖 */
+.el-alert.el-alert--warning .el-alert__content .el-alert__title {
+  color: #7a4b00;
+}
+
+/* 浅色 tag 的文字用的是主题色本身（#e1251b / #67c23a 等），在浅底上多为 2:1 左右 */
+/* Element Plus 用 .el-tag.el-tag--success（0,2,0）设置主题色作文字色，这里必须同权重覆盖 */
+.el-tag.el-tag--success {
+  --el-tag-text-color: #1e6b3a;
+}
+
+.el-tag.el-tag--info {
+  --el-tag-text-color: #4a4f55;
+}
+
+.el-tag.el-tag--warning {
+  --el-tag-text-color: #7a4b00;
+}
+
+.el-tag.el-tag--danger {
+  --el-tag-text-color: #a33232;
+}
+
+/* 多选下拉里的标签文字 */
+.el-select__tags-text {
+  color: #4a4f55;
+}
+
+/* info / success 提示框的标题与正文（默认 #909399 在 #f4f4f5 上只有 2.8:1） */
+.el-alert.el-alert--info .el-alert__content .el-alert__title,
+.el-alert.el-alert--info .el-alert__description,
+.el-alert.el-alert--success .el-alert__content .el-alert__title,
+.el-alert.el-alert--success .el-alert__description {
+  color: #4a4f55;
+}
+
+.el-alert.el-alert--error .el-alert__content .el-alert__title,
+.el-alert--error .el-alert__title {
+  color: #a33232;
+}
+
+/* 文字/链接按钮：Element Plus 直接用主题色当字色，浅底上只有 2.2:1 */
+.el-button.is-link.el-button--warning,
+.el-button.is-text.el-button--warning {
+  --el-button-text-color: #8a5a00;
+}
+
+.el-button.is-link.el-button--success,
+.el-button.is-text.el-button--success {
+  --el-button-text-color: #1e6b3a;
+}
+
+.el-button.is-link.el-button--danger,
+.el-button.is-text.el-button--danger {
+  --el-button-text-color: #a33232;
+}
+
+.el-button.is-link.el-button--primary,
+.el-button.is-text.el-button--primary {
+  --el-button-text-color: #b51f17;
+}
+
+/* 禁用态按钮：Element Plus 用"浅色主题底 + 白字"（1.7~2.2:1），改成深色字 */
+.el-button--primary.is-disabled,
+.el-button--primary.is-disabled:hover {
+  --el-button-disabled-text-color: #7a1f18;
+  --el-button-disabled-bg-color: var(--el-color-primary-light-8);
+  --el-button-disabled-border-color: var(--el-color-primary-light-6);
+}
+
+.el-button--danger.is-disabled,
+.el-button--danger.is-disabled:hover {
+  --el-button-disabled-text-color: #7a1f18;
+}
+
+.el-button--success.is-disabled,
+.el-button--success.is-disabled:hover {
+  --el-button-disabled-text-color: #1e4f18;
+}
+
+.el-button--warning.is-disabled,
+.el-button--warning.is-disabled:hover {
+  --el-button-disabled-text-color: #6b4200;
+}
+
+/* 全局提示条文字 */
+.el-message--error .el-message__content {
+  color: #a33232;
+}
+
+.el-message--warning .el-message__content {
+  color: #7a4b00;
+}
+
+.el-alert.el-alert--warning .el-alert__content,
+.el-alert.el-alert--warning .el-alert__description {
+  color: #5c4a2e;
 }
 
 .admin-main {
@@ -178,6 +372,9 @@ body {
 }
 
 /* 表格滚动容器：横向滚动不影响页面布局，纵向交给页面滚动 */
+/* --line 并不在本文件定义（由 @fullmall/theme 的 toCssVars() 写到文档根，而 admin 只在
+   ThemeStudioView 里用主题包、未全站应用），所以这里通常解析不到 → 该自定义属性失效，
+   表格边框回落组件库默认。要稳定改边框请直接写颜色，或先在 :root 定义 --line。 */
 .el-table {
   --el-table-border-color: var(--line);
 }
@@ -254,6 +451,8 @@ body {
   font-size: 12px;
 }
 
+/* 窄屏直接 display:none，没有抽屉替代：宽度不够时同时放菜单与表格会让表格挤压变形。
+   代价是窄屏只能靠地址栏/后退跳页面——已知取舍。 */
 @media (max-width: 900px) {
   .admin-aside {
     display: none;

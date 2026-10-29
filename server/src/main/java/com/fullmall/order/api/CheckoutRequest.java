@@ -1,7 +1,10 @@
 package com.fullmall.order.api;
 
 import com.fullmall.order.domain.FulfillmentMode;
+import com.fullmall.platform.validation.PhoneNumber;
+import com.fullmall.platform.validation.ValidationRules;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
@@ -13,7 +16,12 @@ import jakarta.validation.constraints.Size;
 import java.util.List;
 import java.util.UUID;
 
+/**
+ * 刻意不含金额字段：单价与总额由 OrderService 按 SKU 现价（分）重算，客户端传入的只是展示值。
+ * 幂等键走 `Idempotency-Key` 请求头；校验数字与正则见 docs/validation.schema.json，经 ValidationRules 引用。
+ */
 public record CheckoutRequest(
+        // 单次结算上限 50 行：限制请求体体积与事务内的 SKU 查询次数；同 skuId 重复出现由 OrderService 合并累加
         @Valid @NotEmpty @Size(max = 50) List<Item> items,
         @NotNull FulfillmentMode fulfillmentMode,
         UUID storeId,
@@ -51,17 +59,19 @@ public record CheckoutRequest(
 
     public record Item(
             @NotNull UUID skuId,
-            @Min(1) @Max(1000) int quantity
+            @Min(ValidationRules.QUANTITY_MIN) @Max(ValidationRules.QUANTITY_MAX) int quantity
     ) {
     }
 
+    /** 只校验格式、不代表号码可达（可达性由 otpCode 证明）；号码本身是订单归属会员的匹配键。 */
     public record Contact(
-            @NotBlank @Size(max = 64) String name,
-            @NotBlank @Pattern(regexp = "^[0-9+\\- ]{6,32}$", message = "must be a valid phone number") String phone,
-            String email
+            @NotBlank @Size(max = ValidationRules.CONTACT_NAME_MAX) String name,
+            @NotBlank @Pattern(regexp = PhoneNumber.PATTERN, message = "must be a valid phone number") String phone,
+            @Email String email
     ) {
     }
 
+    /** 仅配送（SHIPPING）需要；自提时允许为 null，由 OrderService 报 ADDRESS_REQUIRED，不在此按 mode 做条件校验。 */
     public record Address(
             String province,
             String city,

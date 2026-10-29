@@ -1,7 +1,7 @@
 SHELL := /bin/bash
 COMPOSE := docker compose
 
-.PHONY: help env up up-lite up-obs down logs ps reset db-reset fix-mount-owner build build-demo build-prod test backend-test frontend-test e2e fmt init setup start stop ops-up ops-down db-ha-up db-ha-down
+.PHONY: help env up up-lite up-obs down logs ps reset db-reset fix-mount-owner build build-demo build-prod test backend-test frontend-test contract-check ui-audit e2e fmt init setup start stop ops-up ops-down db-ha-up db-ha-down
 
 help:
 	@echo "Full Mall commands:"
@@ -15,7 +15,8 @@ help:
 	@echo "  make build        Build backend and web"
 	@echo "  make build-demo   Build demo images"
 	@echo "  make build-prod   Build production images"
-	@echo "  make test         Run backend + frontend tests"
+	@echo "  make test         Run backend + frontend tests + 接口契约对照"
+	@echo "  make contract-check  前端调用 vs 后端路由（方法+路径）"
 	@echo "  make e2e          Run Playwright"
 	@echo "  make init         初始化宿主机 Docker/镜像/目录（需 sudo）"
 	@echo "  make setup        生成配置、构建、初始化数据库并启动"
@@ -78,13 +79,21 @@ build-demo:
 build-prod:
 	cd server && mvn -q -DskipTests -Pprod package
 
-test: backend-test frontend-test
+test: backend-test frontend-test contract-check
 
 backend-test:
 	cd server && mvn -q test
 
 frontend-test:
 	cd web && npm run test
+
+# 前端调用 vs 后端路由（方法 + 路径）：拦住"前端调了不存在的接口"这类只能在运行时暴露的问题
+contract-check:
+	python3 scripts/check-api-alignment.py
+
+# 页面呈现审计（对比度 / 裂图 / 控制台报错 / 横向溢出）。需要 API(41280) 与 admin(41281) 已启动。
+ui-audit:
+	node scripts/audit-ui.mjs
 
 e2e:
 	cd web && npm run e2e

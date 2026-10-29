@@ -40,6 +40,19 @@ public class AdminPromotionController {
                              Instant startsAt, Instant endsAt, int priority) {
     }
 
+    /**
+     * 拼团记录（后台「拼团记录」弹窗）。
+     *
+     * <p>前端一直调用本路径，但后端只在顾客端注册了 /api/v1/promotions/group-buys/{code}，
+     * 后台列表缺失 → 404。这里按促销筛选，未传 limit 时返回最近 50 条。
+     */
+    @GetMapping("/group-buys")
+    public List<PromotionDtos.GroupBuyView> groupBuys(
+            @RequestParam(required = false) UUID promotionId,
+            @RequestParam(defaultValue = "50") int limit) {
+        return promotions.groupBuys(promotionId, limit);
+    }
+
     /** 促销列表（全部类型、全部状态，字段与前端 PromotionView 对齐）。 */
     @GetMapping
     public List<PromotionView> listAll() {
@@ -60,6 +73,7 @@ public class AdminPromotionController {
             throw com.fullmall.platform.error.ApiException.badRequest(
                     "STATUS_REQUIRED", "必须指定目标状态");
         }
+        // 只接受 DRAFT/ACTIVE/ENDED（promotion_status_check）；拼错时 valueOf 抛成 500，这里按后台输入错误处理。
         return promotions.updateStatus(id, PromotionStatus.valueOf(status.trim().toUpperCase(Locale.ROOT)));
     }
 
@@ -72,12 +86,16 @@ public class AdminPromotionController {
         return rules.scopeOptions(scope, limit);
     }
 
+    /** 规则列表；limit 的合法区间（1..200）只在服务层校验，这里不重复判断，避免两处阈值漂移。 */
     @GetMapping("/rules")
     public List<PromotionAdminService.RuleView> listRules(@RequestParam(required = false) String status,
                                                           @RequestParam(defaultValue = "50") int limit) {
         return rules.list(status, limit);
     }
 
+    /**
+     * 新建满减/满折规则，落 DRAFT（需再调 activate 才生效）；操作人为空由服务层拒绝，不记成 "system"——否则事后无法追责。
+     */
     @PostMapping("/rules")
     @ResponseStatus(HttpStatus.CREATED)
     public Map<String, UUID> createRule(@RequestBody CreateRule body, Authentication authentication) {

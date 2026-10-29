@@ -8,6 +8,8 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.List;
 import java.util.UUID;
 
+// 调用方只有 AdminBrandController；品牌是薄数据（编码/名称/排序），因此直接用 JdbcTemplate
+// 而不引入 domain 对象与仓储接口——少一层映射，也就少一处口径不一致。
 /** 品牌管理（V72 建表；此前只能靠 SQL 维护）。 */
 @Service
 public class BrandService {
@@ -33,6 +35,7 @@ public class BrandService {
     @Transactional
     public UUID create(String code, String name, int sortOrder) {
         validate(code, name);
+        requireUniqueName(name, null);
         UUID id = UUID.randomUUID();
         try {
             jdbc.update("INSERT INTO brand (id, code, name, sort_order) VALUES (?, ?, ?, ?)",
@@ -48,6 +51,7 @@ public class BrandService {
         if (name == null || name.isBlank()) {
             throw ApiException.badRequest("BRAND_NAME_REQUIRED", "品牌名称不能为空");
         }
+        requireUniqueName(name, id);
         int updated = jdbc.update("UPDATE brand SET name = ?, sort_order = ? WHERE id = ?",
                 name.trim(), sortOrder, id);
         if (updated != 1) {
@@ -67,6 +71,26 @@ public class BrandService {
         int deleted = jdbc.update("DELETE FROM brand WHERE id = ?", id);
         if (deleted != 1) {
             throw ApiException.notFound("BRAND_NOT_FOUND", "品牌不存在：" + id);
+        }
+    }
+
+    /**
+     * 品牌名唯一（忽略大小写与首尾空格）。
+     *
+     * <p>只在"编码"上做唯一是不够的：品牌名会被运营用来做促销/券的范围，
+     * 同名多条会让筛选出现两个一模一样的选项（2026-10-28 用户发现 24 条同名"E2E 品牌"）。
+     */
+    private void requireUniqueName(String name, UUID excludeId) {
+        Integer count = excludeId == null
+                ? jdbc.queryForObject(
+                        "SELECT COUNT(*) FROM brand WHERE lower(btrim(name)) = lower(btrim(?))",
+                        Integer.class, name.trim())
+                : jdbc.queryForObject("""
+                        SELECT COUNT(*) FROM brand
+                         WHERE lower(btrim(name)) = lower(btrim(?)) AND id <> ?
+                        """, Integer.class, name.trim(), excludeId);
+        if (count != null && count > 0) {
+            throw ApiException.conflict("BRAND_NAME_DUPLICATED", "同名品牌已存在：" + name.trim());
         }
     }
 

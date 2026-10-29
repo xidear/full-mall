@@ -1,4 +1,11 @@
+/**
+ * 前后端契约的前端副本：这里的 interface 与 server 侧 DTO 一一对应，改字段必须同步
+ * （scripts/check-api-alignment.py 会比对，缺字段/类型不符按缺陷处理）。
+ *
+ * <p>只放“形状 + 校验常量 + 时间格式”，不放业务逻辑：门店/后台/客服/移动端共用这一份。
+ */
 export * from './labels'
+export * from './validation'
 
 export interface StaffUser {
   id: string
@@ -8,6 +15,10 @@ export interface StaffUser {
   status: string
 }
 
+/**
+ * 金额一律“分 + 币种”，不用小数：后端以整型存储，跨语言的浮点表示（0.1+0.2）会让对账差几分钱。
+ * 展示时除以 100，见各端 money 工具。
+ */
 export interface Money {
   amount: number
   currency: string
@@ -386,6 +397,8 @@ export interface LegalDocument {
   content: string
   contentHash: string
   effectiveFrom: string
+  /** 空值表示长期有效；有值表示该版本失效时间 */
+  effectiveTo?: string | null
 }
 
 export interface ProductUpsertRequest {
@@ -407,6 +420,8 @@ export interface ProductUpsertRequest {
   }>
 }
 
+// 查询参数只丢 undefined/null：false 与 0 是有效筛选值（includeInactive=false、page=0），
+// 用真值判断过滤掉会让筛选条件静默失效。
 type QueryValue = string | number | boolean | null | undefined
 
 export class ApiError extends Error {
@@ -419,6 +434,13 @@ export class ApiError extends Error {
   }
 }
 
+/**
+ * 极薄的 fetch 封装：**不做重试、不做超时**。浏览器 fetch 没有超时语义，套一层 setTimeout
+ * 只会把已成功的请求误判为失败；而非幂等 POST（下单、支付）的重试必须靠 Idempotency-Key
+ * （见 storefront 的 checkout 页），不能在这里统一重试。
+ *
+ * <p>token 只存实例内存：避免 SSR 并发请求之间串号。
+ */
 export class ApiClient {
   private token?: string
 
@@ -492,6 +514,9 @@ export class ApiClient {
         ...(this.token ? { Authorization: `Bearer ${this.token}` } : {})
       }
     })
+    // 非 2xx 统一抛 ApiError：把 body 里解出的 message/code 提出来，但保留整个 status，
+    // 让上层按 401（重新登录）/404（空态）/409（冲突）分别处理；解析失败时退回原始文本，
+    // 上游仍能看到网关返回的 HTML 错误页，而不是一句空 message。
     if (!response.ok) {
       const body = await response.text()
       let message = body
@@ -503,6 +528,8 @@ export class ApiClient {
       }
       throw new ApiError(response.status, message)
     }
+    // 204 与“200 + 空 body”（如 POST /activate）都不能直接 json()：
+    // 否则抛 "Unexpected end of JSON input"，调用方会误判为失败。下面统一按 text 判空。
     if (response.status === 204) {
       return undefined as T
     }

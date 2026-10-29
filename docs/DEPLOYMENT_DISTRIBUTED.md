@@ -13,6 +13,10 @@
 
 所有脚本失败即停，并打印失败命令与行号（`[禁止静默兜底]`）。
 
+> 依赖清单（装在哪一层、离线怎么办、缺了会怎样）见 [DEPENDENCY_AND_DEPLOYMENT_MATRIX.md](DEPENDENCY_AND_DEPLOYMENT_MATRIX.md)。
+> 其中一条与本文件直接相关：**边缘 nginx 的 `client_max_body_size` 必须 ≥ 应用 multipart 上限**，
+> 否则图片/视频会在边缘被 413 拒掉，前端拿不到业务错误码。
+
 ## 2. 配置
 
 复制模板并修改：

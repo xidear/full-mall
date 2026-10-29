@@ -12,6 +12,7 @@ body {
   margin: 0;
 }
 
+/* main.ts 直接引入、不受 scoped 约束：:root 与 * 只在这里定义一次，组件内再写会叠加。 */
 .support-shell {
   min-height: 100vh;
 }
@@ -50,6 +51,28 @@ body {
 .support-header small {
   color: rgba(255, 255, 255, 0.6);
   font-size: 12px;
+}
+
+/* 工具条里的下拉必须跟随深色头部，不能是一块系统默认的白框。 */
+.agent-switch select {
+  min-height: 36px;
+  padding: 6px 30px 6px 12px;
+  border: 1px solid rgba(255, 255, 255, 0.24);
+  border-radius: 999px;
+  background-color: rgba(255, 255, 255, 0.08);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%23ffffff' fill='none' stroke-width='1.4'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 11px center;
+  color: #fff;
+  font: inherit;
+  font-size: 13px;
+  appearance: none;
+  cursor: pointer;
+}
+
+.agent-switch select option {
+  background: #fff;
+  color: #222;
 }
 
 .status {
@@ -129,6 +152,7 @@ body {
   align-items: flex-end;
 }
 
+/* pre-wrap 保留客服输入的换行；max-width 防止长串（链接、单号）把气泡撑破布局。 */
 .bubble {
   max-width: 72%;
   padding: 11px 14px;

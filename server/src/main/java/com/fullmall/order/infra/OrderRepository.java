@@ -14,6 +14,10 @@ import java.sql.SQLException;
 import java.util.List;
 import java.util.UUID;
 
+/**
+ * 金额列 BIGINT 存最小货币单位（CNY 即分），与 Money.amount() 同单位；本层不做元/分换算与舍入，
+ * 换算只发生在支付报文边界（Money.toYuan / parseYuan）。事务边界在 OrderService。
+ */
 @Repository
 public class OrderRepository {
 
@@ -23,6 +27,10 @@ public class OrderRepository {
         this.jdbcTemplate = jdbcTemplate;
     }
 
+    /**
+     * 四个金额按调用方算好的值原样快照，DB 不校验 total = subtotal + shipping - discount；
+     * 一致性由 OrderService 在同一事务内保证，此处重算会把上层定价错误掩盖成自洽的错账。
+     */
     public void insertOrder(Order order) {
         jdbcTemplate.update("""
                 INSERT INTO orders (id, order_no, status, currency, subtotal_amount, shipping_fee_amount,
@@ -72,6 +80,7 @@ public class OrderRepository {
                                String currency, java.time.Instant createdAt) {
     }
 
+    // 只按 created_at 单列排序，没有 (created_at, id) 兜底：同一秒内的订单顺序不稳定，只适合"最近 N 单"，不能当分页游标
     public List<OrderSummary> findByMemberId(UUID memberId, int limit) {
         return jdbcTemplate.query("""
                 SELECT id, order_no, status, total_amount, currency, created_at
@@ -125,6 +134,13 @@ public class OrderRepository {
         jdbcTemplate.update("UPDATE orders SET access_token_hash = ? WHERE id = ?", hash, orderId);
     }
 
+    /** 业务订单号到内部 ID；顾客端 URL 用订单号，避免暴露 UUID。 */
+    public UUID idByOrderNo(String orderNo) {
+        List<UUID> rows = jdbcTemplate.queryForList(
+                "SELECT id FROM orders WHERE order_no = ?", UUID.class, orderNo);
+        return rows.isEmpty() ? null : rows.get(0);
+    }
+
     public UUID memberIdOf(UUID orderId) {
         List<UUID> rows = jdbcTemplate.queryForList(
                 "SELECT member_id FROM orders WHERE id = ?", UUID.class, orderId);
@@ -162,6 +178,10 @@ public class OrderRepository {
                 rs.getString("snapshot")), orderId);
     }
 
+    /**
+     * 状态机闸门：源状态写在 WHERE 里、由 DB 保证原子跃迁，并发支付回调与超时取消只有一个能赢；
+     * 返回 false 必须由调用方分支（与 cancelIfPending 互斥），当成成功会重复入账或在已取消订单上发货。
+     */
     public boolean markPaidIfPending(UUID orderId) {
         return jdbcTemplate.update("""
                 UPDATE orders SET status = 'PAID' WHERE id = ? AND status = 'PENDING_PAYMENT'
@@ -245,6 +265,8 @@ public class OrderRepository {
                 cursorId, limit);
     }
 
+    // offset 分页只按单列排序、无 (created_at, id) 兜底，深页会重复或漏行；countSummaries 又是另一次查询，
+    // total 与 items 不共享快照——只用于页码展示，不能当对账依据
     public List<com.fullmall.order.api.OrderSummary> findSummaries(String status, int limit, int offset) {
         return findSummaries(status, limit, offset, "createdAt", "desc");
     }

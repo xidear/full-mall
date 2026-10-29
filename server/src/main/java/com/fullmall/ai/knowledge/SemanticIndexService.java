@@ -49,14 +49,35 @@ public class SemanticIndexService {
             throw ApiException.badRequest("SEMANTIC_CONTENT_REQUIRED", "索引内容不能为空");
         }
         double[] vector = embed(content, providerCode);
-        jdbc.update("""
-                INSERT INTO knowledge_embedding (id, kind, source_id, content, embedding, provider, model)
-                VALUES (?, ?, ?, ?, ?, ?, ?)
-                ON CONFLICT (kind, source_id) DO UPDATE
-                   SET content = EXCLUDED.content, embedding = EXCLUDED.embedding,
-                       provider = EXCLUDED.provider, model = EXCLUDED.model, created_at = now()
-                """, UUID.randomUUID(), kind, sourceId, content, toSqlArray(vector),
-                providerCode == null ? "default" : providerCode, "embedding");
+        // 用"同一条连接"创建 SQL 数组：以前的 toSqlArray() 每次 getConnection() 且从不关闭，
+        // 建 N 条索引就泄漏 N 条连接，20 条之后整个连接池被占满（HikariPool active=20, idle=0）。
+        UUID id = UUID.randomUUID();
+        String provider = providerCode == null ? "default" : providerCode;
+        jdbc.execute((java.sql.Connection connection) -> {
+            try (java.sql.PreparedStatement statement = connection.prepareStatement("""
+                    INSERT INTO knowledge_embedding (id, kind, source_id, content, embedding, provider, model)
+                    VALUES (?, ?, ?, ?, ?, ?, ?)
+                    ON CONFLICT (kind, source_id) DO UPDATE
+                       SET content = EXCLUDED.content, embedding = EXCLUDED.embedding,
+                           provider = EXCLUDED.provider, model = EXCLUDED.model, created_at = now()
+                    """)) {
+                java.sql.Array array = connection.createArrayOf("float8",
+                        java.util.Arrays.stream(vector).boxed().toArray(Double[]::new));
+                try {
+                    statement.setObject(1, id);
+                    statement.setString(2, kind);
+                    statement.setString(3, sourceId);
+                    statement.setString(4, content);
+                    statement.setArray(5, array);
+                    statement.setString(6, provider);
+                    statement.setString(7, "embedding");
+                    statement.executeUpdate();
+                } finally {
+                    array.free();
+                }
+            }
+            return null;
+        });
         return 1;
     }
 
@@ -142,15 +163,6 @@ public class SemanticIndexService {
             return 0;
         }
         return dot / (Math.sqrt(na) * Math.sqrt(nb));
-    }
-
-    private Array toSqlArray(double[] vector) {
-        try {
-            return jdbc.getDataSource().getConnection().createArrayOf("float8",
-                    java.util.Arrays.stream(vector).boxed().toArray(Double[]::new));
-        } catch (Exception error) {
-            throw new IllegalStateException("向量转 SQL 数组失败", error);
-        }
     }
 
     private double[] toDoubleArray(Array array) {

@@ -2,6 +2,7 @@
 import { onMounted, ref } from 'vue'
 import { ElMessage } from 'element-plus'
 import { api } from '../api'
+import { documentTypeLabels, labelOf } from '../labels'
 
 interface AiStatus {
   code?: string
@@ -48,6 +49,8 @@ async function loadStatus() {
   } catch (cause) {
     const message = cause instanceof Error ? cause.message : String(cause)
     // 社区版：路由不存在（404）；企业版未启用：503 带原因
+    // 用 message 文本里是否含 404 来判断是权宜之计：ApiError.message 形如 "API 404: {json}"，
+    // 后端换文案或错误体恰好含 "404" 都会误判；更稳的是读 ApiError.status。
     unavailable.value = message.includes('404') || message.includes('接口不存在')
     status.value = unavailable.value ? null : { reason: message }
   } finally {
@@ -85,6 +88,7 @@ async function uploadFile(file: File) {
   }
 }
 
+// 选完必须把 input.value 置空，否则再次选同一个文件不触发 change，表现为“点了没反应”。
 function onFileChange(event: Event) {
   const input = event.target as HTMLInputElement
   const file = input.files?.[0]
@@ -134,7 +138,7 @@ onMounted(loadStatus)
           <span>{{ uploading ? '导入中…' : '选择文件并导入' }}</span>
         </label>
         <el-descriptions v-if="imported" :column="3" border class="mt-16">
-          <el-descriptions-item label="类型">{{ imported.type }}</el-descriptions-item>
+          <el-descriptions-item label="类型">{{ labelOf(documentTypeLabels, imported.type) }}</el-descriptions-item>
           <el-descriptions-item label="知识块">{{ imported.chunks }}</el-descriptions-item>
           <el-descriptions-item label="总块数">{{ imported.totalChunks }}</el-descriptions-item>
         </el-descriptions>

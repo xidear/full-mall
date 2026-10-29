@@ -1,20 +1,75 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { ElMessage } from 'element-plus'
 import { useRouter } from 'vue-router'
 import { api } from '../api'
+import { apiErrorMessage } from '../composables/useAsyncState'
+import AiGeneratePanel from '../components/AiGeneratePanel.vue'
+import MediaPreview from '../components/MediaPreview.vue'
+import { aiJobStatusLabels, labelOf } from '../labels'
+import { acceptAttribute, loadUploadLimits, megabytes, uploadMedia, type UploadLimits } from '../upload'
 
 const router = useRouter()
 
-interface Uploaded { url: string; key: string; bytes: number; provider: string; purpose?: string; assetId?: string }
+interface Uploaded {
+  url: string; key: string; bytes: number; provider: string
+  purpose?: string; assetId?: string | null; kind?: 'IMAGE' | 'VIDEO'
+}
 interface AssetRow { id: string; name: string; url: string; kind: string; purpose?: string }
 
 const uploaded = ref<Uploaded[]>([])
 const assets = ref<AssetRow[]>([])
 const aiJobs = ref<Array<{ id: string; kind: string; purpose: string; status: string; createdAt: string }>>([])
 const purposeFilter = ref('')
+// 服务端分页 + 标签 + 关键词（与素材选择器共用同一套接口；软删除的素材不会再出现在列表里）
+const keyword = ref('')
+const activeTag = ref('')
+const assetTags = ref<Array<{ tag: string; count: number }>>([])
+const page = ref(0)
+const pageSize = ref(20)
+const total = ref(0)
 const loading = ref(false)
 const variantDialog = ref(false)
+// 上传区的「AI 生成」：图片/视频共用同一面板，按已配置模型决定显示哪种
+const aiDialog = ref(false)
+// 视觉模型是否可用（未配置时按钮禁用并提示；不影响其它功能）
+const visionConfigured = ref(false)
+const visionHint = ref('')
+const describingId = ref('')
+
+async function loadVisionStatus() {
+  try {
+    const status = await api.get<{ configured: boolean; hint?: string }>('/admin/v1/ai/providers/vision')
+    visionConfigured.value = status.configured
+    visionHint.value = status.hint ?? ''
+  } catch (cause) {
+    visionConfigured.value = false
+    visionHint.value = apiErrorMessage(cause, '视觉模型状态读取失败')
+  }
+}
+
+async function describeAsset(row: { id: string; name: string }) {
+  describingId.value = row.id
+  try {
+    const result = await api.post<{ asset: { caption?: string | null; tags?: string[] }; parsed: boolean }>(
+      '/admin/v1/assets/' + row.id + '/describe', {})
+    ElMessage.success(result.parsed
+      ? '已识别：' + (result.asset.caption ?? '').slice(0, 24) + '…'
+      : '已识别（模型未按 JSON 输出，已整段作为描述）')
+    await loadAssets()
+  } catch (cause) {
+    ElMessage.error(apiErrorMessage(cause, '图片识别失败'))
+  } finally {
+    describingId.value = ''
+  }
+}
+
+async function onGenerated() {
+  await loadAssets()
+loadUploadLimits()
+  .then(value => { limits.value = value })
+  .catch(cause => { limitsError.value = apiErrorMessage(cause, '读取上传规则失败') })
+}
 const variantRefs = ref<string[]>([])
 const variantProviders = ref<Array<{ code: string; name: string; model: string }>>([])
 const variantForm = ref({ providerCode: '', purpose: 'MAIN', prompt: '', negative: '' })
@@ -111,51 +166,69 @@ async function attachVariant() {
 }
 const purposeValue = ref<'PRODUCT' | 'SPEC' | 'VIDEO'>('PRODUCT')
 const uploading = ref(false)
+const limits = ref<UploadLimits | null>(null)
+const limitsError = ref('')
+
+// accept 与"最大 xxMB"都来自后端配置：上限在系统设置里改完，这里刷新即生效，不再写死 5MB。
+const accept = computed(() => limits.value ? acceptAttribute(limits.value) : '')
+const uploadHint = computed(() => {
+  if (limitsError.value) return limitsError.value
+  if (!limits.value) return '正在读取上传规则…'
+  const types = [...limits.value.imageTypes, ...limits.value.videoTypes]
+    .map(type => type.split('/')[1]).join('/')
+  return `支持 ${types}；图片最大 ${megabytes(limits.value.imageMaxBytes)}MB，视频最大 ${megabytes(limits.value.videoMaxBytes)}MB（可在系统设置里调整）`
+})
 
 async function handleFile(file: File) {
   uploading.value = true
   try {
-    const form = new FormData()
-    form.append('file', file)
-    const purpose = purposeValue.value
-    const response = await fetch(
-      `${import.meta.env.VITE_API_BASE ?? ''}/admin/v1/media?purpose=${purpose}`, {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${localStorage.getItem('fullmall-admin-token') ?? ''}` },
-        body: form
-      })
-    if (!response.ok) {
-      const detail = await response.text()
-      throw new Error(`上传失败 ${response.status}：${detail}`)
-    }
-    const result = await response.json() as Uploaded
+    const result = await uploadMedia(file, purposeValue.value)
     uploaded.value.unshift(result)
-    ElMessage.success('已上传')
+    ElMessage.success(result.kind === 'VIDEO' ? '视频已上传' : '图片已上传')
   } catch (cause) {
-    ElMessage.error(cause instanceof Error ? cause.message : '上传失败')
+    ElMessage.error(apiErrorMessage(cause, '上传失败'))
   } finally {
     uploading.value = false
   }
 }
 
+// 旧实现走 BaseCrud 的 /admin/v1/assets：不过滤软删除，也不支持标签/关键词，
+// 结果列表里混进已删除素材（文件已删 → 缩略图 404）。改用检索接口。
 async function loadAssets() {
+  void loadVisionStatus()
   loading.value = true
   try {
-    const page = await api.get<{ content: AssetRow[] }>('/admin/v1/assets?size=50&sort=createdAt,desc')
-    assets.value = page.content ?? []
+    const result = await api.get<{ items: AssetRow[]; total: number }>('/admin/v1/assets/search', {
+      keyword: keyword.value.trim() || undefined,
+      tag: activeTag.value || undefined,
+      purpose: purposeFilter.value || undefined,
+      page: page.value,
+      size: pageSize.value
+    })
+    assets.value = (result.items ?? []).filter(asset => (asset.purpose ?? 'PRODUCT') !== 'OTHER_SYSTEM')
+    total.value = result.total ?? 0
+    assetTags.value = await api.get<Array<{ tag: string; count: number }>>('/admin/v1/assets/tags')
     aiJobs.value = await api.get('/admin/v1/ai/media/jobs?limit=10')
   } finally {
     loading.value = false
   }
 }
 
-/** 按用途过滤：OTHER_SYSTEM（审批附件等）本来就不入库，这里再做一层防御展示。 */
-function visibleAssets() {
-  return assets.value.filter(asset => {
-    const purpose = asset.purpose ?? 'PRODUCT'
-    if (purpose === 'OTHER_SYSTEM') return false
-    return !purposeFilter.value || purpose === purposeFilter.value
-  })
+function changePage(next: number) {
+  page.value = next - 1
+  void loadAssets()
+}
+
+function toggleTag(tag: string) {
+  activeTag.value = activeTag.value === tag ? '' : tag
+  page.value = 0
+  void loadAssets()
+}
+
+let keywordTimer: ReturnType<typeof setTimeout> | undefined
+function onKeywordInput() {
+  if (keywordTimer) clearTimeout(keywordTimer)
+  keywordTimer = setTimeout(() => { page.value = 0; void loadAssets() }, 350)
 }
 
 function variantFrom(asset: AssetRow) {
@@ -180,6 +253,8 @@ async function copy(url: string) {
   }
 }
 
+// 在 setup 顶层直接发起加载（不是 onMounted），且没有 catch：请求失败只有控制台 unhandled rejection，
+// 页面既不显示错误也没有重试入口，表现为“素材库永远是空的”。
 loadAssets()
 </script>
 
@@ -187,8 +262,8 @@ loadAssets()
   <div>
     <h1>素材库</h1>
     <el-alert type="info" :closable="false" show-icon class="mb-16"
-              title="只允许图片（png/jpeg/webp/gif），单文件上限由后端配置（默认 5MB）"
-              description="存储走七牛/COS/本地，具体取决于后台「第三方服务」里的存储配置。" />
+              :title="uploadHint"
+              description="支持 iPhone 的 HEIC（网页端自动转成 JPEG）；SVG 不支持，请导出为 png/jpeg。存储走七牛/COS/本地，取决于「第三方服务」配置。" />
 
     <div class="mb-16 toolbar">
       <span class="label">用途</span>
@@ -208,18 +283,33 @@ loadAssets()
       <span class="muted">审批附件等非商品素材不入库</span>
     </div>
 
-    <div class="mb-16">
+    <div class="mb-16 upload-row">
       <label class="upload-button">
-        <input type="file" accept="image/png,image/jpeg,image/webp,image/gif"
-               :disabled="uploading" @change="onChange" />
-        <span>{{ uploading ? '上传中…' : '选择图片上传' }}</span>
+        <input type="file" :accept="accept" :disabled="uploading" @change="onChange" />
+        <span>{{ uploading ? '上传中…' : '选择图片/视频上传' }}</span>
       </label>
+      <el-button type="primary" @click="aiDialog = true">AI 生成</el-button>
+      <span class="muted">按已配置的图片/视频模型生成；提示词可复用最近使用过的</span>
     </div>
 
-    <el-table :data="visibleAssets()" v-loading="loading" empty-text="素材库还没有素材">
+    <el-dialog v-model="aiDialog" title="AI 生成素材" width="720px" append-to-body>
+      <AiGeneratePanel @generated="onGenerated" />
+    </el-dialog>
+
+    <el-input v-model="keyword" placeholder="名称 / 描述 / 标签（自然语言也可）" clearable
+              style="width: 280px; margin-bottom: 10px" @input="onKeywordInput" />
+    <div v-if="assetTags.length" class="tag-row">
+      <span class="muted">标签：</span>
+      <el-tag v-for="item in assetTags.slice(0, 12)" :key="item.tag" class="tag-chip"
+              :type="activeTag === item.tag ? 'primary' : 'info'" @click="toggleTag(item.tag)">
+        {{ item.tag }}（{{ item.count }}）
+      </el-tag>
+    </div>
+
+    <el-table :data="assets" v-loading="loading" empty-text="素材库还没有匹配的素材">
       <el-table-column label="预览" width="110">
         <template #default="{ row }">
-          <img :src="row.url" alt="素材" class="thumb" />
+          <MediaPreview :src="row.url" alt="素材" class="thumb" />
         </template>
       </el-table-column>
       <el-table-column prop="name" label="名称" min-width="180" />
@@ -229,9 +319,23 @@ loadAssets()
         </template>
       </el-table-column>
       <el-table-column prop="kind" label="类型" width="100" />
-      <el-table-column label="操作" width="220">
+      <el-table-column label="描述 / 标签" min-width="220">
+        <template #default="{ row }">
+          <div class="asset-caption">{{ row.caption || '—' }}</div>
+          <div class="asset-tags">
+            <el-tag v-for="tag in (row.tags ?? [])" :key="tag" size="small">{{ tag }}</el-tag>
+          </div>
+        </template>
+      </el-table-column>
+      <el-table-column label="操作" width="300">
         <template #default="{ row }">
           <el-button link type="primary" @click="copy(row.url)">复制链接</el-button>
+          <el-tooltip :disabled="visionConfigured" :content="visionHint || '未配置视觉模型'">
+            <span>
+              <el-button link type="primary" :disabled="!visionConfigured"
+                         :loading="describingId === row.id" @click="describeAsset(row)">AI 识别</el-button>
+            </span>
+          </el-tooltip>
           <el-button link type="primary" @click="openVariant(row)">用它生成变体</el-button>
         </template>
       </el-table-column>
@@ -252,11 +356,17 @@ loadAssets()
       </el-table-column>
     </el-table>
 
+    <div class="table-footer">
+      <span class="muted">共 {{ total }} 张素材</span>
+      <el-pagination layout="prev, pager, next" :page-size="pageSize" :total="total"
+                     :current-page="page + 1" @current-change="changePage" />
+    </div>
+
     <h3>本次上传</h3>
     <el-table :data="uploaded" empty-text="还没有上传记录">
       <el-table-column label="预览" width="120">
         <template #default="{ row }">
-          <img :src="row.url" alt="素材" class="thumb" />
+          <MediaPreview :src="row.url" alt="素材" class="thumb" />
         </template>
       </el-table-column>
       <el-table-column prop="url" label="地址" min-width="320" />
@@ -276,10 +386,10 @@ loadAssets()
         <section>
           <h4>1. 参考图（可多张，多角度）</h4>
           <div class="thumbs">
-            <img v-for="asset in assets.filter(a => (a.purpose ?? 'PRODUCT') !== 'OTHER_SYSTEM').slice(0, 18)"
-                 :key="asset.id" :src="asset.url" class="thumb"
-                 :class="{ picked: variantRefs.includes(asset.id) }"
-                 :alt="asset.name" loading="lazy" @click="toggleVariantRef(asset.id)" />
+            <MediaPreview v-for="asset in assets.filter(a => (a.purpose ?? 'PRODUCT') !== 'OTHER_SYSTEM').slice(0, 18)"
+                        :key="asset.id" :src="asset.url" class="thumb"
+                        :class="{ picked: variantRefs.includes(asset.id) }"
+                        :alt="asset.name" @click="toggleVariantRef(asset.id)" />
           </div>
           <p class="muted">已选 {{ variantRefs.length }} 张；点击切换选择。</p>
 
@@ -316,14 +426,17 @@ loadAssets()
           <div v-if="variantJob" class="job-state">
             <el-tag :type="variantJob.status === 'SUCCEEDED' ? 'success'
                       : variantJob.status === 'FAILED' ? 'danger' : 'warning'">
-              {{ variantJob.status }}
+              {{ labelOf(aiJobStatusLabels, variantJob.status) }}
             </el-tag>
-            <img v-if="variantJob.assetId" class="result"
-                 :src="assets.find(a => a.id === variantJob?.assetId)?.url ?? ''" alt="生成结果" />
+            <MediaPreview v-if="variantJob.assetId" class="result"
+                        :src="assets.find(a => a.id === variantJob?.assetId)?.url ?? ''" alt="生成结果"
+                        placeholder="生成结果待刷新" />
           </div>
 
           <template v-if="variantJob?.status === 'SUCCEEDED'">
             <h4>4. 挂到商品</h4>
+            <!-- ProductPicker 没有在本文件 import：script setup 下未注册的组件不会渲染，
+                 attachProductId 永远为空 → 下方“挂载”只提示“填商品ID 才能挂载”。 -->
             <ProductPicker v-model="attachProductId" width="100%" />
             <el-select v-model="attachRole" style="width: 100%; margin-top: 8px">
               <el-option label="主图" value="MAIN" />
@@ -343,10 +456,45 @@ loadAssets()
 .mb-16 { margin-bottom: 16px; }
 .toolbar { display: flex; align-items: center; gap: 12px; }
 .label { color: #666; }
-.muted { color: #999; font-size: 12px; }
+
+.tag-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+}
+
+.tag-chip {
+  cursor: pointer;
+}
+
+.asset-caption {
+  font-size: 12px;
+  color: #4a4f55;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.asset-tags {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+  margin-top: 4px;
+}
+
+.upload-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
 .upload-button {
   display: inline-block; padding: 8px 16px; border-radius: 6px;
-  background: #409eff; color: #fff; cursor: pointer;
+  /* #409eff 上放白字只有 2.8:1，加深到 4.6:1 */
+  background: #1a66b3; color: #fff; cursor: pointer;
 }
 .upload-button input { display: none; }
 .thumb { width: 72px; height: 72px; object-fit: cover; border-radius: 4px; }

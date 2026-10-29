@@ -67,9 +67,16 @@ public class StoredValueService {
             // 幂等命中：余额不再变动，返回当前余额
             Long current = jdbc.queryForObject(
                     "SELECT stored_value_balance FROM member WHERE id = ?", Long.class, memberId);
-            return new Result(current == null ? 0 : current, true);
+            if (current == null) {
+                throw new IllegalStateException("会员储值余额查询返回 null: " + memberId);
+            }
+            return new Result(current, true);
         }
-        jdbc.update("UPDATE member SET stored_value_balance = ? WHERE id = ?", next, memberId);
+        int updated = jdbc.update(
+                "UPDATE member SET stored_value_balance = ? WHERE id = ?", next, memberId);
+        if (updated != 1) {
+            throw new IllegalStateException("会员储值余额更新失败: " + memberId);
+        }
         return new Result(next, false);
     }
 }

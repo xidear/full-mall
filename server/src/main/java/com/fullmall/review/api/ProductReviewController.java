@@ -22,8 +22,10 @@ public class ProductReviewController {
         this.reviews = reviews;
     }
 
+    /** mediaUrls：先调 POST /api/v1/media 上传拿到 URL，再把 URL 随评价一起提交；条数上限见 ValidationRules.REVIEW_MEDIA_MAX。 */
     public record CreateReview(@NotNull UUID orderId, @NotNull UUID skuId,
-                               @Min(1) @Max(5) int rating, String content) {
+                               @Min(1) @Max(5) int rating, String content,
+                               List<String> mediaUrls) {
     }
 
     @GetMapping("/api/v1/products/{skuId}/reviews")
@@ -71,7 +73,7 @@ public class ProductReviewController {
                     "MEMBER_REQUIRED", "需要会员登录");
         }
         UUID id = reviews.create(UUID.fromString(authentication.getName()),
-                body.orderId(), body.skuId(), body.rating(), body.content());
+                body.orderId(), body.skuId(), body.rating(), body.content(), body.mediaUrls());
         return Map.of("id", id);
     }
 }

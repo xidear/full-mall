@@ -42,6 +42,12 @@ public class CouponService {
                          Instant expiresAt, String title, String type, long value) {
     }
 
+    /**
+     * 建全场券（scope=ALL）。
+     *
+     * <p>坑：{@code @Transactional} 只标在本重载上，类内自调用不会重新开事务；带 scope 的重载没有该注解，
+     * 它现在只写一条 INSERT（自身即原子），将来若在里面加第二次写入，必须自己补注解，否则失败不会一起回滚。
+     */
     @Transactional
     public UUID createTemplate(String code, String title, String type, long value, long minOrderAmount,
                               int totalQuantity, int perMemberLimit, int validityDays,
@@ -51,6 +57,10 @@ public class CouponService {
     }
 
     /** 带适用范围的建券（scope：ALL / SKU / CATEGORY / BRAND）。 */
+    /**
+     * 建券约束补充：新券一律落 DRAFT，发放前必须显式启用，避免"建错面额直接能领"；
+     * 非 ALL 而未给 {@code scopeIds} 直接 400——允许空范围会变成"看起来限类目、实际全场可用"的静默降级。
+     */
     public UUID createTemplate(String code, String title, String type, long value, long minOrderAmount,
                               int totalQuantity, int perMemberLimit, int validityDays,
                               Instant startsAt, Instant endsAt, String scope,
@@ -198,6 +208,9 @@ public class CouponService {
             throw ApiException.conflict("COUPON_OUT_OF_WINDOW", "不在券的有效期内");
         }
 
+        // 每人限领走"读-判-写"：member_coupon 在 (template_id, member_id) 上没有唯一约束，
+        // 同一会员并发领券理论上可多领（超发上限仍由下面的 issued_quantity 条件更新挡住）。
+        // 要堵死需要补一条唯一约束或换成带条件的 INSERT，改之前不要假设这里绝对精确。
         Integer claimed = jdbcTemplate.queryForObject("""
                 SELECT COUNT(*) FROM member_coupon WHERE template_id = ? AND member_id = ?
                 """, Integer.class, templateId, memberId);
@@ -206,6 +219,8 @@ public class CouponService {
                     "每人限领 " + template.perMemberLimit() + " 张，已领 " + claimed + " 张");
         }
 
+        // 防超发的唯一权威：条件更新 issued_quantity < total_quantity，影响 0 行即"已领完"。
+        // 不能用"先查 issued_quantity 再写"——那是无锁读改写，并发下必然多发。
         int reserved = jdbcTemplate.update("""
                 UPDATE coupon_template SET issued_quantity = issued_quantity + 1
                  WHERE id = ? AND issued_quantity < total_quantity
@@ -306,6 +321,16 @@ public class CouponService {
     private record ScopeRow(String scope, String scopeIds) {
     }
 
+    /**
+     * 券对某笔订单金额的可用性（**只读**：不改订单金额、不改券状态）。
+     *
+     * <p>金额单位为分。AMOUNT 券的抵扣是 min(面额, 订单金额)，不会把订单抵成负数；
+     * PERCENT 券按"打 value 折"计算并用 BigDecimal HALF_UP 取整到分——先算 double 再转 long
+     * 会在 0.5 分边界上少抵或多抵 1 分。
+     *
+     * <p>不可用返回 {@code usable=false} + 原因，而不是抛异常：调用方要把它展示成
+     * "这张券为什么不能用"。但券不存在或不属于该会员抛 404——那是借号试券，不能当成普通不可用。
+     */
     public Eligibility checkUsable(UUID couponId, UUID memberId, long orderAmount) {
         if (orderAmount < 0) {
             throw ApiException.badRequest("INVALID_ORDER_AMOUNT", "订单金额不能为负");
@@ -426,7 +451,7 @@ public class CouponService {
 
     private void validateTemplate(String code, String type, long value, int totalQuantity,
                                   int perMemberLimit, int validityDays, Instant startsAt, Instant endsAt) {
-        if (code == null || !code.matches("^[A-Z0-9][A-Z0-9_-]{1,63}$")) {
+        if (code == null || !code.matches(com.fullmall.platform.validation.ValidationRules.COUPON_CODE_PATTERN)) {
             throw ApiException.badRequest("INVALID_COUPON_CODE", "模板编码只能是大写字母/数字/-/_");
         }
         if (!List.of("AMOUNT", "PERCENT").contains(type)) {
@@ -446,6 +471,8 @@ public class CouponService {
         }
     }
 
+    // 券码是顾客出示给门店核销的凭据，必须不可猜：12 位、字符表去掉易混字符。
+    // 这里不查重——唯一性由 member_coupon.code 的 UNIQUE 约束保证，撞码会让领券事务整体回滚（宁可失败也不发重码）。
     private String randomCode() {
         StringBuilder builder = new StringBuilder(12);
         for (int i = 0; i < 12; i++) {

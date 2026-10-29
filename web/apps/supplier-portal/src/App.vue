@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { onMounted, reactive, ref, watch } from 'vue'
+import { formatDate } from '@fullmall/api-client'
 
 interface SupplierOrderLine {
   skuId: string
@@ -33,6 +34,9 @@ interface FeedRow {
   priceAmount: number
 }
 
+// API_BASE 空串 = 同源：vite dev 把 /api、/open 代理到 41280，生产由反代转发同域前缀。
+// 凭据存 sessionStorage（不是 localStorage）：Secret 是明文，会话结束即清；刷新仍保留，
+// 所以 onMounted 会自动重连。换键要同步 disconnect()，否则“断开”后刷新又连上。
 const API_BASE = import.meta.env.VITE_API_BASE || ''
 const accessKey = ref(sessionStorage.getItem('fullmall.supplier.key') || '')
 const secret = ref(sessionStorage.getItem('fullmall.supplier.secret') || '')
@@ -86,6 +90,31 @@ const statusLabels: Record<string, string> = {
   COMPLETED: '已完成'
 }
 
+const returnStatusLabels: Record<string, string> = {
+  REQUESTED: '待处理',
+  ACCEPTED: '已同意',
+  REJECTED: '已拒绝',
+  SETTLED: '已结算'
+}
+
+const settlementStatusLabels: Record<string, string> = {
+  PENDING: '待结算',
+  CONFIRMED: '已确认',
+  PAID: '已结算',
+  SETTLED: '已结算',
+  CANCELLED: '已取消'
+}
+
+function labelOf(map: Record<string, string>, value: string) {
+  return map[value] ?? value
+}
+
+function formatAmount(amount: number, currency = 'CNY') {
+  return new Intl.NumberFormat('zh-CN', { style: 'currency', currency }).format(amount / 100)
+}
+
+// 只对看起来合法的凭据（sup_ 前缀）自动重连：避免拿空值/占位符去签名，
+// 得到一条误导性的 401，而不是“请先填写凭据”。
 onMounted(async () => {
   if (accessKey.value && secret.value && accessKey.value.startsWith('sup_')) {
     await connect()
@@ -117,6 +146,7 @@ async function connect() {
     await loadSettlements()
     await loadTodos()
   } catch (cause) {
+    // ping 失败即视为未连接；403/401 通常是 key 与 secret 不配对（Secret 后台只显示一次，重生成即失效）。
     connected.value = false
     error.value = messageOf(cause)
   } finally {
@@ -286,6 +316,8 @@ async function submitFeed() {
         .map(row => ({
           supplierSkuCode: row.supplierSkuCode.trim(),
           availableQuantity: Math.max(0, Math.trunc(row.availableQuantity)),
+          // 用户按「元」输入，提交前 ×100 转「分」并四舍五入；库存向下取整且不为负——
+          // 后端按整数分/整数件落库，小数会被拒或被截断。
           priceAmount: Math.max(0, Math.round(Number(row.priceAmount) * 100)),
           priceCurrency: 'CNY'
         }))
@@ -298,6 +330,13 @@ async function submitFeed() {
   }
 }
 
+/**
+ * 签名串 = method \n path(含 query) \n timestamp \n nonce \n bodySHA256，后端逐字节比对，
+ * 因此：path 里的 query 必须与实际请求完全一致（拼错/未 encodeURIComponent 都会 401）；
+ * 空 body 用空串哈希（写成 '{}' 会让所有 GET 失败）；timestamp 是秒，允许 ±5 分钟；
+ * nonce 重放返回 409。crypto.subtle 只在安全上下文可用，用局域网 IP 打开页面会 undefined。
+ * 失败时先看返回 message：前端不吞后端 code，原文透出才能定位是时钟、编码还是密钥。
+ */
 async function signedRequest<T>(method: string, path: string, body?: unknown): Promise<T> {
   const rawBody = body === undefined ? '' : JSON.stringify(body)
   const timestamp = String(Math.floor(Date.now() / 1000))
@@ -547,8 +586,8 @@ function disconnect() {
               <li v-for="item in supplierReturns" :key="item.id">
                 <div class="return-main">
                   <strong>{{ item.reason }}</strong>
-                  <span class="muted">订单 {{ item.orderId.slice(0, 8) }} · {{ item.amount / 100 }} {{ item.currency }}
-                    · {{ item.status }}</span>
+                  <span class="muted">{{ formatAmount(item.amount, item.currency) }}
+                    · {{ labelOf(returnStatusLabels, item.status) }}</span>
                 </div>
                 <div class="return-actions" v-if="item.status === 'REQUESTED'">
                   <button type="button" :disabled="returnBusyId === item.id"
@@ -570,7 +609,7 @@ function disconnect() {
                 </button>
               </div>
             </div>
-            <p class="muted">平台按周期生成的结算：应付 = 毛额 − 退货扣减 − 佣金。金额单位：分。</p>
+            <p class="muted">平台按周期生成的结算：应付 = 毛额 − 退货扣减 − 佣金。</p>
             <p v-if="!settlements.length" class="muted">暂无结算单。</p>
             <table v-else class="settle-table">
               <thead>
@@ -580,13 +619,12 @@ function disconnect() {
               </thead>
               <tbody>
                 <tr v-for="item in settlements" :key="item.id">
-                  <td>{{ new Date(item.periodStart).toLocaleDateString('zh-CN') }} ~
-                      {{ new Date(item.periodEnd).toLocaleDateString('zh-CN') }}</td>
-                  <td>{{ item.grossAmount }}</td>
-                  <td>{{ item.refundAmount }}</td>
-                  <td>{{ item.commissionAmount }}</td>
-                  <td><strong>{{ item.payableAmount }}</strong></td>
-                  <td>{{ item.status }}</td>
+                  <td>{{ formatDate(item.periodStart) }} ~ {{ formatDate(item.periodEnd) }}</td>
+                  <td>{{ formatAmount(item.grossAmount, item.currency) }}</td>
+                  <td>{{ formatAmount(item.refundAmount, item.currency) }}</td>
+                  <td>{{ formatAmount(item.commissionAmount, item.currency) }}</td>
+                  <td><strong>{{ formatAmount(item.payableAmount, item.currency) }}</strong></td>
+                  <td>{{ labelOf(settlementStatusLabels, item.status) }}</td>
                 </tr>
               </tbody>
             </table>

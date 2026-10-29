@@ -1,6 +1,11 @@
+<!--
+  三态互斥：loading（骨架）/ error（失败）/ empty（成功但没数据）。
+  不要用空数组表示失败——否则顾客看到「暂无商品」，真实原因（网络/后端挂了）被吞掉。
+-->
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
 import { useMobileTheme } from '../../theme'
+import { formatMoney } from '../../utils/money'
 
 interface Money {
   amount: number
@@ -16,6 +21,7 @@ interface Product {
 }
 
 const { theme, vars: themeVars, presets, setTheme, loadRemote } = useMobileTheme()
+// 只有 H5 有 location；小程序/App 端必须构建期注入 VITE_API_BASE，否则地址拼不出来、全部 fail。
 const apiBase = import.meta.env.VITE_API_BASE
   || `${location.protocol}//${location.hostname}:41280`
 const products = ref<Product[]>([])
@@ -38,9 +44,11 @@ function load() {
       products.value = payload.items ?? []
     },
     fail: failure => {
-      error.value = failure.errMsg || '商品加载失败'
+      console.error('[mobile] 商品加载失败:', failure.errMsg)
+      error.value = '商品加载失败，请稍后重试'
     },
     complete: () => {
+      // 用 complete 而不是 success：失败也必须收起骨架，否则断网时永远停在「加载中」。
       loading.value = false
     }
   })
@@ -57,7 +65,7 @@ function toDetail(product: Product) {
 function price(product: Product) {
   const money = product.skus[0]?.price
   if (!money) return '-'
-  return `¥${(money.amount / 100).toFixed(2)}`
+  return formatMoney(money.amount, money.currency)
 }
 </script>
 
@@ -101,7 +109,10 @@ function price(product: Product) {
           <text class="sku">{{ product.skus.length }} 个规格</text>
         </view>
       </view>
-      <view v-if="!products.length" class="state">暂无商品</view>
+      <view v-if="!products.length" class="state empty">
+        <text class="empty-title">暂无商品</text>
+        <text class="empty-desc">换个分类或稍后再来看看。</text>
+      </view>
     </view>
   </view>
 </template>
@@ -230,6 +241,27 @@ function price(product: Product) {
   padding: 60rpx 0;
   color: var(--muted);
   text-align: center;
+}
+
+.state.empty {
+  display: flex;
+  flex-direction: column;
+  gap: 12rpx;
+  margin-top: 24rpx;
+  border: 1rpx dashed var(--line);
+  border-radius: calc(var(--radius) * 1.5);
+  background: var(--surface);
+}
+
+.empty-title {
+  color: var(--text);
+  font-size: 30rpx;
+  font-weight: 700;
+}
+
+.empty-desc {
+  color: var(--muted);
+  font-size: 24rpx;
 }
 
 .state.error {

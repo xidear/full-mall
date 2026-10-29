@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { formatMemberDate, formatMemberDateTime } from '~/utils/datetime'
-// 会员时区：由会员资料接口提供；未登录时为 undefined（退回浏览器本地时区）
-const memberTimezone = useCookie<string | null>('fullmall_member_timezone').value ?? undefined
+// 会员时区优先，未登录时用站点默认时区（避免 SSR 与浏览器显示不一致）。
+const memberTimezone = useDisplayTimeZone()
 import { computed, ref } from 'vue'
 
 interface MemberNotification {
@@ -31,11 +31,12 @@ async function load() {
   loading.value = true
   error.value = ''
   try {
+    // 只取最近 50 条，没有分页也没有轮询/推送：更新的消息要重新进入页面（刷新）才会出现。
     items.value = await $fetch<MemberNotification[]>(`${base}/api/v1/notifications`, {
       headers, query: { limit: 50 }
     })
   } catch (cause) {
-    error.value = cause instanceof Error ? cause.message : '消息加载失败'
+    error.value = apiErrorMessage(cause, '消息加载失败，请稍后重试')
   } finally {
     loading.value = false
   }
@@ -48,12 +49,14 @@ async function markRead(item: MemberNotification) {
     await $fetch(`${base}/api/v1/notifications/${item.id}/read`, { method: 'POST', headers })
     item.readAt = new Date().toISOString()
   } catch (cause) {
-    error.value = cause instanceof Error ? cause.message : '标记已读失败'
+    error.value = apiErrorMessage(cause, '标记已读失败，请稍后重试')
   } finally {
     markingId.value = ''
   }
 }
 
+// 只在浏览器端加载：SSR 阶段不取消息，首屏由下面的“未登录 / 加载中”分支承接。
+// 未登录时 load() 直接返回且 loading 不会置 true，所以登录提示不会与“加载失败”混在一起。
 if (process.client) {
   await load()
 }
@@ -69,7 +72,7 @@ if (process.client) {
     <p v-if="!memberToken" class="hint">登录后可查看消息。</p>
     <p v-else-if="loading" class="hint">加载中…</p>
     <p v-else-if="error" class="hint error">消息加载失败，请稍后再试。</p>
-    <p v-else-if="!items.length" class="hint">暂时没有消息。</p>
+    <EmptyState v-else-if="!items.length" icon="box" title="暂时没有消息" description="订单、售后和促销进展会出现在这里。" />
 
     <ul v-else class="message-list">
       <li v-for="item in items" :key="item.id" :class="{ unread: !item.readAt }">
@@ -89,12 +92,12 @@ if (process.client) {
 <style scoped>
 .page { max-width: 720px; margin: 0 auto; padding: 24px 16px; }
 .head { display: flex; align-items: baseline; justify-content: space-between; }
-.hint { color: #6b7280; }
-.error { color: #dc2626; }
+.hint { color: var(--muted); }
+.error { color: var(--danger); }
 .message-list { list-style: none; padding: 0; display: grid; gap: 12px; }
-.message-list li { padding: 12px 16px; border: 1px solid #e5e7eb; border-radius: 10px; }
-.message-list li.unread { border-color: #2563eb; background: #f8fafc; }
+.message-list li { padding: 12px 16px; border: 1px solid var(--line); border-radius: 10px; }
+.message-list li.unread { border-color: var(--brand); background: var(--surface-muted); }
 .title-row { display: flex; justify-content: space-between; gap: 12px; }
-.muted { color: #9ca3af; font-size: 13px; }
-button { margin-top: 8px; padding: 4px 12px; border: 1px solid #d1d5db; border-radius: 6px; background: #fff; cursor: pointer; }
+.muted { color: var(--muted); font-size: 13px; }
+button { margin-top: 8px; padding: 4px 12px; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); cursor: pointer; }
 </style>

@@ -12,7 +12,10 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * OpenAI 兼容对话（文案生成、提示词优化）。可直接指向 vLLM / Ollama / 兼容网关。
+ * OpenAI 兼容对话（文案生成、提示词优化、图片理解）。可直接指向 vLLM / Ollama / 兼容网关。
+ *
+ * <p>图片理解：params.images 传图片 URL 列表时，user 消息改成多模态 content
+ * （{type:text} + {type:image_url}），兼容 Ollama 的 llava / moondream 等视觉模型。
  */
 public class OpenAiChatAdapter implements MediaGenerationAdapter {
 
@@ -32,11 +35,27 @@ public class OpenAiChatAdapter implements MediaGenerationAdapter {
         String base = provider.endpoint().endsWith("/")
                 ? provider.endpoint().substring(0, provider.endpoint().length() - 1)
                 : provider.endpoint();
+        // 多模态：params.images 非空时改成 [{type:text},{type:image_url}...]
+        List<?> imageUrls = params == null || !(params.get("images") instanceof List<?> list)
+                ? List.of()
+                : list;
+        Object userContent;
+        if (imageUrls.isEmpty()) {
+            userContent = prompt;
+        } else {
+            List<Object> parts = new java.util.ArrayList<>();
+            parts.add(Map.of("type", "text", "text", prompt));
+            for (Object url : imageUrls) {
+                parts.add(Map.of("type", "image_url",
+                        "image_url", Map.of("url", String.valueOf(url))));
+            }
+            userContent = parts;
+        }
         Map<String, Object> body = Map.of(
                 "model", provider.model(),
                 "messages", List.of(
                         Map.of("role", "system", "content", system),
-                        Map.of("role", "user", "content", prompt)));
+                        Map.of("role", "user", "content", userContent)));
         HttpRequest request = HttpRequest.newBuilder()
                 .uri(URI.create(base + "/chat/completions"))
                 .timeout(Duration.ofSeconds(120))

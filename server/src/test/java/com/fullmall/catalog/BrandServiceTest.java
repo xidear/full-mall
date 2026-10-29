@@ -49,6 +49,8 @@ class BrandServiceTest {
     @Autowired
     JdbcTemplate jdbc;
 
+    // 守住"编码重复要变成可读冲突，而不是 500"：唯一约束在 DB，DuplicateKeyException 必须翻译；
+    // productCount 必须是 0 而不是 null，后台表格直接渲染这个数字。
     @Test
     void createListUpdateAndDuplicateCode() {
         UUID id = brands.create("BR-TEST-1", "测试品牌", 5);
@@ -66,6 +68,29 @@ class BrandServiceTest {
                 assertThat(brand.name()).isEqualTo("改名品牌"));
     }
 
+    // 重名判断忽略大小写与首尾空格，但改名成自己当前的名字不算冲突——
+    // 少做前半句，保存未改名的表单就会误报；少做后半句，真正的重复会漏过。
+    @Test
+    void duplicateNameIsRejectedIgnoringCaseAndSpaces() {
+        UUID id = brands.create("BR-NAME-1", "同名品牌", 0);
+
+        assertThatThrownBy(() -> brands.create("BR-NAME-2", "  同名品牌  ", 0))
+                .hasMessageContaining("同名品牌已存在");
+        assertThatThrownBy(() -> brands.create("BR-NAME-3", "同名品牌", 0))
+                .hasMessageContaining("同名品牌已存在");
+
+        // 改名到"自己现在的名字"不应报冲突
+        brands.update(id, "同名品牌", 1);
+
+        // 改名撞上别人已有的名字要被拒绝
+        brands.update(id, "另一个名字", 1);
+        UUID other = brands.create("BR-NAME-4", "第三个名字", 0);
+        assertThatThrownBy(() -> brands.update(other, "另一个名字", 0))
+                .hasMessageContaining("同名品牌已存在");
+    }
+
+    // 删除前先查引用并给出原因，不靠外键异常冒泡成 500；解除引用后必须删得掉，否则品牌永久卡死。
+    // 断言用 noneSatisfy 而不是集合大小：库是共享的，其它用例也在造品牌。
     @Test
     void deleteIsRejectedWhenBrandInUse() {
         UUID brandId = brands.create("BR-TEST-2", "被引用品牌", 0);

@@ -76,6 +76,8 @@ public class WithdrawalService {
                     "不支持的打款方式 " + payoutMethod + "，可选：" + config.payoutMethods());
         }
 
+        // 锁住提现人再算可提现余额：否则两个并发申请会同时通过余额检查并超提。
+        lockPromoter(promoterId);
         long available = availableForWithdrawal(promoterId);
         if (amount > available) {
             throw ApiException.conflict("INSUFFICIENT_WITHDRAWABLE_BALANCE",
@@ -137,7 +139,8 @@ public class WithdrawalService {
     public java.util.Map<String, Object> payoutByWechat(UUID withdrawalId, String openId,
                                                         String actor) {
         requireActor(actor);
-        Withdrawal withdrawal = find(withdrawalId);
+        // 先锁提现单：外部转账只能有一个请求进入，避免重复打款；支付失败会回滚状态。
+        Withdrawal withdrawal = findForUpdate(withdrawalId);
         if (!"APPROVED".equals(withdrawal.status())) {
             throw ApiException.conflict("WITHDRAWAL_NOT_APPROVED",
                     "只有已审核的提现单可以打款，当前=" + withdrawal.status());
@@ -165,7 +168,7 @@ public class WithdrawalService {
         if (paymentRef == null || paymentRef.isBlank()) {
             throw ApiException.badRequest("PAYMENT_REF_REQUIRED", "打款必须记录支付凭证号");
         }
-        Withdrawal withdrawal = find(withdrawalId);
+        Withdrawal withdrawal = findForUpdate(withdrawalId);
         if (!"APPROVED".equals(withdrawal.status())) {
             throw ApiException.conflict("WITHDRAWAL_NOT_APPROVED",
                     "只有已审核的提现单可以打款，当前=" + withdrawal.status());
@@ -272,15 +275,31 @@ public class WithdrawalService {
     }
 
     public Withdrawal find(UUID id) {
-        return jdbcTemplate.query("""
+        return findInternal(id, false);
+    }
+
+    private Withdrawal findForUpdate(UUID id) {
+        return findInternal(id, true);
+    }
+
+    private Withdrawal findInternal(UUID id, boolean forUpdate) {
+        String sql = """
                 SELECT id, promoter_id, amount_amount, currency, status, payout_method, payout_account
                   FROM withdrawal WHERE id = ?
-                """, (rs, rowNum) -> new Withdrawal(
+                """ + (forUpdate ? " FOR UPDATE" : "");
+        return jdbcTemplate.query(sql, (rs, rowNum) -> new Withdrawal(
                 rs.getObject("id", UUID.class), rs.getObject("promoter_id", UUID.class),
                 rs.getLong("amount_amount"), rs.getString("currency"), rs.getString("status"),
                 rs.getString("payout_method"), rs.getString("payout_account")), id)
                 .stream().findFirst()
                 .orElseThrow(() -> ApiException.notFound("WITHDRAWAL_NOT_FOUND", "提现单不存在: " + id));
+    }
+
+    private void lockPromoter(UUID promoterId) {
+        // 锁住该提现人的佣金行；没有佣金行时无需加锁（可提现余额必然为 0，申请会失败）。
+        jdbcTemplate.queryForList(
+                "SELECT id FROM distribution_commission WHERE promoter_staff_id = ? FOR UPDATE",
+                UUID.class, promoterId);
     }
 
     private void requireActor(String actor) {

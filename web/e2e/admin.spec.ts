@@ -1,5 +1,10 @@
 import { expect, test } from '@playwright/test'
 
+/**
+ * 守住的回归：后台每个菜单页仍能打开，且核心列表真的渲染出数据行（不是白屏/500）。
+ * 依赖：41280 API + 41281 admin 已起、演示种子已灌；账号 admin / Admin@123456，
+ * 验证码是后端出的数字加法题（无需 OCR）。失败先看 41281 能否打开、种子是否被重灌。
+ */
 test('admin can load dashboard, products, inventory and theme studio', async ({ page }) => {
   await page.goto('http://localhost:41281/login')
   await page.getByPlaceholder('请输入账号').fill('admin')
@@ -13,7 +18,8 @@ test('admin can load dashboard, products, inventory and theme studio', async ({ 
 
   await page.locator('.admin-menu').getByText('商品管理', { exact: true }).click()
   await expect(page.locator('h2', { hasText: '商品管理' })).toBeVisible()
-  await expect(page.getByText('有机鲜牛奶').first()).toBeVisible()
+  // 不依赖具体演示数据标题（商品会随种子数据/排序变化）：只校验"列表真的渲染出商品行"
+  await expect(page.locator('.el-table__body tr').first()).toBeVisible()
 
   await page.locator('.admin-menu').getByText('订单管理', { exact: true }).click()
   await expect(page.locator('h2', { hasText: '订单管理' })).toBeVisible()
@@ -40,6 +46,7 @@ test('admin can load dashboard, products, inventory and theme studio', async ({ 
   await page.getByRole('button', { name: '新建会员' }).click()
   const memberDialog = page.getByRole('dialog', { name: '新建会员' })
   await memberDialog.getByPlaceholder('请输入姓名').fill('E2E会员')
+  // 手机号带时间戳后缀：会员手机号唯一，固定值第二次跑会撞唯一约束。
   await memberDialog.getByPlaceholder('请输入手机号').fill(`139${Date.now().toString().slice(-8)}`)
   await memberDialog.getByRole('button', { name: '创建' }).click()
   await expect(page.getByText('会员已创建')).toBeVisible()
@@ -56,6 +63,7 @@ test('admin can load dashboard, products, inventory and theme studio', async ({ 
   await promotionDialog.getByRole('button', { name: '创建并启用' }).click()
   await expect(page.getByText('促销已创建并生效')).toBeVisible()
   const promoRow = page.locator('.el-table__row', { hasText: promoTitle })
+  // 用带时间戳的标题定位这一行，避免点到种子里的同名活动；用完立刻结束，别污染演示数据。
   await promoRow.getByRole('button', { name: '结束' }).click()
   await expect(page.getByText('活动已结束')).toBeVisible()
 

@@ -1,0 +1,122 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Full Mall validation rules",
+  "description": "前端/后端共享的业务校验规则。修改后运行 npm run generate:validation；Java 常量由 ValidationRulesContractTest 校验。",
+  "$defs": {
+    "phone": {
+      "type": "string",
+      "pattern": "^\\+?[0-9]{6,20}$"
+    },
+    "password": {
+      "type": "string",
+      "minLength": 8
+    },
+    "pin": {
+      "type": "string",
+      "minLength": 4,
+      "maxLength": 12
+    },
+    "skuCode": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9._-]{1,64}$"
+    },
+    "couponCode": {
+      "type": "string",
+      "pattern": "^[A-Z0-9][A-Z0-9_-]{1,63}$"
+    },
+    "quantity": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 99
+    },
+    "priceAmount": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "contactName": {
+      "type": "string",
+      "maxLength": 64
+    },
+    "assetUpload": {
+      "type": "object",
+      "description": "素材上传的类型白名单与体积上限（字节）。类型以服务端 Apache Tika 的 magic-bytes 嗅探结果为准，客户端上报的 Content-Type 只用于一致性核对。上限的后台可改值不得超出下面给出的 minimum/maximum，也不得超过 multipartCeilingBytes。",
+      "required": [
+        "imageTypes",
+        "videoTypes",
+        "adminImageMaxBytes",
+        "adminVideoMaxBytes",
+        "memberImageMaxBytes",
+        "memberVideoMaxBytes",
+        "multipartCeilingBytes"
+      ],
+      "properties": {
+        "imageTypes": {
+          "description": "可入库的图片类型。故意不含 image/svg+xml：SVG 是 XML 文档，直出会给同源带来脚本执行风险（XSS）。",
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "enum": [
+              "image/png",
+              "image/jpeg",
+              "image/webp",
+              "image/gif"
+            ]
+          }
+        },
+        "videoTypes": {
+          "description": "可入库的视频类型。以容器格式为白名单，不接受音频与流式格式。",
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "enum": [
+              "video/mp4",
+              "video/webm",
+              "video/quicktime"
+            ]
+          }
+        },
+        "adminImageMaxBytes": {
+          "description": "管理端图片默认上限（5MB）。",
+          "type": "integer",
+          "minimum": 102400,
+          "maximum": 20971520,
+          "default": 5242880
+        },
+        "adminVideoMaxBytes": {
+          "description": "管理端视频默认上限（10MB），可配最大值 64MB（须不超过 multipart 天花板）。",
+          "type": "integer",
+          "minimum": 102400,
+          "maximum": 67108864,
+          "default": 10485760
+        },
+        "memberImageMaxBytes": {
+          "description": "顾客端（评价晒图）图片默认上限（2MB）。",
+          "type": "integer",
+          "minimum": 102400,
+          "maximum": 5242880,
+          "default": 2097152
+        },
+        "memberVideoMaxBytes": {
+          "description": "顾客端（评价视频）视频默认上限（5MB）。",
+          "type": "integer",
+          "minimum": 102400,
+          "maximum": 20971520,
+          "default": 5242880
+        },
+        "multipartCeilingBytes": {
+          "description": "Spring multipart 单文件天花板（64MB）。运行时可改的上传上限必须不超过它，否则请求会先在 multipart 解析阶段被拒。",
+          "type": "integer",
+          "minimum": 1048576,
+          "default": 67108864,
+          "maximum": 268435456
+        }
+      }
+    },
+    "reviewMedia": {
+      "description": "单条评价可附带的媒体条数上限（图片与视频合计）。上限存在的理由是审核成本与页面加载：再多的顾客素材运营看不完。",
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 9
+    }
+  }
+}

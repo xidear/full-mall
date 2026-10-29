@@ -5,6 +5,9 @@ export interface Category {
   name: string
 }
 
+/**
+ * 金额单位是**分**（整数）：只允许在 utils/money.ts 除以 100，其余参与计算一律用整数分。
+ */
 export interface Money {
   amount: number
   currency: string
@@ -58,6 +61,7 @@ export interface Store {
   distanceMeters?: number
 }
 
+/** `total` 由后端算好（含促销与券），前端再加总就会出现“结算价≠订单价”。 */
 export interface Order {
   id: string
   orderNo: string
@@ -108,6 +112,8 @@ export interface LegalDocument {
   content: string
   contentHash: string
   effectiveFrom: string
+  /** 空值表示长期有效；有值表示该版本失效时间 */
+  effectiveTo?: string | null
 }
 
 export interface AfterSaleLine {

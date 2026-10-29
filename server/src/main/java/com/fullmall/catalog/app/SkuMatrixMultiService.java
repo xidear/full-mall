@@ -27,6 +27,8 @@ import java.util.UUID;
 @Service
 public class SkuMatrixMultiService {
 
+    // 上限不是性能调优，而是防误操作：一次手滑把维度/取值填多，就会生成上万 SKU，
+    // 清理时很难分清哪些是人工维护的。超限直接 400，不做静默截断。
     private static final int MAX_DIMENSIONS = 4;
     private static final int MAX_COMBINATIONS = 500;
 
@@ -46,6 +48,19 @@ public class SkuMatrixMultiService {
                            Map<String, List<String>> dimensions,
                            List<Map<String, String>> disabled,
                            long priceAmount) {
+        return generate(productId, prefix, dimensions, disabled, priceAmount, null);
+    }
+
+    /**
+     * 带币种的重载：用规格矩阵模板首次为商品建 SKU 时，商品还没有任何 SKU 可推断币种。
+     *
+     * @param currency 为空时沿用"从既有 SKU 推断"的老规则；模板场景必须显式传入
+     */
+    @Transactional
+    public Result generate(UUID productId, String prefix,
+                           Map<String, List<String>> dimensions,
+                           List<Map<String, String>> disabled,
+                           long priceAmount, String currency) {
         if (prefix == null || prefix.isBlank()) {
             throw ApiException.badRequest("SKU_PREFIX_REQUIRED", "SKU 前缀不能为空");
         }
@@ -59,13 +74,18 @@ public class SkuMatrixMultiService {
         if (priceAmount <= 0) {
             throw ApiException.badRequest("SKU_PRICE_INVALID", "价格必须大于 0");
         }
-        var currencies = jdbc.query("SELECT price_currency FROM sku WHERE product_id = ? LIMIT 1",
-                (rs, rowNum) -> rs.getString(1), productId);
-        if (currencies.isEmpty()) {
-            throw ApiException.badRequest("SKU_PRODUCT_EMPTY",
-                    "该商品还没有任何 SKU，无法推断币种：" + productId);
+        String resolvedCurrency;
+        if (currency == null || currency.isBlank()) {
+            var currencies = jdbc.query("SELECT price_currency FROM sku WHERE product_id = ? LIMIT 1",
+                    (rs, rowNum) -> rs.getString(1), productId);
+            if (currencies.isEmpty()) {
+                throw ApiException.badRequest("SKU_PRODUCT_EMPTY",
+                        "该商品还没有任何 SKU，无法推断币种：" + productId);
+            }
+            resolvedCurrency = currencies.get(0);
+        } else {
+            resolvedCurrency = currency.trim().toUpperCase(Locale.ROOT);
         }
-        String currency = currencies.get(0);
 
         List<String> names = new ArrayList<>(dimensions.keySet());
         List<List<String>> valueLists = new ArrayList<>();
@@ -115,11 +135,13 @@ public class SkuMatrixMultiService {
             }
             String skuCode = code.toString();
             codes.add(skuCode);
+            // sku_code 全库唯一：已存在就跳过、不覆盖价格与规格。重跑矩阵因此是安全的重试动作，
+            // 但前提是编码规则不变——换维度顺序或前缀会得到另一批编码，等于新建一批 SKU。
             int inserted = jdbc.update("""
                     INSERT INTO sku (id, product_id, sku_code, price_amount, price_currency, options_json)
                     VALUES (?, ?, ?, ?, ?, ?::jsonb)
                     ON CONFLICT (sku_code) DO NOTHING
-                    """, UUID.randomUUID(), productId, skuCode, priceAmount, currency,
+                    """, UUID.randomUUID(), productId, skuCode, priceAmount, resolvedCurrency,
                     toJson(combo));
             if (inserted == 1) {
                 created++;
@@ -147,6 +169,8 @@ public class SkuMatrixMultiService {
         current.remove(names.get(index));
     }
 
+    // 一条禁用规则只比较它自己写出的维度（子集匹配）：要禁"黑色的 512G"不必把颜色/存储之外
+    // 的维度也抄一遍。写成全部维度相等会让规则随维度增减静默失效。
     private boolean isDisabled(Map<String, String> combo, List<Map<String, String>> disabled) {
         if (disabled == null || disabled.isEmpty()) {
             return false;

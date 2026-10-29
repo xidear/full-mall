@@ -20,6 +20,9 @@ export interface HelpEntry {
   related?: string[]
 }
 
+// 同一 route 只能有一条：运行时 helpFor() 用 find 取首个匹配，而 check-help-coverage.py 用字典
+// 建索引（后一条覆盖前一条），两种取法会分裂。现状 /products 有两条（商品管理、规格改价弹窗），
+// 抽屉里看到的是前者，索引里可能是后者 —— 阅读时按这条规则理解。
 export const HELP_ENTRIES: HelpEntry[] = [
   {
     route: '/',
@@ -37,6 +40,7 @@ export const HELP_ENTRIES: HelpEntry[] = [
     pitfalls: ['把总览数字当作财务对账口径（应以结算单为准）']
   },
   {
+    // /translations 在 router.ts 已重定向到 /products（译文并入商品编辑页），条目保留只为旧链接有落点。
     route: '/translations',
     title: '商品译文',
     description: '为商品录入其它语言的标题与描述，发布后前台按语言生效。',
@@ -105,20 +109,21 @@ export const HELP_ENTRIES: HelpEntry[] = [
     related: ['/products']
   },
   {
-    route: '/price-rule',
-    title: '规格改价',
-    description: '按规格条件（如 存储=256G）批量改价，只影响命中的 SKU。',
+    route: '/products',
+    title: '规格改价（商品列表弹窗）',
+    description: '在商品列表点「规格改价」：只对这一个商品的指定规格组合加减价，不影响其它商品。',
     steps: [
-      '填商品 ID 与规格条件（规格名=规格值）',
-      '选「加减」或「设为」，填金额',
-      '点「预览」核对改前/改后',
-      '确认无误再点「应用改价」'
+      '在商品列表对应行点「规格改价」',
+      '左侧勾维度（如 存储、颜色）',
+      '右侧勾要改的取值（同维度内是"或"，跨维度是"且"）',
+      '选「加价/减价」并填金额，右侧自动预览命中的 SKU 与改前/改后',
+      '确认无误点「确定改价」'
     ],
     tips: [
-      '预览只计算不落库，应用才写入',
-      '规格值必须与 SKU 上的完全一致（大小写、单位）'
+      '预览只计算不落库，确定才写入；整批成功或整批失败',
+      '减价后价格必须大于 0，否则整批拒绝并指出哪个 SKU 会出问题'
     ],
-    pitfalls: ['不填规格条件会被拒绝——系统不允许无差别全商品改价'],
+    pitfalls: ['一个取值都不勾会被拒绝——系统不允许"无差别改整个商品"'],
     related: ['/products', '/sku-matrix']
   },
   {
@@ -306,10 +311,17 @@ export const HELP_ENTRIES: HelpEntry[] = [
   {
     route: '/materials',
     title: '素材库',
-    description: '上传商品图/活动图，拿到可访问地址后填到商品或主题里。',
-    steps: ['选择图片上传', '等提示成功', '复制地址填到需要的地方'],
-    tips: ['只支持 png/jpeg/webp/gif，大小上限由后端配置', '存储位置取决于「第三方服务」里的存储配置'],
-    pitfalls: ['不要上传带个人信息的截图'],
+    description: '上传商品图、主图视频或活动素材，拿到可访问地址后填到商品或主题里。',
+    steps: ['选择图片或视频上传', '等提示成功', '复制地址填到需要的地方'],
+    tips: [
+      '支持 png/jpeg/webp/gif 图片与 mp4/webm/mov 视频；iPhone 的 HEIC 会在网页里自动转成 JPEG',
+      '大小上限在「系统设置 → 素材上传」里配置：默认图片 5MB、视频 10MB，保存后立即生效',
+      '存储位置取决于「第三方服务」里的存储配置'
+    ],
+    pitfalls: [
+      'SVG 不支持（可携带脚本，安全原因），请导出为 png/jpeg',
+      'HEIC 自动转换需要浏览器支持 WebAssembly；被公司策略禁用时会提示先用相册导出 JPEG'
+    ],
     related: ['/products', '/integrations']
   },
   {
@@ -446,8 +458,33 @@ export const HELP_ENTRIES: HelpEntry[] = [
     pitfalls: ['没保存分镜就点生成会提示先保存'],
     related: ['/ai-media', '/materials']
   },
+  {
+    route: '/price-rule',
+    title: '改价规则（旧入口）',
+    description: '旧版独立的改价规则页已并入商品编辑，这个路径只做跳转，保留是为了不打断旧书签与文档链接。',
+    steps: ['打开后会自动跳转到商品列表', '在商品编辑页里维护价格与规格改价'],
+    tips: ['新增价格规则请到商品编辑页操作'],
+    pitfalls: ['不要在这里找独立表单：页面已合并，所以看不到输入框'],
+    related: ['/products']
+  },
+  {
+    route: '/ops',
+    title: '运维中心',
+    description: '看各机器与容器是否在线、技术栈版本、证书状态与端口映射；可以重启/停止/启停受管容器并手工续签证书。',
+    steps: ['打开页面看主机在线状态与容器列表', '点「刷新」拉取最新状态', '需要时对某个容器点「重启/停止/启动」并在弹窗确认', '证书快到期时点「手工续签」'],
+    tips: ['只对受管容器提供操作按钮，未受管的容器只能看', '「端口映射检查」用来排查域名/端口没生效的问题'],
+    pitfalls: [
+      '重启 api/数据库容器会短暂中断下单与支付回调，尽量避开营业高峰',
+      '续签失败先看证书来源说明与 DNS/端口 80 是否放通，不要连续重复点'
+    ],
+    related: ['/settings']
+  },
 ]
 
+/**
+ * 尾部斜杠会被去掉（/products/ 与 /products 等价），空路径回落到 "/"；
+ * 查不到返回 undefined，由 HelpDrawer 明确提示“该页面还没有帮助内容”，而不是静默渲染空抽屉。
+ */
 export function helpFor(route: string): HelpEntry | undefined {
   const normalized = route.replace(/\/+$/, '') || '/'
   return HELP_ENTRIES.find(entry => entry.route === normalized)

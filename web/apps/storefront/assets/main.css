@@ -1,3 +1,5 @@
+/* 这里只是兜底值：真实主题由 useTheme() 内联到 .app-shell，暗色预设还会按 [data-theme] 改写区块。
+   新样式一律用 var(--x)——写死颜色在暗色主题下会变成亮块。 */
 :root {
   --bg: #f6f5f2;
   --surface: #ffffff;
@@ -11,6 +13,8 @@
   --danger: #a33232;
   --radius: 18px;
   --shadow: 0 18px 45px rgba(31, 36, 33, 0.08);
+  /* 同一行内的控件共用同一高度；44px 同时满足触控目标下限。 */
+  --control-height: 44px;
   font-family: "PingFang SC", "Microsoft YaHei", "Noto Sans SC", system-ui, -apple-system, sans-serif;
   color: var(--text);
   background: var(--bg);
@@ -53,6 +57,26 @@ button {
   cursor: pointer;
 }
 
+/* 全局无障碍工具类：任何组件都可以直接使用，避免“只在本组件 scoped 生效”导致
+   标签在别的页面变成可见文字（搜索框前的“搜索商品”曾因此错位）。 */
+.sr-only {
+  position: absolute !important;
+  width: 1px !important;
+  height: 1px !important;
+  padding: 0 !important;
+  margin: -1px !important;
+  overflow: hidden !important;
+  clip: rect(0, 0, 0, 0) !important;
+  clip-path: inset(50%) !important;
+  white-space: nowrap !important;
+  border: 0 !important;
+}
+
+:where(a, button, input, select, textarea, [tabindex]):focus-visible {
+  outline: 2px solid var(--brand);
+  outline-offset: 2px;
+}
+
 .app-shell {
   display: flex;
   min-height: 100vh;
@@ -64,6 +88,8 @@ button {
   margin: 0 auto;
 }
 
+/* 吸顶 + 毛玻璃（backdrop-filter）；文件后面 “Mall shell” 段又声明了一次 .site-header，
+   同特异性后定义胜出——只改这里的背景不会生效，症状是“改了没反应”。 */
 .site-header {
   position: sticky;
   top: 0;
@@ -181,8 +207,8 @@ button {
   border: 1px solid var(--line);
   border-radius: calc(var(--radius) + 8px);
   background:
-    radial-gradient(circle at top right, rgba(196, 106, 43, 0.18), transparent 38%),
-    linear-gradient(135deg, #fdfcf9, #ece9df);
+    radial-gradient(circle at top right, color-mix(in srgb, var(--accent) 18%, transparent), transparent 38%),
+    linear-gradient(135deg, var(--surface), var(--surface-muted));
   box-shadow: var(--shadow);
 }
 
@@ -370,8 +396,8 @@ button {
   align-items: center;
   justify-content: center;
   gap: 8px;
-  min-height: 42px;
-  padding: 10px 18px;
+  min-height: var(--control-height);
+  padding: 0 18px;
   border: 1px solid var(--brand);
   border-radius: 999px;
   background: var(--brand);
@@ -401,7 +427,7 @@ button {
 .button-secondary:hover,
 .button-ghost:hover {
   border-color: var(--brand);
-  background: #edf5f0;
+  background: color-mix(in srgb, var(--brand) 10%, var(--surface));
   color: var(--brand-dark);
 }
 
@@ -459,7 +485,7 @@ button {
 .service-row span {
   padding: 4px 8px;
   border-radius: 2px;
-  background: #fff1ea;
+  background: color-mix(in srgb, var(--brand) 10%, var(--surface));
   color: var(--brand);
   font-size: 11px;
 }
@@ -523,7 +549,7 @@ button {
 
 .option-chip.active {
   border-color: var(--brand);
-  background: #edf5f0;
+  background: color-mix(in srgb, var(--brand) 12%, var(--surface));
   color: var(--brand-dark);
   font-weight: 700;
 }
@@ -533,8 +559,8 @@ button {
   padding: 14px 16px;
   border-left: 3px solid var(--accent);
   border-radius: 10px;
-  background: #fbf1e8;
-  color: #7a3f17;
+  background: color-mix(in srgb, var(--accent) 10%, var(--surface));
+  color: var(--text);
   font-size: 13px;
 }
 
@@ -548,9 +574,10 @@ button {
 
 .quantity {
   display: inline-flex;
+  height: var(--control-height);
   align-items: center;
   gap: 10px;
-  padding: 6px 12px;
+  padding: 0 12px;
   border: 1px solid var(--line);
   border-radius: 999px;
   background: var(--surface);
@@ -560,6 +587,7 @@ button {
 
 .quantity input {
   width: 54px;
+  height: 100%;
   border: 0;
   outline: 0;
   background: transparent;
@@ -720,7 +748,7 @@ button {
   align-items: center;
   padding: 5px 10px;
   border-radius: 999px;
-  background: #edf5f0;
+  background: color-mix(in srgb, var(--brand) 12%, var(--surface));
   color: var(--brand-dark);
   font-size: 12px;
   font-weight: 700;
@@ -857,9 +885,14 @@ button {
   padding: 0 16px;
   border: 0;
   outline: 0;
-  background: #fff;
-  color: #222;
+  background: var(--surface);
+  color: var(--text);
   font-size: 14px;
+}
+
+.search-box input::placeholder {
+  color: var(--muted);
+  opacity: 1;
 }
 
 .search-box button {
@@ -890,13 +923,33 @@ button {
   font-size: 14px;
 }
 
-.category-nav a:first-child {
-  color: var(--brand);
-  font-weight: 700;
+.category-nav a {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  color: var(--text);
 }
 
 .category-nav a:hover {
   color: var(--brand);
+}
+
+/* 当前栏目：由真实路由 + 查询参数计算，而不是“永远高亮第一项”。 */
+.category-nav a.active {
+  color: var(--brand);
+  font-weight: 700;
+}
+
+.category-nav a.active::after {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  height: 2px;
+  border-radius: 2px;
+  background: var(--brand);
+  content: "";
 }
 
 .hero {
@@ -906,8 +959,8 @@ button {
   border: 0;
   border-radius: 10px;
   background:
-    radial-gradient(circle at top right, rgba(255, 122, 0, 0.24), transparent 34%),
-    linear-gradient(120deg, #fff7f2, #ffe9df);
+    radial-gradient(circle at top right, color-mix(in srgb, var(--accent) 24%, transparent), transparent 34%),
+    linear-gradient(120deg, var(--surface), color-mix(in srgb, var(--brand) 8%, var(--surface)));
   box-shadow: none;
 }
 
@@ -944,8 +997,8 @@ button {
   justify-content: center;
   padding: 18px;
   border-radius: 8px;
-  background: #fff;
-  border: 1px solid #ffd8c5;
+  background: var(--surface);
+  border: 1px solid color-mix(in srgb, var(--accent) 28%, var(--line));
 }
 
 .hero-side-card span {
@@ -965,7 +1018,7 @@ button {
 }
 
 .hero-side-card.hot {
-  background: linear-gradient(135deg, #e1251b, #ff7a00);
+  background: linear-gradient(135deg, var(--brand), var(--accent));
   border: 0;
   color: #fff;
 }
@@ -1021,7 +1074,7 @@ button {
   place-items: center;
   margin-bottom: 4px;
   border-radius: 50%;
-  background: #fff1ea;
+  background: color-mix(in srgb, var(--brand) 10%, var(--surface));
   color: var(--brand);
   font-size: 18px;
   font-weight: 800;
@@ -1055,12 +1108,12 @@ button {
 .industrial-panel {
   padding: 24px;
   border-radius: 10px;
-  background: #182129;
-  color: #e8edf0;
+  background: var(--brand-dark);
+  color: #fff;
 }
 
 .industrial-panel .eyebrow {
-  color: #d99a2b;
+  color: color-mix(in srgb, var(--accent) 75%, #fff);
 }
 
 .industrial-panel h2 {
@@ -1069,7 +1122,7 @@ button {
 }
 
 .industrial-panel p {
-  color: #93a4ae;
+  color: rgba(255, 255, 255, 0.72);
   font-size: 13px;
 }
 
@@ -1084,7 +1137,7 @@ button {
   justify-content: space-between;
   gap: 12px;
   padding-bottom: 8px;
-  border-bottom: 1px solid #30414c;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.18);
   font-size: 13px;
 }
 
@@ -1109,7 +1162,7 @@ button {
 
 .product-tags span {
   padding: 2px 6px;
-  border: 1px solid #ffd8c5;
+  border: 1px solid color-mix(in srgb, var(--brand) 28%, var(--line));
   border-radius: 2px;
   color: var(--brand);
   font-size: 10px;
@@ -1188,10 +1241,10 @@ button {
 .demo-result-card {
   margin-top: 16px;
   padding: 16px;
-  border: 1px solid #ffd8c5;
+  border: 1px solid color-mix(in srgb, var(--accent) 28%, var(--line));
   border-radius: 8px;
-  background: #fff7f2;
-  color: #7a3f17;
+  background: color-mix(in srgb, var(--accent) 8%, var(--surface));
+  color: var(--text);
   font-size: 13px;
 }
 
@@ -1440,11 +1493,27 @@ button {
 
 .footer-bottom {
   display: flex;
+  align-items: center;
   justify-content: space-between;
-  gap: 20px;
+  gap: 12px 20px;
+  flex-wrap: wrap;
   padding: 14px 0 22px;
   color: var(--muted);
   font-size: 11px;
+}
+
+.footer-copy {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.footer-attribution {
+  padding-left: 8px;
+  border-left: 1px solid var(--line);
+  color: var(--muted);
+  letter-spacing: 0.02em;
 }
 
 .maintenance-page {

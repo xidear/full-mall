@@ -1,9 +1,12 @@
 <script setup lang="ts">
 const { locale, t } = useLocale()
+const categoryLabel = useCategoryLabel()
 import type { Category, Product, ProductPage } from '~/types'
 
 const config = useRuntimeConfig()
 const base = import.meta.server ? config.apiInternalBase : config.public.apiBase
+// 首页一次取 50 条给各区块（降价/生鲜/工业品）切片复用，避免每个区块各发一次请求。
+// 代价：商品超过 50 个时首页只覆盖前 50 条——首页是“精选”语义，完整列表在 /products。
 const { data, error } = await useFetch<ProductPage>(`${base}/api/v1/products`, {
   key: 'home-products',
   query: { locale: locale.value, page: 0, size: 50 }
@@ -12,17 +15,23 @@ const { data: categories } = await useAsyncData<Category[]>('categories', () =>
   $fetch<Category[]>(`${base}/api/v1/categories`)
 )
 
+// 加载失败必须抛 502 交给 error.vue，而不是渲染一个“看起来正常”的空首页：
+// 空数组 ≠ 请求失败（AGENTS.md §1），否则顾客只会以为这家店没货。
 if (error.value) {
+  console.error('[home] 商品加载失败:', error.value)
   throw createError({
     statusCode: 502,
-    statusMessage: `商品加载失败：${error.value.message}`
+    statusMessage: '商品加载失败，请稍后重试'
   })
 }
 
 const products = computed(() => data.value?.items ?? [])
-useHead({ title: 'Full Mall · 全品类商城' })
+const { siteName, siteTagline } = useSite()
+useHead(() => ({ title: siteTagline.value ? `${siteName.value} · ${siteTagline.value}` : siteName.value }))
 const deals = computed(() => products.value.filter(product => product.skus[0]?.compareAtPrice).slice(0, 4))
 const shelfLife = computed(() => products.value.filter(product => product.shelfLifeManaged).slice(0, 4))
+// 工业品专区靠标题硬匹配，是演示数据的权宜之计：后端没有“工业品”标记，
+// 新上架商品不会自动进来。等后端提供字段后应改为按标记筛选。
 const industrial = computed(() =>
   products.value.filter(product => ['工业级步进电机', '不锈钢法兰盘'].includes(product.title)).slice(0, 4)
 )
@@ -65,11 +74,11 @@ const industrial = computed(() =>
     <NuxtLink
       v-for="category in categories ?? []"
       :key="category.id"
-      :to="{ path: '/products', query: { categoryId: category.id } }"
+      :to="{ path: '/products', query: { category: category.code } }"
       class="category-tile"
     >
-      <span class="category-icon">{{ category.name.slice(0, 1) }}</span>
-      <strong>{{ category.name }}</strong>
+      <span class="category-icon">{{ categoryLabel(category).slice(0, 1) }}</span>
+      <strong>{{ categoryLabel(category) }}</strong>
       <small>精选好物</small>
     </NuxtLink>
   </section>

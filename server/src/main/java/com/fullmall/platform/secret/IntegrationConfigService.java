@@ -26,11 +26,13 @@ import java.util.Set;
 @Service
 public class IntegrationConfigService {
 
+    // 独立 ObjectMapper：不参与全局 Jackson 定制，否则命名策略一变已入库密文的字节形态就变、旧配置解不开。
     private static final ObjectMapper MAPPER = new ObjectMapper();
     /** 允许的能力（与 ADR-005 一致）；拼错会产生永不生效的死配置，必须拒绝。 */
     private static final Set<String> SUPPORTED_CAPABILITIES = Set.of(
             "sms", "payment", "storage", "moderation", "logistics", "ai");
 
+    // 子串匹配：keyId 之类也会被当密文（列表不回显），新增服务商请按 xxx_secret_key / xxx_access_key 命名。
     private static final List<String> SENSITIVE_MARKERS =
             List.of("secret", "key", "token", "password", "private");
 
@@ -50,6 +52,11 @@ public class IntegrationConfigService {
                        Map<String, Object> hint, boolean secretsConfigured) {
     }
 
+    /**
+     * 保存某能力的服务商配置（存在则覆盖），三步同事务且顺序不能改：校验白名单（拼错的能力是永不生效的死配置）
+     * → 拆加密/可回显字段（敏感字段传空白表示"保持不变"，沿用旧密文）→ 启用时先关同能力其它 provider 再 upsert。
+     * 幂等靠 (capability, provider) 唯一键的 ON CONFLICT；入参不合法抛 {@link ApiException}(400)，其它异常回滚。
+     */
     @Transactional
     public Saved save(String capability, String provider, Map<String, String> config,
                       boolean enabled, String actor) {
@@ -89,6 +96,7 @@ public class IntegrationConfigService {
             encrypted = cipher.encrypt(toJson(secrets));
         }
 
+        // 与下面的 upsert 同事务：否则中间态出现两条 enabled=true，enabledProvider()/resolve() 拿到谁不确定。
         if (enabled) {
             jdbc.update("UPDATE integration_config SET enabled = false WHERE capability = ? AND provider <> ?",
                     capability, provider);
@@ -109,11 +117,12 @@ public class IntegrationConfigService {
 
     /** 读取：只返回非敏感字段与"是否已配置"，不含任何 secret。 */
     public List<View> list(String capability) {
+        // capability 传 null 返回全部；传空串按 capability = '' 精确匹配、通常一条都查不到。
         return jdbc.query("""
                 SELECT capability, provider, enabled, config_hint::text AS hint,
                        (config_enc IS NOT NULL) AS secrets_configured
                   FROM integration_config
-                 WHERE (? IS NULL OR capability = ?)
+                 WHERE (?::text IS NULL OR capability = ?::text)
                  ORDER BY capability, provider
                 """, (rs, rowNum) -> new View(
                 rs.getString("capability"), rs.getString("provider"), rs.getBoolean("enabled"),
@@ -121,8 +130,19 @@ public class IntegrationConfigService {
                 capability, capability);
     }
 
+    /** 当前启用的服务商标识；未配置返回 null（由调用方决定回退或失败）。 */
+    public String enabledProvider(String capability) {
+        List<String> providers = jdbc.queryForList("""
+                SELECT provider FROM integration_config
+                 WHERE capability = ? AND enabled
+                 LIMIT 1
+                """, String.class, capability);
+        return providers.isEmpty() ? null : providers.get(0);
+    }
+
     /** 供适配器装配用：取出解密后的完整配置（仅内部调用，绝不暴露给 HTTP 层）。 */
     public Map<String, String> resolve(String capability) {
+        // 无启用行抛 409 而不是返回空 Map：带空密钥调下游会把"没配置"表现成"供应商鉴权失败"，排查方向全错。
         var rows = jdbc.query("""
                 SELECT config_enc FROM integration_config
                  WHERE capability = ? AND enabled
@@ -143,6 +163,7 @@ public class IntegrationConfigService {
         return SENSITIVE_MARKERS.stream().anyMatch(lower::contains);
     }
 
+    // 失败必须抛：返回 "{}" 等于把刚提交的密钥悄悄丢掉。
     private String toJson(Object value) {
         try {
             return MAPPER.writeValueAsString(value);

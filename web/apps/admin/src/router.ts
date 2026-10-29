@@ -1,4 +1,9 @@
+/**
+ * 路由清单被两处消费：App.vue 菜单按 path 指向这里；scripts/check-help-coverage.py 正则扫描本文件，
+ * 新增页面必须同步补 help/catalog.ts 条目（redirect 路由也算一页：当前 /price-rule、/ops 缺条目，检查即失败）。
+ */
 import { createRouter, createWebHistory } from 'vue-router'
+import { ApiError } from '@fullmall/api-client'
 import { auth, loadMe, clearAuth } from './auth'
 import LoginView from './views/LoginView.vue'
 import DashboardView from './views/DashboardView.vue'
@@ -19,12 +24,10 @@ import CostsView from './views/CostsView.vue'
 import ExportsView from './views/ExportsView.vue'
 import SkuMatrixView from './views/SkuMatrixView.vue'
 import LicenseView from './views/LicenseView.vue'
-import PriceRuleView from './views/PriceRuleView.vue'
 import ExpiringView from './views/ExpiringView.vue'
 import IntegrationsView from './views/IntegrationsView.vue'
 import MaterialView from './views/MaterialView.vue'
 import PosPromotionsView from './views/PosPromotionsView.vue'
-import TranslationsView from './views/TranslationsView.vue'
 import FaqView from './views/FaqView.vue'
 import AiMediaView from './views/AiMediaView.vue'
 import AiStoryboardView from './views/AiStoryboardView.vue'
@@ -39,11 +42,14 @@ import StaffView from './views/StaffView.vue'
 import SettingsView from './views/SettingsView.vue'
 import OpsView from './views/OpsView.vue'
 
+// history 模式依赖服务端把未知路径回落 index.html（dev 靠 Vite、生产靠 nginx try_files）；
+// 少了这条回落，用户在 /orders 按 F5 得到的是 404 而不是页面。
 const router = createRouter({
   history: createWebHistory(),
   routes: [
     { path: '/login', name: 'login', component: LoginView, meta: { title: '登录' } },
     { path: '/', name: 'dashboard', component: DashboardView, meta: { title: '经营总览' } },
+    // 下面两个 /products 子路由不在菜单里，侧边栏高亮靠 App.vue 的 activeMenu 按前缀兜住。
     { path: '/products', name: 'products', component: ProductListView, meta: { title: '商品管理' } },
     { path: '/products/new', name: 'product-new', component: ProductEditView, meta: { title: '新建商品' } },
     { path: '/products/:id/edit', name: 'product-edit', component: ProductEditView, meta: { title: '编辑商品' } },
@@ -63,14 +69,16 @@ const router = createRouter({
     { path: '/brands', name: 'brands', component: BrandsView, meta: { title: '品牌管理' } },
     { path: '/costs', name: 'costs', component: CostsView, meta: { title: '成本查询' } },
     { path: '/exports', name: 'exports', component: ExportsView, meta: { title: '导出中心' } },
-    { path: '/sku-matrix', name: 'sku-matrix', component: SkuMatrixView, meta: { title: 'SKU 规格矩阵' } },
+    { path: '/sku-matrix', name: 'sku-matrix', component: SkuMatrixView, meta: { title: '规格矩阵模板' } },
     { path: '/license', name: 'license', component: LicenseView, meta: { title: '许可证' } },
-    { path: '/price-rule', name: 'price-rule', component: PriceRuleView, meta: { title: '规格改价' } },
+    // 规格改价已改为商品列表里的弹窗（作用域是单个商品）；旧地址重定向
+    { path: '/price-rule', redirect: { path: '/products' } },
     { path: '/expiring', name: 'expiring', component: ExpiringView, meta: { title: '临期商品' } },
     { path: '/integrations', name: 'integrations', component: IntegrationsView, meta: { title: '第三方服务' } },
     { path: '/materials', name: 'materials', component: MaterialView, meta: { title: '素材库' } },
     { path: '/pos-promotions', name: 'pos-promotions', component: PosPromotionsView, meta: { title: 'POS 专属促销' } },
-    { path: '/translations', name: 'translations', component: TranslationsView, meta: { title: '商品译文' } },
+    // 商品译文已并入商品管理（编辑页「译文」标签）；旧地址重定向，避免收藏夹失效
+    { path: '/translations', redirect: { path: '/products' } },
     { path: '/faq', name: 'faq', component: FaqView, meta: { title: 'FAQ 知识库' } },
     { path: '/ai-media', name: 'ai-media', component: AiMediaView, meta: { title: 'AI 素材生成' } },
     { path: '/ai-storyboard', name: 'ai-storyboard', component: AiStoryboardView, meta: { title: '视频分镜' } },
@@ -94,9 +102,15 @@ router.beforeEach(async to => {
   if (!auth.user) {
     try {
       await loadMe()
-    } catch {
-      clearAuth()
-      return { name: 'login', query: { redirect: to.fullPath } }
+    } catch (cause) {
+      // 只有"登录态无效"才清空：网络抖动/5xx 清空登录态会让运营莫名其妙被踢出
+      const status = cause instanceof ApiError ? cause.status : 0
+      if (status === 401 || status === 403) {
+        clearAuth()
+        return { name: 'login', query: { redirect: to.fullPath } }
+      }
+      // 其它错误保留 token，交给页面自己的错误块提示，避免"刷新一次就被登出"
+      return true
     }
   }
   return true

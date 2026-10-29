@@ -54,7 +54,7 @@ class ProductBasicsUpdateTest {
         UUID id = UUID.randomUUID();
         jdbc.update("INSERT INTO product (id, title, status) VALUES (?, '旧标题', 'ACTIVE')", id);
 
-        catalog.updateBasics(id, "新标题", "新的描述", null);
+        catalog.updateBasics(id, "新标题", "新的描述", null, null);
 
         var row = jdbc.queryForMap("SELECT title, description FROM product WHERE id = ?", id);
         assertThat(row.get("title")).isEqualTo("新标题");
@@ -63,7 +63,7 @@ class ProductBasicsUpdateTest {
 
     @Test
     void rejectsBlankTitleAndMissingProduct() {
-        assertThatThrownBy(() -> catalog.updateBasics(UUID.randomUUID(), " ", "x", null))
+        assertThatThrownBy(() -> catalog.updateBasics(UUID.randomUUID(), " ", "x", null, null))
                 .hasMessageContaining("商品标题不能为空");
     }
 }

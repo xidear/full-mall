@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from 'vue'
 import { ElMessage } from 'element-plus'
+import { VALIDATION } from '@fullmall/api-client'
 import { api } from '../api'
 
 const loading = ref(false)
@@ -9,6 +10,11 @@ const error = ref('')
 
 const form = reactive<Record<string, string>>({
   site_name: '',
+  site_tagline: '',
+  default_market: 'CN',
+  'app.timezone': 'Asia/Shanghai',
+  media_public_base_url: '',
+  branding_attribution: 'SHOW',
   site_domain: '',
   site_scheme: 'https',
   company_name: '',
@@ -20,6 +26,7 @@ const form = reactive<Record<string, string>>({
   site_status: 'OPEN',
   maintenance_message: '',
   default_locale: 'zh-CN',
+  enabled_locales: 'en,ja',
   default_currency: 'CNY',
   storage_provider: 'mock',
   sms_provider: 'mock',
@@ -45,8 +52,28 @@ const form = reactive<Record<string, string>>({
   'distribution.min-withdrawal': '10000',
   'distribution.payout-methods': 'ALIPAY,BANK',
   'distribution.staff-payout': 'PAYROLL',
-  'distribution.staff-level2-enabled': 'false'
+  'distribution.staff-level2-enabled': 'false',
+  // 素材上传上限（字节）。默认值镜像 docs/validation.schema.json；
+  // 保存后立即对下一次上传生效，不需要重启后端。
+  'upload.admin-image-max-bytes': String(VALIDATION.assetUpload.admin.maxBytes),
+  'upload.admin-video-max-bytes': String(VALIDATION.assetUpload.adminVideo.maxBytes),
+  'upload.member-image-max-bytes': String(VALIDATION.assetUpload.member.maxBytes),
+  'upload.member-video-max-bytes': String(VALIDATION.assetUpload.memberVideo.maxBytes)
 })
+
+/** 库/接口里存字节，运营按 MB 填：这里只做单位换算，不做校验（范围交给后端）。 */
+function megabytesField(key: string) {
+  return computed({
+    get: () => Number(form[key] || 0) / 1024 / 1024,
+    set: (value: number) => { form[key] = String(Math.round(value * 1024 * 1024)) }
+  })
+}
+
+const adminImageMb = megabytesField('upload.admin-image-max-bytes')
+const adminVideoMb = megabytesField('upload.admin-video-max-bytes')
+const memberImageMb = megabytesField('upload.member-image-max-bytes')
+const memberVideoMb = megabytesField('upload.member-video-max-bytes')
+const multipartCeilingMb = VALIDATION.assetUpload.multipartCeilingBytes / 1024 / 1024
 
 // 渠道自检：直接调用发送链路，返回真实结果（不做前端模拟）
 const testChannel = ref('IN_APP')
@@ -54,6 +81,8 @@ const testing = ref(false)
 interface TestResult { status: string; errorMessage?: string | null }
 const testResult = ref<TestResult | null>(null)
 
+// 渠道自检打的是真实发送链路（后端不模拟）：演示环境会真的发出短信/邮件，注意配额与费用。
+// 失败结果写进 testResult 并在页面显示原因，而不是只弹 toast——运维要能看到具体错误。
 async function runChannelTest() {
   if (testing.value) return
   testing.value = true
@@ -82,6 +111,8 @@ const siteUrlPreview = computed(() => {
   return scheme + '://' + raw
 })
 
+// 分 ↔ 元 的唯一转换点（设置项存分，输入框显示元）。边界：输入框被清空或输入非数字时
+// Number() 得到 NaN，会被写成 "NaN" 存库；改这里时要保证非法输入有兜底或拦截。
 const minWithdrawalYuan = computed({
   get: () => Number(form['distribution.min-withdrawal'] || 0) / 100,
   set: (value: number) => { form['distribution.min-withdrawal'] = String(Math.round(value * 100)) }
@@ -111,6 +142,8 @@ async function save() {
   saving.value = true
   error.value = ''
   try {
+    // 保存提交整份 form（含未改动的默认值）：新装站点因此会把这些键写成前端默认值（如 storage_provider=mock）。
+    // 改 form 的默认值等于改“未配置键的落库值”，不只是改界面预填。
     const values = await api.put<Record<string, string>>('/admin/v1/settings', { ...form })
     Object.assign(form, values)
     ElMessage.success('系统设置已保存')
@@ -140,6 +173,27 @@ async function save() {
           <el-form-item label="站点名称">
             <el-input v-model="form.site_name" />
           </el-form-item>
+          <el-form-item label="站点副标题">
+            <el-input v-model="form.site_tagline" placeholder="如：全品类商城 / 跨境好物" />
+            <span class="muted">显示在页脚品牌行；留空则只显示站点名称。</span>
+          </el-form-item>
+          <el-form-item label="运营地区">
+            <el-select v-model="form.default_market" style="width: 100%">
+              <el-option label="中国大陆（CN）" value="CN" />
+              <el-option label="中国香港（HK）" value="HK" />
+              <el-option label="中国澳门（MO）" value="MO" />
+              <el-option label="中国台湾（TW）" value="TW" />
+            </el-select>
+            <span class="muted">决定法律文档、登录号码提示与备案信息是否展示，不再写死在页面里。</span>
+          </el-form-item>
+          <el-form-item label="站点默认时区">
+            <el-input v-model="form['app.timezone']" placeholder="Asia/Shanghai" />
+            <span class="muted">IANA 时区；未登录顾客的时间按此显示，登录会员优先用会员时区。</span>
+          </el-form-item>
+          <el-form-item label="媒体 / 静态资源基址">
+            <el-input v-model="form.media_public_base_url" placeholder="https://cdn.example.com 或留空跟随商城域名" />
+            <span class="muted">数据库优先。换 CDN/对象存储只改这里；留空时跟随上面的商城对外域名。</span>
+          </el-form-item>
           <el-form-item label="公司主体">
             <el-input v-model="form.company_name" />
           </el-form-item>
@@ -157,6 +211,19 @@ async function save() {
           </el-form-item>
           <el-form-item label="客服邮箱">
             <el-input v-model="form.service_email" />
+          </el-form-item>
+        </div>
+      </section>
+
+      <section class="form-section">
+        <h3>品牌与版权</h3>
+        <p class="muted">版权声明默认显示。付费授权可关闭（建议作为买断/年费权益，见 docs/LICENSING_AND_BUILD.md）。关闭后页脚不再出现 “Powered by Full Mall”。</p>
+        <div class="policy-grid">
+          <el-form-item label="版权声明">
+            <el-select v-model="form.branding_attribution" style="width: 100%">
+              <el-option label="显示（社区版默认）" value="SHOW" />
+              <el-option label="隐藏（付费授权）" value="HIDDEN" />
+            </el-select>
           </el-form-item>
         </div>
       </section>
@@ -253,6 +320,35 @@ async function save() {
       </section>
 
       <section class="form-section">
+        <h3>素材上传</h3>
+        <div class="policy-grid">
+          <el-form-item label="管理端图片上限（MB）">
+            <el-input-number v-model="adminImageMb" :min="0.1" :max="VALIDATION.assetUpload.admin.maxLimit / 1024 / 1024"
+                             :step="0.5" :precision="1" style="width: 100%" />
+            <p class="muted">商品图/规格图/素材库。默认 {{ (VALIDATION.assetUpload.admin.maxBytes / 1024 / 1024).toFixed(0) }}MB。</p>
+          </el-form-item>
+          <el-form-item label="管理端视频上限（MB）">
+            <el-input-number v-model="adminVideoMb" :min="0.1" :max="VALIDATION.assetUpload.adminVideo.maxLimit / 1024 / 1024"
+                             :step="1" :precision="1" style="width: 100%" />
+            <p class="muted">主图视频/详情视频。默认 {{ (VALIDATION.assetUpload.adminVideo.maxBytes / 1024 / 1024).toFixed(0) }}MB。</p>
+          </el-form-item>
+          <el-form-item label="顾客端评价图片上限（MB）">
+            <el-input-number v-model="memberImageMb" :min="0.1" :max="VALIDATION.assetUpload.member.maxLimit / 1024 / 1024"
+                             :step="0.5" :precision="1" style="width: 100%" />
+            <p class="muted">评价晒图。默认 {{ (VALIDATION.assetUpload.member.maxBytes / 1024 / 1024).toFixed(0) }}MB。</p>
+          </el-form-item>
+          <el-form-item label="顾客端评价视频上限（MB）">
+            <el-input-number v-model="memberVideoMb" :min="0.1" :max="VALIDATION.assetUpload.memberVideo.maxLimit / 1024 / 1024"
+                             :step="1" :precision="1" style="width: 100%" />
+            <p class="muted">评价视频。默认 {{ (VALIDATION.assetUpload.memberVideo.maxBytes / 1024 / 1024).toFixed(0) }}MB。</p>
+          </el-form-item>
+        </div>
+        <el-alert type="info" :closable="false" show-icon
+                  :title="`单文件解析层天花板：${multipartCeilingMb}MB`"
+                  description="超过天花板的文件在进入业务校验之前就会被拒绝；上限调大到接近天花板时，建议同时调高部署环境的 UPLOAD_MULTIPART_MAX_FILE_SIZE。" />
+      </section>
+
+      <section class="form-section">
         <h3>站点状态</h3>
         <div class="policy-grid">
           <el-form-item label="营业状态">
@@ -282,6 +378,12 @@ async function save() {
               <el-option label="العربية" value="ar" />
             </el-select>
           </el-form-item>
+          <el-form-item label="已启用语言（逗号分隔）">
+            <el-input v-model="form.enabled_locales" placeholder="en,ja" />
+            <p class="muted">
+              商品译文的语言页签、前台语言切换都以这里为准；保存后刷新商品编辑页即可看到新语言。
+            </p>
+          </el-form-item>
           <el-form-item label="默认币种">
             <el-select v-model="form.default_currency" style="width: 100%">
               <el-option label="CNY 人民币" value="CNY" />
@@ -294,11 +396,13 @@ async function save() {
           </el-form-item>
           <el-form-item label="存储适配器">
             <el-select v-model="form.storage_provider" style="width: 100%">
-              <el-option label="Mock（开源默认）" value="mock" />
+              <el-option label="本地 / Mock（默认）" value="mock" />
+              <el-option label="七牛云（密钥走环境变量）" value="qiniu" />
+              <el-option label="腾讯云 COS（密钥走环境变量）" value="cos" />
               <el-option label="阿里云 OSS（待接入）" value="aliyun-oss" />
-              <el-option label="七牛云（待接入）" value="qiniu" />
-              <el-option label="S3 / SeaweedFS" value="s3" />
+              <el-option label="S3 / SeaweedFS（待接入）" value="s3" />
             </el-select>
+            <span class="muted">服务商来自数据库；保存后下一次上传即生效，不需要重启。未接入的服务商会明确报错，不会静默回落本地。</span>
           </el-form-item>
           <el-form-item label="短信适配器">
             <el-select v-model="form.sms_provider" style="width: 100%">

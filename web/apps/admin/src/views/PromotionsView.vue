@@ -62,6 +62,7 @@ async function load() {
   try {
     const [promotionList, productPage] = await Promise.all([
       api.get<PromotionView[]>('/admin/v1/promotions'),
+      // skuOptions 全部来自这一次请求：size=100 且没有分页，商品超过 100 个时部分 SKU 在下拉里选不到。
       api.get<ProductPage>('/admin/v1/products', { locale: 'zh-CN', size: 100 })
     ])
     promotions.value = promotionList
@@ -172,6 +173,9 @@ function money(value?: { amount: number; currency: string }) {
 }
 
 
+// 本页同时维护两套互不替代的模型与接口：促销活动（/admin/v1/promotions，秒杀/买赠/拼团）与
+// 满减满折规则（/admin/v1/promotions/rules，DRAFT→ACTIVE→ENDED）。两套状态机不同（前者用
+// ?status= 改状态，后者用 /activate、/end 子资源），不要用一套的按钮去操作另一套的数据。
 // ---- 满减 / 满折规则（结构化表单，JSON 由服务端生成） ----
 interface ScopeOption { id: string; label: string; extra?: string }
 interface PromotionRule {
@@ -285,6 +289,8 @@ function openEditRule(rule: PromotionRule) {
   ruleForm.valueYuan = rule.type === 'FULL_DISCOUNT' ? 0 : rule.value / 100
   ruleForm.percent = rule.type === 'FULL_DISCOUNT' ? rule.value : 90
   ruleForm.scope = rule.scope as 'ALL' | 'SKU' | 'CATEGORY' | 'BRAND'
+  // 编辑时把范围项清空：PUT 会提交全量字段，scope 仍保留 SKU/CATEGORY/BRAND 而 scopeIds 变成空数组，
+  // 保存后原有指定范围会被抹掉——编辑非全场规则前要先看清这一点。
   ruleForm.scopeIds = []
   ruleForm.channel = rule.channel as 'ONLINE' | 'POS' | 'PICKUP'
   ruleForm.priority = rule.priority

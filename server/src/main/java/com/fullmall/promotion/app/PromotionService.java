@@ -34,13 +34,19 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
+/**
+ * 促销执行层：并发安全不靠 Java 内存状态，靠 {@code PromotionRepository} 的原子条件更新与 PG advisory lock；
+ * 金额一律是**最小货币单位（分）**的 long，币种取自 SKU，本类不做汇率换算。
+ */
 @Service
 public class PromotionService {
 
     private static final Logger log = LoggerFactory.getLogger(PromotionService.class);
+    // 拼团码要对外分享：字符表去掉 0/O/1/I 便于客服抄码；唯一性仍由 group_buy.code 的 UNIQUE 约束兜底。
     private static final SecureRandom RANDOM = new SecureRandom();
     private static final char[] CODE_CHARS = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789".toCharArray();
 
+    // 拼团失败退款经 eventPublisher 交给监听器，而不是在事务里直接调支付：外部接口不能占着数据库事务（AGENTS.md §10.3）。
     private final PromotionRepository repository;
     private final CatalogService catalogService;
     private final ApplicationEventPublisher eventPublisher;
@@ -77,6 +83,10 @@ public class PromotionService {
                 .map(promotion -> view(promotion, now)).toList();
     }
 
+    /**
+     * 新建活动（单事务）：编码唯一性的真防线是 {@code promotion.code} 的 UNIQUE 约束——下面的预检查
+     * 只扫进行中的活动，看不到已结束活动的编码；撞键统一翻译成 PROMOTION_CODE_EXISTS，不把 DB 异常甩给后台。
+     */
     @Transactional
     public PromotionView create(CreatePromotionRequest request) {
         Instant startsAt = request.startsAt();
@@ -136,6 +146,11 @@ public class PromotionService {
                 promotion.groupDurationHours(), promotion.priority(), promotion.createdAt()), Instant.now());
     }
 
+    /**
+     * 结算取价（只读）：秒杀按 priority 取第一条命中、买赠可同时命中，顺序与下面两段遍历一一对应，改顺序即改价；
+     * 这里的售罄/限购只是报价期善意拦截，权威判定在 {@link #recordCheckout}。
+     * phone 必填：限购按 {@code promotion_redemption.member_phone} 累计，缺身份时宁可失败，也不按"未超限"放行。
+     */
     public PromotionPricing prepare(Map<UUID, Integer> items, String phone, UUID groupBuyId) {
         if (phone == null || phone.isBlank()) {
             throw ApiException.badRequest("CONTACT_REQUIRED", "下单必须提供联系人手机号才能校验促销限购");
@@ -201,6 +216,10 @@ public class PromotionService {
         return new PromotionPricing(priceOverrides, gifts, applied, null);
     }
 
+    /**
+     * 落单记账：固定「(活动, 手机号) advisory lock → 重读额度 → 条件更新」这一种顺序，避免并发订单互相等待死锁；
+     * 条件更新影响 0 行即抛 PROMOTION_SOLD_OUT。幂等靠 UNIQUE(promotion_id, order_id)：重复调用撞键整体回滚，不会重复计数。
+     */
     @Transactional
     public void recordCheckout(PromotionPricing pricing, UUID orderId, String phone) {
         String normalizedPhone = phone == null ? null : phone.trim();
@@ -292,6 +311,10 @@ public class PromotionService {
                 .orElseThrow(() -> new IllegalStateException("Group buy missing after insert: " + groupBuy.id())));
     }
 
+    /**
+     * 取消/超时关单退还名额（幂等）：只处理 {@code released_at IS NULL} 的流水并退完即标记，超时任务与人工取消撞车只退一次；
+     * 秒杀退主商品件数、买赠退赠品件数——口径不同，退错会"名额越用越多"或"永远售罄"。
+     */
     @Transactional
     public void releaseOrder(UUID orderId) {
         for (PromotionClaim claim : repository.findUnreleasedClaims(orderId)) {
@@ -466,6 +489,18 @@ public class PromotionService {
                 promotion.groupSize(),
                 promotion.groupDurationHours(),
                 promotion.priority());
+    }
+
+    /** 后台拼团记录列表：promotionId 为空表示全部（限量，避免一次拉全表）。 */
+    public java.util.List<GroupBuyView> groupBuys(java.util.UUID promotionId, int limit) {
+        int safeLimit = Math.min(Math.max(limit, 1), 200);
+        return repository.findGroupBuyIds(promotionId).stream()
+                .limit(safeLimit)
+                .map(id -> repository.findGroupBuy(id).orElseThrow(() ->
+                        com.fullmall.platform.error.ApiException.notFound(
+                                "GROUP_BUY_NOT_FOUND", "拼团不存在：" + id)))
+                .map(this::groupBuyView)
+                .toList();
     }
 
     private GroupBuyView groupBuyView(GroupBuy groupBuy) {

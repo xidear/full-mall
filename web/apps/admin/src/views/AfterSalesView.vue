@@ -41,6 +41,8 @@ function changePage(next: number) {
   load()
 }
 const locations = ref<Location[]>([])
+// 退货入库地点拉取失败必须让运营看见：否则下拉为空，收货时选不到库位
+const locationsError = ref('')
 const loading = ref(false)
 const error = ref('')
 const route = useRoute()
@@ -72,8 +74,12 @@ onMounted(async () => {
   await load()
   try {
     locations.value = await api.get<Location[]>('/admin/v1/warehouse/locations')
-  } catch {
+    locationsError.value = ''
+  } catch (cause) {
     locations.value = []
+    locationsError.value = cause instanceof Error
+      ? '入库地点加载失败：' + cause.message
+      : '入库地点加载失败，收货时无法选择库位'
   }
 })
 
@@ -161,6 +167,8 @@ async function reject(afterSale: AfterSaleView) {
     ElMessage.success('售后已拒绝')
     await load()
   } catch (cause) {
+    // ElMessageBox 用字符串 'cancel'/'close' 表示“用户取消”，必须与真实失败区分：
+    // 取消不写 error（否则页面顶部会红着脸说“拒绝失败”）。
     if (cause === 'cancel' || cause === 'close') return
     error.value = cause instanceof Error ? cause.message : '拒绝失败'
   } finally {
@@ -278,6 +286,8 @@ function money(value?: { amount: number; currency: string }) {
       </el-table>
 
       <div class="table-footer">
+        <!-- keyset 模式（默认）下只有 loadMore 分支，从不给 total 赋值，所以这里恒显示“共 0 条售后”；
+             真实条数以“加载更多”按钮是否可点为准。 -->
         <span class="muted">共 {{ total }} 条售后</span>
         <el-button v-if="useKeyset" data-testid="aftersale-load-more" :loading="loadingMore"
                    :disabled="!hasMore" @click="loadMore">
@@ -307,6 +317,8 @@ function money(value?: { amount: number; currency: string }) {
         </el-descriptions>
         <h3 class="section-title">退货商品</h3>
         <el-table :data="detail.lines" size="small">
+          <!-- 注意：此处有一个未闭合的 <el-table-c（残缺开始标签，工作树现状），
+               Vue 可能把它当成未知元素而丢列，详情里的“退货商品”表要按实际渲染结果核对。 -->
           <el-table-c
           <el-table-column prop="title" label="商品" min-width="180" />
           <el-table-column prop="skuCode" label="SKU" width="150" />
@@ -332,6 +344,7 @@ function money(value?: { amount: number; currency: string }) {
               :value="location.id"
             />
           </el-select>
+          <p v-if="locationsError" class="muted" style="color: #a33232">{{ locationsError }}</p>
         </el-form-item>
       </el-form>
       <el-alert title="退货商品将创建 QUARANTINE 隔离批次，质检后再决定上架或报损。" type="info" :closable="false" />

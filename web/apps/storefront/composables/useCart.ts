@@ -1,4 +1,5 @@
 import type { Money } from '~/types'
+import { VALIDATION } from '@fullmall/api-client'
 
 export interface CartLine {
   productId: string
@@ -12,6 +13,8 @@ export interface CartLine {
 
 const STORAGE_KEY = 'fullmall.cart'
 
+/** useState（SSR 与客户端共享，首屏件数才一致）+ localStorage，换浏览器即丢。
+ *  服务端没有购物车实体，价格在结算时由后端重算，total 只是预估，不能拿它对账。 */
 export function useCart() {
   const cart = useState<CartLine[]>('cart', () => [])
 
@@ -20,6 +23,7 @@ export function useCart() {
     onMounted(() => {
       const raw = localStorage.getItem(STORAGE_KEY)
       if (raw && cart.value.length === 0) {
+        // 不能静默当空车：先清坏数据再抛，否则顾客只会发现“少了几件商品”却没有任何失败信号。
         try {
           cart.value = JSON.parse(raw) as CartLine[]
         } catch {
@@ -37,6 +41,7 @@ export function useCart() {
   }
 
   const count = computed(() => cart.value.reduce((sum, line) => sum + line.quantity, 0))
+  // 合计按整数分累加（见 utils/money.ts）；币种取第一行：混币种没有汇率能力，是已知未覆盖的边界。
   const total = computed<Money>(() => {
     const currency = cart.value[0]?.price.currency ?? 'CNY'
     return {
@@ -62,6 +67,7 @@ export function useCart() {
     persist()
   }
 
+  // 上限来自 VALIDATION.quantityMax（生成自 validation.schema.json）：这里只是快速反馈，后端才是权威。
   function updateQuantity(skuId: string, quantity: number) {
     const line = cart.value.find(item => item.skuId === skuId)
     if (!line) {
@@ -71,7 +77,7 @@ export function useCart() {
       remove(skuId)
       return
     }
-    line.quantity = Math.min(quantity, 99)
+    line.quantity = Math.min(quantity, VALIDATION.quantityMax)
     persist()
   }
 

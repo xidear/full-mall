@@ -34,17 +34,26 @@ public class ProductReviewService {
         this.jdbcTemplate = jdbcTemplate;
     }
 
-    public record Review(UUID id, UUID skuId, int rating, String content, java.time.Instant createdAt) {
+    public record Review(UUID id, UUID skuId, int rating, String content,
+                         java.util.List<String> mediaUrls, java.time.Instant createdAt) {
     }
 
+    /**
+     * 发表评价。
+     *
+     * @param mediaUrls 顾客上传的图片/视频 URL（可为空）；只允许本站相对路径或 http(s) 绝对地址，
+     *                  防止把 javascript:/data: 这类值塞进前台 &lt;img&gt;/&lt;video&gt; 造成 XSS
+     */
     @Transactional
-    public UUID create(UUID memberId, UUID orderId, UUID skuId, int rating, String content) {
+    public UUID create(UUID memberId, UUID orderId, UUID skuId, int rating, String content,
+                       List<String> mediaUrls) {
         if (rating < 1 || rating > 5) {
             throw ApiException.badRequest("INVALID_RATING", "评分必须是 1..5");
         }
         if (content != null && content.length() > 1000) {
             throw ApiException.badRequest("CONTENT_TOO_LONG", "评价内容不能超过 1000 字");
         }
+        List<String> media = normalizeMediaUrls(mediaUrls);
 
         List<String> statuses = jdbcTemplate.queryForList(
                 "SELECT status FROM orders WHERE id = ? AND member_id = ?",
@@ -74,10 +83,12 @@ public class ProductReviewService {
             String status = moderation.outcome() == com.fullmall.review.app.ReviewModerationPolicy.Outcome.PUBLISH
                     ? "PUBLISHED" : "PENDING";
             jdbcTemplate.update("""
-                    INSERT INTO product_review (id, sku_id, member_id, order_id, rating, content, status)
-                    VALUES (?, ?, ?, ?, ?, ?, ?)
+                    INSERT INTO product_review
+                        (id, sku_id, member_id, order_id, rating, content, status, media_urls)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
                     """, id, skuId, memberId, orderId, rating,
-                    content == null ? null : content.trim(), status);
+                    content == null ? null : content.trim(), status,
+                    media.toArray(new String[0]));
         } catch (org.springframework.dao.DuplicateKeyException error) {
             throw ApiException.conflict("REVIEW_ALREADY_EXISTS",
                     "该订单的这件商品已经评价过了");
@@ -90,12 +101,13 @@ public class ProductReviewService {
             throw ApiException.badRequest("INVALID_LIMIT", "查询条数必须在 1..100，实际=" + limit);
         }
         return jdbcTemplate.query("""
-                SELECT id, sku_id, rating, content, created_at FROM product_review
+                SELECT id, sku_id, rating, content, media_urls, created_at FROM product_review
                  WHERE sku_id = ? AND status = 'PUBLISHED'
                  ORDER BY created_at DESC LIMIT ?
                 """, (rs, rowNum) -> new Review(
                 rs.getObject("id", UUID.class), rs.getObject("sku_id", UUID.class),
                 rs.getInt("rating"), rs.getString("content"),
+                mediaUrlsOf(rs.getArray("media_urls")),
                 rs.getTimestamp("created_at").toInstant()), skuId, limit);
     }
 
@@ -165,6 +177,44 @@ public class ProductReviewService {
                 "UPDATE product_review SET status = ? WHERE id = ?", target, reviewId);
         if (updated != 1) {
             throw ApiException.notFound("REVIEW_NOT_FOUND", "评价不存在: " + reviewId);
+        }
+    }
+
+    /** 评价媒体：条数受 ValidationRules.REVIEW_MEDIA_MAX 约束，单条长度防超长 URL 撑爆页面。 */
+    private List<String> normalizeMediaUrls(List<String> mediaUrls) {
+        if (mediaUrls == null || mediaUrls.isEmpty()) {
+            return List.of();
+        }
+        if (mediaUrls.size() > com.fullmall.platform.validation.ValidationRules.REVIEW_MEDIA_MAX) {
+            throw ApiException.badRequest("TOO_MANY_REVIEW_MEDIA", "评价最多附带 "
+                    + com.fullmall.platform.validation.ValidationRules.REVIEW_MEDIA_MAX + " 个图片或视频，实际="
+                    + mediaUrls.size());
+        }
+        List<String> normalized = new java.util.ArrayList<>(mediaUrls.size());
+        for (String raw : mediaUrls) {
+            if (raw == null || raw.isBlank()) {
+                throw ApiException.badRequest("INVALID_REVIEW_MEDIA_URL", "评价媒体地址不能为空");
+            }
+            String url = raw.trim();
+            if (url.length() > 512
+                    || !(url.startsWith("/") || url.startsWith("https://") || url.startsWith("http://"))) {
+                throw ApiException.badRequest("INVALID_REVIEW_MEDIA_URL",
+                        "评价媒体必须是站内路径或以 http(s):// 开头的地址，实际=" + url);
+            }
+            normalized.add(url);
+        }
+        return List.copyOf(normalized);
+    }
+
+    private static List<String> mediaUrlsOf(java.sql.Array array) {
+        if (array == null) {
+            return List.of();
+        }
+        try {
+            String[] values = (String[]) array.getArray();
+            return values == null ? List.of() : java.util.List.of(values);
+        } catch (java.sql.SQLException error) {
+            throw new IllegalStateException("读取评价媒体失败", error);
         }
     }
 

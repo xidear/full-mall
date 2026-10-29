@@ -28,7 +28,8 @@ public class StoreOrderController {
 
     public record CreateOrder(List<Item> items, String fulfillmentMode, UUID storeId,
                               String contactName, String contactPhone,
-                              String province, String city, String district, String detail) {
+                              String countryCode, String province, String city, String district,
+                              String detail) {
     }
 
     @PostMapping
@@ -44,7 +45,7 @@ public class StoreOrderController {
                         body.fulfillmentMode() == null ? "PICKUP" : body.fulfillmentMode()),
                 body.storeId(),
                 new CheckoutRequest.Contact(body.contactName(), body.contactPhone(), null),
-                new CheckoutRequest.Address(body.province(), body.city(), body.district(),
+                new CheckoutRequest.Address(body.countryCode(), body.province(), body.city(), body.district(),
                         body.detail(), null),
                 List.of(), null, null, null,
                 new CheckoutRequest.CheckoutContext(null, null, null,

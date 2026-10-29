@@ -80,8 +80,8 @@ class CartAndAddressHttpTest {
         jdbc.update("DELETE FROM promotion WHERE code LIKE 'HTTP-%'");
         UUID marketId = UUID.fromString("99999999-aaaa-bbbb-cccc-000000000001");
         jdbc.update("""
-                INSERT INTO market (code, name, currency, default_locale, active)
-                VALUES ('CN-TEST', '中国测试市场', 'CNY', 'zh-CN', TRUE)
+                INSERT INTO market (code, name, currency, country_code, active)
+                VALUES ('CN-TEST', '中国测试市场', 'CNY', 'CN', TRUE)
                 ON CONFLICT (code) DO NOTHING
                 """);
         UUID warehouseId = UUID.fromString("11111111-2222-3333-4444-555555555555");
@@ -122,8 +122,8 @@ class CartAndAddressHttpTest {
 
         var addressResponse = http.exchange("/api/v1/addresses", HttpMethod.POST,
                 new HttpEntity<>(Map.of("recipient", "张三", "phone", "13800000009",
-                        "province", "上海", "city", "上海", "district", "静安",
-                        "detail", "南京西路 1 号"), guestHeaders()), String.class);
+                        "countryCode", "CN", "province", "上海", "city", "上海", "district", "静安",
+                        "detail", "南京西路 1 号", "postalCode", "200040"), guestHeaders()), String.class);
         assertThat(addressResponse.getStatusCode().value()).isEqualTo(201);
         assertThat(addressResponse.getBody()).contains("138****0009");
 
@@ -140,8 +140,8 @@ class CartAndAddressHttpTest {
 
         var addressResponse = http.exchange("/api/v1/addresses", HttpMethod.POST,
                 new HttpEntity<>(Map.of("recipient", "张三", "phone", "13800000011",
-                        "province", "上海", "city", "上海", "district", "静安",
-                        "detail", "南京西路 1 号"), guestHeaders()), String.class);
+                        "countryCode", "CN", "province", "上海", "city", "上海", "district", "静安",
+                        "detail", "南京西路 1 号", "postalCode", "200040"), guestHeaders()), String.class);
         String addressId = com.jayway.jsonpath.JsonPath.read(addressResponse.getBody(), "$[0].id");
 
         // GOLD 会员（95 折）用于验证 MEM-002
@@ -297,8 +297,8 @@ class CartAndAddressHttpTest {
                 new HttpEntity<>(Map.of("skuId", SKU.toString(), "quantity", 2), guestHeaders()), String.class);
         var address = http.exchange("/api/v1/addresses", HttpMethod.POST,
                 new HttpEntity<>(Map.of("recipient", "满减用户", "phone", "13800000077",
-                        "province", "上海", "city", "上海", "district", "静安",
-                        "detail", "南京西路 2 号"), guestHeaders()), String.class);
+                        "countryCode", "CN", "province", "上海", "city", "上海", "district", "静安",
+                        "detail", "南京西路 2 号", "postalCode", "200040"), guestHeaders()), String.class);
         String addressId = com.jayway.jsonpath.JsonPath.read(address.getBody(), "$[0].id");
 
         var checkout = http.exchange("/api/v1/cart/checkout", HttpMethod.POST,
@@ -355,8 +355,8 @@ class CartAndAddressHttpTest {
                 new HttpEntity<>(Map.of("skuId", SKU.toString(), "quantity", 2), guestHeaders()), String.class);
         var address = http.exchange("/api/v1/addresses", HttpMethod.POST,
                 new HttpEntity<>(Map.of("recipient", "范围用户", "phone", "13800000088",
-                        "province", "上海", "city", "上海", "district", "静安",
-                        "detail", "南京西路 3 号"), guestHeaders()), String.class);
+                        "countryCode", "CN", "province", "上海", "city", "上海", "district", "静安",
+                        "detail", "南京西路 3 号", "postalCode", "200040"), guestHeaders()), String.class);
         String addressId = com.jayway.jsonpath.JsonPath.read(address.getBody(), "$[0].id");
         var checkout = http.exchange("/api/v1/cart/checkout", HttpMethod.POST,
                 new HttpEntity<>(Map.of("addressId", addressId), guestHeaders()), String.class);

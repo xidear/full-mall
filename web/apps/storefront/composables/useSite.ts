@@ -7,9 +7,8 @@ import { VALIDATION } from '@fullmall/api-client'
  * <p>为什么集中在这里：页面里散落 `market: 'CN'`、`locale: 'zh-CN'` 会让
  * 多地区/多语言部署退化成"改代码才能出海"。地区策略只允许从这里读取。
  */
-export type Market = 'CN' | 'HK' | 'MO' | 'TW'
-
-const MARKETS: Market[] = ['CN', 'HK', 'MO', 'TW']
+/** 市场码由后端数据决定（ADR-0014）：前端不再维护 CN/HK/MO/TW 白名单，否则加市场要改前端。 */
+export type Market = string
 
 export function useSiteSettings() {
   const config = useRuntimeConfig()
@@ -22,10 +21,9 @@ export function useSiteSettings() {
 export function useSite() {
   const config = useRuntimeConfig()
   const settings = useState<Record<string, string>>('site-settings-state', () => ({}))
-  const market = computed<Market>(() => {
-    const value = settings.value.default_market
-    return MARKETS.includes(value as Market) ? value as Market : 'CN'
-  })
+  // 不再做前端白名单校验、也不回退 'CN'：default_market 是否合法已由后端在保存时校验，
+  // 这里再兜底一次只会掩盖"配置错了"这件事。
+  const market = computed<Market>(() => settings.value.default_market?.trim() ?? '')
   const isMainland = computed(() => market.value === 'CN')
   const siteName = computed(() => settings.value.site_name?.trim() || 'Full Mall')
   const siteTagline = computed(() => settings.value.site_tagline?.trim() || '')
@@ -64,6 +62,26 @@ export function useDisplayTimeZone(): string {
  * 当前后端会员登录仅支持手机号 OTP；邮箱/账号登录在地区能力成熟后接入，
  * 这里先把"由地区决定"的开关准备好，避免再次写死。
  */
+/**
+ * 当前市场的"国家"（Destination 默认值）。
+ *
+ * <p>市场 ≠ 国家（ADR-0014）：大陆与香港是不同市场，跨国市场还可能是 EU 这种多国组合，
+ * 所以国家必须从 market 行上取，不能用市场码顶替。
+ */
+export function useMarketCountry() {
+  const config = useRuntimeConfig()
+  const base = import.meta.server ? config.apiInternalBase : config.public.apiBase
+  const { market } = useSite()
+  const { data } = useAsyncData<Array<{ code: string; countryCode: string | null }>>(
+    'storefront-markets',
+    () => $fetch<Array<{ code: string; countryCode: string | null }>>(`${base}/api/v1/markets`)
+  )
+  return computed(() => {
+    const current = (data.value ?? []).find(entry => entry.code === market.value)
+    return current?.countryCode ?? ''
+  })
+}
+
 export function useRegionPolicy() {
   const { market, isMainland } = useSite()
   const { t } = useLocale()

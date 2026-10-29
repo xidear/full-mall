@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import type { LegalDocument, Order, Store } from '~/types'
 import { randomUuid } from '~/utils/uuid'
+import { emptyAddress, hasMinimalAddress, type AddressModel } from '~/utils/address'
 import { apiErrorMessage } from '~/utils/apiError'
 import { VALIDATION } from '@fullmall/api-client'
 
@@ -12,6 +13,8 @@ const { remember } = useOrders()
 const { token: memberToken } = useMember()
 const { locale, t } = useLocale()
 const { market, requiresAutoAccountNotice, phonePattern, identifierHint } = useRegionPolicy()
+// 市场的国家是默认收货国（不是市场码本身）：跨国市场时二者不同
+const marketCountry = useMarketCountry()
 const { siteName } = useSite()
 useHead(() => ({ title: `结算 · ${siteName.value}` }))
 
@@ -22,7 +25,8 @@ const storesError = ref('')
 const selectedStoreId = ref('')
 const contactName = ref('')
 const contactPhone = ref('')
-const addressDetail = ref('')
+// 地址用完整模型：国家是 Destination 轴，省市区由该国 address_format 决定要不要填（ADR-0014）
+const address = ref<AddressModel>(emptyAddress())
 const legalAccepted = ref(false)
 const submitting = ref(false)
 const errorMessage = ref('')
@@ -67,7 +71,7 @@ interface Draft {
   mode: 'SHIP' | 'PICKUP'
   contactName: string
   contactPhone: string
-  addressDetail: string
+  address: AddressModel
 }
 
 function saveDraft() {
@@ -76,7 +80,7 @@ function saveDraft() {
     mode: mode.value,
     contactName: contactName.value,
     contactPhone: contactPhone.value,
-    addressDetail: addressDetail.value
+    address: address.value
   }
   localStorage.setItem(DRAFT_KEY, JSON.stringify(draft))
 }
@@ -90,7 +94,7 @@ function restoreDraft() {
     if (draft.mode === 'SHIP' || draft.mode === 'PICKUP') mode.value = draft.mode
     contactName.value = draft.contactName || ''
     contactPhone.value = draft.contactPhone || ''
-    addressDetail.value = draft.addressDetail || ''
+    if (draft.address) address.value = { ...emptyAddress(), ...draft.address }
   } catch {
     localStorage.removeItem(DRAFT_KEY)
   }
@@ -115,7 +119,7 @@ onMounted(async () => {
   if (mode.value === 'PICKUP') requestLocation()
 })
 
-watch([contactName, contactPhone, addressDetail, mode], saveDraft)
+watch([contactName, contactPhone, address, mode], saveDraft, { deep: true })
 
 async function loadStores() {
   storesLoading.value = true
@@ -183,7 +187,7 @@ async function submit() {
     await navigateTo({ path: '/login', query: { redirect: route.fullPath } })
     return
   }
-  if (mode.value === 'SHIP' && !addressDetail.value.trim()) {
+  if (mode.value === 'SHIP' && !hasMinimalAddress(address.value)) {
     errorMessage.value = '请填写收货地址'
     return
   }
@@ -248,7 +252,7 @@ async function submit() {
         fulfillmentMode: mode.value,
         storeId: mode.value === 'PICKUP' ? selectedStoreId.value : undefined,
         contact: { name: contactName.value.trim(), phone: contactPhone.value.trim() },
-        address: mode.value === 'SHIP' ? { detail: addressDetail.value.trim() } : undefined,
+        address: mode.value === 'SHIP' ? { ...address.value, detail: address.value.detail.trim() } : undefined,
         legalAcceptanceIds: [acceptance.id],
         referrerId: referral.value?.staffId,
         referralMode: referral.value?.mode,
@@ -262,6 +266,10 @@ async function submit() {
       // 同时按订单号保存：顾客端地址使用 orderNo，页面在拿到订单前就要能带上访客令牌。
       localStorage.setItem(`fullmall.orderToken.${order.orderNo}`, guestToken)
       localStorage.setItem(`fullmall.orderToken.${order.id}`, guestToken)
+      // 订单详情是 SSR 渲染、服务端读不到 localStorage：必须同时落 cookie，
+      // 否则游客硬刷新/直接打开链接时拿不到令牌，会被归属校验判成无权查看（表现为 404）。
+      document.cookie = `fullmall_ot_${order.orderNo}=${encodeURIComponent(guestToken)}`
+        + '; path=/; max-age=2592000; SameSite=Lax'
     }
     remember(order.id)
     clear()
@@ -334,8 +342,7 @@ const submitLabel = computed(() => {
           </p>
         </div>
         <div v-else class="field">
-          <label for="ship-address">{{ t('checkout.address') }}</label>
-          <input id="ship-address" v-model="addressDetail" type="text" :placeholder="t('checkout.addressPlaceholder')" autocomplete="street-address">
+          <AddressForm v-model="address" :default-country="marketCountry" />
         </div>
 
         <div class="field">

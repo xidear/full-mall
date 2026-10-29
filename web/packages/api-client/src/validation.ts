@@ -4,6 +4,8 @@
  */
 export const VALIDATION = {
   phonePattern: "^\\+?[0-9]{6,20}$",
+  emailPattern: "^[^@\\s]+@[^@\\s]+\\.[A-Za-z]{2,}$",
+  emailMaxLength: 254,
   passwordMinLength: 8,
   pinMinLength: 4,
   pinMaxLength: 12,
@@ -13,6 +15,12 @@ export const VALIDATION = {
   couponCodePattern: "^[A-Z0-9][A-Z0-9_-]{1,63}$",
   priceMinimum: 1,
   contactNameMaxLength: 64,
+  addressCountryPattern: "^[A-Za-z]{2}$",
+  addressRegionCodePattern: "^[A-Za-z0-9._-]{1,16}$",
+  addressRegionNameMaxLength: 64,
+  addressDetailMinLength: 1,
+  addressDetailMaxLength: 255,
+  addressPostalCodeMaxLength: 16,
   reviewMediaMax: 9,
   assetUpload: {
     imageTypes: ["image/png","image/jpeg","image/webp","image/gif"],

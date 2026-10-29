@@ -73,8 +73,8 @@ class CouponStackableCheckoutTest {
         memberId = UUID.randomUUID();
         phone = "139" + String.format("%08d", Math.abs(memberId.hashCode() % 100_000_000));
         jdbc.update("""
-                INSERT INTO market (code, name, currency, default_locale, active)
-                VALUES ('CN-CK', '券测试市场', 'CNY', 'zh-CN', TRUE) ON CONFLICT (code) DO NOTHING
+                INSERT INTO market (code, name, currency, country_code, active)
+                VALUES ('CN-CK', '券测试市场', 'CNY', 'CN', TRUE) ON CONFLICT (code) DO NOTHING
                 """);
         jdbc.update("""
                 INSERT INTO warehouse (id, market_code, name, type, active)
@@ -114,7 +114,7 @@ class CouponStackableCheckoutTest {
                 FulfillmentMode.SHIP,
                 null,
                 new CheckoutRequest.Contact("券结算用户", phone, null),
-                new CheckoutRequest.Address("上海", "上海", "静安", "南京西路 9 号", "200040"),
+                new CheckoutRequest.Address("CN", "上海", "上海", "静安", "南京西路 9 号", "200040"),
                 List.of(), null, null, null, new CheckoutRequest.CheckoutContext(null, couponId, null, null, null), null);
     }
 

@@ -1,18 +1,40 @@
-INSERT INTO market (code, name, currency, default_locale)
-VALUES ('CN', '中国大陆', 'CNY', 'zh-CN')
+-- 市场（ADR-0014）：币种/税辖区/时区/是否含税属市场；语言另存 market_locale（一个市场可多语言）。
+-- tax_jurisdiction 只是税率表的挂载键，不代表税率本身：真实税率须按市场由税务确认后录入。
+INSERT INTO market (code, name, currency, country_code, tax_jurisdiction, price_includes_tax, timezone, sort)
+VALUES ('CN', '中国大陆', 'CNY', 'CN', 'CN-VAT', TRUE, 'Asia/Shanghai', 10)
 ON CONFLICT (code) DO NOTHING;
 
-INSERT INTO market (code, name, currency, default_locale)
-VALUES ('HK', '香港', 'HKD', 'zh-HK')
+INSERT INTO market (code, name, currency, country_code, tax_jurisdiction, price_includes_tax, timezone, sort)
+VALUES ('HK', '香港', 'HKD', 'HK', 'HK', TRUE, 'Asia/Hong_Kong', 20)
 ON CONFLICT (code) DO NOTHING;
 
-INSERT INTO market (code, name, currency, default_locale)
-VALUES ('MO', '澳门', 'MOP', 'zh-HK')
+INSERT INTO market (code, name, currency, country_code, tax_jurisdiction, price_includes_tax, timezone, sort)
+VALUES ('MO', '澳门', 'MOP', 'MO', 'MO', TRUE, 'Asia/Macau', 30)
 ON CONFLICT (code) DO NOTHING;
 
-INSERT INTO market (code, name, currency, default_locale)
-VALUES ('TW', '台湾地区', 'TWD', 'zh-TW')
+INSERT INTO market (code, name, currency, country_code, tax_jurisdiction, price_includes_tax, timezone, sort)
+VALUES ('TW', '台湾地区', 'TWD', 'TW', 'TW', TRUE, 'Asia/Taipei', 40)
 ON CONFLICT (code) DO NOTHING;
+
+INSERT INTO market_locale (market_code, locale, is_primary) VALUES
+    ('CN', 'zh-CN', TRUE),
+    ('HK', 'zh-HK', TRUE), ('HK', 'zh-TW', FALSE), ('HK', 'en', FALSE),
+    ('MO', 'zh-HK', TRUE),
+    ('TW', 'zh-TW', TRUE), ('TW', 'zh-CN', FALSE)
+ON CONFLICT (market_code, locale) DO NOTHING;
+
+-- 市场级设置：把站点级默认值搬成「CN 市场」的初始值（ADR-0014 迁移阶段 1 的等价动作）。
+-- 全新库在迁移时还没有市场行，所以这一步只能放在种子之后。
+INSERT INTO market_setting (market_code, setting_key, setting_value)
+SELECT m.code, s.setting_key, s.setting_value
+  FROM system_setting s
+  JOIN market m ON m.code = 'CN'
+ WHERE s.setting_key IN (
+        'company_name', 'icp_number', 'public_security_record', 'business_license_no',
+        'service_phone', 'service_email', 'default_currency', 'enabled_locales',
+        'sms_provider', 'payment_provider', 'logistics_provider', 'storage_provider'
+       )
+ON CONFLICT (market_code, setting_key) DO NOTHING;
 
 INSERT INTO category (id, parent_id, code, name)
 VALUES ('99999999-9999-9999-9999-999999999999', NULL, 'FRESH', '生鲜食品')
@@ -256,3 +278,23 @@ VALUES ('b3000000-0000-0000-0000-0000000000c1', 'bbbb0000-0000-0000-0000-0000000
         'SUPPLIER', '33333333-3333-3333-3333-333333333333', 'SUPPLIER-FEED', NULL, NULL,
         100, 0, 'AVAILABLE', 3500, 'CNY', now())
 ON CONFLICT (id) DO NOTHING;
+
+-- 价格表与运费阶梯：把基础价按币种复制到币种匹配的市场（演示数据；生产由 V147 对存量做同样动作），
+-- 并为每个市场补一条国内默认运费档（演示值 0，运营可在后台改）。
+INSERT INTO sku_price (sku_id, market_code, currency, amount, compare_at_amount)
+SELECT s.id, m.code, s.price_currency, s.price_amount, s.compare_at_amount
+  FROM sku s JOIN market m ON m.currency = s.price_currency
+ON CONFLICT (sku_id, market_code) DO NOTHING;
+
+INSERT INTO shipping_rate (id, market_code, destination_country, min_weight_grams, max_weight_grams,
+                          fee_amount, currency, free_over_amount)
+SELECT gen_random_uuid(), m.code, m.country_code, 0, NULL, 0, m.currency, NULL
+  FROM market m
+ON CONFLICT DO NOTHING;
+
+-- 税率示例（演示数据）：名称里写明「示例」，真实税率必须由运营按税种/品类核定后替换。
+-- 没有税率的辖区不会静默按 0 计税：下单会打 WARN 日志，报关单导出会列出「没有税行」。
+INSERT INTO tax_rule (id, jurisdiction, name, rate_bps, price_includes_tax, active)
+VALUES (gen_random_uuid(), 'CN-VAT', '增值税（示例 13%，需按品类核定）', 1300, TRUE, TRUE)
+ON CONFLICT DO NOTHING;
+

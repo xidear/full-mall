@@ -17,4 +17,10 @@ public record Notification(
         String errorMessage,
         Instant createdAt
 ) {
+
+    /** 投递结果的不可变副本：让投递方法能把 SENT/FAILED 直接返回给调用方判断。 */
+    public Notification withDelivery(String deliveryStatus, Instant deliveredAt, String deliveryError) {
+        return new Notification(id, recipientType, recipientId, eventType, channel, title, content,
+                deliveryStatus, readAt, deliveredAt, deliveryError, createdAt);
+    }
 }

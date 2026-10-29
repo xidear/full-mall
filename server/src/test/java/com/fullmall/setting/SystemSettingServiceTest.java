@@ -24,8 +24,11 @@ class SystemSettingServiceTest {
     private static final Instant START = Instant.parse("2026-10-19T00:00:00Z");
 
     private final SystemSettingRepository repository = mock(SystemSettingRepository.class);
+    private final com.fullmall.market.app.MarketService markets =
+            mock(com.fullmall.market.app.MarketService.class);
     private final MutableClock clock = new MutableClock(START);
-    private final SystemSettingService service = new SystemSettingService(repository, clock, 30);
+    /** default_market 现在按库校验（ADR-0014），单测里统一放行，市场校验本身另有集成测试。 */
+    private final SystemSettingService service = new SystemSettingService(repository, markets, clock, 30);
 
     private static Map<String, String> settings(String status) {
         Map<String, String> map = new LinkedHashMap<>();

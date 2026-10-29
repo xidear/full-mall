@@ -70,8 +70,8 @@ class OrderNotificationFlowTest {
         phone = "139" + String.format("%08d", Math.abs(memberId.hashCode() % 100_000_000));
 
         jdbc.update("""
-                INSERT INTO market (code, name, currency, default_locale, active)
-                VALUES ('CN-NOTI', '通知测试市场', 'CNY', 'zh-CN', TRUE) ON CONFLICT (code) DO NOTHING
+                INSERT INTO market (code, name, currency, country_code, active)
+                VALUES ('CN-NOTI', '通知测试市场', 'CNY', 'CN', TRUE) ON CONFLICT (code) DO NOTHING
                 """);
         jdbc.update("""
                 INSERT INTO warehouse (id, market_code, name, type, active)
@@ -104,7 +104,7 @@ class OrderNotificationFlowTest {
                 FulfillmentMode.SHIP,
                 null,
                 new CheckoutRequest.Contact("通知用户", phone, null),
-                new CheckoutRequest.Address("上海", "上海", "静安", "南京西路 9 号", "200040"),
+                new CheckoutRequest.Address("CN", "上海", "上海", "静安", "南京西路 9 号", "200040"),
                 List.of(), null, null, null, CheckoutRequest.CheckoutContext.none(), null), null);
 
         boolean cancelled = orders.cancelUnpaidOrder(order.id());
@@ -130,7 +130,7 @@ class OrderNotificationFlowTest {
                 FulfillmentMode.SHIP,
                 null,
                 new CheckoutRequest.Contact("通知用户", phone, null),
-                new CheckoutRequest.Address("上海", "上海", "静安", "南京西路 9 号", "200040"),
+                new CheckoutRequest.Address("CN", "上海", "上海", "静安", "南京西路 9 号", "200040"),
                 List.of(), null, null, null, CheckoutRequest.CheckoutContext.none(), null), null);
 
         // 下单：恰好一条会员消息，收件人是订单归属会员

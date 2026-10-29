@@ -31,13 +31,14 @@ public class AddressController {
     }
 
     public record AddressBody(@NotBlank String recipient, @NotBlank String phone,
-                              String regionCode, String province, String city, String district,
-                              @NotBlank String detail, String postalCode) {
+                              String countryCode, String regionCode, String province, String city,
+                              String district, @NotBlank String detail, String postalCode) {
     }
 
     private AddressService.AddressInput toInput(AddressBody body) {
-        return new AddressService.AddressInput(body.recipient(), body.phone(), body.regionCode(),
-                body.province(), body.city(), body.district(), body.detail(), body.postalCode());
+        return new AddressService.AddressInput(body.recipient(), body.phone(), body.countryCode(),
+                body.regionCode(), body.province(), body.city(), body.district(), body.detail(),
+                body.postalCode());
     }
 
     private String owner(Authentication authentication, String guestToken) {

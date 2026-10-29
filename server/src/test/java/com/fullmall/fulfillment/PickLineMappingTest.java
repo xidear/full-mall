@@ -83,8 +83,8 @@ class PickLineMappingTest {
         UUID giftLine = line(orderId, skuId);
 
         UUID storeId = UUID.randomUUID();
-        jdbc.update("INSERT INTO market (code, name, currency, default_locale)"
-                + " VALUES ('CN', '中国', 'CNY', 'zh-CN') ON CONFLICT (code) DO NOTHING");
+        jdbc.update("INSERT INTO market (code, name, currency, country_code)"
+                + " VALUES ('CN', '中国', 'CNY', 'CN') ON CONFLICT (code) DO NOTHING");
         jdbc.update("""
                 INSERT INTO store (id, market_code, name, address, active)
                 VALUES (?, 'CN', '映射门店', '测试地址', true)

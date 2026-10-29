@@ -7,6 +7,7 @@ import { api } from '../api'
 import AdminThumb from '../components/AdminThumb.vue'
 import AssetPicker from '../components/AssetPicker.vue'
 import RichTextEditor from '../components/RichTextEditor.vue'
+import MarketPriceDialog from '../components/MarketPriceDialog.vue'
 import { apiErrorMessage, useAsyncState } from '../composables/useAsyncState'
 import { labelOf, mediaRoleLabels } from '../labels'
 
@@ -137,6 +138,14 @@ const hasImageProvider = ref(false)
 const providerHint = ref('')
 
 const skus = ref<SkuRow[]>([])
+// 分市场价格弹窗（ADR-0013 下游）：按市场覆盖价，留空即回到基础价
+const marketPriceVisible = ref(false)
+const marketPriceSku = ref<SkuRow | null>(null)
+
+function openMarketPrice(row: SkuRow) {
+  marketPriceSku.value = row
+  marketPriceVisible.value = true
+}
 const priceEdits = ref<Record<string, number>>({})
 const currency = ref('CNY')
 const templates = ref<MatrixTemplate[]>([])
@@ -167,6 +176,12 @@ const currencies = ['CNY', 'HKD', 'MOP', 'TWD']
 // 编辑态的保存门闩：详情未加载成功时 ready 为 false，保存按钮 disabled 且 saveBasics 二次拦截，
 // 否则一次“加载失败后点保存”就会用空表单把原商品覆盖掉。
 const ready = computed(() => !editing || Boolean(detail.data.value))
+
+/** 分市场价格改完后重新拉详情，让 SKU 列表与基础价保持最新。 */
+async function refreshDetail() {
+  const detail = await api.get<ProductDetail>(`/admin/v1/products/${route.params.id}`)
+  applyDetail(detail)
+}
 
 function applyDetail(value: ProductDetail) {
   form.title = value.title
@@ -719,6 +734,11 @@ function skuOptions(options?: Record<string, string>) {
                                    controls-position="right" size="small" />
                 </template>
               </el-table-column>
+              <el-table-column label="分市场价" width="110">
+                <template #default="{ row }">
+                  <el-button link type="primary" @click="openMarketPrice(row)">设置</el-button>
+                </template>
+              </el-table-column>
               <el-table-column label="币种" width="90">
                 <template #default="{ row }">{{ row.price.currency }}</template>
               </el-table-column>
@@ -726,6 +746,15 @@ function skuOptions(options?: Record<string, string>) {
             <div class="table-footer">
               <span class="muted">改价后需要点右侧按钮保存（以前改完直接切页会丢）</span>
               <el-button type="primary" plain :loading="saving" @click="savePrices">保存价格</el-button>
+              <MarketPriceDialog
+                v-if="marketPriceSku"
+                v-model="marketPriceVisible"
+                :sku-id="marketPriceSku.id"
+                :sku-code="marketPriceSku.skuCode"
+                :base-amount="marketPriceSku.price.amount"
+                :base-currency="marketPriceSku.price.currency"
+                @changed="refreshDetail"
+              />
             </div>
           </section>
         </template>

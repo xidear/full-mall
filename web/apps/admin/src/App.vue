@@ -116,6 +116,9 @@ const menuGroups = [
     { path: '/ai-media', label: 'AI 素材生成', icon: MagicStick, roles: ['ADMIN', 'OPERATOR'] },
     { path: '/ai-storyboard', label: '视频分镜', icon: Film, roles: ['ADMIN', 'OPERATOR'] },
     { path: '/integrations', label: '第三方服务', icon: Connection, roles: ['ADMIN'] },
+    { path: '/markets', label: '市场配置', icon: Setting, roles: ['ADMIN'] },
+    { path: '/shipping-rates', label: '运费档位', icon: Setting, roles: ['ADMIN'] },
+    { path: '/tax-rules', label: '税率规则', icon: Setting, roles: ['ADMIN'] },
     { path: '/settings', label: '系统设置', icon: Setting, roles: ['ADMIN'] }
   ] }
 ]

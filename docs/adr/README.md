@@ -16,5 +16,7 @@
 | 0010 | 法律文档版本化与接受证据 | Accepted |
 | 0011 | 多主题模板与小程序图形化配置 | Accepted |
 | 0012 | POS 收银、组合支付与现金财务 | Accepted（设计） |
+| 0013 | 国家与行政区划数据的来源与治理 | Accepted |
+| 0014 | 市场 / 语言 / 收货地三轴分离 | Accepted（设计） |
 
 新增 ADR 使用 `NNNN-short-title.md`，不要修改已接受 ADR 的决策内容；如需变更，新增一条 superseding ADR。

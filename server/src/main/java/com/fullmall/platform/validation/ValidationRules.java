@@ -11,8 +11,14 @@ public final class ValidationRules {
 
     // 镜像 docs/validation.schema.json 的 $defs 同名规则，由 ValidationRulesContractTest 逐条比对；
     // 改值必须先改 schema 再 cd web && npm run generate:validation，否则 web/packages/api-client/src/validation.ts 漂移。
-    /** 不校验运营商号段：海外号码与虚拟号同样放行，号段判断交给短信服务商。 */
+
     public static final String PHONE_PATTERN = "^\\+?[0-9]{6,20}$";
+    /**
+     * 邮箱只校验形状（一个 @、两侧非空、域名带点）；是否真实存在由发信验证决定。
+     * 与 schema 的 $defs.email 同源；长度上限对齐 RFC 5321 的 254。
+     */
+    public static final String EMAIL_PATTERN = "^[^@\\s]+@[^@\\s]+\\.[A-Za-z]{2,}$";
+    public static final int EMAIL_MAX_LENGTH = 254;
     public static final int PASSWORD_MIN_LENGTH = 8;
     public static final int PIN_MIN_LENGTH = 4;
     public static final int PIN_MAX_LENGTH = 12;
@@ -20,12 +26,27 @@ public final class ValidationRules {
     public static final int QUANTITY_MAX = 99;
     /** 单位是**分**（ADR-0004 金额一律最小货币单位整数）：1 = 0.01 元，不是 1 元。 */
     public static final int PRICE_MIN = 1;
-    /** 须与 DB 列宽度相容，否则校验通过却在写库时才报长度错误。 */
+
     public static final int CONTACT_NAME_MAX = 64;
     /** 排掉空格与斜杠：编码会进 URL 和导出文件名，含分隔符会被截断或造成路径穿越。 */
     public static final String SKU_CODE_PATTERN = "^[A-Za-z0-9._-]{1,64}$";
     /** 全大写、无空格：扫码枪与人工报码时不产生大小写/空白歧义。 */
     public static final String COUPON_CODE_PATTERN = "^[A-Z0-9][A-Z0-9_-]{1,63}$";
+
+    /**
+     * 收货国家（ISO 3166-1 alpha-2）。只校验形状不校验"是哪个国家"——
+     * 国家是否开通由 market 决定（ADR-0014），二者不是一回事。
+     */
+    public static final String ADDRESS_COUNTRY_PATTERN = "^[A-Za-z]{2}$";
+    /** 最细一级区划码；命中 region 表才填，未命中允许留空走文本（ADR-0013 §3）。 */
+    public static final String ADDRESS_REGION_CODE_PATTERN = "^[A-Za-z0-9._-]{1,16}$";
+    /** 与 member_address.province/city/district 列宽一致，避免前端放行后写库才报长度错。 */
+    public static final int ADDRESS_REGION_NAME_MAX_LENGTH = 64;
+    /** 与 member_address.detail 列宽一致。 */
+    public static final int ADDRESS_DETAIL_MIN_LENGTH = 1;
+    public static final int ADDRESS_DETAIL_MAX_LENGTH = 255;
+    /** 与 member_address.postal_code 列宽一致；各国邮编格式差异由 address_format.zip 表达。 */
+    public static final int ADDRESS_POSTAL_CODE_MAX_LENGTH = 16;
 
     /**
      * 单条评价可附带的媒体条数上限（$defs.reviewMedia.maximum=9，图片与视频合计）。

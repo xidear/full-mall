@@ -42,6 +42,22 @@ class ValidationRulesContractTest {
 
         assertThat(ValidationRules.REVIEW_MEDIA_MAX).isEqualTo(defs.path("reviewMedia").path("maximum").asInt());
 
+        // 收货地址（ADR-0013/0014）：国家码/区划码与长度上限的唯一来源。
+        JsonNode address = defs.path("address").path("properties");
+        assertThat(address.isMissingNode()).as("schema 必须包含 $defs.address").isFalse();
+        assertThat(ValidationRules.ADDRESS_COUNTRY_PATTERN)
+                .isEqualTo(address.path("countryCode").path("pattern").asText());
+        assertThat(ValidationRules.ADDRESS_REGION_CODE_PATTERN)
+                .isEqualTo(address.path("regionCode").path("pattern").asText());
+        assertThat(ValidationRules.ADDRESS_REGION_NAME_MAX_LENGTH)
+                .isEqualTo(address.path("province").path("maxLength").asInt());
+        assertThat(ValidationRules.ADDRESS_DETAIL_MIN_LENGTH)
+                .isEqualTo(address.path("detail").path("minLength").asInt());
+        assertThat(ValidationRules.ADDRESS_DETAIL_MAX_LENGTH)
+                .isEqualTo(address.path("detail").path("maxLength").asInt());
+        assertThat(ValidationRules.ADDRESS_POSTAL_CODE_MAX_LENGTH)
+                .isEqualTo(address.path("postalCode").path("maxLength").asInt());
+
         // 素材上传：类型白名单与体积上限。这组常量同时被 MediaUploadValidator（权威校验）与
         // SystemSettingService（后台可配上限的边界）引用，漂移会导致"后台能填、上传必失败"。
         JsonNode upload = defs.path("assetUpload");

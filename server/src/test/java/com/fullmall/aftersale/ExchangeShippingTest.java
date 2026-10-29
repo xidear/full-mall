@@ -116,8 +116,8 @@ class ExchangeShippingTest {
                 """, orderId, "EX2-" + orderId, phone);
 
         jdbc.update("""
-                INSERT INTO market (code, name, currency, default_locale, active)
-                VALUES ('EX2', '换货市场', 'CNY', 'zh-CN', TRUE) ON CONFLICT (code) DO NOTHING
+                INSERT INTO market (code, name, currency, country_code, active)
+                VALUES ('EX2', '换货市场', 'CNY', 'CN', TRUE) ON CONFLICT (code) DO NOTHING
                 """);
         String marketCode = "EX2";
         UUID warehouseId = UUID.randomUUID();

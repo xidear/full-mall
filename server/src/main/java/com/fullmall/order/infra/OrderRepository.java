@@ -33,17 +33,20 @@ public class OrderRepository {
      */
     public void insertOrder(Order order) {
         jdbcTemplate.update("""
-                INSERT INTO orders (id, order_no, status, currency, subtotal_amount, shipping_fee_amount,
-                                    discount_amount, total_amount, contact_name, contact_phone, contact_email,
-                                    address_json, fulfillment_mode, store_id, created_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?::jsonb, ?, ?, ?)
+                INSERT INTO orders (id, order_no, status, currency, market_code, subtotal_amount,
+                                    shipping_fee_amount, total_weight_grams, discount_amount, total_amount,
+                                    contact_name, contact_phone, contact_email, address_json,
+                                    fulfillment_mode, store_id, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?::jsonb, ?, ?, ?)
                 """,
                 order.id(),
                 order.orderNo(),
                 order.status().name(),
                 order.currency(),
+                order.marketCode(),
                 order.subtotal().amount(),
                 order.shippingFee().amount(),
+                order.totalWeightGrams(),
                 order.discount().amount(),
                 order.total().amount(),
                 order.contactName(),
@@ -53,6 +56,17 @@ public class OrderRepository {
                 order.fulfillmentMode().name(),
                 order.storeId(),
                 java.sql.Timestamp.from(order.createdAt()));
+    }
+
+    /** 订单税行：与订单同事务写入，税额与税率一起快照，事后改税率不影响历史订单。 */
+    public void insertTaxLine(UUID orderId, String jurisdiction, String name, int rateBps,
+                             boolean priceIncludesTax, long taxableAmount, long taxAmount) {
+        jdbcTemplate.update("""
+                INSERT INTO order_tax_line (id, order_id, jurisdiction, name, rate_bps,
+                                           price_includes_tax, taxable_amount, tax_amount)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                """, UUID.randomUUID(), orderId, jurisdiction, name, rateBps, priceIncludesTax,
+                taxableAmount, taxAmount);
     }
 
     public void insertOrderLine(UUID orderId, OrderLine line) {
@@ -128,7 +142,6 @@ public class OrderRepository {
                 """, orderId, phone.trim());
     }
 
-    /** @return 订单归属的会员 ID；游客订单返回 null。 */
     /** 写入游客订单令牌哈希（明文只在响应里返回一次）。 */
     public void storeAccessTokenHash(UUID orderId, String hash) {
         jdbcTemplate.update("UPDATE orders SET access_token_hash = ? WHERE id = ?", hash, orderId);
@@ -141,6 +154,7 @@ public class OrderRepository {
         return rows.isEmpty() ? null : rows.get(0);
     }
 
+    /** @return 订单归属的会员 ID；游客订单返回 null（null 不代表订单不存在）。 */
     public UUID memberIdOf(UUID orderId) {
         List<UUID> rows = jdbcTemplate.queryForList(
                 "SELECT member_id FROM orders WHERE id = ?", UUID.class, orderId);
@@ -149,9 +163,9 @@ public class OrderRepository {
 
     public Order findOrder(UUID orderId) {
         List<Order> orders = jdbcTemplate.query("""
-                SELECT id, order_no, status, currency, subtotal_amount, shipping_fee_amount,
-                       discount_amount, total_amount, contact_name, contact_phone, contact_email,
-                       address_json, fulfillment_mode, store_id, created_at
+                SELECT id, order_no, status, currency, market_code, subtotal_amount, shipping_fee_amount,
+                       total_weight_grams, discount_amount, total_amount, contact_name, contact_phone,
+                       contact_email, address_json, fulfillment_mode, store_id, created_at
                 FROM orders
                 WHERE id = ?
                 """, (rs, rowNum) -> mapOrderBase(rs), orderId);
@@ -308,8 +322,11 @@ public class OrderRepository {
                 rs.getString("order_no"),
                 OrderStatus.valueOf(rs.getString("status")),
                 rs.getString("currency"),
+                rs.getString("market_code"),
                 new Money(rs.getLong("subtotal_amount"), rs.getString("currency")),
                 new Money(rs.getLong("shipping_fee_amount"), rs.getString("currency")),
+                rs.getObject("total_weight_grams") == null ? null
+                        : rs.getInt("total_weight_grams"),
                 new Money(rs.getLong("discount_amount"), rs.getString("currency")),
                 new Money(rs.getLong("total_amount"), rs.getString("currency")),
                 rs.getString("contact_name"),
@@ -324,8 +341,9 @@ public class OrderRepository {
 
     private Order withLines(Order order) {
         return new Order(
-                order.id(), order.orderNo(), order.status(), order.currency(),
-                order.subtotal(), order.shippingFee(), order.discount(), order.total(),
+                order.id(), order.orderNo(), order.status(), order.currency(), order.marketCode(),
+                order.subtotal(), order.shippingFee(), order.totalWeightGrams(), order.discount(),
+                order.total(),
                 order.contactName(), order.contactPhone(), order.contactEmail(), order.addressJson(),
                 order.fulfillmentMode(), order.storeId(), order.createdAt(), findOrderLines(order.id()));
     }

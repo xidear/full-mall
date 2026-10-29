@@ -40,7 +40,7 @@ test('supplier portal signs requests, accepts and ships a dropship order', async
       items: [{ skuId: SUPPLIER_SKU, quantity: 1 }],
       fulfillmentMode: 'SHIP',
       contact: { name: '供应商 E2E 顾客', phone },
-      address: { province: '上海市', city: '上海市', district: '静安区', detail: '供应商测试路 7 号' },
+      address: { countryCode: 'CN', province: '上海市', city: '上海市', district: '静安区', detail: '供应商测试路 7 号' },
       legalAcceptanceIds: []
     }
   })

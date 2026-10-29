@@ -20,7 +20,7 @@ test('customer sees tracking on order page after shipment', async ({ page, reque
       items: [{ skuId: SKU, quantity: 1 }],
       fulfillmentMode: 'SHIP',
       contact: { name: '轨迹验证', phone: PHONE },
-      address: { province: '上海市', city: '上海市', district: '静安区', detail: '测试路 1 号' },
+      address: { countryCode: 'CN', province: '上海市', city: '上海市', district: '静安区', detail: '测试路 1 号' },
       legalAcceptanceIds: []
     }
   })

@@ -24,30 +24,32 @@ import java.util.UUID;
 public class AddressService {
 
     private final JdbcTemplate jdbcTemplate;
+    /** 按国别判定必填字段：国家不同要填的字段不同（ADR-0013 §8），规则只从 address_format 读。 */
+    private final com.fullmall.region.app.RegionService regions;
 
-    public AddressService(JdbcTemplate jdbcTemplate) {
+    public AddressService(JdbcTemplate jdbcTemplate, com.fullmall.region.app.RegionService regions) {
         this.jdbcTemplate = jdbcTemplate;
+        this.regions = regions;
     }
 
-    public record Address(UUID id, String recipient, String phone, String province, String city,
-                          String district, String detail, String postalCode, boolean isDefault) {
+    public record Address(UUID id, String recipient, String phone, String countryCode, String province,
+                          String city, String district, String detail, String postalCode, boolean isDefault) {
     }
 
-    public record AddressView(UUID id, String recipient, String phoneMasked, String province, String city,
-                              String district, String detail, String postalCode, boolean isDefault) {
+    public record AddressView(UUID id, String recipient, String phoneMasked, String countryCode,
+                              String province, String city, String district, String detail,
+                              String postalCode, boolean isDefault) {
     }
 
-    public record AddressInput(String recipient, String phone, String regionCode, String province,
-                               String city, String district, String detail, String postalCode) {
+    public record AddressInput(String recipient, String phone, String countryCode, String regionCode,
+                               String province, String city, String district, String detail,
+                               String postalCode) {
     }
 
     /**
-     * 新增地址；归属人名下第一条地址自动成为默认。
-     *
-     * <p>"是否首条"用 COUNT 判断而不是查 is_default：默认地址可能被删干净（只剩非默认），
-     * 那种情况下再新增会留下"没有默认地址"的名单，结算时选不到地址。
-     * 并发新增两条时两次都可能判定为首条，由 DB 的"每归属人最多一个默认"部分唯一索引兜底报错，
-     * 不静默接受两个默认。
+     * 新增地址；名下第一条自动成为默认。用 COUNT 判断“是否首条”而不是查 is_default：
+     * 默认地址可能已被删光，只查 is_default 会留下“没有默认地址”的名单。并发新增由
+     * member_address_default_idx 部分唯一索引兜底报错，不静默接受两个默认。
      */
     @Transactional
     public UUID create(String ownerKey, AddressInput input) {
@@ -60,10 +62,11 @@ public class AddressService {
 
         UUID id = UUID.randomUUID();
         jdbcTemplate.update("""
-                INSERT INTO member_address (id, owner_key, recipient, phone, region_code, province,
-                                            city, district, detail, postal_code, is_default)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                """, id, ownerKey, input.recipient().trim(), input.phone().trim(), input.regionCode(),
+                INSERT INTO member_address (id, owner_key, recipient, phone, country_code, region_code,
+                                            province, city, district, detail, postal_code, is_default)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """, id, ownerKey, input.recipient().trim(), input.phone().trim(),
+                input.countryCode().toUpperCase(java.util.Locale.ROOT), input.regionCode(),
                 input.province(), input.city(), input.district(), input.detail().trim(),
                 input.postalCode(), makeDefault);
         return id;
@@ -74,10 +77,12 @@ public class AddressService {
         requireOwner(ownerKey);
         validate(input);
         int updated = jdbcTemplate.update("""
-                UPDATE member_address SET recipient = ?, phone = ?, region_code = ?, province = ?,
-                       city = ?, district = ?, detail = ?, postal_code = ?, updated_at = now()
+                UPDATE member_address SET recipient = ?, phone = ?, country_code = ?, region_code = ?,
+                       province = ?, city = ?, district = ?, detail = ?, postal_code = ?,
+                       updated_at = now()
                  WHERE id = ? AND owner_key = ? AND deleted_at IS NULL
-                """, input.recipient().trim(), input.phone().trim(), input.regionCode(),
+                """, input.recipient().trim(), input.phone().trim(),
+                input.countryCode().toUpperCase(java.util.Locale.ROOT), input.regionCode(),
                 input.province(), input.city(), input.district(), input.detail().trim(),
                 input.postalCode(), id, ownerKey);
         if (updated != 1) {
@@ -86,13 +91,8 @@ public class AddressService {
     }
 
     /**
-     * 设为默认：两步更新必须同事务，且顺序不能反。
-     *
-     * <p>先清旧默认再置新默认：反过来的话会短暂出现两个默认地址，撞上
-     * {@code member_address_default_idx}（每个归属人最多一个未删除默认地址）直接失败。
-     *
-     * <p>{@code requireOwned} 同时收紧归属：id 不属于该 ownerKey 时按 404 处理，
-     * 避免靠猜 UUID 改别人的地址簿。
+     * 设为默认：同事务、且必须“先清旧默认再置新默认”，否则会短暂出现两个默认而撞
+     * member_address_default_idx。requireOwned 同时收紧归属，按猜 UUID 改别人地址簿返回 404。
      */
     @Transactional
     public void setDefault(String ownerKey, UUID id) {
@@ -107,11 +107,8 @@ public class AddressService {
     }
 
     /**
-     * 删除地址：软删除（置 {@code deleted_at} 并清默认标记，让部分唯一索引释放名额）。
-     *
-     * <p>删的是默认地址且名下还有别的地址时**拒绝**，要求用户先指定新默认：
-     * 让系统替用户挑一个默认地址，等于在他没同意的情况下把货发到别处。
-     * 只剩最后一条时允许删除（清空地址簿是用户的权利）。
+     * 软删除（置 deleted_at 并清默认标记，释放部分唯一索引名额）。删的是默认地址且名下还有别的地址时拒绝：
+     * 让系统替用户挑新默认，等于未经同意改发货地址。
      */
     @Transactional
     public void delete(String ownerKey, UUID id) {
@@ -132,22 +129,19 @@ public class AddressService {
                 """, id);
     }
 
-    /**
-     * 列表里的手机号做掩码（PII），且只返回未删除地址；默认地址排最前。
-     *
-     * <p>掩码只在列表做：详情 {@link #get} 返回完整号码，因为那是本人查看自己的地址——
-     * 后台/导出场景若要展示号码，请走 {@code FieldMasker} 统一口径，而不是各自截字符串。
-     */
+    /** 列表手机号掩码（PII），只返回未删除地址，默认地址排最前。 */
     public List<AddressView> list(String ownerKey) {
         requireOwner(ownerKey);
         return jdbcTemplate.query("""
-                SELECT id, recipient, phone, province, city, district, detail, postal_code, is_default
+                SELECT id, recipient, phone, country_code, province, city, district, detail,
+                       postal_code, is_default
                   FROM member_address
                  WHERE owner_key = ? AND deleted_at IS NULL
                  ORDER BY is_default DESC, created_at
                 """, (rs, rowNum) -> new AddressView(
                 rs.getObject("id", UUID.class), rs.getString("recipient"),
-                FieldMasker.phone(rs.getString("phone")), rs.getString("province"),
+                FieldMasker.phone(rs.getString("phone")), rs.getString("country_code"),
+                rs.getString("province"),
                 rs.getString("city"), rs.getString("district"), rs.getString("detail"),
                 rs.getString("postal_code"), rs.getBoolean("is_default")), ownerKey);
     }
@@ -160,12 +154,14 @@ public class AddressService {
 
     private Address requireOwned(String ownerKey, UUID id) {
         return jdbcTemplate.query("""
-                SELECT id, recipient, phone, province, city, district, detail, postal_code, is_default
+                SELECT id, recipient, phone, country_code, province, city, district, detail,
+                       postal_code, is_default
                   FROM member_address
                  WHERE id = ? AND owner_key = ? AND deleted_at IS NULL
                 """, (rs, rowNum) -> new Address(
                 rs.getObject("id", UUID.class), rs.getString("recipient"), rs.getString("phone"),
-                rs.getString("province"), rs.getString("city"), rs.getString("district"),
+                rs.getString("country_code"), rs.getString("province"), rs.getString("city"),
+                rs.getString("district"),
                 rs.getString("detail"), rs.getString("postal_code"), rs.getBoolean("is_default")),
                 id, ownerKey).stream().findFirst()
                 .orElseThrow(() -> ApiException.notFound("ADDRESS_NOT_FOUND", "地址不存在: " + id));
@@ -180,6 +176,77 @@ public class AddressService {
         }
         if (input.detail() == null || input.detail().isBlank()) {
             throw ApiException.badRequest("ADDRESS_DETAIL_REQUIRED", "详细地址不能为空");
+        }
+        // 国家是 Destination 轴：没有它就无法确定地址格式、运费、税与报关要素（ADR-0014）
+        if (input.countryCode() == null || input.countryCode().isBlank()) {
+            throw ApiException.badRequest("ADDRESS_COUNTRY_REQUIRED", "收货国家不能为空");
+        }
+        if (!input.countryCode().matches(
+                com.fullmall.platform.validation.ValidationRules.ADDRESS_COUNTRY_PATTERN)) {
+            throw ApiException.badRequest("INVALID_ADDRESS_COUNTRY",
+                    "收货国家必须是 ISO 3166-1 alpha-2，实际=" + input.countryCode());
+        }
+        // 长度上限与列宽同源（§9.1）：超长在这里就拒绝，别等到写库才报错
+        if (input.detail().length() > com.fullmall.platform.validation.ValidationRules.ADDRESS_DETAIL_MAX_LENGTH) {
+            throw ApiException.badRequest("ADDRESS_DETAIL_TOO_LONG",
+                    "详细地址最多 " + com.fullmall.platform.validation.ValidationRules.ADDRESS_DETAIL_MAX_LENGTH + " 个字符");
+        }
+        requireCountryFormat(input);
+        requireRegionNameLength(input.province(), "province");
+        requireRegionNameLength(input.city(), "city");
+        requireRegionNameLength(input.district(), "district");
+        if (input.regionCode() != null && !input.regionCode().isBlank()
+                && !input.regionCode().matches(
+                    com.fullmall.platform.validation.ValidationRules.ADDRESS_REGION_CODE_PATTERN)) {
+            throw ApiException.badRequest("INVALID_REGION_CODE",
+                    "区划码格式不正确，实际=" + input.regionCode());
+        }
+        if (input.postalCode() != null && input.postalCode().length()
+                > com.fullmall.platform.validation.ValidationRules.ADDRESS_POSTAL_CODE_MAX_LENGTH) {
+            throw ApiException.badRequest("ADDRESS_POSTAL_CODE_TOO_LONG",
+                    "邮编最多 " + com.fullmall.platform.validation.ValidationRules.ADDRESS_POSTAL_CODE_MAX_LENGTH + " 个字符");
+        }
+    }
+
+    /**
+     * 按该国 address_format 校验必填项与邮编格式。
+     *
+     * <p>没有该国的格式就**拒绝**：套中国模板会让"日本用户的地址"看起来合法，
+     * 但实际漏了都道府县，货发不出去（这是最典型的静默兜底）。
+     */
+    private void requireCountryFormat(AddressInput input) {
+        String country = input.countryCode().toUpperCase(java.util.Locale.ROOT);
+        com.fullmall.region.domain.AddressFormat format = regions.requireFormat(country);
+        if (format.requires("S") && isBlank(input.province()) && isBlank(input.regionCode())) {
+            throw ApiException.badRequest("ADDRESS_REGION_REQUIRED",
+                    "该国家要求填写一级行政区（" + format.stateNameType() + "）");
+        }
+        // 有下级区划列表时（如中国省/市），城市也是必填；没有列表的国家（如新加坡）不要求
+        if (format.requires("C") && isBlank(input.city()) && isBlank(input.regionCode())) {
+            throw ApiException.badRequest("ADDRESS_CITY_REQUIRED", "该国家要求填写城市");
+        }
+        if (format.requires("Z") && isBlank(input.postalCode())) {
+            throw ApiException.badRequest("ADDRESS_POSTAL_REQUIRED", "该国家要求填写邮政编码");
+        }
+        if (!isBlank(input.postalCode()) && format.zip() != null) {
+            if (!input.postalCode().trim().matches("^(?:" + format.zip() + ")$")) {
+                throw ApiException.badRequest("INVALID_POSTAL_CODE",
+                        "邮政编码格式不符合该国家规则，实际=" + input.postalCode());
+            }
+        }
+    }
+
+    private boolean isBlank(String value) {
+        return value == null || value.isBlank();
+    }
+
+    private void requireRegionNameLength(String value, String field) {
+        if (value != null && value.length()
+                > com.fullmall.platform.validation.ValidationRules.ADDRESS_REGION_NAME_MAX_LENGTH) {
+            throw ApiException.badRequest("ADDRESS_REGION_NAME_TOO_LONG",
+                    field + " 最多 "
+                            + com.fullmall.platform.validation.ValidationRules.ADDRESS_REGION_NAME_MAX_LENGTH
+                            + " 个字符");
         }
     }
 

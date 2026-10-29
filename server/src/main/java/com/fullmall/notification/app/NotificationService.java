@@ -187,7 +187,21 @@ public class NotificationService {
         return repository.countUnreadStaff();
     }
 
-    private void deliver(String recipientType, String recipientId, String eventType,
+    /**
+     * 向任意地址投递（目前用于邮箱验证码）：收件人是外部邮箱，不属于站内会员。
+     *
+     * <p>返回落库后的投递记录，调用方据此判断 SENT/FAILED——**不假设发送成功**：
+     * 生产环境没有真实 EMAIL 供应商时 sender 是"总是失败"的实现，这里会拿到 FAILED 并由调用方明确报错。
+     */
+    public Notification sendToAddress(String address, String eventType, String channel,
+                                      String title, String content) {
+        if (address == null || address.isBlank()) {
+            throw com.fullmall.platform.error.ApiException.badRequest("ADDRESS_REQUIRED", "收件地址不能为空");
+        }
+        return deliver("EXTERNAL", address.trim(), eventType, channel, title, content);
+    }
+
+    private Notification deliver(String recipientType, String recipientId, String eventType,
                          String channel, String title, String content) {
         Notification base = new Notification(
                 UUID.randomUUID(),
@@ -208,14 +222,16 @@ public class NotificationService {
         if (sender == null) {
             repository.updateDelivery(base.id(), "FAILED", null, "No sender configured for " + channel);
             log.warn("No notification sender configured for channel {}", channel);
-            return;
+            return base.withDelivery("FAILED", null, "No sender configured for " + channel);
         }
         try {
             sender.send(base);
             repository.updateDelivery(base.id(), "SENT", Instant.now(), null);
+            return base.withDelivery("SENT", Instant.now(), null);
         } catch (RuntimeException exception) {
             repository.updateDelivery(base.id(), "FAILED", null, exception.getMessage());
             log.error("Notification delivery failed channel={} recipient={}", channel, recipientId, exception);
+            return base.withDelivery("FAILED", null, exception.getMessage());
         }
     }
 }

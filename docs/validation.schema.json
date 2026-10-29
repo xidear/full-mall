@@ -7,6 +7,12 @@
       "type": "string",
       "pattern": "^\\+?[0-9]{6,20}$"
     },
+    "email": {
+      "type": "string",
+      "description": "邮箱：只做基本形状校验（有一个 @、两侧非空、域名带点）。不做「是否真实存在」的判断——那要靠发信验证。",
+      "pattern": "^[^@\\s]+@[^@\\s]+\\.[A-Za-z]{2,}$",
+      "maxLength": 254
+    },
     "password": {
       "type": "string",
       "minLength": 8
@@ -36,6 +42,20 @@
     "contactName": {
       "type": "string",
       "maxLength": 64
+    },
+    "address": {
+      "type": "object",
+      "description": "收货地址（ADR-0013 / ADR-0014）。countryCode 是 Destination 轴，决定地址字段集、邮编正则、运费与税，不是市场；regionCode 是最细一级区划码（命中 region 表才填），未命中时保留文本。",
+      "required": ["countryCode", "detail"],
+      "properties": {
+        "countryCode": { "type": "string", "pattern": "^[A-Za-z]{2}$" },
+        "regionCode": { "type": "string", "pattern": "^[A-Za-z0-9._-]{1,16}$" },
+        "province": { "type": "string", "maxLength": 64 },
+        "city": { "type": "string", "maxLength": 64 },
+        "district": { "type": "string", "maxLength": 64 },
+        "detail": { "type": "string", "minLength": 1, "maxLength": 255 },
+        "postalCode": { "type": "string", "maxLength": 16 }
+      }
     },
     "assetUpload": {
       "type": "object",

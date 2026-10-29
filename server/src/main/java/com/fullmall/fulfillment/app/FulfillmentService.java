@@ -455,6 +455,33 @@ public class FulfillmentService {
      *
      * <p>退款不在这里做：取消只回滚库存占用，退款由售后/财务按订单状态处理。
      */
+    /**
+     * 跨境清关状态推进（批次 F2）。
+     *
+     * <p>只在"已发货"之后、完成之前可推进：还没发货就报"已清关"是假状态，
+     * 已完成的订单再改状态会让后续售后/对账口径混乱，所以直接拒绝。
+     */
+    @Transactional
+    public FulfillmentOrder markCustoms(UUID fulfillmentId, boolean cleared, String note) {
+        FulfillmentOrder fulfillment = requireFulfillment(fulfillmentId);
+        FulfillmentStatus status = fulfillment.status();
+        if (status != FulfillmentStatus.SHIPPED
+                && status != FulfillmentStatus.CUSTOMS_CLEARING
+                && status != FulfillmentStatus.CUSTOMS_CLEARED) {
+            throw ApiException.conflict("FULFILLMENT_NOT_SHIPPED",
+                    "只有「已发货」之后的履约单才能登记清关状态，当前=" + status);
+        }
+        FulfillmentStatus target = cleared
+                ? FulfillmentStatus.CUSTOMS_CLEARED : FulfillmentStatus.CUSTOMS_CLEARING;
+        repository.updateStatus(fulfillmentId, target);
+        notificationService.notifyOrderEvent(fulfillment.orderId(),
+                cleared ? "CUSTOMS_CLEARED" : "CUSTOMS_CLEARING",
+                cleared ? "包裹已清关" : "包裹清关中",
+                note == null || note.isBlank() ? (cleared ? "清关完成" : "等待清关") : note,
+                java.util.List.of("IN_APP"));
+        return requireFulfillment(fulfillmentId);
+    }
+
     @Transactional
     public FulfillmentOrder cancelFulfillment(UUID fulfillmentId, String reason) {
         FulfillmentOrder fulfillment = requireFulfillment(fulfillmentId);
@@ -467,6 +494,8 @@ public class FulfillmentService {
                     "已开始拣货（" + status + "），请人工盘点后处理");
         }
         if (status == FulfillmentStatus.SHIPPED
+                || status == FulfillmentStatus.CUSTOMS_CLEARING
+                || status == FulfillmentStatus.CUSTOMS_CLEARED
                 || status == FulfillmentStatus.READY_FOR_PICKUP
                 || status == FulfillmentStatus.COMPLETED) {
             throw ApiException.conflict("FULFILLMENT_CANNOT_CANCEL",

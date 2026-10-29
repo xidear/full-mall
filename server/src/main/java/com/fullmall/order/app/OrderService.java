@@ -63,8 +63,20 @@ public class OrderService {
     private final com.fullmall.coupon.app.CouponAllocationService couponAllocations;
     private final com.fullmall.promotion.app.CouponStackingPolicy.Mode globalCouponMode;
     private final com.fullmall.member.auth.MemberAuthService memberAuth;
+    /** 下单时把市场快照进订单（ADR-0014）；解析不到会明确失败，不默认 CN。 */
+    private final com.fullmall.setting.app.MarketContext marketContext;
+    /** 按市场取价：覆盖价优先，币种不符直接拒绝（禁止把人民币价当港币卖）。 */
+    private final com.fullmall.catalog.app.SkuPricingService skuPricing;
+    /** 运费按 市场 × 目的地 × 重量档 计算，不再用写死的 FLAT_SHIPPING_FEE。 */
+    private final com.fullmall.shipping.app.ShippingRateService shippingRates;
+    /** 计税：目的地优先、市场税务辖区兜底；无规则时告警但不静默假装算过。 */
+    private final com.fullmall.tax.app.TaxService taxService;
+    /**
+     * 下单门禁（市场 × 目的地）：市场是否开通、目的地是否可达、地址格式与运费规则是否齐备。
+     * 缺任何一项都在定价/扣库存之前失败，避免"算完价才发现送不到"。
+     */
+    private final com.fullmall.capability.app.MarketCapabilityService capabilities;
 
-    private static final long FLAT_SHIPPING_FEE = 0L;
 
     private final OrderRepository orderRepository;
     private final CatalogService catalogService;
@@ -101,7 +113,12 @@ public class OrderService {
                         com.fullmall.coupon.app.CouponService coupons,
                         com.fullmall.coupon.app.CouponAllocationService couponAllocations,
                         @org.springframework.beans.factory.annotation.Value("${app.promotion.coupon.mode:EXCLUSIVE}") String couponMode,
-                        com.fullmall.member.auth.MemberAuthService memberAuth) {
+                        com.fullmall.member.auth.MemberAuthService memberAuth,
+                        com.fullmall.setting.app.MarketContext marketContext,
+                        com.fullmall.catalog.app.SkuPricingService skuPricing,
+                        com.fullmall.shipping.app.ShippingRateService shippingRates,
+                        com.fullmall.tax.app.TaxService taxService,
+                        com.fullmall.capability.app.MarketCapabilityService capabilities) {
         this.orderRepository = orderRepository;
         this.catalogService = catalogService;
         this.inventoryService = inventoryService;
@@ -124,6 +141,11 @@ public class OrderService {
         this.coupons = coupons;
         this.couponAllocations = couponAllocations;
         this.memberAuth = memberAuth;
+        this.marketContext = marketContext;
+        this.skuPricing = skuPricing;
+        this.shippingRates = shippingRates;
+        this.taxService = taxService;
+        this.capabilities = capabilities;
         this.globalCouponMode = com.fullmall.promotion.app.CouponStackingPolicy.parse(
                 couponMode, "app.promotion.coupon.mode");
 
@@ -132,6 +154,14 @@ public class OrderService {
     @Transactional
     public Order checkout(CheckoutRequest request, String idempotencyKey) {
         String idemKey = idempotencyKey == null ? null : idempotencyKey.trim();
+        // 市场在进入业务逻辑前解析：解析不到就失败，避免订单落到错误市场的币种/税/主体上
+        String marketCode = marketContext.current();
+        // 配送单先过能力门禁：市场停用、目的地未开通、地址格式或运费规则缺失都在这里拦下。
+        // 自提不校验目的地——自提不寄，目的地国家与运费规则都无关。
+        if (request.fulfillmentMode() == FulfillmentMode.SHIP) {
+            capabilities.requireCheckoutCapable(marketCode,
+                    request.address() == null ? null : request.address().countryCode());
+        }
         if (idemKey != null && idemKey.length() > 128) {
             throw ApiException.badRequest("INVALID_IDEMPOTENCY_KEY", "Idempotency-Key must be at most 128 characters");
         }
@@ -168,9 +198,13 @@ public class OrderService {
         List<ResolvedItem> resolved = new ArrayList<>();
         String currency = null;
         Money promoSubtotal = null;
+        // 优惠基数要用**市场价**（不是基础价）：配了市场覆盖价时两者不同，用基础价会让 discount 变负数
+        Money marketSubtotal = null;
         for (Map.Entry<UUID, Integer> entry : quantities.entrySet()) {
             Sku sku = catalogService.getSku(entry.getKey());
-            Money unitPrice = promotionPricing.priceOverrides().getOrDefault(sku.id(), sku.price());
+            // 市场价（覆盖价优先，币种必须与市场一致）；促销价再覆盖它
+            Money marketPrice = skuPricing.priceFor(sku, marketCode).price();
+            Money unitPrice = promotionPricing.priceOverrides().getOrDefault(sku.id(), marketPrice);
             if (request.bargainSessionId() != null) {
                 // 砍价价优先：本人 + READY 由 quote 校验，失败直接报错，不回落原价
                 var quote = bargainService.quoteForPhone(request.bargainSessionId(),
@@ -182,9 +216,10 @@ public class OrderService {
                 unitPrice = new Money(quote.unitPrice(), quote.currency());
             }
             if (currency == null) {
-                currency = sku.price().currency();
+                currency = marketPrice.currency();
                 promoSubtotal = Money.zero(currency);
-            } else if (!currency.equals(sku.price().currency())) {
+                marketSubtotal = Money.zero(currency);
+            } else if (!currency.equals(marketPrice.currency())) {
                 throw ApiException.badRequest("CURRENCY_MISMATCH",
                         "All items in one order must use the same currency");
             }
@@ -204,6 +239,7 @@ public class OrderService {
                     applied == null ? null : applied.promotionId(),
                     promotionPricing.priceOverrides().containsKey(sku.id()) ? "PROMOTION" : "NORMAL"));
             promoSubtotal = promoSubtotal.plus(unitPrice.multiply(entry.getValue()));
+            marketSubtotal = marketSubtotal.plus(marketPrice.multiply(entry.getValue()));
         }
         if (currency == null || promoSubtotal == null) {
             throw ApiException.badRequest("EMPTY_CART", "Cart must contain at least one item");
@@ -227,13 +263,15 @@ public class OrderService {
         List<ResolvedItem> orderItems = new ArrayList<>(resolved);
         orderItems.addAll(giftLines);
 
-        Money subtotal = Money.zero(currency);
-        for (ResolvedItem item : resolved) {
-            subtotal = subtotal.plus(item.sku().price().multiply(item.quantity()));
-        }
+        // 商品小计 = 各 SKU 的市场价 × 数量（基础价只在没有覆盖价时才等于它，见 SkuPricingService）
+        Money subtotal = marketSubtotal == null ? Money.zero(currency) : marketSubtotal;
+        // 运费按 市场 × 收货国 × 重量档 计算；跨国无规则会明确报错，不默认免运费
+        int totalWeightGrams = shippingRates.totalWeightGrams(quantities);
         Money shippingFee = request.fulfillmentMode() == FulfillmentMode.PICKUP
                 ? Money.zero(currency)
-                : new Money(FLAT_SHIPPING_FEE, currency);
+                : shippingRates.fee(marketCode,
+                        request.address() == null ? null : request.address().countryCode(),
+                        totalWeightGrams, subtotal).amount();
         Money discount = subtotal.minus(promoSubtotal);
         if (discount.amount() < 0) {
             throw new IllegalStateException("Promotion subtotal exceeds catalog subtotal for checkout");
@@ -243,7 +281,7 @@ public class OrderService {
             java.util.Map<UUID, Long> subtotalsBySku = new java.util.LinkedHashMap<>();
             for (ResolvedItem item : resolved) {
                 subtotalsBySku.merge(item.sku().id(),
-                        item.sku().price().amount() * item.quantity(), Long::sum);
+                        item.unitPrice().amount() * item.quantity(), Long::sum);
             }
             var engineResult = com.fullmall.promotion.app.PromotionEngine.chooseScoped(
                     promotionPreviews.scopedRules("ONLINE", subtotalsBySku));
@@ -273,6 +311,14 @@ public class OrderService {
         Money memberDiscount = new Money(memberPricing.memberDiscountAmount(), currency);
         Money total = new Money(memberPricing.payableAmount(), currency);
         discount = discount.plus(memberDiscount);
+
+        // 税（ADR-0014）：目的地优先、市场辖区兜底；价外税把税额加到总额，价内税只做税基拆分
+        Money netMerchandise = subtotal.minus(discount);
+        var taxLine = taxService.calculate(marketCode,
+                request.address() == null ? null : request.address().countryCode(), netMerchandise);
+        if (taxLine.isPresent() && !taxLine.get().priceIncludesTax()) {
+            total = total.plus(new Money(taxLine.get().taxAmount(), currency));
+        }
 
 
         CheckoutRequest.CheckoutContext ctx = request.context() == null
@@ -339,8 +385,10 @@ public class OrderService {
                 Ids.orderNo(),
                 OrderStatus.PENDING_PAYMENT,
                 currency,
+                marketCode,
                 subtotal,
                 shippingFee,
+                totalWeightGrams,
                 discount,
                 total,
                 request.contact().name(),
@@ -352,6 +400,10 @@ public class OrderService {
                 Instant.now(),
                 List.of());
         orderRepository.insertOrder(order);
+        // 税行与订单同事务：税额/税率一起快照，事后调整税率不会改写历史订单
+        taxLine.ifPresent(line -> orderRepository.insertTaxLine(order.id(), line.jurisdiction(),
+                line.name(), line.rateBps(), line.priceIncludesTax(),
+                line.taxableAmount(), line.taxAmount()));
         // 记录下单来源与操作员（员工代下单必须可追溯）
         orderRepository.updatePlacement(orderId,
                 ctx.placedBy() == null ? "CUSTOMER" : ctx.placedBy().trim().toUpperCase(),

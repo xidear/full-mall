@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test'
+import { e2ePhone } from './utils/e2ePhone'
 
 const MOBILE = 'http://localhost:41286'
 const API = 'http://localhost:41280'
@@ -30,21 +31,28 @@ test('mobile h5 browses products, adds to cart and checks out', async ({ page, r
   await expect(page.getByText('填写订单', { exact: true })).toBeVisible({ timeout: 15_000 })
 
   // uni-app H5 的 placeholder 在自定义元素上，直接按输入顺序填
+  // 字段集由后端 address_format 决定（ADR-0013 §8）：中国是 国家/省/市/区/邮编/详细地址，
+  // 所以顺序是 姓名、手机号、验证码、省、市、区、邮编、详细地址。
   const fields = page.locator('uni-input input')
-  await expect(fields).toHaveCount(7)
-  const phone = `137${String(Date.now()).slice(-8)}`
+  await expect(fields).toHaveCount(8)
+  const phone = e2ePhone()
   await fields.nth(0).fill('移动端验证')
   await fields.nth(1).fill(phone)
   // nth(2) 是验证码，由「获取验证码」自动填入
-  await fields.nth(3).fill('上海市')
-  await fields.nth(4).fill('上海市')
-  await fields.nth(5).fill('静安区')
-  await fields.nth(6).fill('测试路 1 号')
+  await fields.nth(3).fill('北京市')
+  await fields.nth(4).fill('北京市')
+  await fields.nth(5).fill('朝阳区')
+  await fields.nth(6).fill('100102')
+  await fields.nth(7).fill('测试路 1 号')
 
   // 页面内走真实 OTP（dev 会回传验证码并自动填入）
   await page.getByText('获取验证码', { exact: true }).click()
   await expect.poll(async () =>
     page.locator('uni-input input').nth(2).inputValue(), { timeout: 15_000 }).not.toBe('')
+
+  // 合规要求：必须显式勾选同意条款，否则提交会被前端拦下（"请先阅读并同意服务条款"）。
+  // 注意点方框本身：点 label 会连冒泡触发两次 toggle，等于没勾（实测踩过）。
+  await page.locator('.legal .uni-checkbox-input').click({ force: true })
 
   await page.getByText('提交订单', { exact: true }).click()
   await expect(page.getByText('下单成功')).toBeVisible({ timeout: 25_000 })

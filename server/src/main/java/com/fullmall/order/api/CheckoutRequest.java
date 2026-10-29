@@ -73,6 +73,13 @@ public record CheckoutRequest(
 
     /** 仅配送（SHIPPING）需要；自提时允许为 null，由 OrderService 报 ADDRESS_REQUIRED，不在此按 mode 做条件校验。 */
     public record Address(
+            /**
+             * 收货地国家（ISO 3166-1 alpha-2）。ADR-0014：这是 Destination 轴，**不是市场**——
+             * 大陆站直邮新加坡是合法组合，用市场当国家会把运费与税算错。
+             * 配送必填；自提可空（由 OrderService 按 mode 判定）。
+             */
+            @Pattern(regexp = "^[A-Za-z]{2}$", message = "must be an ISO 3166-1 alpha-2 country code")
+            String countryCode,
             String province,
             String city,
             String district,

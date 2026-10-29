@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test'
+import { e2ePhone } from './utils/e2ePhone'
 
 const API = 'http://localhost:41280'
 const SUPPLIER_ID = '33333333-3333-3333-3333-333333333333'
@@ -16,7 +17,7 @@ test('supplier portal shows settlement rows after platform generates one', async
     `${API}/admin/v1/suppliers/${SUPPLIER_ID}/credentials`, { headers: admin })).json()
 
   // 造代发订单并生成结算单
-  const phone = `137${String(Date.now()).slice(-8)}`
+  const phone = e2ePhone()
   const issued = await request.post(`${API}/api/v1/member/auth/otp`, { data: { phone } })
   const code = (await issued.json()).debugCode
   const member = (await (await request.post(`${API}/api/v1/member/auth/verify`,
@@ -27,7 +28,7 @@ test('supplier portal shows settlement rows after platform generates one', async
       items: [{ skuId: SUPPLIER_SKU, quantity: 1 }],
       fulfillmentMode: 'SHIP',
       contact: { name: '结算顾客', phone },
-      address: { province: '上海市', city: '上海市', district: '静安区', detail: '结算路 2 号' },
+      address: { countryCode: 'CN', province: '上海市', city: '上海市', district: '静安区', detail: '结算路 2 号' },
       legalAcceptanceIds: []
     }
   })

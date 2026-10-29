@@ -33,6 +33,8 @@ public class LogisticsTrackingService {
 
     private static final Logger log = LoggerFactory.getLogger(LogisticsTrackingService.class);
     private static final String PROVIDER_KEY = "logistics_provider";
+    /** 按市场启用的通道（首批）；有启用项就以它为准，没有再回退全局设置。 */
+    private final com.fullmall.market.app.MarketIntegrationService integrations;
     private static final String CUSTOMER_SAFE_MESSAGE = "物流信息暂时无法查询，请稍后再试";
 
     private final SystemSettingService settings;
@@ -44,11 +46,13 @@ public class LogisticsTrackingService {
 
     public LogisticsTrackingService(SystemSettingService settings, RiskAlertService riskAlerts,
                                     JdbcTemplate jdbcTemplate,
+                                    com.fullmall.market.app.MarketIntegrationService integrations,
                                     @Value("${app.logistics.api-key:}") String apiKey,
                                     @Value("${app.mode:dev}") String appMode) {
         this.settings = settings;
         this.riskAlerts = riskAlerts;
         this.jdbcTemplate = jdbcTemplate;
+        this.integrations = integrations;
         this.apiKey = apiKey;
         this.demoForced = "demo".equalsIgnoreCase(appMode);
     }
@@ -72,20 +76,34 @@ public class LogisticsTrackingService {
             throw ApiException.notFound("TRACKING_NOT_FOUND", "该订单还没有物流信息");
         }
 
+        // 服务商按**订单所属市场**取：香港站不应使用大陆配置的物流服务商
+        List<String> markets = jdbcTemplate.queryForList(
+                "SELECT market_code FROM orders WHERE id = ?", String.class, orderId);
+        String marketCode = markets.isEmpty() ? null : markets.get(0);
         List<TrackingEvent> events = new ArrayList<>();
         for (Shipment shipment : shipments) {
-            events.addAll(track(shipment));
+            events.addAll(track(shipment, marketCode));
         }
         return events;
     }
 
     @Transactional
     public List<TrackingEvent> track(Shipment shipment) {
+        return track(shipment, null);
+    }
+
+    /** @param marketCode 订单所属市场；为 null 时退回全局配置（无市场上下文的老调用方） */
+    public List<TrackingEvent> track(Shipment shipment, String marketCode) {
         if (demoForced) {
             // 演示环境永远 mock：即便后台填了真实服务商与 AK，也不发外网请求
             return mockEvents(shipment);
         }
-        String provider = settings.rawValue(PROVIDER_KEY);
+        // 优先用该市场启用的通道；没有启用项才回退全局设置（迁移期兼容，不是永久双写）
+        String provider = integrations.enabledProvider(marketCode, "logistics")
+                .orElseGet(() -> {
+                    String legacy = settings.marketValue(marketCode, PROVIDER_KEY);
+                    return legacy == null || legacy.isBlank() ? "mock" : legacy.trim().toLowerCase();
+                });
         provider = provider == null || provider.isBlank() ? "mock" : provider.trim().toLowerCase();
         return switch (provider) {
             case "mock" -> mockEvents(shipment);

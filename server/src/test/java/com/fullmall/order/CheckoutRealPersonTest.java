@@ -67,8 +67,8 @@ class CheckoutRealPersonTest {
     void seed() {
         phone = "139" + String.format("%08d", Math.abs(UUID.randomUUID().hashCode() % 100_000_000));
         jdbc.update("""
-                INSERT INTO market (code, name, currency, default_locale, active)
-                VALUES ('RP', '真人市场', 'CNY', 'zh-CN', TRUE) ON CONFLICT (code) DO NOTHING
+                INSERT INTO market (code, name, currency, country_code, active)
+                VALUES ('RP', '真人市场', 'CNY', 'CN', TRUE) ON CONFLICT (code) DO NOTHING
                 """);
         jdbc.update("""
                 INSERT INTO warehouse (id, market_code, name, type, active)
@@ -96,7 +96,7 @@ class CheckoutRealPersonTest {
                 FulfillmentMode.SHIP,
                 null,
                 new CheckoutRequest.Contact("真人用户", phone, null),
-                new CheckoutRequest.Address("上海", "上海", "静安", "南京西路 1 号", "200040"),
+                new CheckoutRequest.Address("CN", "上海", "上海", "静安", "南京西路 1 号", "200040"),
                 List.of(), null, null, null, new CheckoutRequest.CheckoutContext(null, null, otpCode, null, null), null);
     }
 
@@ -130,7 +130,7 @@ class CheckoutRealPersonTest {
                 FulfillmentMode.SHIP,
                 null,
                 new CheckoutRequest.Contact("到店顾客", phone, null),
-                new CheckoutRequest.Address("上海", "上海", "静安", "南京西路 2 号", "200040"),
+                new CheckoutRequest.Address("CN", "上海", "上海", "静安", "南京西路 2 号", "200040"),
                 List.of(), null, null, null,
                 new CheckoutRequest.CheckoutContext(null, null, null, "CASHIER", "收银员张三"), null);
 
@@ -150,7 +150,7 @@ class CheckoutRealPersonTest {
                 FulfillmentMode.SHIP,
                 null,
                 new CheckoutRequest.Contact("到店顾客", phone, null),
-                new CheckoutRequest.Address("上海", "上海", "静安", "南京西路 2 号", "200040"),
+                new CheckoutRequest.Address("CN", "上海", "上海", "静安", "南京西路 2 号", "200040"),
                 List.of(), null, null, null,
                 new CheckoutRequest.CheckoutContext(null, null, null, "CASHIER", null), null);
 

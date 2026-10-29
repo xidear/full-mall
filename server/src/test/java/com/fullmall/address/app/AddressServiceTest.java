@@ -54,8 +54,8 @@ class AddressServiceTest {
     }
 
     private static AddressService.AddressInput input(String recipient, String phone) {
-        return new AddressService.AddressInput(recipient, phone, "310000", "上海", "上海", "静安",
-                "南京西路 1 号", "200040");
+        return new AddressService.AddressInput(recipient, phone, "CN", "310000", "上海", "上海",
+                "静安", "南京西路 1 号", "200040");
     }
 
     @Test

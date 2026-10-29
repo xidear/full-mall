@@ -187,6 +187,15 @@ Full Mall 的落地：
 | AWS SDK for Java v2 | https://docs.aws.amazon.com/sdk-for-java/latest/developer-guide/home.html | S3 兼容存储 |
 | 七牛 Java SDK | https://developer.qiniu.com/kodo/sdk/java | 七牛 |
 | 阿里云 OSS Java SDK | https://help.aliyun.com/zh/oss/developer-reference/java/ | 阿里云 |
+| province-city-china（GB/T 2260 区划） | https://www.npmjs.com/package/province-city-china | 中国省市区字典**默认来源**（MIT，2026-10-11 有发布，活跃） |
+| china-division（五级区划） | https://github.com/modood/Administrative-divisions-of-China | 备选；数据最全（五级）。package.json 写 MIT、**tarball 内 LICENSE 原文实测 WTFPL**，且发布者 = 版权人本人 ⇒ 属元数据写错，**取 WTFPL 口径即可合法使用，fork 无需也不能**（ADR-0013 §许可证性质）。数据截止 2023-06-30，比默认来源老约 3 年 |
+| world-countries（mledoze/countries） | https://github.com/mledoze/countries | **降为备选**：ODbL-1.0 是本议题唯一带 share-alike（类传染）义务的许可，闭源交付避开；LICENSE 原文本次未取到 |
+| i18n-iso-countries | https://github.com/michaelwittig/node-i18n-iso-countries | **国家层默认来源**（MIT 已验证，无 share-alike） |
+| GeoNames dump | https://download.geonames.org/export/dump/ | 备选（市级以下/邮编/经纬度）；许可据二手资料为 CC-BY 4.0，**官方页未核实** |
+| nv-i18n（Java） | https://search.maven.org/artifact/com.neovisionaries/nv-i18n | Maven Central 存在 1.29；国家/语言码枚举辅助，**不是区划数据集** |
+| Maven Central 中国行政区划数据集 | https://search.maven.org | **检索 0 命中**：Java 生态无现成区划 artifact，故走「npm 数据包 → 规范化快照 → Flyway 灌库」（见 ADR-0013） |
+| libaddressinput（google） | https://github.com/google/libaddressinput | **采用其模型与词汇**（Apache-2.0、633★、驱动 Android/Chromium）：地址表单由**国别元数据**驱动（require/fmt/zip/sub_keys），不是固定省市区三级。⚠️ 其元数据**不在仓库内**，须从 ADS 在线取 ⇒ 本项目必须转成自有快照，运行期不得访问 Google（ADR-0013 §8.5） |
+| libpostal（openvenues） | https://github.com/openvenues/libpostal | 暂不采用：C 库 + 统计 NLP 模型（需额外原生依赖与模型下载），违反 §12「不得要求客户手工装东西」；地址解析需求现阶段用 address_format 正则 + 可选三方 provider 覆盖 |
 
 ## 3. 待 spike（P0/P1）
 
@@ -315,6 +324,25 @@ Full Mall 的落地：
 3. 请求状态统一走 composables/useAsyncState.ts（loading / error / data + 过期响应丢弃）；
 4. 图片统一走 media.ts#resolveMediaUrl() + components/AdminThumb.vue（失败回落到占位块）；
 5. 模块按"任务"而不是"表"划分：译文并入商品编辑页（按启用语言 tab），规格矩阵改为可复用模板（ADR-006）。
+
+## 3.8 已决策：国家与行政区划数据来源（2026-10-29，ADR-0013）
+
+背景：地址现状为纯手填（省市区三个自由文本，无字典表、无校验、无三方服务），地址不可治理。
+详见 `docs/adr/0013-address-region-data.md`（含候选、许可证、活跃度、下载量实测与验证状态表）。
+
+| 方案 | 结论 | 理由 |
+|---|---|---|
+| province-city-china（GB/T 2260） | **采用**：中国省市区默认来源 | MIT 一致、2026-10 仍在更新、直接对齐国标代码 |
+| china-division | 备选，暂不采用 | 数据最全（五级）但快照截止 2023-06-30，比默认来源老约 3 年。package.json=MIT 与 tarball 内 LICENSE=WTFPL 的冲突**已查明是元数据写错**（发布者即版权人本人，README 自标 WTFPL），取保守口径 WTFPL 即可合法使用；**不靠 fork 解决**——fork 不改变版权归属，自贴 MIT 反而构成不实授权声明 |
+| area-data / china-area-data | 淘汰 | 停更 8/6 年，area-data 仓库已 archived |
+| i18n-iso-countries（国家层默认）/ world-countries（备选） | **采用前者** | i18n-iso-countries = MIT 已验证、无 share-alike；world-countries 多语言更全但 ODbL-1.0 属数据库版 copyleft（对外再分发衍生数据须署名+同许可），闭源交付避开 |
+| GeoNames / 商业区划库（qqzeng） | 不引入 | 村级不是收货字典必要层级；许可/采购未核实 |
+| 高德/Google/菜鸟地址 API | 仅作可选增强（capability='address'） | 三方不得成为唯一来源（§12 离线交付）；永不阻塞下单，不进 ProductionSafetyGuard |
+| 「默认空表，用户填一个新增一个」 | **否决** | 权威字典沦为用户输入影子表，可被顾客端污染且全球追不完；改为 region_gap_report 上报 + 人工刷入快照 |
+| **固定「省/市/区」三级表单铺到全球** | **否决** | libaddressinput 已证实形状因国而异（US 需州+邮编；根西岛**没有行政区级**；巴西 4 级）。改为 address_format 国别驱动：字段集/label/必填/邮编正则由后端下发（§8） |
+| 每国灌完整区划树 | 分档，不全量 | 「格式 + 一级枚举」为开通前置；市镇级（德法日巴为万级、频繁改名）用文本 + 可选地址联想替代（§8.2） |
+
+落地方式：npm 数据包只在「生成规范化快照」这一步需要（构建期/运维期）；运行期数据以 Flyway 迁移灌入 region 表，客户机器零外网依赖。未实施。
 
 ## 4. 禁止事项
 

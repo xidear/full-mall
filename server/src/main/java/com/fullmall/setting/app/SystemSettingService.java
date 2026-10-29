@@ -17,12 +17,8 @@ import java.util.Map;
 import java.util.Set;
 
 /**
- * 系统配置的唯一读写入口（app 层）：配置项存在 `system_setting` 表的 setting_key/setting_value 行里，
- * `feature_flag` 是另一张表（按功能与灰度维度的开关），本类不碰。
- *
- * <p>site_status / default_locale 是部署不变量（V7 迁移插入）：缺行时直接抛异常，而不是假定 OPEN、zh-CN；
- * 其余键缺失按空串处理，"空 = 未配置" 由调用方判断。非 OPEN 时顾客前台 /api/v1/** 会被
- * FeatureGuardFilter 拦成 503（错误码 "SITE_" + 状态值），后台等入口不受影响。
+ * 系统配置读写入口：数据在 `system_setting` 表（`feature_flag` 是另一张表，本类不碰）。
+ * site_status / default_locale 是部署不变量，缺行抛异常而不假定默认值；非 OPEN 时前台 /api/v1/** 被拦成 503。
  */
 @Service
 public class SystemSettingService {
@@ -89,7 +85,6 @@ public class SystemSettingService {
             Set.of(SITE_STATUS_OPEN, SITE_STATUS_MAINTENANCE, SITE_STATUS_CLOSED);
 
     /** 已开通的市场。多地区共用一套前台，地区政策按 market 生效。 */
-    private static final Set<String> MARKET_VALUES = Set.of("CN", "HK", "MO", "TW");
 
     private static final Set<String> BRANDING_ATTRIBUTION_VALUES = Set.of("SHOW", "HIDDEN");
 
@@ -109,14 +104,18 @@ public class SystemSettingService {
             UPLOAD_MEMBER_IMAGE_MAX_KEY, UPLOAD_MEMBER_VIDEO_MAX_KEY);
 
     private final SystemSettingRepository repository;
+    /** 市场是否可开通由数据决定（ADR-0014 §8.4）：加一个国家不该需要改代码发版。 */
+    private final com.fullmall.market.app.MarketService markets;
     private final Clock clock;
     private final Duration ttl;
     private volatile SiteCache siteCache;
 
     public SystemSettingService(SystemSettingRepository repository,
+                                com.fullmall.market.app.MarketService markets,
                                 Clock clock,
                                 @Value("${app.feature.cache-ttl-seconds:30}") long cacheTtlSeconds) {
         this.repository = repository;
+        this.markets = markets;
         this.clock = clock;
         if (cacheTtlSeconds <= 0) {
             throw new IllegalArgumentException(
@@ -180,7 +179,29 @@ public class SystemSettingService {
         return enabledLocales().stream().filter(locale -> !locale.equals(defaultLocale)).toList();
     }
 
+    /**
+     * 允许按市场覆盖的键（ADR-0014 §8.4）：这些都是"这个市场自己的一套"——
+     * 备案号、法律主体、客服联系方式、币种、语言候选、各通道服务商。
+     * 其余键（站点状态、域名、上传上限等）属纯站点级，按市场覆盖没有意义。
+     */
+    public static final Set<String> MARKET_SCOPED_KEYS = Set.of(
+            "company_name", "icp_number", "public_security_record", "business_license_no",
+            "service_phone", "service_email", "default_currency", "enabled_locales",
+            "sms_provider", "payment_provider", "logistics_provider", "storage_provider");
+
     public Map<String, String> publicSettings() {
+        return publicSettings(null);
+    }
+
+    /**
+     * 某市场的公开设置：**市场级值覆盖全局值**。
+     *
+     * <p>为什么必须覆盖：全局一套 ICP/客服电话，会让香港站的页脚显示"京ICP备…"——
+     * 这是把大陆的合规信息当成全球的，属于看得见的错。
+     *
+     * <p>{@code marketCode} 为空时只返回全局值（无市场上下文的老调用方保持原行为，不静默挑一个市场）。
+     */
+    public Map<String, String> publicSettings(String marketCode) {
         Map<String, String> all = repository.findAll();
         Map<String, String> result = new LinkedHashMap<>();
         for (Map.Entry<String, String> entry : all.entrySet()) {
@@ -188,7 +209,43 @@ public class SystemSettingService {
                 result.put(entry.getKey(), entry.getValue());
             }
         }
+        if (marketCode != null && !marketCode.isBlank()) {
+            for (String key : MARKET_SCOPED_KEYS) {
+                if (!PUBLIC_KEYS.contains(key)) {
+                    continue;
+                }
+                String scoped = markets.scopedSetting(marketCode, key);
+                // 行存在即生效（**包括空串**）：这是"该市场明确没有这个值"的表达方式。
+                // 用 isBlank 判断会把"香港没有 ICP 备案号"回退成大陆的备案号，等于把错的信息当成对的展示。
+                if (scoped != null) {
+                    result.put(key, scoped);
+                }
+            }
+        }
         return result;
+    }
+
+    /**
+     * 取某市场的生效值：市场级 → 全局 → 空串。
+     *
+     * <p>通道服务商（`sms_provider` / `logistics_provider` / `storage_provider`）必须走这里，
+     * 否则香港站会用到大陆配置的服务商。
+     *
+     * <p>覆盖语义：**market_setting 有这一行就用它，哪怕是空串**；没有这一行才回退全局。
+     * 也就是说"留空"与"不配置"是两件事——前者表示该市场明确没有这个值。
+     */
+    public String marketValue(String marketCode, String key) {
+        if (!ALLOWED_KEYS.contains(key)) {
+            throw ApiException.badRequest("INVALID_SETTING_KEY", "不支持的配置项: " + key);
+        }
+        if (marketCode != null && !marketCode.isBlank() && MARKET_SCOPED_KEYS.contains(key)) {
+            String scoped = markets.scopedSetting(marketCode, key);
+            // 同上：行存在就以市场值为准，空串表示"该市场没有配置"，不要回退到全局
+            if (scoped != null) {
+                return scoped;
+            }
+        }
+        return rawValue(key);
     }
 
     public Map<String, String> adminSettings() {
@@ -216,11 +273,7 @@ public class SystemSettingService {
     }
 
     /**
-     * 管理端图片上传上限（字节）。
-     *
-     * <p>读库而不是读环境变量：运营在后台改完即对下一次上传生效，不必重启容器。
-     * 行缺失/为空时用 schema 默认值；有值但非法（非整数、越界）直接抛 {@link IllegalStateException}，
-     * 不静默回落到默认值——否则"后台写错了但看起来还能传"最难查。
+     * 管理端图片上传上限（字节）：读库以便后台改完即生效；行缺失用默认值，值非法直接抛错而不是回落到默认值。
      */
     public long adminImageMaxBytes() {
         return uploadLimitBytes(UPLOAD_ADMIN_IMAGE_MAX_KEY, ValidationRules.UPLOAD_ADMIN_IMAGE_DEFAULT_BYTES,
@@ -308,9 +361,10 @@ public class SystemSettingService {
                 throw ApiException.badRequest("INVALID_SITE_STATUS",
                         "site_status 只能是 OPEN / MAINTENANCE / CLOSED，实际=" + value);
             }
-            if (DEFAULT_MARKET_KEY.equals(entry.getKey()) && !MARKET_VALUES.contains(value)) {
+            if (DEFAULT_MARKET_KEY.equals(entry.getKey()) && !markets.isActive(value)) {
                 throw ApiException.badRequest("INVALID_DEFAULT_MARKET",
-                        "default_market 只能是 CN / HK / MO / TW，实际=" + value);
+                        "default_market 必须是已启用的市场，实际=" + value
+                                + "，可选=" + String.join(" / ", markets.activeCodes()));
             }
             if (BRANDING_ATTRIBUTION_KEY.equals(entry.getKey())
                     && !BRANDING_ATTRIBUTION_VALUES.contains(value)) {

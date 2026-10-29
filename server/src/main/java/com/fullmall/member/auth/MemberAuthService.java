@@ -38,12 +38,16 @@ public class MemberAuthService {
 
     private final JdbcTemplate jdbcTemplate;
     private final OtpAttemptRecorder attemptRecorder;
+    /** 邮箱验证码的投递通道：真实发不出去就明确失败，不假装已发送（批次 F1）。 */
+    private final com.fullmall.notification.app.NotificationService notifications;
     private final boolean returnCode;
 
     public MemberAuthService(JdbcTemplate jdbcTemplate, OtpAttemptRecorder attemptRecorder,
+                             com.fullmall.notification.app.NotificationService notifications,
                              @Value("${app.member.otp.return-code:false}") boolean returnCode) {
         this.jdbcTemplate = jdbcTemplate;
         this.attemptRecorder = attemptRecorder;
+        this.notifications = notifications;
         this.returnCode = returnCode;
     }
 
@@ -208,6 +212,123 @@ public class MemberAuthService {
     }
 
     // 先查后插的竞态由 member.phone 唯一约束（V8__pos.sql）兜住：并发首登会直接抛唯一冲突，不会建出两个会员
+    /** 邮箱 OTP 的返回体：email 而不是 phone，其余与手机号流程一致。 */
+    public record EmailOtpIssued(String email, String code, Instant expiresAt) {
+    }
+
+    /**
+     * 邮箱验证码。
+     *
+     * <p>**只发给已绑定邮箱的会员**：没有绑定就明确报错，不用"临时建一个没有手机号的会员"
+     * 来凑——那会造出一条缺手机号的脏会员记录，后续订单/积分/分佣全都会踩空。
+     */
+    @Transactional
+    public EmailOtpIssued requestEmailOtp(String email) {
+        String normalized = normalizeEmail(email);
+        Long exists = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM member WHERE lower(email) = ?", Long.class, normalized);
+        if (exists == null || exists == 0) {
+            throw ApiException.notFound("EMAIL_NOT_REGISTERED",
+                    "该邮箱尚未绑定会员，请先用手机号登录后在账户设置里绑定邮箱");
+        }
+        Long recent = jdbcTemplate.queryForObject("""
+                SELECT COUNT(*) FROM member_otp
+                 WHERE lower(email) = ? AND created_at > now() - make_interval(secs => ?)
+                """, Long.class, normalized, OTP_WINDOW.toSeconds());
+        if (recent != null && recent >= MAX_OTP_PER_WINDOW) {
+            throw ApiException.conflict("OTP_REQUEST_TOO_FREQUENT", "验证码请求过于频繁，请 10 分钟后再试");
+        }
+        String code = String.format("%06d", RANDOM.nextInt(1_000_000));
+        Instant expiresAt = Instant.now().plus(OTP_TTL);
+        jdbcTemplate.update("""
+                INSERT INTO member_otp (id, email, code_hash, expires_at) VALUES (?, ?, ?, ?)
+                """, UUID.randomUUID(), normalized, ENCODER.encode(code),
+                java.sql.Timestamp.from(expiresAt));
+        // 真发邮件：渠道未配置或发送失败 → 明确报错。不在这里吞掉异常，
+        // 否则用户等一个永远收不到的验证码，客服也查不出为什么。
+        var delivery = notifications.sendToAddress(normalized, "EMAIL_OTP", "EMAIL",
+                "登录验证码", "您的登录验证码是 " + code + "，" + OTP_TTL.toMinutes() + " 分钟内有效。");
+        if (!"SENT".equals(delivery.status())) {
+            throw ApiException.serviceUnavailable("EMAIL_SEND_FAILED",
+                    "验证码邮件发送失败，请稍后重试或改用手机号登录");
+        }
+        return new EmailOtpIssued(normalized, returnCode ? code : null, expiresAt);
+    }
+
+    /** 邮箱验证码校验并签发会话；错误码与手机号流程一致，前端可以复用同一套文案。 */
+    @Transactional
+    public SessionIssued verifyEmailOtp(String email, String code) {
+        String normalized = normalizeEmail(email);
+        if (code == null || !code.matches("^[0-9]{6}$")) {
+            throw ApiException.badRequest("OTP_INVALID_FORMAT", "验证码为 6 位数字");
+        }
+        List<OtpRow> rows = jdbcTemplate.query("""
+                SELECT id, code_hash, attempts, expires_at FROM member_otp
+                 WHERE lower(email) = ? AND consumed_at IS NULL
+                 ORDER BY created_at DESC LIMIT 1
+                """, (rs, rowNum) -> new OtpRow(
+                rs.getObject("id", UUID.class), rs.getString("code_hash"), rs.getInt("attempts"),
+                rs.getTimestamp("expires_at").toInstant()), normalized);
+        if (rows.isEmpty()) {
+            throw ApiException.badRequest("OTP_NOT_REQUESTED", "请先获取验证码");
+        }
+        OtpRow row = rows.get(0);
+        if (row.expiresAt().isBefore(Instant.now())) {
+            throw ApiException.badRequest("OTP_EXPIRED", "验证码已过期，请重新获取");
+        }
+        if (row.attempts() >= MAX_ATTEMPTS) {
+            throw ApiException.conflict("OTP_TOO_MANY_ATTEMPTS", "尝试次数过多，请重新获取验证码");
+        }
+        if (!ENCODER.matches(code, row.codeHash())) {
+            attemptRecorder.recordFailure(row.id());
+            throw ApiException.badRequest("OTP_MISMATCH", "验证码不正确");
+        }
+        UUID memberId = jdbcTemplate.query("""
+                SELECT id FROM member WHERE lower(email) = ?
+                """, (rs, rowNum) -> rs.getObject("id", UUID.class), normalized)
+                .stream().findFirst()
+                .orElseThrow(() -> ApiException.notFound("EMAIL_NOT_REGISTERED",
+                        "该邮箱尚未绑定会员: " + normalized));
+        jdbcTemplate.update("UPDATE member_otp SET consumed_at = now() WHERE id = ?", row.id());
+        String token = newToken();
+        jdbcTemplate.update("""
+                INSERT INTO member_session (token_hash, member_id, expires_at)
+                VALUES (?, ?, ?)
+                """, sha256Hex(token), memberId,
+                java.sql.Timestamp.from(Instant.now().plus(Duration.ofDays(30))));
+        String memberNo = jdbcTemplate.queryForObject(
+                "SELECT member_no FROM member WHERE id = ?", String.class, memberId);
+        return new SessionIssued(token, memberId, memberNo);
+    }
+
+    /** 绑定/更换邮箱：唯一性由 DB 部分唯一索引兜底，这里先查一次给出可读错误。 */
+    @Transactional
+    public void bindEmail(UUID memberId, String email) {
+        String normalized = normalizeEmail(email);
+        Long taken = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM member WHERE lower(email) = ? AND id <> ?", Long.class,
+                normalized, memberId);
+        if (taken != null && taken > 0) {
+            throw ApiException.conflict("EMAIL_ALREADY_BOUND", "该邮箱已被其他会员绑定");
+        }
+        int updated = jdbcTemplate.update("UPDATE member SET email = ? WHERE id = ?", normalized, memberId);
+        if (updated != 1) {
+            throw ApiException.notFound("MEMBER_NOT_FOUND", "会员不存在: " + memberId);
+        }
+    }
+
+    /** 邮箱规范化：统一小写、去空白；不做更宽松的纠错（那是邮箱服务商的事）。 */
+    private String normalizeEmail(String email) {
+        if (email == null || email.isBlank()) {
+            throw ApiException.badRequest("EMAIL_REQUIRED", "邮箱不能为空");
+        }
+        String normalized = email.trim().toLowerCase(java.util.Locale.ROOT);
+        if (!normalized.matches(com.fullmall.platform.validation.ValidationRules.EMAIL_PATTERN)) {
+            throw ApiException.badRequest("INVALID_EMAIL", "邮箱格式不正确");
+        }
+        return normalized;
+    }
+
     private UUID findOrCreateMember(String phone) {
         List<UUID> existing = jdbcTemplate.queryForList(
                 "SELECT id FROM member WHERE phone = ?", UUID.class, phone);

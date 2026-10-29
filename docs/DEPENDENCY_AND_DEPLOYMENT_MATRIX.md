@@ -67,6 +67,45 @@
 | 视觉模型（默认 `moondream`，1.7GB） | D→B 可选外部服务 | **不随镜像**，由运营在「AI 供应商」表单登记 endpoint/model | **不影响主流程**：未配置时「AI 识别」按钮禁用，接口返回 409 `AI_VISION_UNAVAILABLE` | 可换成远端公共模型（DashScope/OpenAI 兼容）或客户自建 CPU 推理服务；本地 ollama 不默认启动 | `GET /admin/v1/ai/providers/vision` 看 `configured` |
 | Ollama 容器（`--profile ai`，端口 41289） | B 运行期（可选） | 运维按需 `docker compose --profile ai up -d ollama` | 素材「AI 识别」不可用；素材库/生成/检索其余功能正常 | 不默认启动；无 GPU 也能跑（CPU 推理慢） | `docker exec fullmall-ollama-1 ollama list` |
 | 模型下载源 | C（一次性，人工） | 运维执行 `ollama pull <model>` | 无模型时上述 409 | 国内网络建议走 ModelScope / hf-mirror 的 GGUF，再 `ollama create`；docker 镜像可走 dockerproxy | `ollama list` 里有该模型 |
+| `@xenova/transformers` 2.17.2 + `sharp` 0.33.5（Apache-2.0 / MIT，ONNX 版 CLIP） | D（可选工具，`tools/clip-service`） | 开发者本地 `npm install --ignore-scripts` | **不影响主程序**：未配置时「图片内容」搜索按钮禁用，接口 409 `CLIP_UNAVAILABLE` | 模型文件从 hf-mirror 下到 `./models`（`node scripts/download-model.mjs`），运行时不联网；sharp 用 npm 预编译包，绕开 GitHub 下载与 node-gyp | `GET /admin/v1/assets/image-search/status` → `{available}` |
+| CLIP 模型（clip-vit-base-patch32 量化版，约 150MB） | D | `tools/clip-service/scripts/download-model.mjs` | 同上（能力不可用，功能不受影响） | 仓库不入库模型；客户可改为远端多模态服务 | `curl /health`（41291） |
+
+## 3.2 已决策待实施：行政区划数据集（ADR-0013，2026-10-29）
+
+| 依赖 | 层 | 谁负责安装 | 离线怎么办 | 缺失时的表现 | 如何验证 |
+|---|---|---|---|---|---|
+| `province-city-china`（MIT，GB/T 2260 省市区） | C 构建期（**仅生成快照时需要**） | 维护者执行 `node scripts/build-region-snapshot.mjs`（待建），产物是仓库内 JSON/CSV | 快照已提交进仓库并随 Flyway 迁移灌库，交付机器**不需要 npm registry** | 未灌库时 `GET /api/v1/regions` 明确报错（不是空列表假装正常），结算页回落为手填并提示 | `psql -c "select count(*) from region"`；接口冒烟 `curl localhost:41280/api/v1/regions?country=CN&level=PROVINCE` |
+| `world-countries`（ODbL-1.0）/ `i18n-iso-countries`（MIT） | C 构建期（同上，一次性） | 同上，国家层快照 | 同上 | 国家下拉为空时页面明确提示「国家数据未初始化」，禁止静默只留中国大陆 | `select count(*) from region where level='COUNTRY'` |
+| 三方地址校验/联想（高德 / Google Address Validation / 菜鸟国际） | D 外部服务 | 客户在「系统设置 → 第三方服务」配置（`integration_config` capability=`address`，ADR-0005） | **不是必需**：未配置时静态字典 + 手填完全可用 | 未配置=功能可用；已配置但调用失败=前端回落手填，真实原因只进日志/管理端（对用户不报错） | 后台渠道自检；日志中 `provider=address` 事件；**不进 ProductionSafetyGuard**（有意差异，见 ADR-0013 §5） |
+
+注：区划数据是**数据运维**，不是 Java 运行期依赖（Maven Central 检索中国行政区划 artifact 为 0 命中）。年度刷新 = 重跑生成脚本 + 一条新迁移；旧节点置 `active=FALSE`，禁止删除（历史订单必须能解释已存 code）。
+
+| 依赖 | 层 | 谁负责安装 | 离线怎么办 | 缺失时的表现 | 如何验证 |
+|---|---|---|---|---|---|
+| libaddressinput **地址元数据**（`chromium-i18n.appspot.com/ssl-address/data/<CC>`） | C 构建/运维期（一次性抓取） | 维护者抓取到 `address_format` 快照；**运行期不得访问该域名**（实测本会话网络不可达，客户内网更不可达） | 元数据落库后即为自有数据；未抓取的国家**不允许开通** | `GET /api/v1/regions/formats?country=XX` 返回 404 `ADDRESS_FORMAT_MISSING`，后台开通市场时明确报错「该国无地址格式规则」，**禁止回退中国模板**（静默套模板 = 静默兜底） | 开通前自检脚本逐国打印 require/fmt/zip 并人工抽检 |
+| `member_address.country_code`（新增，NOT NULL） | A 随迁移 | Flyway 迁移 + 结算/地址簿写入路径必填 | 无外部依赖 | 缺失则无法判断国家 ⇒ 运费/税/表单全部无从生效 | 迁移后 `select country_code, count(*) from member_address group by 1` |
+| `market.active` 取代 `MARKET_VALUES` 常量 | A 随代码 | 改 `SystemSettingService`：默认市场必须 ∈ active 市场 | 无外部依赖 | 现状：加一个国家要改代码发版（`:92`、`:311-314`）；改后新增国家 = 配置 + 快照迁移 | 后台把 default_market 设为未开通国家应返回稳定错误码 |
+| `scripts/fetch-address-metadata.py`（**已实施**） | C 构建/运维期（一次性，仅刷新区划时） | 维护者手工执行；**需要 HTTP 代理**才能访问 ADS 域名 | 快照已提交进仓库（V144，9 国/741 节点），交付机器不需要 python 与网络 | 无影响：运行期只读 `region`/`address_format` 表 | `python3 -m py_compile` + 迁移重放通过 |
+| `python3`（快照脚本运行时） | C 手工步骤 | 维护者本机 | 不需要（产物已入库） | 只影响"年度刷新区划"这一动作 | 同上 |
+
+注：批次 A/C **没有新增 Java/npm 运行时依赖**——国家码/时区校验用 JDK 自带 `Locale.getISOCountries()`/`ZoneId.of()`，区划数据走 Flyway 快照。
+
+### 3.3 批次 D/E/F 依赖（2026-10-29）
+
+| 依赖 | 层 | 谁负责安装 | 离线怎么办 | 缺失时的表现 | 如何验证 |
+|---|---|---|---|---|---|
+| `slugify`/区划抓取脚本依赖 | — | — | 无（脚本只用 `python3` 标准库） | 只影响"刷新区划"这一步 | `python3 -m py_compile scripts/fetch-address-metadata.py` |
+| 税率/运费/价格表数据 | A 随迁移 | `V147`/`V148` + 演示种子 | 数据在迁移里，交付机器无需外部服务 | 无税率 → 不收税但**打 WARN + 报关单列出"没有税行"**；无运费规则 → 跨国下单报 `SHIPPING_RULE_MISSING` | `MultiMarketPricingTest`、`TaxAndCustomsTest` |
+| 邮箱登录 | A 随代码 | `V149` + `MemberAuthService` | 无外部依赖（验证码在 dev 走 `debugCode`，生产需接邮件通道） | 未绑定邮箱的账号用邮箱登录会明确报 `EMAIL_NOT_REGISTERED` | `EmailLoginAndCustomsTest` |
+| 邮件通道（生产） | D 外部服务 | 客户在「系统设置 → 第三方服务」配置 | 不是必需；未配置时邮箱 OTP 无法送达（**这是已知缺口，见下**） | 用户收不到验证码 | 后台渠道自检 |
+
+> ✅ **已接入发信**（2026-10-29 收口）：`MemberAuthService.requestEmailOtp` 现在通过
+> `NotificationService.sendToAddress(email, …, "EMAIL", …)` **真实投递**，并按投递记录判断结果：
+> 渠道没配或发送失败 → **409/503 `EMAIL_SEND_FAILED`**，不假装已发送。
+> dev 下 `app.sms.provider` 默认 mock（mock sender 落库为 SENT）；生产必须配真实 EMAIL 供应商，
+> 否则会在每次请求邮箱验证码时报错——这是有意的"明确失败"。
+>
+> 仍未做：真实的邮件服务商 SDK（当前 EMAIL 渠道只有 mock 与"总是失败"两种实现）。
 
 ## 4. 客户端 / 浏览器能力（D）
 

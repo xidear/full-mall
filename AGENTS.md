@@ -146,6 +146,9 @@ cp -r "$SRC"/* "$DST"
 ## 6. Git 推送规则（强制）
 
 - **默认只推 Gitea**：`gitea` remote（`https://company.binnarui.com:8148/xidear/full-mall.git`）。
+- **已完成并验证的改动批次默认自动提交并推送到 Gitea**（2026-10-30 用户授权），不再逐次询问；
+  仍然**只推 Gitea**。GitHub / Gitee 必须由用户明确点名才推。自动推送前仍要执行下面的推送前检查
+  （远端/分支确认、`git status`、暂存区密钥扫描）；任何一项不通过就**不推**，并如实报告原因。
 - 用户说“git 推送”“推送一下”且没有特别说明时，**只推 Gitea**，不得推 GitHub 或 Gitee。
 - 只有用户明确说“推 GitHub”“推 Gitee”时，才推对应公开端。
 - **仓库模型**：Gitea 是公司内部完整仓库，**只有一个分支 `main`**，其中 `.env` 已入库，内部同事 clone 即可构建；**不存在 `gitea-dev` 分支**。

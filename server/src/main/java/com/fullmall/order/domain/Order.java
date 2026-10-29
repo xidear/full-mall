@@ -11,8 +11,12 @@ public record Order(
         String orderNo,
         OrderStatus status,
         String currency,
+        /** 下单时的市场快照（ADR-0014）：报表、税务归档与对账都要按市场切分。 */
+        String marketCode,
         Money subtotal,
         Money shippingFee,
+        /** 下单时按 SKU 净重汇总的重量快照（报关与运费复算用）；缺失重量的商品按 0 计。 */
+        Integer totalWeightGrams,
         Money discount,
         Money total,
         String contactName,

@@ -33,6 +33,16 @@ public class AdminOrderFulfillmentController {
     }
 
     /** 取消履约单：仅未开始拣货可取消，会释放库存预占（退款走售后）。 */
+    public record CustomsRequest(boolean cleared, String note) {
+    }
+
+    /** 跨境清关推进（批次 F2）：只允许在已发货之后、完成之前登记。 */
+    @PostMapping("/{fulfillmentId}/customs")
+    public com.fullmall.fulfillment.domain.FulfillmentOrder markCustoms(
+            @PathVariable UUID fulfillmentId, @RequestBody CustomsRequest body) {
+        return fulfillmentService.markCustoms(fulfillmentId, body.cleared(), body.note());
+    }
+
     @PostMapping("/{fulfillmentId}/cancel")
     public FulfillmentOrder cancel(@PathVariable UUID orderId,
                                    @PathVariable UUID fulfillmentId,

@@ -193,12 +193,25 @@ public class NotificationService {
      * <p>返回落库后的投递记录，调用方据此判断 SENT/FAILED——**不假设发送成功**：
      * 生产环境没有真实 EMAIL 供应商时 sender 是"总是失败"的实现，这里会拿到 FAILED 并由调用方明确报错。
      */
-    public Notification sendToAddress(String address, String eventType, String channel,
-                                      String title, String content) {
+    /**
+     * 投递结果：只暴露调用方需要的三件事（成功与否 / 时间 / 原因）。
+     *
+     * <p>不直接返回 {@code notification.domain.Notification}：那是本模块的领域类型，
+     * 跨模块引用会破坏模块边界（Modulith 会直接报违规），也让调用方依赖了不该依赖的字段。
+     */
+    public record Delivery(String status, java.time.Instant sentAt, String error) {
+        public boolean sent() {
+            return "SENT".equals(status);
+        }
+    }
+
+    public Delivery sendToAddress(String address, String eventType, String channel,
+                                  String title, String content) {
         if (address == null || address.isBlank()) {
             throw com.fullmall.platform.error.ApiException.badRequest("ADDRESS_REQUIRED", "收件地址不能为空");
         }
-        return deliver("EXTERNAL", address.trim(), eventType, channel, title, content);
+        Notification delivered = deliver("EXTERNAL", address.trim(), eventType, channel, title, content);
+        return new Delivery(delivered.status(), delivered.sentAt(), delivered.errorMessage());
     }
 
     private Notification deliver(String recipientType, String recipientId, String eventType,

@@ -248,7 +248,7 @@ public class MemberAuthService {
         // 否则用户等一个永远收不到的验证码，客服也查不出为什么。
         var delivery = notifications.sendToAddress(normalized, "EMAIL_OTP", "EMAIL",
                 "登录验证码", "您的登录验证码是 " + code + "，" + OTP_TTL.toMinutes() + " 分钟内有效。");
-        if (!"SENT".equals(delivery.status())) {
+        if (!delivery.sent()) {
             throw ApiException.serviceUnavailable("EMAIL_SEND_FAILED",
                     "验证码邮件发送失败，请稍后重试或改用手机号登录");
         }

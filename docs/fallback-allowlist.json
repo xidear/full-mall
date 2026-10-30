@@ -545,6 +545,18 @@
       "category": "value-default",
       "snippet": "?? 'CNY'",
       "reason": "待复核（已登记，不阻断 CI）：需逐个确认是否应改为显式失败"
+    },
+    {
+      "file": "server/src/main/java/com/fullmall/ai/answer/AiAnswerService.java",
+      "category": "value-default",
+      "snippet": "@Value(\"${app.ai.ask.min-score:0.72}\")",
+      "reason": "检索可信阈值：调高只会更保守（更多拒答），不会掩盖配置缺失"
+    },
+    {
+      "file": "server/src/main/java/com/fullmall/ai/answer/AiAnswerService.java",
+      "category": "value-default",
+      "snippet": "@Value(\"${app.ai.ask.top-k:5}\")",
+      "reason": "检索条数上限：纯性能参数，与配置完整性无关"
     }
   ]
 }

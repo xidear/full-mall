@@ -18,16 +18,17 @@ interface AiStatus {
 }
 
 interface Citation {
-  sourceType: string
   sourceId: string
-  title: string
+  score: number
+  snippet: string
 }
 
 interface AskResult {
-  answer: string
+  answer: string | null
   fallback: boolean
-  violations: string[]
+  reason: string | null
   citations: Citation[]
+  topScore: number
 }
 
 // unavailable: 社区版没有 AI 类（404）；未启用/未配置：企业版 503
@@ -163,17 +164,18 @@ onMounted(loadStatus)
         <template v-if="result">
           <el-alert class="mt-16" :type="result.fallback ? 'warning' : 'success'" :closable="false" show-icon
                     :title="result.fallback ? '未能给出可靠回答（已建议转人工）' : '回答'" />
-          <p class="answer">{{ result.answer }}</p>
-
-          <p v-if="result.violations.length" class="violations">
-            触发约束：{{ result.violations.join('；') }}
+          <p v-if="result.answer" class="answer">{{ result.answer }}</p>
+          <p v-else class="violations">
+            知识库没有足够依据，已建议转人工{{ result.reason ? '（原因：' + result.reason + '，最高相关度 ' + result.topScore.toFixed(2) + '）' : '' }}
           </p>
 
           <h3>引用来源</h3>
           <el-table :data="result.citations" size="small" empty-text="无引用（说明没有依据）">
-            <el-table-column prop="sourceType" label="类型" width="120" />
-            <el-table-column prop="title" label="标题" min-width="220" />
-            <el-table-column prop="sourceId" label="来源 ID" min-width="220" />
+            <el-table-column prop="sourceId" label="知识条目" width="200" />
+            <el-table-column prop="score" label="相关度" width="100">
+              <template #default="{ row }">{{ row.score.toFixed(2) }}</template>
+            </el-table-column>
+            <el-table-column prop="snippet" label="命中片段" min-width="320" show-overflow-tooltip />
           </el-table>
         </template>
       </section>

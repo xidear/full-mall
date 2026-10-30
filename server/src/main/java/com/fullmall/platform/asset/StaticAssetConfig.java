@@ -63,7 +63,17 @@ public class StaticAssetConfig implements WebMvcConfigurer {
                 .setCachePeriod(3600);
     }
 
+    /**
+     * 当前生效的素材目录；未启用或未配置目录时返回 null（调用方据此 404）。
+     *
+     * <p>这里必须先看 enabled：直接调 resolveAll() 在"服务商存在但未启用"时会抛
+     * INTEGRATION_NOT_CONFIGURED（409 Conflict），而一个静态图片取不到应当是 404，
+     * 不是业务冲突。语义要对得上，否则排查时会被错误码带偏。
+     */
     private Path configuredRoot() {
+        if (integrations.enabledProvider("storage") == null) {
+            return null;
+        }
         Map<String, String> config = integrations.resolveAll("storage");
         String directory = config.get("directory");
         if (directory == null || directory.isBlank()) {

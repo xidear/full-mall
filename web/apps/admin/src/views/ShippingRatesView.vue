@@ -8,6 +8,9 @@
 import { onMounted, reactive, ref } from 'vue'
 import { ElMessage } from 'element-plus'
 import { api } from '../api'
+import { useCurrencyPrecision } from '../composables/useCurrencyPrecision'
+
+const { minorUnits, toMajor, toMinor } = useCurrencyPrecision()
 
 interface RateRow {
   id: string
@@ -67,7 +70,9 @@ function formatAmount(amount: number | null | undefined, currency: string): stri
   if (amount == null || !Number.isFinite(amount)) {
     return '—'
   }
-  return (amount / 100).toFixed(2) + ' ' + currency
+  // 按币种小数位换算：库里存的是最小单位整数，写死 /100 会把 JPY 放大 100 倍
+  const units = minorUnits(currency)
+  return (amount / 10 ** units).toFixed(units) + ' ' + currency
 }
 
 async function load() {
@@ -100,8 +105,8 @@ function openEdit(row: RateRow) {
     destinationCountry: row.destinationCountry ?? '',
     minWeightGrams: row.minWeightGrams,
     maxWeightGrams: row.maxWeightGrams,
-    feeAmountYuan: row.feeAmount / 100,
-    freeOverYuan: row.freeOverAmount == null ? null : row.freeOverAmount / 100
+    feeAmountYuan: toMajor(row.feeAmount, row.currency),
+    freeOverYuan: row.freeOverAmount == null ? null : toMajor(row.freeOverAmount, row.currency)
   })
   dialogVisible.value = true
 }
@@ -120,8 +125,8 @@ async function save() {
       minWeightGrams: editing.minWeightGrams,
       maxWeightGrams: editing.maxWeightGrams,
       // 金额按"分"提交（ADR-0004），页面用元输入再乘 100
-      feeAmount: Math.round(editing.feeAmountYuan * 100),
-      freeOverAmount: editing.freeOverYuan == null ? null : Math.round(editing.freeOverYuan * 100)
+      feeAmount: toMinor(editing.feeAmountYuan, currentCurrency()),
+      freeOverAmount: editing.freeOverYuan == null ? null : toMinor(editing.freeOverYuan, currentCurrency())
     }
     const path = editing.id
       ? `/admin/v1/shipping-rates/${editing.id}`
@@ -214,10 +219,12 @@ onMounted(async () => {
           <el-input-number v-model="editing.maxWeightGrams" :min="0" placeholder="留空=不限" />
         </el-form-item>
         <el-form-item :label="`运费（${currentCurrency()}）`">
-          <el-input-number v-model="editing.feeAmountYuan" :min="0" :precision="2" />
+          <el-input-number v-model="editing.feeAmountYuan" :min="0"
+                           :precision="minorUnits(currentCurrency())" />
         </el-form-item>
         <el-form-item label="满额免运费">
-          <el-input-number v-model="editing.freeOverYuan" :min="0" :precision="2" placeholder="留空=不免" />
+          <el-input-number v-model="editing.freeOverYuan" :min="0"
+                           :precision="minorUnits(currentCurrency())" placeholder="留空=不免" />
         </el-form-item>
       </el-form>
       <template #footer>

@@ -3,6 +3,7 @@ import { onMounted, reactive, ref } from 'vue'
 import { ElMessage } from 'element-plus'
 import { VALIDATION } from '@fullmall/api-client'
 import { api } from '../api'
+import StatusToggle from '../components/StatusToggle.vue'
 import { useEnums } from '../composables/useEnums'
 
 const { enumLabel, options } = useEnums()
@@ -149,6 +150,13 @@ async function submit() {
   }
 }
 
+/** 启用=activate，停用=disable；失败抛出让开关保持原状态。 */
+async function toggleCoupon(row: { id: string; title: string; status: string }, next: boolean) {
+  const suffix = next ? `/activate` : `/disable`
+  await api.post(`/admin/v1/coupons/templates/${row.id}${suffix}`)
+  row.status = next ? `ACTIVE` : `DISABLED`
+}
+
 async function activate(template: CouponTemplate) {
   if (actionId.value) return
   actionId.value = template.id
@@ -221,9 +229,12 @@ onMounted(load)
       </el-table-column>
       <el-table-column label="每人限领" width="100" prop="perMemberLimit" />
       <el-table-column label="有效天数" width="100" prop="validityDays" />
-      <el-table-column label="状态" width="100">
+      <el-table-column label="状态" width="130">
         <template #default="{ row }">
-          {{ { DRAFT: '草稿', ACTIVE: '发放中', ENDED: '已结束' }[row.status as string] ?? row.status }}
+          <!-- 列表内直接启停：启用=开始发放；停用=停止发放，已领取的券不受影响 -->
+          <StatusToggle :active="row.status === 'ACTIVE'" active-text="发放中" inactive-text="已停用"
+                        confirm-text="停用后停止发放，已领取的券不受影响。确定吗？"
+                        :on-change="next => toggleCoupon(row, next)" />
         </template>
       </el-table-column>
       <el-table-column label="操作" width="200">

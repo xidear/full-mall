@@ -85,6 +85,11 @@ public final class EnumCatalog {
                 new Option("DETAIL", "详情图"),
                 new Option("VIDEO", "视频"),
                 new Option("SPEC", "规格图")));
+        GROUPS.put("COUPON_STATUS", List.of(
+                new Option("DRAFT", "草稿"),
+                new Option("ACTIVE", "发放中"),
+                new Option("DISABLED", "已停用"),
+                new Option("ENDED", "已结束")));
         GROUPS.put("COUPON_TYPE", List.of(
                 new Option("AMOUNT", "满减券"),
                 new Option("PERCENT", "折扣券")));

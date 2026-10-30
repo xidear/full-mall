@@ -84,7 +84,9 @@ app:
       enabled: ${APP_AI_SEMANTIC_ENABLED:true}
   # 构建分版标识：community（开源）/ enterprise（含 AI 与许可）。
   # 由 Maven profile 注入环境变量 APP_EDITION，缺省按社区版处理。
-  edition: ${APP_EDITION:community}
+  # 构建形态：internal（内部/企业版，功能齐全，默认）/ community（开源版，不含模型权重与托管能力）。
+  # 开源构建必须显式 -DAPP_EDITION=community，避免"以为是社区版所以功能被隐藏"。
+  edition: ${APP_EDITION:internal}
   security:
     hsts-enabled: ${HSTS_ENABLED:false}
   rate-limit:

@@ -8,6 +8,7 @@ interface AiStatus {
   code?: string
   edition?: string
   enabled?: boolean
+  providerCount?: number
   ready?: boolean
   reason?: string
   missing?: string[]
@@ -48,11 +49,11 @@ async function loadStatus() {
     unavailable.value = false
   } catch (cause) {
     const message = cause instanceof Error ? cause.message : String(cause)
-    // 社区版：路由不存在（404）；企业版未启用：503 带原因
-    // 用 message 文本里是否含 404 来判断是权宜之计：ApiError.message 形如 "API 404: {json}"，
-    // 后端换文案或错误体恰好含 "404" 都会误判；更稳的是读 ApiError.status。
-    unavailable.value = message.includes('404') || message.includes('接口不存在')
-    status.value = unavailable.value ? null : { reason: message }
+    // 404 = 该构建根本没注册这个模块（真·社区版/旧构建）；其余（503/网络）= 模块在但不可用。
+    // 按 status 判断，不匹配文案（后端换文案会误判）。
+    const status404 = (cause as { status?: number }).status === 404
+    unavailable.value = status404
+    status.value = status404 ? null : { reason: message }
   } finally {
     loading.value = false
   }
@@ -105,9 +106,16 @@ onMounted(loadStatus)
   <div>
     <h1>AI 客服</h1>
 
+    <!-- 两种"不可用"要分清：模块不在（社区版/旧构建）vs 模块在但没配供应商 -->
     <el-alert v-if="unavailable" type="info" show-icon :closable="false" class="mb-16"
-              title="当前是社区版构建，不包含 AI 模块"
-              description="AI 客服属于企业版功能；社区版不会注册相关路由，也不会加载模型。" />
+              title="该构建未包含 AI 客服模块（community 开源构建）"
+              description="内部/企业版构建包含该模块；开源版不附带模型权重，因此不注册相关路由。" />
+
+    <el-alert v-else-if="status && status.enabled === false" type="warning" show-icon :closable="false" class="mb-16"
+              :title="status.reason || '未配置 AI 供应商'"
+              :description="'当前形态：' + (status.edition ?? 'unknown') + '；配置好后回到本页即可使用。'">
+      <el-button link type="primary" @click="$router.push('/integrations')">去「第三方服务」配置供应商</el-button>
+    </el-alert>
 
     <el-alert v-else-if="status && !status.ready" type="warning" show-icon :closable="false" class="mb-16"
               :title="status.reason || 'AI 未就绪'"

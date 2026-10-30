@@ -3,6 +3,9 @@ import { computed, onMounted, ref } from 'vue'
 import { ElMessage } from 'element-plus'
 import { useRouter } from 'vue-router'
 import { api } from '../api'
+import { useEnums } from '../composables/useEnums'
+
+const { enumLabel } = useEnums()
 import { apiErrorMessage } from '../composables/useAsyncState'
 import AiGeneratePanel from '../components/AiGeneratePanel.vue'
 import AssetPicker from '../components/AssetPicker.vue'
@@ -396,10 +399,12 @@ loadAssets()
       <el-table-column prop="name" label="名称" min-width="180" />
       <el-table-column label="用途" width="120">
         <template #default="{ row }">
-          <el-tag size="small">{{ row.purpose ?? 'PRODUCT' }}</el-tag>
+          <el-tag size="small">{{ enumLabel('ASSET_PURPOSE', row.purpose ?? 'PRODUCT') }}</el-tag>
         </template>
       </el-table-column>
-      <el-table-column prop="kind" label="类型" width="100" />
+      <el-table-column label="类型" width="100">
+        <template #default="{ row }">{{ enumLabel('ASSET_KIND', row.kind) }}</template>
+      </el-table-column>
       <el-table-column label="相似度" width="90">
         <template #default="{ row }">
           <span v-if="scores[row.id]">{{ scores[row.id] }}</span>
@@ -447,9 +452,15 @@ loadAssets()
 
     <h3>AI 生成记录</h3>
     <el-table :data="aiJobs" empty-text="还没有 AI 生成任务">
-      <el-table-column prop="kind" label="类型" width="100" />
-      <el-table-column prop="purpose" label="用途" width="110" />
-      <el-table-column prop="status" label="状态" width="120" />
+      <el-table-column label="类型" width="100">
+        <template #default="{ row }">{{ enumLabel('ASSET_KIND', row.kind) }}</template>
+      </el-table-column>
+      <el-table-column label="用途" width="110">
+        <template #default="{ row }">{{ enumLabel('ASSET_PURPOSE', row.purpose) }}</template>
+      </el-table-column>
+      <el-table-column label="状态" width="120">
+        <template #default="{ row }">{{ enumLabel('AI_JOB_STATUS', row.status) }}</template>
+      </el-table-column>
       <el-table-column prop="createdAt" label="时间" min-width="180">
         <template #default="{ row }">{{ new Date(row.createdAt).toLocaleString() }}</template>
       </el-table-column>

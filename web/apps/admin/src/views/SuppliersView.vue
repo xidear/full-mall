@@ -4,6 +4,9 @@ import { onMounted, ref } from 'vue'
 import { ElMessage } from 'element-plus'
 import type { SupplierCredentialView } from '@fullmall/api-client'
 import { api } from '../api'
+import { useEnums } from '../composables/useEnums'
+
+const { enumLabel } = useEnums()
 
 const suppliers = ref<SupplierCredentialView[]>([])
 const sortKey = ref('name')
@@ -188,7 +191,9 @@ async function copy(text: string, label: string) {
         <el-table-column label="应付" width="110">
           <template #default="{ row }"><strong>{{ (row.payableAmount / 100).toFixed(2) }}</strong></template>
         </el-table-column>
-        <el-table-column prop="status" label="状态" width="90" />
+        <el-table-column label="状态" width="90">
+          <template #default="{ row }">{{ enumLabel('SUPPLIER_STATUS', row.status) }}</template>
+        </el-table-column>
       </el-table>
     </el-dialog>
 

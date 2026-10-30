@@ -11,6 +11,9 @@ import type {
   PromotionView
 } from '@fullmall/api-client'
 import { api } from '../api'
+import { useEnums } from '../composables/useEnums'
+
+const { enumLabel } = useEnums()
 
 const promotions = ref<PromotionView[]>([])
 const products = ref<Product[]>([])
@@ -410,7 +413,9 @@ function windowLabel(promotion: PromotionView) {
         </template>
       </el-table-column>
       <el-table-column prop="scope" label="范围" width="110" />
-      <el-table-column prop="channel" label="渠道" width="100" />
+      <el-table-column label="渠道">
+        <template #default="{ row }">{{ enumLabel('PROMOTION_CHANNEL', row.channel) }}</template>
+      </el-table-column>
       <el-table-column label="状态" width="100">
         <template #default="{ row }">{{ ruleStatusLabel(row.status) }}</template>
       </el-table-column>

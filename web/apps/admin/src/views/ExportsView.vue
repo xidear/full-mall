@@ -2,6 +2,9 @@
 import { onMounted, ref } from 'vue'
 import { ElMessage } from 'element-plus'
 import { api } from '../api'
+import { useEnums } from '../composables/useEnums'
+
+const { enumLabel } = useEnums()
 
 interface Job {
   jobId: string
@@ -84,7 +87,9 @@ onMounted(() => {})
 
     <el-table :data="jobs" empty-text="暂无导出任务">
       <el-table-column prop="resource" label="资源" width="180" />
-      <el-table-column prop="status" label="状态" width="140" />
+      <el-table-column label="状态">
+        <template #default="{ row }">{{ enumLabel('EXPORT_STATUS', row.status) }}</template>
+      </el-table-column>
       <el-table-column prop="jobId" label="任务 ID" min-width="280" />
       <el-table-column label="操作" width="140">
         <template #default="{ row }">

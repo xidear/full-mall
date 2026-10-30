@@ -2,6 +2,9 @@
 import { computed, onMounted, ref } from 'vue'
 import { ElMessage } from 'element-plus'
 import { api } from '../api'
+import { useEnums } from '../composables/useEnums'
+
+const { enumLabel } = useEnums()
 
 interface Promotion {
   id: string
@@ -141,7 +144,9 @@ onMounted(load)
       <el-table-column prop="code" label="编码" width="180" />
       <el-table-column prop="title" label="名称" min-width="180" />
       <el-table-column prop="type" label="类型" width="130" />
-      <el-table-column prop="status" label="状态" width="120" />
+      <el-table-column label="状态" width="120">
+        <template #default="{ row }">{{ enumLabel('PROMOTION_STATUS', row.status) }}</template>
+      </el-table-column>
       <el-table-column prop="startsAt" label="开始" min-width="180" />
       <el-table-column prop="endsAt" label="结束" min-width="180" />
     </el-table>

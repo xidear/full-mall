@@ -6,7 +6,7 @@ import { apiErrorMessage } from '../composables/useAsyncState'
 import MediaPreview from './MediaPreview.vue'
 import { acceptAttribute, loadUploadLimits, uploadMedia, type UploadLimits } from '../upload'
 
-interface Asset { id: string; name: string; url: string; kind: string; purpose?: string }
+interface Asset { id: string; name: string; url: string; kind: string; purpose?: string; source?: string }
 
 const props = withDefaults(defineProps<{
   modelValue: string | string[]
@@ -54,6 +54,8 @@ const chosen = computed<string[]>(() => {
 const filtered = computed(() => assets.value.filter(asset => {
   const purpose = asset.purpose ?? 'PRODUCT'
   if (purpose === 'OTHER_SYSTEM') return false
+  // E2E 自动化测试上传的图（m.png / e2e-ref-*.png）不进选择器，否则运营会挑到测试垃圾图
+  if ((asset.source ?? 'UPLOAD') === 'E2E') return false
   if (props.accept === 'IMAGE' && (asset.kind || '').toUpperCase() === 'VIDEO') return false
   if (props.accept === 'VIDEO' && (asset.kind || '').toUpperCase() !== 'VIDEO') return false
   return !keyword.value || asset.name.toLowerCase().includes(keyword.value.toLowerCase())

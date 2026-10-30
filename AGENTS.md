@@ -277,6 +277,16 @@ cd ../web && npm run build --workspace @fullmall/storefront
 - [ ] 全仓无同规则的手写副本残留
 - [ ] 错误码与用户文案已同步
 
+
+### 9.7 可空字段：后端省略 null，前端按 undefined 处理（强制）
+
+- 后端 Jackson 配置了 `default-property-inclusion: non_null`（`server/src/main/resources/application.yml`），
+  **值为 null 的字段会整条从 JSON 里消失**，前端收到的是 `undefined` 而不是 `null`。
+- 因此前端判断可空字段一律用 `== null`（同时覆盖 null/undefined），**禁止 `=== null`**；
+  渲染金额/数量时再兜一层 `Number.isFinite`，缺失显示 `—`，不允许出现 `NaN` / `undefined%`。
+- 需要"字段一定存在"的接口，应让后端返回非空默认值或在契约里写清必填，不要靠前端猜。
+- 自查命令：`grep -rn "=== null" web/apps/admin/src`（命中的每一条都要确认是不是可空字段）。
+
 ## 10. 错误呈现与数据一致性（强制）
 
 ### 10.1 给管理员的报错必须详细

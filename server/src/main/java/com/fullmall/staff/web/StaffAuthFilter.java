@@ -3,6 +3,7 @@ package com.fullmall.staff.web;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fullmall.permission.app.PermissionService;
 import com.fullmall.staff.app.StaffAuthService;
+import com.fullmall.staff.domain.StaffRoles;
 import com.fullmall.staff.domain.StaffUser;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
@@ -32,9 +33,10 @@ import java.util.UUID;
 public class StaffAuthFilter extends OncePerRequestFilter {
 
     public static final String STAFF_USER_ATTRIBUTE = "staffUser";
-    private static final Set<String> ADMIN_ROLES = Set.of("ADMIN", "OPERATOR");
-    private static final Set<String> STORE_ROLES = Set.of("ADMIN", "OPERATOR", "STORE");
-    private static final Set<String> SUPPORT_ROLES = Set.of("ADMIN", "OPERATOR", "CS");
+    // 角色集合统一由 StaffRoles 给出（唯一来源）；这里只声明"哪些角色能进哪类端"。
+    private static final Set<String> ADMIN_ROLES = StaffRoles.adminSide();
+    private static final Set<String> STORE_ROLES = StaffRoles.storeSide();
+    private static final Set<String> SUPPORT_ROLES = StaffRoles.supportSide();
 
     private final StaffAuthService authService;
     private final PermissionService permissionService;

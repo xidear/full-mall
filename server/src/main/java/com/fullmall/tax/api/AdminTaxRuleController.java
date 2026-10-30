@@ -34,6 +34,12 @@ public class AdminTaxRuleController {
         return taxes.list();
     }
 
+    /** 税务辖区候选：来自已建的税率规则（没有固定枚举，避免页面瞎填）。 */
+    @GetMapping("/admin/v1/tax-rules/jurisdictions")
+    public List<String> jurisdictions() {
+        return taxes.jurisdictions();
+    }
+
     @PutMapping({"/admin/v1/tax-rules", "/admin/v1/tax-rules/{id}"})
     public List<TaxService.RuleRow> upsert(@PathVariable(required = false) String id,
                                           @RequestBody RuleBody body) {

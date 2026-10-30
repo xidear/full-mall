@@ -20,6 +20,12 @@ public final class ValidationRules {
     public static final String EMAIL_PATTERN = "^[^@\\s]+@[^@\\s]+\\.[A-Za-z]{2,}$";
     public static final int EMAIL_MAX_LENGTH = 254;
     public static final int PASSWORD_MIN_LENGTH = 8;
+    /** 员工账号：镜像 $defs.staffUsername（字母数字与 . _ -，2-64 位）。 */
+    public static final String STAFF_USERNAME_PATTERN = "^[A-Za-z0-9._-]{2,64}$";
+    public static final int STAFF_USERNAME_MIN_LENGTH = 2;
+    public static final int STAFF_USERNAME_MAX_LENGTH = 64;
+    /** 员工显示名上限：镜像 $defs.staffDisplayName。 */
+    public static final int STAFF_DISPLAY_NAME_MAX_LENGTH = 64;
     public static final int PIN_MIN_LENGTH = 4;
     public static final int PIN_MAX_LENGTH = 12;
     public static final int QUANTITY_MIN = 1;

@@ -19,6 +19,8 @@ const { data: siteSettings } = await useSiteSettings()
 const siteState = useState<Record<string, string>>('site-settings-state', () => ({}))
 siteState.value = siteSettings.value ?? {}
 const { siteName, siteTagline, market, isDemo, showAttribution, showIcp, showPublicSecurity, showBusinessLicense } = useSite()
+// 地区切换：写 cookie 后整页重载，让 /api/v1/site/settings 带 X-Market 重新取市场级备案/客服信息
+const { markets: marketOptions, current: currentMarket, setMarket } = useMarketSwitch()
 const categoryLabel = useCategoryLabel()
 // 副标题是站点配置；英文界面下用翻译值，避免中文副标题混在英文页里。
 const displayTagline = computed(() => locale.value === 'zh-CN'
@@ -252,7 +254,15 @@ async function search() {
           {{ siteName }}<template v-if="displayTagline"> · {{ displayTagline }}</template>
           <span v-if="showAttribution" class="footer-attribution">{{ t('footer.attribution') }}</span>
         </span>
-        <span>{{ isDemo ? t('footer.note') : t('footer.note.prod') }}</span>
+        <span class="footer-right">
+          <label class="footer-market">
+            <span>{{ t('footer.region') }}</span>
+            <select :value="currentMarket || market" @change="setMarket(($event.target as HTMLSelectElement).value)">
+              <option v-for="item in marketOptions" :key="item.code" :value="item.code">{{ item.name }}</option>
+            </select>
+          </label>
+          <span>{{ isDemo ? t('footer.note') : t('footer.note.prod') }}</span>
+        </span>
       </div>
     </footer>
   </div>

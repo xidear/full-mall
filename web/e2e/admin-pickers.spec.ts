@@ -14,7 +14,7 @@ test('admin picks assets and products instead of typing ids', async ({ page, req
 
   const png = Buffer.from(
     'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==', 'base64')
-  const uploaded = await request.post('http://localhost:41280/admin/v1/media?purpose=PRODUCT', {
+  const uploaded = await request.post('http://localhost:41280/admin/v1/media?purpose=PRODUCT&source=E2E', {
     headers: { Authorization: `Bearer ${token}` },
     multipart: { file: { name: `e2e-picker-${Date.now()}.png`, mimeType: 'image/png', buffer: png } }
   })

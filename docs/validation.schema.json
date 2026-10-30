@@ -39,6 +39,18 @@
       "type": "integer",
       "minimum": 1
     },
+    "staffUsername": {
+      "type": "string",
+      "description": "员工登录账号：字母数字与 . _ -，2-64 位。不区分大小写的唯一性由数据库唯一索引保证。",
+      "pattern": "^[A-Za-z0-9._-]{2,64}$",
+      "minLength": 2,
+      "maxLength": 64
+    },
+    "staffDisplayName": {
+      "type": "string",
+      "description": "员工显示名（后台列表与审计里展示）。",
+      "maxLength": 64
+    },
     "contactName": {
       "type": "string",
       "maxLength": 64

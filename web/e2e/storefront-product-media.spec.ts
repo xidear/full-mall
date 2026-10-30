@@ -23,7 +23,7 @@ test('storefront product page shows main, gallery and detail media', async ({ pa
 
   const urls: string[] = []
   for (const purpose of ['PRODUCT', 'PRODUCT', 'PRODUCT']) {
-    const uploaded = await request.post(`${API}/admin/v1/media?purpose=${purpose}`, {
+    const uploaded = await request.post(`${API}/admin/v1/media?purpose=${purpose}&source=E2E`, {
       headers: auth,
       multipart: { file: { name: 'm.png', mimeType: 'image/png', buffer: PNG } }
     })

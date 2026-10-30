@@ -328,7 +328,7 @@ onUnmounted(() => { if (timer) clearInterval(timer) })
               <template #default="{ row }"><el-tag size="small" :type="stateTag(row.state)">{{ row.state }}</el-tag></template>
             </el-table-column>
             <el-table-column label="CPU" width="90">
-              <template #default="{ row }">{{ row.cpuPercent === null ? '-' : row.cpuPercent + '%' }}</template>
+              <template #default="{ row }">{{ row.cpuPercent == null ? '-' : row.cpuPercent + '%' }}</template>
             </el-table-column>
             <el-table-column label="内存" width="140">
               <template #default="{ row }">

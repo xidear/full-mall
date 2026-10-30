@@ -31,6 +31,11 @@ class ValidationRulesContractTest {
 
         assertThat(ValidationRules.PHONE_PATTERN).isEqualTo(defs.path("phone").path("pattern").asText());
         assertThat(ValidationRules.PASSWORD_MIN_LENGTH).isEqualTo(defs.path("password").path("minLength").asInt());
+        assertThat(ValidationRules.STAFF_USERNAME_PATTERN).isEqualTo(defs.path("staffUsername").path("pattern").asText());
+        assertThat(ValidationRules.STAFF_USERNAME_MIN_LENGTH).isEqualTo(defs.path("staffUsername").path("minLength").asInt());
+        assertThat(ValidationRules.STAFF_USERNAME_MAX_LENGTH).isEqualTo(defs.path("staffUsername").path("maxLength").asInt());
+        assertThat(ValidationRules.STAFF_DISPLAY_NAME_MAX_LENGTH)
+                .isEqualTo(defs.path("staffDisplayName").path("maxLength").asInt());
         assertThat(ValidationRules.PIN_MIN_LENGTH).isEqualTo(defs.path("pin").path("minLength").asInt());
         assertThat(ValidationRules.PIN_MAX_LENGTH).isEqualTo(defs.path("pin").path("maxLength").asInt());
         assertThat(ValidationRules.QUANTITY_MIN).isEqualTo(defs.path("quantity").path("minimum").asInt());

@@ -149,10 +149,61 @@ public class StaffAuthRepository {
 
     public void updatePassword(UUID staffId, String passwordHash) {
         int updated = jdbcTemplate.update("""
-                UPDATE staff_user SET password_hash = ? WHERE id = ?
+                UPDATE staff_user SET password_hash = ?, updated_at = now() WHERE id = ?
                 """, passwordHash, staffId);
         if (updated != 1) {
             throw new IllegalStateException("Staff user not found: " + staffId);
         }
+    }
+
+    public boolean usernameExists(String username) {
+        Boolean exists = jdbcTemplate.queryForObject(
+                "SELECT EXISTS (SELECT 1 FROM staff_user WHERE username = ?)", Boolean.class, username);
+        return Boolean.TRUE.equals(exists);
+    }
+
+    public StaffUser insert(String username, String passwordHash, String displayName, String role) {
+        UUID id = UUID.randomUUID();
+        jdbcTemplate.update("""
+                INSERT INTO staff_user (id, username, password_hash, display_name, role, status, created_at, updated_at)
+                VALUES (?, ?, ?, ?, ?, 'ACTIVE', now(), now())
+                """, id, username, passwordHash, displayName, role);
+        return new StaffUser(id, username, displayName, role, "ACTIVE");
+    }
+
+    /** 只改档案字段（姓名/角色）；密码、PIN、门店各有专门入口，避免一次请求混着改敏感项。 */
+    public StaffUser updateProfile(UUID staffId, String displayName, String role) {
+        int updated = jdbcTemplate.update("""
+                UPDATE staff_user SET display_name = ?, role = ?, updated_at = now() WHERE id = ?
+                """, displayName, role, staffId);
+        if (updated != 1) {
+            throw new IllegalStateException("Staff user not found: " + staffId);
+        }
+        StaffAccount account = findAccountById(staffId);
+        if (account == null) {
+            throw new IllegalStateException("Staff user not found after update: " + staffId);
+        }
+        return account.user();
+    }
+
+    /** 生效中的管理员数量：用于拦住"停用最后一个管理员"把自己锁在门外。 */
+    public int countActiveAdmins() {
+        Integer count = jdbcTemplate.queryForObject(
+                "SELECT count(*) FROM staff_user WHERE role = 'ADMIN' AND status = 'ACTIVE'", Integer.class);
+        return count == null ? 0 : count;
+    }
+
+    public StaffUser setStatus(UUID staffId, String status) {
+        int updated = jdbcTemplate.update("""
+                UPDATE staff_user SET status = ?, updated_at = now() WHERE id = ?
+                """, status, staffId);
+        if (updated != 1) {
+            throw new IllegalStateException("Staff user not found: " + staffId);
+        }
+        StaffAccount account = findAccountById(staffId);
+        if (account == null) {
+            throw new IllegalStateException("Staff user not found after status change: " + staffId);
+        }
+        return account.user();
     }
 }

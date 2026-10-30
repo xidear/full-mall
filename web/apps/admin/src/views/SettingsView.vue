@@ -8,6 +8,52 @@ const loading = ref(false)
 const saving = ref(false)
 const error = ref('')
 
+// 时区/运营地区都必须是可选而不是手填（AGENTS §13）：
+// 时区取浏览器内置 IANA 清单（与市场配置同一来源），运营地区取后台地区数据。
+const timezoneOptions = ref<string[]>([])
+const countryOptions = ref<Array<{ code: string; name: string }>>([])
+
+interface AdapterOption {
+  code: string
+  label: string
+  kind: 'MOCK' | 'BUILTIN' | 'CONFIGURED'
+  available: boolean
+  note: string
+}
+/** 适配器候选：只列"现在真的能用"的；未配置凭据的置灰并说明原因（不让选了之后运行期炸）。 */
+const adapters = ref<Record<string, AdapterOption[]>>({})
+
+function adapterOptions(capability: string): AdapterOption[] {
+  return adapters.value[capability] ?? []
+}
+
+function adapterHint(capability: string, current: string): string {
+  const options = adapterOptions(capability)
+  if (options.length === 0) {
+    return '候选加载失败，保存前请刷新'
+  }
+  const matched = options.find(item => item.code === current)
+  if (!matched) {
+    return '当前值 ' + current + ' 不在可用候选里：请重新选择后再保存'
+  }
+  return matched.available ? matched.note : '已选：' + matched.note
+}
+
+async function loadOptions() {
+  const intlWithValues = Intl as typeof Intl & { supportedValuesOf?: (key: string) => string[] }
+  timezoneOptions.value = intlWithValues.supportedValuesOf?.('timeZone') ?? []
+  if (timezoneOptions.value.length === 0) {
+    error.value = '当前浏览器不支持 Intl.supportedValuesOf，时区无法给出候选；请使用新版 Chrome/Edge/Safari'
+  }
+  try {
+    countryOptions.value = await api.get<Array<{ code: string; name: string }>>(
+      '/api/v1/regions/countries', { locale: 'zh-CN' })
+    adapters.value = await api.get<Record<string, AdapterOption[]>>('/admin/v1/settings/adapters')
+  } catch (cause) {
+    error.value = '候选加载失败（运营地区/适配器）：' + (cause as Error).message
+  }
+}
+
 const form = reactive<Record<string, string>>({
   site_name: '',
   site_tagline: '',
@@ -28,7 +74,8 @@ const form = reactive<Record<string, string>>({
   default_locale: 'zh-CN',
   enabled_locales: 'en,ja',
   default_currency: 'CNY',
-  storage_provider: 'mock',
+  // 存储默认就是真实本地磁盘；"mock" 只是 ConfigurableAssetStorage 里的历史别名，新装站点不再写它
+  storage_provider: 'local',
   sms_provider: 'mock',
   payment_provider: 'mock',
   logistics_provider: 'mock',
@@ -123,7 +170,10 @@ const payoutMethods = computed({
   set: (value: string[]) => { form['distribution.payout-methods'] = value.join(',') }
 })
 
-onMounted(load)
+onMounted(async () => {
+  await loadOptions()
+  await load()
+})
 
 async function load() {
   loading.value = true
@@ -178,16 +228,16 @@ async function save() {
             <span class="muted">显示在页脚品牌行；留空则只显示站点名称。</span>
           </el-form-item>
           <el-form-item label="运营地区">
-            <el-select v-model="form.default_market" style="width: 100%">
-              <el-option label="中国大陆（CN）" value="CN" />
-              <el-option label="中国香港（HK）" value="HK" />
-              <el-option label="中国澳门（MO）" value="MO" />
-              <el-option label="中国台湾（TW）" value="TW" />
+            <el-select v-model="form.default_market" filterable style="width: 100%" placeholder="选择运营地区">
+              <el-option v-for="country in countryOptions" :key="country.code"
+                         :label="country.name + '（' + country.code + '）'" :value="country.code" />
             </el-select>
             <span class="muted">决定法律文档、登录号码提示与备案信息是否展示，不再写死在页面里。</span>
           </el-form-item>
           <el-form-item label="站点默认时区">
-            <el-input v-model="form['app.timezone']" placeholder="Asia/Shanghai" />
+            <el-select v-model="form['app.timezone']" filterable style="width: 100%" placeholder="选择时区（IANA）">
+              <el-option v-for="zone in timezoneOptions" :key="zone" :label="zone" :value="zone" />
+            </el-select>
             <span class="muted">IANA 时区；未登录顾客的时间按此显示，登录会员优先用会员时区。</span>
           </el-form-item>
           <el-form-item label="媒体 / 静态资源基址">
@@ -211,6 +261,10 @@ async function save() {
           </el-form-item>
           <el-form-item label="客服邮箱">
             <el-input v-model="form.service_email" />
+            <span class="field-hint">
+              以上是全局值；「市场配置」里的同名项是市场级覆盖。商城按访客选择的地区
+              （页脚「发货地区」选择器，请求带 X-Market）取市场值，市场没配才回退到这里。
+            </span>
           </el-form-item>
         </div>
       </section>
@@ -396,37 +450,41 @@ async function save() {
           </el-form-item>
           <el-form-item label="存储适配器">
             <el-select v-model="form.storage_provider" style="width: 100%">
-              <el-option label="本地 / Mock（默认）" value="mock" />
-              <el-option label="七牛云（密钥走环境变量）" value="qiniu" />
-              <el-option label="腾讯云 COS（密钥走环境变量）" value="cos" />
-              <el-option label="阿里云 OSS（待接入）" value="aliyun-oss" />
-              <el-option label="S3 / SeaweedFS（待接入）" value="s3" />
+              <el-option v-for="option in adapterOptions('storage')" :key="option.code"
+                         :label="option.label + (option.available ? '' : '（' + option.note + '）')"
+                         :value="option.code" :disabled="!option.available" />
             </el-select>
-            <span class="muted">服务商来自数据库；保存后下一次上传即生效，不需要重启。未接入的服务商会明确报错，不会静默回落本地。</span>
+            <span class="muted">{{ adapterHint('storage', form.storage_provider) }}</span>
           </el-form-item>
           <el-form-item label="短信适配器">
             <el-select v-model="form.sms_provider" style="width: 100%">
-              <el-option label="Mock（开源默认）" value="mock" />
-              <el-option label="阿里云短信（待接入）" value="aliyun" />
-              <el-option label="腾讯云短信（待接入）" value="tencent" />
+              <el-option v-for="option in adapterOptions('sms')" :key="option.code"
+                         :label="option.label + (option.available ? '' : '（' + option.note + '）')"
+                         :value="option.code" :disabled="!option.available" />
             </el-select>
+            <span class="muted">{{ adapterHint('sms', form.sms_provider) }}</span>
           </el-form-item>
           <el-form-item label="支付适配器">
             <el-select v-model="form.payment_provider" style="width: 100%">
-              <el-option label="Mock（开源默认）" value="mock" />
-              <el-option label="微信支付（待接入）" value="wechat" />
-              <el-option label="支付宝（待接入）" value="alipay" />
+              <el-option v-for="option in adapterOptions('payment')" :key="option.code"
+                         :label="option.label + (option.available ? '' : '（' + option.note + '）')"
+                         :value="option.code" :disabled="!option.available" />
             </el-select>
+            <span class="muted">{{ adapterHint('payment', form.payment_provider) }}</span>
           </el-form-item>
           <el-form-item label="物流适配器">
             <el-select v-model="form.logistics_provider" style="width: 100%">
-              <el-option label="Mock（开源默认）" value="mock" />
-              <el-option label="顺丰（待接入）" value="sf" />
-              <el-option label="京东物流（待接入）" value="jd" />
+              <el-option v-for="option in adapterOptions('logistics')" :key="option.code"
+                         :label="option.label + (option.available ? '' : '（' + option.note + '）')"
+                         :value="option.code" :disabled="!option.available" />
             </el-select>
+            <span class="muted">{{ adapterHint('logistics', form.logistics_provider) }}</span>
           </el-form-item>
         </div>
-        <p class="muted">真实适配器需要在环境变量或密钥管理中配置凭证；开源默认 Mock，不访问外部服务。</p>
+        <p class="muted">
+          候选只列"现在真的能用"的实现：本地磁盘是内置实现（生产可直接用，不等同演示）；
+          其它服务商需先在「第三方服务」配好凭据才会变成可选，未配置的置灰并写明原因。
+        </p>
 
         <h3 style="margin-top: 16px">渠道自检</h3>
         <div class="policy-grid">
@@ -456,6 +514,14 @@ async function save() {
 <style scoped>
 .mb-16 {
   margin-bottom: 16px;
+}
+
+.field-hint {
+  display: block;
+  margin-top: 4px;
+  color: #8a8f8a;
+  font-size: 12px;
+  line-height: 1.5;
 }
 
 .form-section {

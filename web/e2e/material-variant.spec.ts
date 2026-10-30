@@ -15,7 +15,7 @@ test('material library generates a variant end to end', async ({ page, request }
 
   // 造一张参考图（直接走上传接口，purpose=PRODUCT 才会进素材库）
   const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==', 'base64')
-  const uploaded = await request.post('http://localhost:41280/admin/v1/media?purpose=PRODUCT', {
+  const uploaded = await request.post('http://localhost:41280/admin/v1/media?purpose=PRODUCT&source=E2E', {
     headers: { Authorization: `Bearer ${token}` },
     multipart: { file: { name: `e2e-ref-${Date.now()}.png`, mimeType: 'image/png', buffer: png } }
   })

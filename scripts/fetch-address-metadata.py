@@ -8,9 +8,12 @@
 用法：
     http_proxy=http://host:port https_proxy=http://host:port \
     python3 scripts/fetch-address-metadata.py --countries CN,HK,MO,TW,JP,US --cn-depth 3 \
-        --out server/src/main/resources/db/migration/V144__region_address_format_data.sql
+        --out server/src/main/resources/db/migration/V2__region_address_format_refresh.sql
 
-注意：生成物是**数据快照**，必须与迁移一起提交；重跑会覆盖同名文件（内容以抓取时间为准）。
+注意：
+1. 生成物是**数据快照**，必须与迁移一起提交；重跑会覆盖同名文件（内容以抓取时间为准）。
+2. 迁移已收敛成一个基线（V1__baseline.sql，见 scripts/squash-migrations.sh）：基线里已含
+   V144 的那份区划数据，重抓时请用 V2 起的**新号**，不要复用 V144。
 """
 import argparse, json, os, sys, time
 import urllib.request, urllib.parse

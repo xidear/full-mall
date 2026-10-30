@@ -19,6 +19,16 @@ function onSortChange(payload: { prop: string | null; order: 'ascending' | 'desc
 }
 const error = ref('')
 
+// 员工档案 CRUD（角色候选来自后端 /admin/v1/staff/roles，页面不写死）
+const roleOptions = ref<string[]>([])
+const createDialog = ref(false)
+const editDialog = ref(false)
+const resetDialog = ref(false)
+const saving = ref(false)
+const createForm = ref({ username: '', password: '', displayName: '', role: '' })
+const editForm = ref({ id: '', displayName: '', role: '' })
+const resetForm = ref({ id: '', username: '', password: '' })
+
 const pinDialog = ref(false)
 const pinStaff = ref<StaffUser | null>(null)
 const pin = ref('')
@@ -36,10 +46,13 @@ async function load() {
   loading.value = true
   error.value = ''
   try {
-    const [staffList, storeList] = await Promise.all([
-      api.get<StaffUser[]>('/admin/v1/staff'),
-      api.get<Store[]>('/admin/v1/stores')
+    const [staffList, storeList, roles] = await Promise.all([
+      // 排序参数后端早已支持（ListSortingTest 有覆盖），前端之前没接
+      api.get<StaffUser[]>('/admin/v1/staff', { sort: sortKey.value, direction: sortDirection.value }),
+      api.get<Store[]>('/admin/v1/stores'),
+      api.get<string[]>('/admin/v1/staff/roles')
     ])
+    roleOptions.value = roles
     staff.value = staffList
     stores.value = storeList
     // N+1 请求：每个员工一次 /admin/v1/staff/{id}/stores。人数少时可接受，上百人首屏会明显变慢；
@@ -117,6 +130,103 @@ async function saveStores() {
     storeSaving.value = false
   }
 }
+function openCreate() {
+  createForm.value = { username: '', password: '', displayName: '', role: roleOptions.value[0] ?? 'OPERATOR' }
+  createDialog.value = true
+}
+
+function openEdit(user: StaffUser) {
+  editForm.value = { id: user.id, displayName: user.displayName, role: user.role }
+  editDialog.value = true
+}
+
+function openReset(user: StaffUser) {
+  resetForm.value = { id: user.id, username: user.username, password: '' }
+  resetDialog.value = true
+}
+
+/** 前端预检只镜像后端规则（VALIDATION 由 schema 生成），最终以后端判定为准。 */
+function usernameProblem(username: string): string | null {
+  const pattern = new RegExp(VALIDATION.staffUsernamePattern)
+  if (!pattern.test(username)) {
+    return '账号只能是字母数字与 . _ -，长度 ' + VALIDATION.staffUsernameMinLength
+      + '-' + VALIDATION.staffUsernameMaxLength
+  }
+  return null
+}
+
+async function saveCreate() {
+  const username = createForm.value.username.trim()
+  const problem = usernameProblem(username)
+  if (problem) { ElMessage.error(problem); return }
+  if (createForm.value.password.length < VALIDATION.passwordMinLength) {
+    ElMessage.error('密码至少 ' + VALIDATION.passwordMinLength + ' 位')
+    return
+  }
+  saving.value = true
+  try {
+    await api.post('/admin/v1/staff', {
+      username,
+      password: createForm.value.password,
+      displayName: createForm.value.displayName.trim() || username,
+      role: createForm.value.role
+    })
+    ElMessage.success('员工已创建')
+    createDialog.value = false
+    await load()
+  } catch (cause) {
+    ElMessage.error(cause instanceof Error ? cause.message : '创建失败')
+  } finally {
+    saving.value = false
+  }
+}
+
+async function saveEdit() {
+  saving.value = true
+  try {
+    await api.patch('/admin/v1/staff/' + editForm.value.id, {
+      displayName: editForm.value.displayName.trim(),
+      role: editForm.value.role
+    })
+    ElMessage.success('已保存')
+    editDialog.value = false
+    await load()
+  } catch (cause) {
+    ElMessage.error(cause instanceof Error ? cause.message : '保存失败')
+  } finally {
+    saving.value = false
+  }
+}
+
+async function toggleStatus(user: StaffUser) {
+  const active = user.status !== 'ACTIVE'
+  try {
+    await api.post('/admin/v1/staff/' + user.id + '/status', { active })
+    ElMessage.success(active ? '已启用' : '已停用（已登录会话已被清除）')
+    await load()
+  } catch (cause) {
+    ElMessage.error(cause instanceof Error ? cause.message : '状态切换失败')
+  }
+}
+
+async function saveReset() {
+  if (resetForm.value.password.length < VALIDATION.passwordMinLength) {
+    ElMessage.error('密码至少 ' + VALIDATION.passwordMinLength + ' 位')
+    return
+  }
+  saving.value = true
+  try {
+    await api.post('/admin/v1/staff/' + resetForm.value.id + '/password-reset', {
+      password: resetForm.value.password
+    })
+    ElMessage.success('密码已重置，该员工所有会话已被清除')
+    resetDialog.value = false
+  } catch (cause) {
+    ElMessage.error(cause instanceof Error ? cause.message : '重置失败')
+  } finally {
+    saving.value = false
+  }
+}
 </script>
 
 <template>
@@ -128,13 +238,14 @@ async function saveStores() {
           门店账号只能查看绑定门店的收银、拣货和自提数据；ADMIN/OPERATOR 可查看全部门店。
         </p>
       </div>
+      <el-button type="primary" @click="openCreate">新建员工</el-button>
       <el-button @click="load">刷新</el-button>
     </div>
     <el-alert v-if="error" :title="error" type="error" show-icon :closable="false" class="mb-16" />
     <el-table :data="staff" @sort-change="onSortChange" stripe>
-      <el-table-column prop="username" label="账号" width="160" />
-      <el-table-column prop="displayName" label="姓名" width="160" />
-      <el-table-column label="角色" width="140">
+      <el-table-column prop="username" label="账号" width="160" sortable="custom" />
+      <el-table-column prop="displayName" label="姓名" width="160" sortable="custom" />
+      <el-table-column prop="role" label="角色" width="140" sortable="custom">
         <template #default="{ row }">{{ roleLabel(row.role) }}</template>
       </el-table-column>
       <el-table-column label="绑定门店" min-width="240">
@@ -145,16 +256,21 @@ async function saveStores() {
           <span v-else class="muted">{{ row.role === 'STORE' ? '未绑定（无法访问门店数据）' : '不限制门店' }}</span>
         </template>
       </el-table-column>
-      <el-table-column label="状态" width="100">
+      <el-table-column prop="status" label="状态" width="100" sortable="custom">
         <template #default="{ row }">
           <el-tag :type="row.status === 'ACTIVE' ? 'success' : 'info'">
             {{ row.status === 'ACTIVE' ? '启用' : '停用' }}
           </el-tag>
         </template>
       </el-table-column>
-      <el-table-column label="操作" width="210">
+      <el-table-column label="操作" width="360">
         <template #default="{ row }">
-          <el-button link type="primary" @click="openStores(row)">绑定门店</el-button>
+          <el-button link type="primary" @click="openEdit(row)">编辑</el-button>
+          <el-button link :type="row.status === 'ACTIVE' ? 'danger' : 'success'" @click="toggleStatus(row)">
+            {{ row.status === 'ACTIVE' ? '停用' : '启用' }}
+          </el-button>
+          <el-button link @click="openReset(row)">重置密码</el-button>
+          <el-button link @click="openStores(row)">绑定门店</el-button>
           <el-button link @click="openPin(row)">设置 PIN</el-button>
         </template>
       </el-table-column>
@@ -179,6 +295,61 @@ async function saveStores() {
       <template #footer>
         <el-button @click="storeDialog = false">取消</el-button>
         <el-button type="primary" :loading="storeSaving" @click="saveStores">保存绑定</el-button>
+      </template>
+    </el-dialog>
+    <el-dialog v-model="createDialog" title="新建员工" width="480px">
+      <el-form label-width="96px">
+        <el-form-item label="账号" required>
+          <el-input v-model="createForm.username"
+                    :maxlength="VALIDATION.staffUsernameMaxLength"
+                    placeholder="字母数字与 . _ -，如 zhangsan" />
+        </el-form-item>
+        <el-form-item label="初始密码" required>
+          <el-input v-model="createForm.password" type="password" show-password
+                    :placeholder="'至少 ' + VALIDATION.passwordMinLength + ' 位'" />
+          <span class="muted">创建后请让员工自行「修改密码」；管理员可随时重置</span>
+        </el-form-item>
+        <el-form-item label="显示名">
+          <el-input v-model="createForm.displayName" :maxlength="VALIDATION.staffDisplayNameMaxLength"
+                    placeholder="留空则用账号" />
+        </el-form-item>
+        <el-form-item label="角色" required>
+          <el-select v-model="createForm.role" style="width: 100%">
+            <el-option v-for="role in roleOptions" :key="role" :label="roleLabel(role)" :value="role" />
+          </el-select>
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="createDialog = false">取消</el-button>
+        <el-button type="primary" :loading="saving" @click="saveCreate">创建</el-button>
+      </template>
+    </el-dialog>
+
+    <el-dialog v-model="editDialog" title="编辑员工" width="480px">
+      <el-form label-width="96px">
+        <el-form-item label="显示名">
+          <el-input v-model="editForm.displayName" :maxlength="VALIDATION.staffDisplayNameMaxLength" />
+        </el-form-item>
+        <el-form-item label="角色">
+          <el-select v-model="editForm.role" style="width: 100%">
+            <el-option v-for="role in roleOptions" :key="role" :label="roleLabel(role)" :value="role" />
+          </el-select>
+          <span class="muted">最后一个生效管理员不能改角色或被停用（后端会拦）</span>
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="editDialog = false">取消</el-button>
+        <el-button type="primary" :loading="saving" @click="saveEdit">保存</el-button>
+      </template>
+    </el-dialog>
+
+    <el-dialog v-model="resetDialog" title="重置密码" width="460px">
+      <p class="muted">为 {{ resetForm.username }} 设置新密码，保存后该员工所有已登录会话会被清除。</p>
+      <el-input v-model="resetForm.password" type="password" show-password
+                :placeholder="'至少 ' + VALIDATION.passwordMinLength + ' 位'" />
+      <template #footer>
+        <el-button @click="resetDialog = false">取消</el-button>
+        <el-button type="primary" :loading="saving" @click="saveReset">重置</el-button>
       </template>
     </el-dialog>
   </div>

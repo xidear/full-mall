@@ -28,6 +28,10 @@ public class AssetEntity extends BaseEntity {
     @Column(name = "purpose", length = 24)
     private String purpose;
 
+    /** 来源：UPLOAD/AI/IMPORT/E2E。E2E 是自动化测试产物，选择器默认不展示。 */
+    @Column(name = "source", length = 24)
+    private String source;
+
     protected AssetEntity() {
     }
 
@@ -52,6 +56,14 @@ public class AssetEntity extends BaseEntity {
 
     public void setUrl(String url) {
         this.url = url;
+    }
+
+    public String getSource() {
+        return source == null ? "UPLOAD" : source;
+    }
+
+    public void setSource(String source) {
+        this.source = source;
     }
 
     public String getPurpose() {

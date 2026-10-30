@@ -19,7 +19,7 @@ import java.util.concurrent.ConcurrentHashMap;
 @Service
 public class PermissionService {
 
-    private static final List<String> EDITABLE_ROLES = List.of("OPERATOR", "STORE", "CS");
+    // 可编辑角色改为从 role 表读（ADR-0015）：新增角色只需插一行，不再改代码。
     private static final Duration CACHE_TTL = Duration.ofSeconds(30);
 
     private final PermissionRepository repository;
@@ -73,9 +73,33 @@ public class PermissionService {
         return "permission.manage";
     }
 
+    public List<java.util.Map<String, Object>> roles() {
+        return repository.roles();
+    }
+
+    /**
+     * 删除角色。仍被员工使用时抛 409（外键会拦，但那是 500 级异常，管理员看不出原因）。
+     * 不可编辑角色（ADMIN 等）不允许删除。
+     */
+    @Transactional
+    public void deleteRole(String role) {
+        String code = role == null ? "" : role.trim().toUpperCase(java.util.Locale.ROOT);
+        if (!repository.editableRoleCodes().contains(code)) {
+            throw ApiException.badRequest("PERMISSION_ROLE_NOT_EDITABLE",
+                    "角色 " + role + " 不可删除（ADMIN/SUPPLIER 是系统角色）");
+        }
+        int inUse = repository.countStaffWithRole(code);
+        if (inUse > 0) {
+            throw ApiException.conflict("PERMISSION_ROLE_IN_USE",
+                    "角色 " + code + " 仍有 " + inUse + " 名员工在用，请先调整这些员工的角色");
+        }
+        repository.deleteRole(code);
+        cache.remove(code);
+    }
+
     public PermissionMatrixView matrix() {
         List<RolePermissionView> roles = new ArrayList<>();
-        for (String role : EDITABLE_ROLES) {
+        for (String role : repository.editableRoleCodes()) {
             roles.add(new RolePermissionView(role, repository.rolePermissions(role)));
         }
         return new PermissionMatrixView(repository.permissions(), roles);
@@ -84,7 +108,7 @@ public class PermissionService {
     @Transactional
     public RolePermissionView saveRole(String role, SaveRolePermissionsRequest request) {
         String normalized = role == null ? "" : role.trim().toUpperCase();
-        if (!EDITABLE_ROLES.contains(normalized)) {
+        if (!repository.editableRoleCodes().contains(normalized)) {
             throw ApiException.badRequest("PERMISSION_ROLE_NOT_EDITABLE",
                     "角色 " + role + " 不可编辑；ADMIN 拥有全部权限");
         }

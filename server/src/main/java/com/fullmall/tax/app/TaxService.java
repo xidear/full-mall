@@ -34,6 +34,17 @@ public class TaxService {
         this.jdbcTemplate = jdbcTemplate;
     }
 
+    /**
+     * 已存在的税务辖区（去重）：给市场配置的"税务辖区"下拉用。
+     *
+     * <p>辖区是税率规则里的业务代码（JP / EU-OSS 这类），后台没有固定清单，
+     * 所以候选只能来自"已经建过的规则"；空列表说明还没配过任何税率规则。
+     */
+    public List<String> jurisdictions() {
+        return jdbcTemplate.queryForList("SELECT DISTINCT jurisdiction FROM tax_rule ORDER BY jurisdiction",
+                String.class);
+    }
+
     /** 订单税行快照：税率、税基、税额都在下单时固定，事后改税率不影响历史订单。 */
     public record TaxLine(String jurisdiction, String name, int rateBps, boolean priceIncludesTax,
                          long taxableAmount, long taxAmount) {

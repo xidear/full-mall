@@ -7,6 +7,7 @@
 export * from './labels'
 export * from './validation'
 export * from './permissions.generated'
+export * from './datetime'
 
 export interface StaffUser {
   id: string

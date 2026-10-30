@@ -43,7 +43,8 @@ public class AssetController extends BaseCrudController<AssetEntity, AssetContro
     }
 
     public record AssetDto(UUID id, long version, String name, String url, String kind,
-                           String ownerUsername, String purpose, Instant createdAt, Instant updatedAt) {
+                           String ownerUsername, String purpose, String source,
+                           Instant createdAt, Instant updatedAt) {
     }
 
     public record CreateAssetRequest(@NotBlank @Size(max = 200) String name,
@@ -65,7 +66,7 @@ public class AssetController extends BaseCrudController<AssetEntity, AssetContro
     @Override
     protected AssetDto toDto(AssetEntity entity) {
         return new AssetDto(entity.getId(), entity.getVersion(), entity.getName(), entity.getUrl(),
-                entity.getKind(), entity.getOwnerUsername(), entity.getPurpose(),
+                entity.getKind(), entity.getOwnerUsername(), entity.getPurpose(), entity.getSource(),
                 entity.getCreatedAt(), entity.getUpdatedAt());
     }
 

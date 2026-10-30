@@ -27,6 +27,21 @@ public class PermissionController {
         return permissionService.matrix();
     }
 
+    /**
+     * 角色候选（含中文标签与是否可编辑），来自 role 表（ADR-0015）。
+     * 前端页签据此渲染，不再写死 ADMIN/OPERATOR/STORE/CS。
+     */
+    @GetMapping("/roles")
+    public java.util.List<java.util.Map<String, Object>> roles() {
+        return permissionService.roles();
+    }
+
+    @org.springframework.web.bind.annotation.DeleteMapping("/roles/{role}")
+    public org.springframework.http.ResponseEntity<Void> deleteRole(@PathVariable String role) {
+        permissionService.deleteRole(role);
+        return org.springframework.http.ResponseEntity.noContent().build();
+    }
+
     @PutMapping("/roles/{role}")
     public RolePermissionView save(@PathVariable String role,
                                    @Valid @RequestBody SaveRolePermissionsRequest request) {

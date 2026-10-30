@@ -68,6 +68,8 @@ const providersForCapability = computed(() => catalog.value[newIntegration.capab
 // 语言用后台已启用的语言，国家用 region 数据，通道用第三方服务清单——页面里不写死任何候选。
 const localeOptions = ref<string[]>([])
 const countryOptions = ref<RegionOption[]>([])
+/** 税务辖区候选来自已建的税率规则（后端去重查询），不是前端写死的清单。 */
+const jurisdictionOptions = ref<string[]>([])
 const currencyOptions = ref<string[]>([])
 const timezoneOptions = ref<string[]>([])
 const integrationSchema = ref<CapabilitySchema[]>([])
@@ -105,6 +107,7 @@ async function loadOptions() {
     localeOptions.value = [...new Set([...locales.translationLocales, ...locales.enabledLocales])]
     countryOptions.value = countries
     integrationSchema.value = schema
+    jurisdictionOptions.value = await api.get<string[]>('/admin/v1/tax-rules/jurisdictions')
   } catch (cause) {
     optionError.value = '候选清单加载失败（币种/时区仍可用，语言/国家/通道需重新加载）：' + (cause as Error).message
   }
@@ -229,7 +232,8 @@ async function save() {
     return
   }
   // 含税口径与税辖区必须显式声明：留空会让税额算错（后端同样强制，见 MarketService）
-  if (editing.priceIncludesTax === null) {
+  // 后端 non_null 序列化会把未配置的字段整个省略，前端拿到 undefined：必须用 == null
+  if (editing.priceIncludesTax === null || editing.priceIncludesTax === undefined) {
     ElMessage.error('请选择标价是否含税')
     return
   }
@@ -301,7 +305,7 @@ onMounted(async () => {
       <el-table-column prop="taxJurisdiction" label="税务辖区" width="130" />
       <el-table-column label="含税价" width="90">
         <template #default="{ row }">
-          {{ row.priceIncludesTax === null ? '未配置' : row.priceIncludesTax ? '含税' : '净价' }}
+          {{ row.priceIncludesTax == null ? '未配置' : row.priceIncludesTax ? '含税' : '净价' }}
         </template>
       </el-table-column>
       <el-table-column prop="timezone" label="时区" min-width="140" />
@@ -340,10 +344,12 @@ onMounted(async () => {
           </el-select>
         </el-form-item>
         <el-form-item label="税务辖区">
-          <el-input v-model="editing.taxJurisdiction" placeholder="与「税率规则」里的辖区代码一致，如 JP / EU-OSS" />
+          <el-select v-model="editing.taxJurisdiction" filterable allow-create default-first-option
+                     placeholder="选择已建过税率规则的辖区（也可输入新代码）" style="width: 100%">
+            <el-option v-for="item in jurisdictionOptions" :key="item" :label="item" :value="item" />
+          </el-select>
           <span class="field-hint">
-            辖区是税率规则里的自定义代码（税率规则页创建），后台没有固定清单，因此仍需手填；
-            一旦「税率规则」提供辖区枚举，这里应改成下拉。
+            候选来自「税率规则」里已建的辖区；空列表说明还没建过规则（先建规则，或在此输入新代码）。
           </span>
         </el-form-item>
         <el-form-item label="标价含税">
@@ -380,7 +386,8 @@ onMounted(async () => {
         </el-form-item>
         <el-form-item label=" ">
           <span class="field-hint">
-            留空 = 该市场**不展示**该项（不会回退到全局值）；想沿用全局请填与全局相同的值。
+            这两项覆盖「系统设置」里的全局值：商城按访客选择的地区（页脚选择器，请求带 X-Market）取本市场值，
+            留空则回退全局。同一能力只启用一个服务商。
           </span>
         </el-form-item>
         <el-form-item label="排序">

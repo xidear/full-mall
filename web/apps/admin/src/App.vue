@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import HelpDrawer from './components/HelpDrawer.vue'
-import { computed, nextTick, reactive, ref } from 'vue'
+import { computed, nextTick, onMounted, onUnmounted, reactive, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { useLocalStorage } from '@vueuse/core'
@@ -10,7 +10,7 @@ import {
   Monitor, OfficeBuilding, Odometer, Picture, Present, PriceTag, Service, Setting, Ticket,
   Tickets, Timer, UserFilled, Wallet
 } from '@element-plus/icons-vue'
-import { VALIDATION } from '@fullmall/api-client'
+import { VALIDATION, formatDateTime } from '@fullmall/api-client'
 import { api } from './api'
 import { auth, changePassword, logout } from './auth'
 
@@ -59,6 +59,95 @@ async function loadSetupStatus() {
     setupMissing.value = []
   }
 }
+interface NotificationRow {
+  id: string
+  title: string
+  eventType: string
+  createdAt: string
+  /** 未读 = readAt 为空（后端只存已读时间，没有布尔字段）。 */
+  readAt?: string | null
+}
+
+/**
+ * 通知提醒走轮询（30s）+ 页面重新可见时立即刷新，而不是 WebSocket。
+ *
+ * <p>理由：仓库里已有的 WebSocket 只服务于客服会话（SupportWebSocketHandler，按会话订阅）；
+ * 后台通知是"每人一份、低频、丢一条不影响业务"的场景，用 WS 要额外处理鉴权、心跳、
+ * 多实例广播与断线重连，收益不抵成本。真需要"秒级强提醒"时再上 SSE（Spring SseEmitter，
+ * 一个方向、几乎零协议成本），仍然不需要 WS 的双向能力。
+ */
+const NOTIFY_POLL_MS = 30_000
+const unreadCount = ref(0)
+const recentNotifications = ref<NotificationRow[]>([])
+const notifyError = ref('')
+let notifyTimer: ReturnType<typeof setInterval> | undefined
+
+async function loadNotifications() {
+  if (!auth.token) return
+  notifyError.value = ''
+  try {
+    const [count, list] = await Promise.all([
+      api.get<{ unread: number }>('/admin/v1/notifications/unread-count'),
+      api.get<NotificationRow[]>('/admin/v1/notifications', { limit: 6, recipientType: 'STAFF' })
+    ])
+    unreadCount.value = count.unread ?? 0
+    recentNotifications.value = list
+  } catch (cause) {
+    // 明确提示，不静默当作"没有通知"
+    notifyError.value = '通知加载失败：' + (cause as Error).message
+  }
+}
+
+async function openNotification(item: NotificationRow) {
+  try {
+    await api.post('/admin/v1/notifications/' + item.id + '/read')
+  } catch (cause) {
+    ElMessage.error('标记已读失败：' + (cause as Error).message)
+    return
+  }
+  await loadNotifications()
+  await router.push('/notifications')
+}
+
+function onVisibilityChange() {
+  if (document.visibilityState === 'visible') void loadNotifications()
+}
+
+/**
+ * 实时通道：EventSource 发不出 Authorization 头，所以先换一次性 token 再连流。
+ * 流里只推"未读数变化"；连接失败/断开就静默降级回 30s 轮询（轮询一直在跑，不是兜底谎言）。
+ */
+let notifyStream: EventSource | undefined
+
+async function openNotificationStream() {
+  if (!auth.token || typeof EventSource === 'undefined') return
+  try {
+    const issued = await api.post<{ token: string }>('/admin/v1/notifications/stream-token')
+    const base = (import.meta.env.VITE_API_BASE as string | undefined) ?? ''
+    notifyStream = new EventSource(base + '/api/v1/notifications/stream?token=' + issued.token)
+    notifyStream.addEventListener('notifications', () => { void loadNotifications() })
+    notifyStream.onerror = () => {
+      notifyStream?.close()
+      notifyStream = undefined
+    }
+  } catch {
+    // 拿不到流 token 不影响使用：轮询继续，页面上不会出现"看起来实时其实没连上"
+  }
+}
+
+onMounted(() => {
+  void loadNotifications()
+  notifyTimer = setInterval(() => { void loadNotifications() }, NOTIFY_POLL_MS)
+  document.addEventListener('visibilitychange', onVisibilityChange)
+  void openNotificationStream()
+})
+
+onUnmounted(() => {
+  if (notifyTimer) clearInterval(notifyTimer)
+  notifyStream?.close()
+  document.removeEventListener('visibilitychange', onVisibilityChange)
+})
+
 const isLoginPage = computed(() => route.name === 'login')
 const activeMenu = computed(() => {
   if (route.path.startsWith('/products')) return '/products'
@@ -238,6 +327,29 @@ async function submitPassword() {
           </div>
         </div>
         <div class="header-actions">
+          <!-- 未读提醒：轮询 30s + 页面重新可见时立即刷新（不用 WebSocket，理由见 notifyPollInterval） -->
+          <el-popover placement="bottom-end" :width="380" trigger="click" @show="loadNotifications">
+            <template #reference>
+              <el-badge :value="unreadCount" :max="99" :hidden="unreadCount === 0" class="notify-badge">
+                <el-button circle :aria-label="unreadCount > 0 ? '未读通知 ' + unreadCount + ' 条' : '通知'">
+                  <el-icon><Bell /></el-icon>
+                </el-button>
+              </el-badge>
+            </template>
+            <div class="notify-list">
+              <p v-if="notifyError" class="notify-empty">{{ notifyError }}</p>
+              <button v-for="item in recentNotifications" v-else :key="item.id"
+                      class="notify-item" :class="{ 'is-unread': !item.readAt }"
+                      @click="openNotification(item)">
+                <span class="notify-title">{{ item.title }}</span>
+                <span class="notify-meta">{{ item.eventType }} · {{ formatDateTime(item.createdAt) }}</span>
+              </button>
+              <p v-if="!notifyError && recentNotifications.length === 0" class="notify-empty">暂无通知</p>
+              <div class="notify-footer">
+                <el-button link type="primary" @click="$router.push('/notifications')">查看全部</el-button>
+              </div>
+            </div>
+          </el-popover>
           <el-button @click="openPasswordDialog">修改密码</el-button>
           <HelpDrawer />
           <el-button type="primary" plain @click="handleLogout">退出登录</el-button>
@@ -281,3 +393,61 @@ async function submitPassword() {
     </el-dialog>
   </el-container>
 </template>
+
+<style scoped>
+.notify-badge {
+  margin-right: 8px;
+}
+
+.notify-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  max-height: 360px;
+  overflow-y: auto;
+}
+
+.notify-item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 8px 10px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+}
+
+.notify-item:hover {
+  background: #f6f4ee;
+}
+
+.notify-item.is-unread .notify-title {
+  font-weight: 600;
+}
+
+.notify-title {
+  color: #1f2421;
+  font-size: 13px;
+}
+
+.notify-meta {
+  color: #8a8f8a;
+  font-size: 11px;
+}
+
+.notify-empty {
+  margin: 8px 0;
+  color: #8a8f8a;
+  font-size: 12px;
+  text-align: center;
+}
+
+.notify-footer {
+  margin-top: 6px;
+  border-top: 1px solid #ece9e2;
+  padding-top: 6px;
+  text-align: right;
+}
+</style>

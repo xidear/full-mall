@@ -40,6 +40,12 @@ public class MediaUploadController {
     private static final Set<String> PURPOSES =
             Set.of("PRODUCT", "SPEC", "VIDEO", "OTHER_SYSTEM");
 
+    /**
+     * 素材来源。E2E 单独一类：测试上传的 m.png / e2e-ref-*.png 混进运营素材库后
+     * 既搜不到也删不完，列表默认要把它们挡住。
+     */
+    private static final Set<String> SOURCES = Set.of("UPLOAD", "AI", "IMPORT", "E2E");
+
     private final AssetStorage storage;
     private final MediaUploadValidator validator;
     private final SystemSettingService settings;
@@ -81,7 +87,14 @@ public class MediaUploadController {
     @PreAuthorize("hasAnyRole('ADMIN','OPERATOR')")
     public Map<String, Object> upload(@RequestParam("file") MultipartFile file,
                                       @RequestParam(defaultValue = "PRODUCT") String purpose,
+                                      @RequestParam(defaultValue = "UPLOAD") String source,
                                       Authentication authentication) {
+        String normalizedSource = source == null ? "UPLOAD" : source.trim().toUpperCase(Locale.ROOT);
+        if (!SOURCES.contains(normalizedSource)) {
+            throw ApiException.badRequest("MEDIA_SOURCE_INVALID",
+                    "source 只能是 " + String.join("/", SOURCES.stream().sorted().toList())
+                            + "，实际=" + source);
+        }
         String normalized = purpose == null ? "PRODUCT"
                 : purpose.trim().toUpperCase(Locale.ROOT);
         if (!PURPOSES.contains(normalized)) {
@@ -97,6 +110,27 @@ public class MediaUploadController {
         }
         MediaUploadValidator.Validated validated =
                 validator.requireValid(MediaUploadValidator.Scope.ADMIN, file.getContentType(), content);
+
+        // 内容哈希在写存储**之前**算：同一张图重复上传应当复用已有素材，
+        // 而不是又存一份字节、又插一条素材行（素材库会被 m.png 这类重复图撑爆）。
+        String sha256 = sha256Hex(content);
+        if (!normalized.equals("OTHER_SYSTEM")) {
+            var existing = jdbc.query("""
+                    SELECT id, url FROM asset WHERE sha256 = ? AND deleted_at IS NULL LIMIT 1
+                    """, (rs, rowNum) -> Map.of(
+                    "id", rs.getObject("id", UUID.class).toString(),
+                    "url", rs.getString("url")), sha256);
+            if (!existing.isEmpty()) {
+                Map<String, Object> deduped = new LinkedHashMap<>();
+                deduped.put("url", existing.get(0).get("url"));
+                deduped.put("assetId", existing.get(0).get("id"));
+                deduped.put("deduplicated", true);
+                deduped.put("sha256", sha256);
+                deduped.put("purpose", normalized);
+                deduped.put("source", normalizedSource);
+                return deduped;
+            }
+        }
         String key = "assets/" + LocalDate.now().format(DateTimeFormatter.ofPattern("yyyyMM")) + "/"
                 + UUID.randomUUID().toString().replace("-", "") + "." + validated.extension();
         String url = storage.put(key, content, validated.contentType());
@@ -114,12 +148,21 @@ public class MediaUploadController {
             return result;
         }
         UUID assetId = UUID.randomUUID();
+        String displayName = file.getOriginalFilename() == null ? "上传素材" : file.getOriginalFilename();
         jdbc.update("""
-                INSERT INTO asset (id, name, url, kind, owner_username, purpose)
-                VALUES (?, ?, ?, ?, ?, ?)
-                """, assetId, file.getOriginalFilename() == null ? "上传素材" : file.getOriginalFilename(),
-                url, validated.kind().name(), authentication.getName(), normalized);
+                INSERT INTO asset (id, name, url, kind, owner_username, purpose, source, sha256, status)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'ACTIVE')
+                """, assetId, displayName, url, validated.kind().name(),
+                authentication.getName(), normalized, normalizedSource, sha256);
+        // 物理对象与逻辑素材分开存：换存储/CDN 时只改 asset_object，不动 asset 的引用关系
+        jdbc.update("""
+                INSERT INTO asset_object (id, asset_id, storage, object_key, url, bytes, content_type)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+                """, UUID.randomUUID(), assetId, storage.provider(), key, url,
+                (long) content.length, validated.contentType());
         result.put("assetId", assetId.toString());
+        result.put("sha256", sha256);
+        result.put("deduplicated", false);
         // 图片顺手建"图像内容向量"，这样素材一上传就能被"用一句话搜图"命中；
         // 没配多模态供应商时跳过（能力可选），但要记一笔，不假装建好了。
         if ("IMAGE".equals(validated.kind().name())) {
@@ -132,5 +175,15 @@ public class MediaUploadController {
             }
         }
         return result;
+    }
+
+    /** 内容哈希：素材去重与"同一张图重复上传"的唯一依据。 */
+    private static String sha256Hex(byte[] content) {
+        try {
+            return java.util.HexFormat.of().formatHex(
+                    java.security.MessageDigest.getInstance("SHA-256").digest(content));
+        } catch (java.security.NoSuchAlgorithmException error) {
+            throw new IllegalStateException("JVM 缺少 SHA-256：素材去重无法进行", error);
+        }
     }
 }

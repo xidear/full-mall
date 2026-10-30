@@ -46,6 +46,18 @@ async function loadMarkets() {
   if (!market.value && markets.value.length) market.value = markets.value[0].code
 }
 
+/**
+ * 金额展示：后端 Jackson 配了 default-property-inclusion=non_null，**null 字段会被整个省略**，
+ * 前端拿到的是 undefined。所以可空字段一律用 == null 判断（同时覆盖 null/undefined），
+ * 金额再兜一层 Number.isFinite，避免把缺失值渲染成 NaN 这种明显错误。
+ */
+function formatAmount(amount: number | null | undefined, currency: string): string {
+  if (amount == null || !Number.isFinite(amount)) {
+    return '—'
+  }
+  return (amount / 100).toFixed(2) + ' ' + currency
+}
+
 async function load() {
   loading.value = true
   error.value = ''
@@ -77,7 +89,7 @@ function openEdit(row: RateRow) {
     minWeightGrams: row.minWeightGrams,
     maxWeightGrams: row.maxWeightGrams,
     feeAmountYuan: row.feeAmount / 100,
-    freeOverYuan: row.freeOverAmount === null ? null : row.freeOverAmount / 100
+    freeOverYuan: row.freeOverAmount == null ? null : row.freeOverAmount / 100
   })
   dialogVisible.value = true
 }
@@ -97,7 +109,7 @@ async function save() {
       maxWeightGrams: editing.maxWeightGrams,
       // 金额按"分"提交（ADR-0004），页面用元输入再乘 100
       feeAmount: Math.round(editing.feeAmountYuan * 100),
-      freeOverAmount: editing.freeOverYuan === null ? null : Math.round(editing.freeOverYuan * 100)
+      freeOverAmount: editing.freeOverYuan == null ? null : Math.round(editing.freeOverYuan * 100)
     }
     const path = editing.id
       ? `/admin/v1/shipping-rates/${editing.id}`
@@ -158,11 +170,11 @@ onMounted(async () => {
         </template>
       </el-table-column>
       <el-table-column label="运费" width="120">
-        <template #default="{ row }">{{ (row.feeAmount / 100).toFixed(2) }} {{ row.currency }}</template>
+        <template #default="{ row }">{{ formatAmount(row.feeAmount, row.currency) }}</template>
       </el-table-column>
-      <el-table-column label="满额免运费" width="140">
+      <el-table-column label="满额免运费" width="180">
         <template #default="{ row }">
-          {{ row.freeOverAmount === null ? '—' : `满 ${(row.freeOverAmount / 100).toFixed(2)} 免` }}
+          {{ row.freeOverAmount == null ? '—' : `满 ${formatAmount(row.freeOverAmount, row.currency)} 免` }}
         </template>
       </el-table-column>
       <el-table-column label="操作" width="150">

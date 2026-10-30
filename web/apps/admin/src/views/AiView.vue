@@ -130,7 +130,7 @@ onMounted(loadStatus)
         <h2>导入客户资料</h2>
         <p class="muted">
           支持 pdf / docx / txt / md / csv / html / xlsx。图片与扫描件会被明确拒绝；
-          同一文档重复导入会**替换**旧知识，不会重复堆叠。
+          同一文档重复导入会替换旧知识，不会重复堆叠。
         </p>
         <label class="upload-btn">
           <input type="file" accept=".pdf,.docx,.doc,.txt,.md,.csv,.html,.htm,.xlsx,.xls"

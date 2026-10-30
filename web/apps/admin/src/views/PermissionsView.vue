@@ -8,15 +8,22 @@ import { api } from '../api'
 const matrix = ref<PermissionMatrixView | null>(null)
 const selectedRole = ref('OPERATOR')
 const selected = ref<string[]>([])
+/** 当前角色是否可编辑：由 role.editable 决定（ADMIN/SUPPLIER 为 false），不再靠字符串判断。 */
+const currentRoleEditable = computed(() =>
+  roles.value.find(item => item.role === selectedRole.value)?.editable ?? false)
 const loading = ref(false)
 const error = ref('')
 
-const roleLabels: Record<string, string> = {
-  OPERATOR: '运营人员',
-  STORE: '门店人员',
-  CS: '客服人员',
-  ADMIN: '超级管理员（全部权限）'
+interface RoleOption {
+  role: string
+  label: string
+  editable: boolean
 }
+
+// 角色候选来自后端 role 表（ADR-0015），这里只维护"不可编辑角色"的展示后缀
+const roles = ref<RoleOption[]>([])
+const roleLabels = computed<Record<string, string>>(() =>
+  Object.fromEntries(roles.value.map(item => [item.role, item.editable ? item.label : item.label + '（全部权限）'])))
 
 const groups = computed(() => {
   const result = new Map<string, PermissionView[]>()
@@ -37,7 +44,15 @@ async function load() {
   loading.value = true
   error.value = ''
   try {
-    matrix.value = await api.get<PermissionMatrixView>('/admin/v1/permissions')
+    const [loaded, roleList] = await Promise.all([
+      api.get<PermissionMatrixView>('/admin/v1/permissions'),
+      api.get<RoleOption[]>('/admin/v1/permissions/roles')
+    ])
+    matrix.value = loaded
+    roles.value = roleList
+    if (!roles.value.some(item => item.role === selectedRole.value)) {
+      selectedRole.value = roles.value.find(item => item.editable)?.role ?? roles.value[0]?.role ?? 'OPERATOR'
+    }
     const role = matrix.value.roles.find(item => item.role === selectedRole.value)
     selected.value = role ? [...role.permissions] : []
   } catch (cause) {
@@ -48,14 +63,14 @@ async function load() {
 }
 
 function toggle(code: string) {
-  if (selectedRole.value === 'ADMIN') return
+  if (!currentRoleEditable.value) return
   selected.value = selected.value.includes(code)
     ? selected.value.filter(item => item !== code)
     : [...selected.value, code]
 }
 
 async function save() {
-  if (selectedRole.value === 'ADMIN') return
+  if (!currentRoleEditable.value) return
   loading.value = true
   error.value = ''
   try {
@@ -70,7 +85,7 @@ async function save() {
 }
 
 function checked(code: string) {
-  return selectedRole.value === 'ADMIN' || selected.value.includes(code)
+  return !currentRoleEditable.value || selected.value.includes(code)
 }
 
 /** 说明来自生成产物（docs/permissions.catalog.json + PermissionService 路径映射），页面不手写文案。 */
@@ -127,12 +142,12 @@ function hoverText(permission: PermissionView): string {
       </div>
 
       <el-radio-group v-model="selectedRole" class="role-tabs">
-        <el-radio-button v-for="role in ['OPERATOR', 'STORE', 'CS', 'ADMIN']" :key="role" :label="role">
+        <el-radio-button v-for="role in roles.map(item => item.role)" :key="role" :label="role">
           {{ roleLabels[role] }}
         </el-radio-button>
       </el-radio-group>
 
-      <div v-if="selectedRole === 'ADMIN'" class="admin-note">
+      <div v-if="!currentRoleEditable" class="admin-note">
         ADMIN 拥有全部权限，无需配置。
       </div>
 
@@ -143,7 +158,7 @@ function hoverText(permission: PermissionView): string {
                  class="permission-row" :title="hoverText(permission)">
             <el-checkbox
               :model-value="checked(permission.code)"
-              :disabled="selectedRole === 'ADMIN'"
+              :disabled="!currentRoleEditable"
               @change="toggle(permission.code)"
             />
             <span class="permission-text">
@@ -184,7 +199,7 @@ function hoverText(permission: PermissionView): string {
       </div>
 
       <div class="save-row">
-        <el-button type="primary" :disabled="selectedRole === 'ADMIN'" :loading="loading" @click="save">
+        <el-button type="primary" :disabled="!currentRoleEditable" :loading="loading" @click="save">
           保存 {{ roleLabels[selectedRole] }} 权限
         </el-button>
       </div>

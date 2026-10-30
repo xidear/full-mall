@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { formatDateTime } from '@fullmall/api-client'
-import { onMounted, reactive, ref } from 'vue'
+import { computed, onMounted, reactive, ref } from 'vue'
 import { ElMessage } from 'element-plus'
 import { api } from '../api'
 
@@ -23,7 +23,12 @@ const filters = reactive({
   channel: '',
   recipientType: ''
 })
+/** 只看未读：纯前端过滤已加载的这批（接口没有 unread 参数，不假装有）。 */
+const onlyUnread = ref(false)
 const notifications = ref<Notification[]>([])
+const visibleNotifications = computed(() =>
+  // 未读的判据是 readAt 为空（后端没有布尔 read 字段）
+  onlyUnread.value ? notifications.value.filter(item => !item.readAt) : notifications.value)
 const loading = ref(false)
 // 正在标记已读的通知：避免重复请求
 const markingId = ref('')
@@ -117,6 +122,7 @@ function label(map: Record<string, string>, key: string) {
           <el-option label="管理员" value="STAFF" />
           <el-option label="顾客" value="CUSTOMER" />
         </el-select>
+        <el-switch v-model="onlyUnread" active-text="只看未读" style="margin-right: 8px" />
         <el-select v-model="filters.channel" placeholder="渠道" clearable style="width: 140px" @change="load">
           <el-option label="站内通知" value="IN_APP" />
           <el-option label="短信" value="SMS" />
@@ -129,7 +135,7 @@ function label(map: Record<string, string>, key: string) {
     </div>
 
     <el-alert v-if="error" :title="error" type="error" show-icon :closable="false" class="mb-16" />
-    <el-table :data="notifications" stripe>
+    <el-table :data="visibleNotifications" stripe>
       <el-table-column label="时间" width="180">
         <template #default="{ row }">{{ formatDateTime(row.createdAt) }}</template>
       </el-table-column>

@@ -15,7 +15,8 @@ import java.util.UUID;
 @Service
 public class StoreAccessService {
 
-    private static final Set<String> ALL_STORE_ROLES = Set.of("ADMIN", "OPERATOR");
+    /** 不受门店范围限制的角色：与 StaffRoles 同源，避免"能进后台但看不到任何门店"的组合。 */
+    private static final Set<String> ALL_STORE_ROLES = com.fullmall.staff.domain.StaffRoles.unrestrictedStoreSide();
 
     private final StaffAuthService staffAuthService;
     private final StoreService storeService;

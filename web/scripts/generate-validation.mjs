@@ -27,6 +27,8 @@ const skuCode = required('skuCode')
 const couponCode = required('couponCode')
 const price = required('priceAmount')
 const contactName = required('contactName')
+const staffUsername = required('staffUsername')
+const staffDisplayName = required('staffDisplayName')
 const reviewMedia = required('reviewMedia')
 
 // 收货地址（ADR-0013/0014）：国家码与区划码是唯一来源，Java 侧 ValidationRules 镜像同一份；
@@ -82,6 +84,10 @@ export const VALIDATION = {
   couponCodePattern: ${JSON.stringify(couponCode.pattern)},
   priceMinimum: ${price.minimum},
   contactNameMaxLength: ${contactName.maxLength},
+  staffUsernamePattern: "${staffUsername.pattern}",
+  staffUsernameMinLength: ${staffUsername.minLength},
+  staffUsernameMaxLength: ${staffUsername.maxLength},
+  staffDisplayNameMaxLength: ${staffDisplayName.maxLength},
   addressCountryPattern: ${JSON.stringify(addressCountry.pattern)},
   addressRegionCodePattern: ${JSON.stringify(addressRegion.pattern)},
   addressRegionNameMaxLength: ${addressRegionName.maxLength},

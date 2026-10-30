@@ -10,12 +10,45 @@ import { VALIDATION } from '@fullmall/api-client'
 /** 市场码由后端数据决定（ADR-0014）：前端不再维护 CN/HK/MO/TW 白名单，否则加市场要改前端。 */
 export type Market = string
 
+/**
+ * 当前访客所在市场的 cookie。
+ *
+ * <p>后端 /api/v1/site/settings 按 `X-Market` 决定"市场级覆盖全局"（如香港站不该显示大陆 ICP）。
+ * 不带这个头就永远只拿到全局值——这正是"市场级备案不生效"的真正原因。
+ */
+export const MARKET_COOKIE = 'fullmall_market'
+
 export function useSiteSettings() {
   const config = useRuntimeConfig()
   const base = import.meta.server ? config.apiInternalBase : config.public.apiBase
+  const market = useCookie<string | null>(MARKET_COOKIE)
+  const headers = market.value ? { 'X-Market': market.value } : undefined
   return useAsyncData<Record<string, string>>('site-settings', () =>
-    $fetch<Record<string, string>>(`${base}/api/v1/site/settings`)
+    $fetch<Record<string, string>>(`${base}/api/v1/site/settings`, { headers })
   )
+}
+
+/**
+ * 市场切换器：写 cookie 后整页重载，让 SSR 用新市场重新取设置（只改 cookie 不会触发重新取数）。
+ * 候选来自 /api/v1/markets，前端不写死地区白名单。
+ */
+export function useMarketSwitch() {
+  const config = useRuntimeConfig()
+  const base = import.meta.server ? config.apiInternalBase : config.public.apiBase
+  const cookie = useCookie<string | null>(MARKET_COOKIE)
+  const { data } = useAsyncData<Array<{ code: string; name: string }>>(
+    'storefront-market-options',
+    () => $fetch<Array<{ code: string; name: string }>>(`${base}/api/v1/markets`)
+  )
+  async function setMarket(code: string) {
+    cookie.value = code
+    await reloadNuxtApp({ persistState: false })
+  }
+  return {
+    markets: computed(() => data.value ?? []),
+    current: computed(() => cookie.value ?? ''),
+    setMarket
+  }
 }
 
 export function useSite() {

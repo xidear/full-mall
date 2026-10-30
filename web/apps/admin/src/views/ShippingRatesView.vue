@@ -22,6 +22,18 @@ interface RateRow {
 
 interface MarketView { code: string; name: string; currency: string }
 
+// 目的地候选来自后台地区数据（与市场配置同一来源）：国家码不能让人手填
+const countries = ref<Array<{ code: string; name: string }>>([])
+
+async function loadCountries() {
+  try {
+    countries.value = await api.get<Array<{ code: string; name: string }>>(
+      '/api/v1/regions/countries', { locale: 'zh-CN' })
+  } catch (cause) {
+    ElMessage.error('国家候选加载失败：' + (cause instanceof Error ? cause.message : ''))
+  }
+}
+
 const markets = ref<MarketView[]>([])
 const rows = ref<RateRow[]>([])
 const market = ref('')
@@ -136,7 +148,8 @@ async function remove(row: RateRow) {
 
 onMounted(async () => {
   await loadMarkets()
-  await load()
+  // 国家候选与列表并行取：目的地是必选项之一，候选没到就打开弹窗会以为"没有这个国家"
+  await Promise.all([loadCountries(), load()])
 })
 </script>
 
@@ -188,7 +201,11 @@ onMounted(async () => {
     <el-dialog v-model="dialogVisible" :title="editing.id ? '编辑档位' : '新增档位'" width="520px">
       <el-form label-width="120px">
         <el-form-item label="目的地国家">
-          <el-input v-model="editing.destinationCountry" placeholder="ISO 3166-1，留空=其它目的地默认档" />
+          <el-select v-model="editing.destinationCountry" filterable clearable
+                     placeholder="留空 = 该市场的其它目的地默认档" style="width: 100%">
+            <el-option v-for="item in countries" :key="item.code"
+                       :label="item.name + '（' + item.code + '）'" :value="item.code" />
+          </el-select>
         </el-form-item>
         <el-form-item label="重量下限（克）">
           <el-input-number v-model="editing.minWeightGrams" :min="0" />

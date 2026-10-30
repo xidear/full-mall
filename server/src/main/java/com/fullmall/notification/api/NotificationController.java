@@ -7,9 +7,11 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 @RestController
@@ -22,15 +24,27 @@ public class NotificationController {
         this.notificationService = notificationService;
     }
 
+    /**
+     * 当前员工可见的通知：本人的 + 广播（recipient_id='ALL'）。
+     *
+     * <p>不再暴露 CUSTOMER/MEMBER 通知——它们的 receiver 是顾客手机号，属于 PII。
+     * 需要看某个顾客的通知请在「客户详情」上下文里查（后续实现），并单独授权 + 脱敏。
+     */
     @GetMapping
     public List<Notification> list(@RequestParam(defaultValue = "100") int limit,
                                    @RequestParam(required = false) String channel,
-                                   @RequestParam(required = false) String recipientType) {
-        return notificationService.findRecent(limit, channel, recipientType);
+                                   org.springframework.security.core.Authentication authentication) {
+        return notificationService.findForStaff(authentication.getName(), limit, channel);
     }
 
     @PostMapping("/{id}/read")
-    public void read(@PathVariable UUID id) {
-        notificationService.markRead(id);
+    public void read(@PathVariable UUID id, org.springframework.security.core.Authentication authentication) {
+        notificationService.markReadForStaff(authentication.getName(), id);
+    }
+
+    /** 全部已读：只影响自己（广播按人记已读）。 */
+    @PostMapping("/read-all")
+    public Map<String, Integer> readAll(org.springframework.security.core.Authentication authentication) {
+        return Map.of("marked", notificationService.markAllReadForStaff(authentication.getName()));
     }
 }

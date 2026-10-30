@@ -193,6 +193,30 @@ public class NotificationService {
         return repository.countUnreadStaff();
     }
 
+    // —— 按员工身份的通知（后台铃铛/通知中心）——
+    // 广播（recipient_id='ALL'）对每个人都可见，但"已读"必须按人记录，否则 A 点已读 B 也变已读。
+
+    public List<Notification> findForStaff(String staffUsername, int limit, String channel) {
+        List<Notification> rows = repository.findForStaff(staffUsername, limit);
+        if (channel == null || channel.isBlank()) {
+            return rows;
+        }
+        String wanted = channel.trim().toUpperCase(java.util.Locale.ROOT);
+        return rows.stream().filter(item -> wanted.equals(item.channel())).toList();
+    }
+
+    public boolean markReadForStaff(String staffUsername, UUID id) {
+        return repository.markReadForStaff(staffUsername, id);
+    }
+
+    public int markAllReadForStaff(String staffUsername) {
+        return repository.markAllReadForStaff(staffUsername);
+    }
+
+    public long unreadCountForStaff(String staffUsername) {
+        return repository.unreadCountForStaff(staffUsername);
+    }
+
     /**
      * 向任意地址投递（目前用于邮箱验证码）：收件人是外部邮箱，不属于站内会员。
      *

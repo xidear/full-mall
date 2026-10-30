@@ -32,6 +32,7 @@ const visibleNotifications = computed(() =>
 const loading = ref(false)
 // 正在标记已读的通知：避免重复请求
 const markingId = ref('')
+const markingAll = ref(false)
 const retryingId = ref('')
 const error = ref('')
 
@@ -60,14 +61,52 @@ const recipientLabels: Record<string, string> = {
 
 onMounted(load)
 
+/**
+ * 通知 → 目标页面。后端只存 eventType，跳转关系放前端一张表里，
+ * 免得把路由散落到模板字符串里；没有映射的通知不给"查看"按钮（避免点了跳到不相关页面）。
+ */
+const eventRoutes: Record<string, string> = {
+  ORDER_CREATED: '/orders',
+  ORDER_PAID: '/orders',
+  ORDER_CANCELLED: '/orders',
+  ORDER_SHIPPED: '/orders',
+  ORDER_COMPLETED: '/orders',
+  PICKUP_READY: '/orders',
+  PAYMENT_SUCCEEDED: '/orders',
+  PAYMENT_FAILED: '/orders',
+  REFUND_REQUESTED: '/after-sales',
+  REFUND_COMPLETED: '/after-sales',
+  STOCK_LOW: '/inventory',
+  NEAR_EXPIRY: '/expiring',
+  SUPPLIER_RETURN: '/suppliers'
+}
+
+function routeOf(notification: Notification): string | null {
+  return eventRoutes[notification.eventType] ?? null
+}
+
+async function markAllRead() {
+  if (markingAll.value) return
+  markingAll.value = true
+  try {
+    const result = await api.post<{ marked: number }>('/admin/v1/notifications/read-all')
+    ElMessage.success('已全部标记为已读（' + (result?.marked ?? 0) + ' 条）')
+    await load()
+  } catch (cause) {
+    ElMessage.error('全部已读失败：' + (cause instanceof Error ? cause.message : ''))
+  } finally {
+    markingAll.value = false
+  }
+}
+
 async function load() {
   loading.value = true
   error.value = ''
   try {
+    // 后端已按"本人 + 广播"过滤；这里不再传 recipientType（客户通知不属本列表）
     notifications.value = await api.get<Notification[]>('/admin/v1/notifications', {
       limit: 200,
-      channel: filters.channel || undefined,
-      recipientType: filters.recipientType || undefined
+      channel: filters.channel || undefined
     })
   } catch (cause) {
     error.value = cause instanceof Error ? cause.message : '通知加载失败'
@@ -118,10 +157,6 @@ function label(map: Record<string, string>, key: string) {
         <p class="muted">支付、备货、发货、完成等事件会按渠道发送给顾客，并同步给运营人员。</p>
       </div>
       <div class="toolbar">
-        <el-select v-model="filters.recipientType" placeholder="接收方" clearable style="width: 130px" @change="load">
-          <el-option label="管理员" value="STAFF" />
-          <el-option label="顾客" value="CUSTOMER" />
-        </el-select>
         <el-switch v-model="onlyUnread" active-text="只看未读" style="margin-right: 8px" />
         <el-select v-model="filters.channel" placeholder="渠道" clearable style="width: 140px" @change="load">
           <el-option label="站内通知" value="IN_APP" />
@@ -130,6 +165,7 @@ function label(map: Record<string, string>, key: string) {
           <el-option label="微信" value="WECHAT" />
           <el-option label="APP 推送" value="APP" />
         </el-select>
+        <el-button :loading="markingAll" @click="markAllRead">全部已读</el-button>
         <el-button @click="load">刷新</el-button>
       </div>
     </div>
@@ -142,7 +178,12 @@ function label(map: Record<string, string>, key: string) {
       <el-table-column label="接收方" width="110">
         <template #default="{ row }">{{ label(recipientLabels, row.recipientType) }}</template>
       </el-table-column>
-      <el-table-column prop="recipientId" label="接收人" width="140" />
+      <el-table-column label="范围" width="120">
+        <template #default="{ row }">
+          <el-tag v-if="row.recipientId === 'ALL'" type="info" size="small">广播</el-tag>
+          <span v-else>仅本人</span>
+        </template>
+      </el-table-column>
       <el-table-column label="事件" width="120">
         <template #default="{ row }">{{ label(eventLabels, row.eventType) }}</template>
       </el-table-column>
@@ -165,6 +206,8 @@ function label(map: Record<string, string>, key: string) {
           <el-button v-if="row.status === 'FAILED'" link type="danger"
                      :loading="retryingId === row.id" @click="retryDelivery(row)">重试</el-button>
           <el-button v-else-if="!row.readAt" link type="primary" @click="markRead(row)">标记已读</el-button>
+          <!-- 只有配置了 eventType → 页面的映射才给"查看"，避免点了跳到不相关页面 -->
+          <el-button v-if="routeOf(row)" link type="primary" @click="$router.push(routeOf(row)!)">查看</el-button>
         </template>
       </el-table-column>
     </el-table>

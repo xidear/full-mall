@@ -2,6 +2,7 @@ package com.fullmall.notification.api;
 
 import com.fullmall.notification.app.NotificationService;
 import com.fullmall.notification.domain.Notification;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -38,8 +39,9 @@ public class NotificationAdminController {
      * 具体条数与内容走 {@code GET /admin/v1/notifications}（已有列表接口）。
      */
     @GetMapping("/unread-count")
-    public Map<String, Long> unreadCount() {
-        return Map.of("unread", notifications.countUnreadStaff());
+    public Map<String, Long> unreadCount(Authentication authentication) {
+        // 按人算：广播通知 A 读了不影响 B
+        return Map.of("unread", notifications.unreadCountForStaff(authentication.getName()));
     }
 
     /** 渠道连通性自检：发一条测试消息并返回真实投递结果（不伪造成功）。 */

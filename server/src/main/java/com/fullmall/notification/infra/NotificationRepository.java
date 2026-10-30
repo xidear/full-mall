@@ -144,6 +144,80 @@ public class NotificationRepository {
         jdbcTemplate.update("UPDATE notification SET read_at = now() WHERE id = ? AND read_at IS NULL", id);
     }
 
+    /**
+     * 后台员工可见的通知：**只含发给自己的或广播（recipient_id='ALL'）的 STAFF 通知**。
+     *
+     * <p>原实现返回全表（含 CUSTOMER/MEMBER 通知，接收人是手机号），等于任何运营都能看到
+     * 全站顾客手机号与事件——这是隐私事故。客户通知要看请走「客户详情」上下文并单独授权。
+     */
+    public List<Notification> findForStaff(String username, int limit) {
+        return jdbcTemplate.query("""
+                SELECT n.id, n.recipient_type, n.recipient_id, n.event_type, n.channel, n.title, n.content,
+                       n.status, COALESCE(r.read_at, n.read_at) AS read_at, n.sent_at, n.error_message, n.created_at
+                  FROM notification n
+                  LEFT JOIN notification_read r
+                    ON r.notification_id = n.id AND r.principal_type = 'STAFF' AND r.principal_id = ?
+                 WHERE n.recipient_type = 'STAFF'
+                   AND (n.recipient_id = 'ALL' OR n.recipient_id = ?)
+                 ORDER BY n.created_at DESC
+                 LIMIT ?
+                """, (rs, rowNum) -> new Notification(
+                rs.getObject("id", UUID.class),
+                rs.getString("recipient_type"),
+                rs.getString("recipient_id"),
+                rs.getString("event_type"),
+                rs.getString("channel"),
+                rs.getString("title"),
+                rs.getString("content"),
+                rs.getString("status"),
+                rs.getTimestamp("read_at") == null ? null : rs.getTimestamp("read_at").toInstant(),
+                rs.getTimestamp("sent_at") == null ? null : rs.getTimestamp("sent_at").toInstant(),
+                rs.getString("error_message"),
+                rs.getTimestamp("created_at").toInstant()), username, username, Math.min(Math.max(limit, 1), 200));
+    }
+
+    /** 按人标记已读：只能标记"自己可见"的通知。 */
+    public boolean markReadForStaff(String username, UUID notificationId) {
+        int inserted = jdbcTemplate.update("""
+                INSERT INTO notification_read (notification_id, principal_type, principal_id)
+                SELECT n.id, 'STAFF', ? FROM notification n
+                 WHERE n.id = ? AND n.recipient_type = 'STAFF'
+                   AND (n.recipient_id = 'ALL' OR n.recipient_id = ?)
+                ON CONFLICT DO NOTHING
+                """, username, notificationId, username);
+        return inserted >= 1;
+    }
+
+    /** 全部已读：只作用于当前员工可见且未读的通知（广播按人算）。 */
+    public int markAllReadForStaff(String username) {
+        return jdbcTemplate.update("""
+                INSERT INTO notification_read (notification_id, principal_type, principal_id)
+                SELECT n.id, 'STAFF', ? FROM notification n
+                 WHERE n.recipient_type = 'STAFF'
+                   AND (n.recipient_id = 'ALL' OR n.recipient_id = ?)
+                   AND NOT EXISTS (
+                       SELECT 1 FROM notification_read r
+                        WHERE r.notification_id = n.id AND r.principal_type = 'STAFF' AND r.principal_id = ?)
+                ON CONFLICT DO NOTHING
+                """, username, username, username);
+    }
+
+    /** 当前员工未读数：别人读过不影响我。 */
+    public long unreadCountForStaff(String username) {
+        Long count = jdbcTemplate.queryForObject("""
+                SELECT COUNT(*) FROM notification n
+                 WHERE n.recipient_type = 'STAFF'
+                   AND (n.recipient_id = 'ALL' OR n.recipient_id = ?)
+                   AND NOT EXISTS (
+                       SELECT 1 FROM notification_read r
+                        WHERE r.notification_id = n.id AND r.principal_type = 'STAFF' AND r.principal_id = ?)
+                """, Long.class, username, username);
+        if (count == null) {
+            throw new IllegalStateException("Unread notification count returned null for " + username);
+        }
+        return count;
+    }
+
     public long countUnreadStaff() {
         Long count = jdbcTemplate.queryForObject("""
                 SELECT COUNT(*) FROM notification

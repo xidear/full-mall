@@ -4101,6 +4101,23 @@ CREATE INDEX idx_member_card_ledger_member ON public.member_card_ledger USING bt
 
 CREATE INDEX idx_notification_created ON public.notification USING btree (created_at);
 
+CREATE TABLE public.notification_read (
+    notification_id uuid NOT NULL,
+    principal_type character varying(16) NOT NULL,
+    principal_id character varying(128) NOT NULL,
+    read_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+ALTER TABLE ONLY public.notification_read
+    ADD CONSTRAINT notification_read_pkey PRIMARY KEY (notification_id, principal_type, principal_id);
+
+ALTER TABLE ONLY public.notification_read
+    ADD CONSTRAINT notification_read_notification_fk FOREIGN KEY (notification_id) REFERENCES public.notification(id) ON DELETE CASCADE;
+
+-- 广播通知的已读必须按人记录：notification.read_at 单列无法表达"张三读了、李四没读"
+CREATE INDEX notification_read_principal_idx ON public.notification_read USING btree (principal_type, principal_id);
+
+
 
 
 CREATE INDEX idx_notification_recipient ON public.notification USING btree (recipient_type, recipient_id, created_at);

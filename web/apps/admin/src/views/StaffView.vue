@@ -3,6 +3,8 @@ import { onMounted, ref } from 'vue'
 import { ElMessage } from 'element-plus'
 import { roleLabel, VALIDATION, type StaffUser, type Store } from '@fullmall/api-client'
 import { api } from '../api'
+import { auth } from '../auth'
+import StatusToggle from '../components/StatusToggle.vue'
 
 const staff = ref<StaffUser[]>([])
 const stores = ref<Store[]>([])
@@ -203,14 +205,12 @@ async function saveEdit() {
   }
 }
 
-async function toggleStatus(user: StaffUser) {
-  const active = user.status !== 'ACTIVE'
-  try {
-    await api.post('/admin/v1/staff/' + user.id + '/status', { active })
-    ElMessage.success(active ? '已启用' : '已停用（已登录会话已被清除）')
-    await load()
-  } catch (cause) {
-    ElMessage.error(cause instanceof Error ? cause.message : '状态切换失败')
+/** 供 StatusToggle 调用：失败必须抛出，让开关保持原状态并提示原因。 */
+async function toggleStatus(user: StaffUser, next: boolean) {
+  const saved = await api.post<StaffUser>('/admin/v1/staff/' + user.id + '/status', { active: next })
+  Object.assign(user, saved)
+  if (!next) {
+    ElMessage.info('已停用，该员工的登录会话已被清除')
   }
 }
 
@@ -261,19 +261,18 @@ async function saveReset() {
           <span v-else class="muted">{{ row.role === 'STORE' ? '未绑定（无法访问门店数据）' : '不限制门店' }}</span>
         </template>
       </el-table-column>
-      <el-table-column prop="status" label="状态" width="100" sortable="custom">
+      <el-table-column prop="status" label="状态" width="130" sortable="custom">
         <template #default="{ row }">
-          <el-tag :type="row.status === 'ACTIVE' ? 'success' : 'info'">
-            {{ row.status === 'ACTIVE' ? '启用' : '停用' }}
-          </el-tag>
+          <!-- 状态就在列表里切：操作列不再重复一个"停用/启用"按钮 -->
+          <StatusToggle :active="row.status === 'ACTIVE'" active-text="启用" inactive-text="停用"
+                        :disabled="row.username === auth.user?.username"
+                        :confirm-text="`停用 ${row.displayName}（${row.username}）会立即注销其登录会话，确定吗？`"
+                        :on-change="next => toggleStatus(row, next)" />
         </template>
       </el-table-column>
       <el-table-column label="操作" width="360">
         <template #default="{ row }">
           <el-button link type="primary" @click="openEdit(row)">编辑</el-button>
-          <el-button link :type="row.status === 'ACTIVE' ? 'danger' : 'success'" @click="toggleStatus(row)">
-            {{ row.status === 'ACTIVE' ? '停用' : '启用' }}
-          </el-button>
           <el-button link @click="openReset(row)">重置密码</el-button>
           <el-button link @click="openStores(row)">绑定门店</el-button>
           <el-button link @click="openPin(row)">设置 PIN</el-button>

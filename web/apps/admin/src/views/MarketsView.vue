@@ -7,6 +7,7 @@
 import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { ElMessage } from 'element-plus'
 import { api } from '../api'
+import StatusToggle from '../components/StatusToggle.vue'
 
 interface MarketView {
   code: string
@@ -195,6 +196,15 @@ async function load() {
   }
 }
 
+/**
+ * 只切换启用状态：成功才把返回值写回该行，失败保持原样
+ * （StatusToggle 会报错并保留旧值，绝不假装切换成功）。
+ */
+async function toggleActive(row: MarketView, next: boolean) {
+  const saved = await api.post<MarketView>(`/admin/v1/markets/${row.code}/active`, { active: next })
+  Object.assign(row, saved)
+}
+
 function openEdit(market: MarketView) {
   editing.code = market.code
   editing.name = market.name
@@ -312,9 +322,12 @@ onMounted(async () => {
       <el-table-column label="语言候选" min-width="180">
         <template #default="{ row }">{{ row.locales.join(' / ') || '-' }}</template>
       </el-table-column>
-      <el-table-column label="状态" width="90">
+      <el-table-column label="状态" width="130">
         <template #default="{ row }">
-          <el-tag :type="row.active ? 'success' : 'info'">{{ row.active ? '已启用' : '已停用' }}</el-tag>
+          <!-- 列表内直接切换：启用/停用不该逼人开弹窗 -->
+          <StatusToggle :active="row.active" active-text="已启用" inactive-text="已停用"
+                        :confirm-text="`停用市场 ${row.code} 后，前台将不再显示该市场的价格与语言，确定吗？`"
+                        :on-change="next => toggleActive(row, next)" />
         </template>
       </el-table-column>
       <el-table-column label="操作" width="90">

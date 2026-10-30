@@ -6,6 +6,7 @@ import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -61,6 +62,26 @@ public class MarketController {
         Market saved = markets.save(new Market(code, body.name(), body.currency(), body.countryCode(),
                 body.taxJurisdiction(), body.priceIncludesTax(), body.timezone(),
                 body.legalEntityName(), body.active(), body.sort()));
+        return toView(saved);
+    }
+
+    /**
+     * 只切换启用状态：列表里点一下就该生效，不该要求运营打开整张表单再保存。
+     * 独立端点而不是复用 PUT /markets/{code}：后者要校验全部必填字段，
+     * 老数据里缺字段（如历史市场没有 timezone）会导致"点一下开关就报一堆校验错误"。
+     */
+    @PostMapping("/admin/v1/markets/{code}/active")
+    public MarketView setActive(@PathVariable String code,
+                                @RequestBody Map<String, Boolean> body) {
+        Boolean active = body.get("active");
+        if (active == null) {
+            throw com.fullmall.platform.error.ApiException.badRequest(
+                    "MARKET_ACTIVE_REQUIRED", "缺少 active 参数");
+        }
+        Market current = markets.require(code);
+        Market saved = markets.save(new Market(current.code(), current.name(), current.currency(),
+                current.countryCode(), current.taxJurisdiction(), current.priceIncludesTax(),
+                current.timezone(), current.legalEntityName(), active, current.sort()));
         return toView(saved);
     }
 

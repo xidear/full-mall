@@ -149,11 +149,33 @@ public class MediaUploadController {
         }
         UUID assetId = UUID.randomUUID();
         String displayName = file.getOriginalFilename() == null ? "上传素材" : file.getOriginalFilename();
-        jdbc.update("""
+        // 原子 upsert：并发上传同一份文件时，先 SELECT 再 INSERT 会撞 sha256 唯一键（实测 500）。
+        // 插入失败即说明别人先插了，回查并当作"去重"返回。
+        int inserted = jdbc.update("""
                 INSERT INTO asset (id, name, url, kind, owner_username, purpose, source, sha256, status)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'ACTIVE')
+                ON CONFLICT (sha256) DO NOTHING
                 """, assetId, displayName, url, validated.kind().name(),
                 authentication.getName(), normalized, normalizedSource, sha256);
+        if (inserted == 0) {
+            var existing = jdbc.query("""
+                    SELECT id, url FROM asset WHERE sha256 = ? AND deleted_at IS NULL LIMIT 1
+                    """, (rs, rowNum) -> Map.of(
+                    "id", rs.getObject("id", UUID.class).toString(),
+                    "url", rs.getString("url")), sha256);
+            if (existing.isEmpty()) {
+                throw ApiException.badRequest("ASSET_DEDUPE_RACE",
+                        "并发上传同内容文件时未能定位已存在素材，请重试；sha256=" + sha256);
+            }
+            Map<String, Object> deduped = new LinkedHashMap<>();
+            deduped.put("url", existing.get(0).get("url"));
+            deduped.put("assetId", existing.get(0).get("id"));
+            deduped.put("deduplicated", true);
+            deduped.put("sha256", sha256);
+            deduped.put("purpose", normalized);
+            deduped.put("source", normalizedSource);
+            return deduped;
+        }
         // 物理对象与逻辑素材分开存：换存储/CDN 时只改 asset_object，不动 asset 的引用关系
         jdbc.update("""
                 INSERT INTO asset_object (id, asset_id, storage, object_key, url, bytes, content_type)

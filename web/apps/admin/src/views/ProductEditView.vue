@@ -156,6 +156,50 @@ const matrixPrice = ref(0)
 
 const translations = ref<Record<string, TranslationEntry>>({})
 const translationLocales = computed(() => Object.keys(translations.value))
+
+/** 当前正在编辑的语言：语言清单可能几十项，用选中项而不是"一种语言一个页签" */
+const activeLocale = ref('')
+const localeFilter = ref('')
+
+const localeLabelOf = (locale: string) => localeLabels[locale] || locale
+
+const visibleLocales = computed(() => {
+  const keyword = localeFilter.value.trim().toLowerCase()
+  const all = translationLocales.value
+  if (!keyword) {
+    return all
+  }
+  return all.filter(code => code.toLowerCase().includes(keyword)
+    || localeLabelOf(code).toLowerCase().includes(keyword))
+})
+
+const publishedCount = computed(() =>
+  translationLocales.value.filter(code => translationOf(code).status === 'PUBLISHED').length)
+const pendingCount = computed(() =>
+  translationLocales.value.filter(code => translationOf(code).status !== 'PUBLISHED').length)
+
+function localeStatusText(locale: string): string {
+  const entry = translationOf(locale)
+  return entry.present ? labelOf(translationStatusLabels, entry.status) : '未录入'
+}
+
+function localeTagType(locale: string): 'success' | 'warning' | 'info' {
+  const status = translationOf(locale).status
+  if (status === 'PUBLISHED') return 'success'
+  if (status === 'OUTDATED' || status === 'REVIEWED') return 'warning'
+  return 'info'
+}
+
+// 切换商品/语言清单变化时，保证选中项有效（默认选第一个待处理的，减少点击）
+watch(translationLocales, (list) => {
+  if (!list.length) {
+    activeLocale.value = ''
+    return
+  }
+  if (!list.includes(activeLocale.value)) {
+    activeLocale.value = list.find(code => translationOf(code).status !== 'PUBLISHED') ?? list[0]
+  }
+}, { immediate: true })
 const savingLocale = ref('')
 
 const skuMatrixTemplateId = ref<string | null>(null)
@@ -778,43 +822,62 @@ function skuOptions(options?: Record<string, string>) {
         </template>
       </el-tab-pane>
 
-      <el-tab-pane v-for="locale in translationLocales" :key="locale" :name="'tr:' + locale"
-                   :label="(localeLabels[locale] || locale)">
+      <!-- 多语言只占一个 tab：语言数量可变（可能几十种），不可能一种一个顶级标签页。
+           左侧是语言清单（带状态，一眼看出谁没录/谁待审核），右侧只编辑当前选中的语言。 -->
+      <el-tab-pane label="多语言" name="translations">
+        <div class="locale-layout">
+          <aside class="locale-side">
+            <p class="locale-summary">
+              共 {{ translationLocales.length }} 种语言 · 已发布 {{ publishedCount }} · 待处理 {{ pendingCount }}
+            </p>
+            <el-input v-model="localeFilter" placeholder="搜索语言（名称或代码）" clearable size="small" />
+            <ul class="locale-list">
+              <li v-for="item in visibleLocales" :key="item"
+                  :class="{ active: item === activeLocale }"
+                  @click="activeLocale = item">
+                <span class="locale-name">{{ localeLabelOf(item) }}</span>
+                <el-tag size="small" :type="localeTagType(item)">{{ localeStatusText(item) }}</el-tag>
+              </li>
+            </ul>
+          </aside>
+          <section class="locale-main">
+            <el-empty v-if="!activeLocale" description="没有可编辑的语言：请先在「市场配置」里添加语言候选" />
+            <template v-else>
         <template v-if="editing">
           <div class="translation-head">
             <div>
-              <h3>{{ localeLabels[locale] || locale }}（{{ locale }}）</h3>
+              <h3>{{ localeLabelOf(activeLocale) }}（{{ activeLocale }}）</h3>
               <p class="muted">
                 源语言：{{ detail.data.value?.defaultLocale || 'zh-CN' }}；
                 机器翻译只写入草稿，审核后发布才会在前台生效。
               </p>
             </div>
-            <el-tag :type="translationOf(locale).status === 'PUBLISHED' ? 'success'
-                     : translationOf(locale).status === 'OUTDATED' ? 'warning' : 'info'">
-              {{ translationOf(locale).present
-                ? labelOf(translationStatusLabels, translationOf(locale).status)
+            <el-tag :type="translationOf(activeLocale).status === 'PUBLISHED' ? 'success'
+                     : translationOf(activeLocale).status === 'OUTDATED' ? 'warning' : 'info'">
+              {{ translationOf(activeLocale).present
+                ? labelOf(translationStatusLabels, translationOf(activeLocale).status)
                 : '未录入' }}
             </el-tag>
           </div>
 
           <el-form label-position="top">
             <el-form-item label="译文标题">
-              <el-input :model-value="translationOf(locale).title ?? ''"
+              <el-input :model-value="translationOf(activeLocale).title ?? ''"
                         :placeholder="form.title || '与源语言一致的标题'"
-                        @update:model-value="(value: string) => updateTranslation(locale, { title: value })" />
+                        @update:model-value="(value: string) => updateTranslation(activeLocale, { title: value })" />
             </el-form-item>
             <el-form-item label="译文描述">
-              <el-input :model-value="translationOf(locale).description ?? ''" type="textarea" :rows="4"
-                        @update:model-value="(value: string) => updateTranslation(locale, { description: value })" />
+              <el-input :model-value="translationOf(activeLocale).description ?? ''" type="textarea" :rows="4"
+                        @update:model-value="(value: string) => updateTranslation(activeLocale, { description: value })" />
             </el-form-item>
             <el-form-item label="本地化商品图（可选）">
               <div class="translation-image">
-                <AdminThumb :src="translationOf(locale).imageUrl" :size="32" :radius="6" />
-                <el-input :model-value="translationOf(locale).imageUrl ?? ''" placeholder="https://... 或 /images/..."
-                          @update:model-value="(value: string) => updateTranslation(locale, { imageUrl: value })" />
-                <AssetPicker :model-value="translationOf(locale).imageUrl ?? ''" value-type="url"
+                <AdminThumb :src="translationOf(activeLocale).imageUrl" :size="32" :radius="6" />
+                <el-input :model-value="translationOf(activeLocale).imageUrl ?? ''" placeholder="https://... 或 /images/..."
+                          @update:model-value="(value: string) => updateTranslation(activeLocale, { imageUrl: value })" />
+                <AssetPicker :model-value="translationOf(activeLocale).imageUrl ?? ''" value-type="url"
                              label="选素材"
-                             @update:model-value="(value: string | string[]) => updateTranslation(locale, { imageUrl: String(value) })" />
+                             @update:model-value="(value: string | string[]) => updateTranslation(activeLocale, { imageUrl: String(value) })" />
               </div>
             </el-form-item>
           </el-form>
@@ -826,22 +889,78 @@ function skuOptions(options?: Record<string, string>) {
           </div>
 
           <div class="translation-actions">
-            <el-button :loading="savingLocale === locale" @click="aiTranslate(locale)">AI 翻译</el-button>
-            <el-button :loading="savingLocale === locale" @click="translateDetail(locale)">翻译富文本详情</el-button>
-            <el-button :loading="savingLocale === locale" @click="saveTranslation(locale)">保存草稿</el-button>
-            <el-button :disabled="translationOf(locale).status !== 'DRAFT' && translationOf(locale).status !== 'MACHINE'"
-                       :loading="savingLocale === locale" @click="transitionTranslation(locale, 'review')">审核</el-button>
-            <el-button type="primary" :disabled="translationOf(locale).status !== 'REVIEWED'"
-                       :loading="savingLocale === locale" @click="transitionTranslation(locale, 'publish')">发布</el-button>
+            <el-button :loading="savingLocale === activeLocale" @click="aiTranslate(activeLocale)">AI 翻译</el-button>
+            <el-button :loading="savingLocale === activeLocale" @click="translateDetail(activeLocale)">翻译富文本详情</el-button>
+            <el-button :loading="savingLocale === activeLocale" @click="saveTranslation(activeLocale)">保存草稿</el-button>
+            <el-button :disabled="translationOf(activeLocale).status !== 'DRAFT' && translationOf(activeLocale).status !== 'MACHINE'"
+                       :loading="savingLocale === activeLocale" @click="transitionTranslation(activeLocale, 'review')">审核</el-button>
+            <el-button type="primary" :disabled="translationOf(activeLocale).status !== 'REVIEWED'"
+                       :loading="savingLocale === activeLocale" @click="transitionTranslation(activeLocale, 'publish')">发布</el-button>
           </div>
-        </template>
-        <el-empty v-else description="先创建商品，再录入译文" />
+              </template>
+            </template>
+          </section>
+        </div>
       </el-tab-pane>
     </el-tabs>
   </div>
 </template>
 
 <style scoped>
+.locale-layout {
+  display: grid;
+  grid-template-columns: 220px 1fr;
+  gap: 18px;
+  align-items: start;
+}
+
+.locale-side {
+  border-right: 1px solid #ece9e2;
+  padding-right: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.locale-summary {
+  margin: 0;
+  color: #6b7280;
+  font-size: 12px;
+}
+
+.locale-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  max-height: 520px;
+  overflow-y: auto;
+}
+
+.locale-list li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 6px 8px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.locale-list li:hover {
+  background: #f6f4ef;
+}
+
+.locale-list li.active {
+  background: #fdecec;
+  font-weight: 600;
+}
+
+.locale-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .mb-16 {
   margin-bottom: 16px;
 }

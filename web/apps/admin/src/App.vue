@@ -85,16 +85,28 @@ let notifyTimer: ReturnType<typeof setInterval> | undefined
 async function loadNotifications() {
   if (!auth.token) return
   notifyError.value = ''
-  try {
-    const [count, list] = await Promise.all([
-      api.get<{ unread: number }>('/admin/v1/notifications/unread-count'),
-      api.get<NotificationRow[]>('/admin/v1/notifications', { limit: 6, recipientType: 'STAFF' })
-    ])
-    unreadCount.value = count.unread ?? 0
-    recentNotifications.value = list
-  } catch (cause) {
-    // 明确提示，不静默当作"没有通知"
-    notifyError.value = '通知加载失败：' + (cause as Error).message
+  // 两个请求分开处理：未读数接口在后端版本较旧时不存在（404），
+  // 不该让整个铃铛变成"通知加载失败"——列表能拿到就照常显示，并**明确说明**未读数不可用。
+  const [countResult, listResult] = await Promise.allSettled([
+    api.get<{ unread: number }>('/admin/v1/notifications/unread-count'),
+    api.get<NotificationRow[]>('/admin/v1/notifications', { limit: 6, recipientType: 'STAFF' })
+  ])
+
+  if (listResult.status === 'fulfilled') {
+    recentNotifications.value = listResult.value
+  } else {
+    notifyError.value = '通知列表加载失败：' + (listResult.reason as Error).message
+  }
+
+  if (countResult.status === 'fulfilled') {
+    unreadCount.value = countResult.value.unread ?? 0
+  } else {
+    const message = (countResult.reason as Error).message ?? ''
+    unreadCount.value = 0
+    // 404 说明后端没有这个接口（多版本混跑时的典型现象），讲清原因而不是笼统报错
+    notifyError.value = message.includes('404')
+      ? '未读数接口不存在（后端版本较旧）：徽标已隐藏，列表仍可用。需要重新构建/部署后端。'
+      : '未读数加载失败：' + message
   }
 }
 

@@ -5,7 +5,7 @@ import { useRouter } from 'vue-router'
 import { api } from '../api'
 import { useEnums } from '../composables/useEnums'
 
-const { enumLabel } = useEnums()
+const { enumLabel, options } = useEnums()
 import { apiErrorMessage } from '../composables/useAsyncState'
 import AiGeneratePanel from '../components/AiGeneratePanel.vue'
 import AssetPicker from '../components/AssetPicker.vue'
@@ -341,10 +341,8 @@ loadAssets()
     <div class="mb-16 toolbar">
       <span class="label">用途</span>
       <el-select v-model="purposeFilter" clearable placeholder="全部用途" style="width: 160px">
-        <el-option label="商品图" value="PRODUCT" />
-        <el-option label="规格图" value="SPEC" />
-        <el-option label="视频/封面" value="VIDEO" />
-        <el-option label="AI 生成" value="AI_GENERATED" />
+        <el-option v-for="item in options('ASSET_PURPOSE')" :key="item.code"
+                   :label="item.label" :value="item.code" />
       </el-select>
       <el-select v-model="purposeValue" style="width: 180px">
         <el-option label="商品图" value="PRODUCT" />

@@ -143,7 +143,9 @@ onMounted(load)
     <el-table :data="posRows" v-loading="loading" empty-text="还没有 POS 专属促销">
       <el-table-column prop="code" label="编码" width="180" />
       <el-table-column prop="title" label="名称" min-width="180" />
-      <el-table-column prop="type" label="类型" width="130" />
+      <el-table-column label="类型" width="130">
+        <template #default="{ row }">{{ enumLabel('PROMOTION_TYPE', row.type) }}</template>
+      </el-table-column>
       <el-table-column label="状态" width="120">
         <template #default="{ row }">{{ enumLabel('PROMOTION_STATUS', row.status) }}</template>
       </el-table-column>

@@ -27,7 +27,7 @@ public final class EnumCatalog {
                 new Option("SPEC", "规格图"),
                 new Option("VIDEO", "视频/封面"),
                 new Option("AI_GENERATED", "AI 生成"),
-                new Option("AI", "AI 生成"),
+                new Option("AI", "AI 生成（早期数据）"),
                 new Option("IMPORT", "批量导入"),
                 new Option("E2E", "自动化测试")));
         GROUPS.put("ASSET_KIND", List.of(
@@ -73,6 +73,24 @@ public final class EnumCatalog {
                 new Option("SENT", "已发送"),
                 new Option("PENDING", "待发送"),
                 new Option("FAILED", "发送失败")));
+        GROUPS.put("MEDIA_PURPOSE", List.of(
+                new Option("MAIN", "商品主图"),
+                new Option("SPEC", "规格图"),
+                new Option("DETAIL", "详情图"),
+                new Option("VIDEO", "主图视频"),
+                new Option("COPY", "详情文案")));
+        GROUPS.put("MEDIA_ATTACH_ROLE", List.of(
+                new Option("MAIN", "主图"),
+                new Option("GALLERY", "图集"),
+                new Option("DETAIL", "详情图"),
+                new Option("VIDEO", "视频"),
+                new Option("SPEC", "规格图")));
+        GROUPS.put("COUPON_TYPE", List.of(
+                new Option("AMOUNT", "满减券"),
+                new Option("PERCENT", "折扣券")));
+        GROUPS.put("PROMOTION_TYPE", List.of(
+                new Option("FULL_REDUCE", "满减"),
+                new Option("FULL_DISCOUNT", "满折")));
         GROUPS.put("NOTIFICATION_CHANNEL", List.of(
                 new Option("IN_APP", "站内通知"),
                 new Option("SMS", "短信"),

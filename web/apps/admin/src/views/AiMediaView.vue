@@ -3,6 +3,9 @@ import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { api } from '../api'
+import { useEnums } from '../composables/useEnums'
+
+const { enumLabel, options } = useEnums()
 import ProductPicker from '../components/ProductPicker.vue'
 import SkuPicker from '../components/SkuPicker.vue'
 import AssetPicker from '../components/AssetPicker.vue'
@@ -219,11 +222,8 @@ onMounted(async () => {
             </el-form-item>
             <el-form-item label="用途">
               <el-select v-model="form.purpose" style="width: 220px">
-                <el-option label="商品主图" value="MAIN" />
-                <el-option label="规格图" value="SPEC" />
-                <el-option label="详情图" value="DETAIL" />
-                <el-option label="主图视频" value="VIDEO" />
-                <el-option label="详情文案" value="COPY" />
+                <el-option v-for="item in options('MEDIA_PURPOSE')" :key="item.code"
+                           :label="item.label" :value="item.code" />
               </el-select>
             </el-form-item>
             <el-form-item label="供应商">
@@ -309,11 +309,8 @@ onMounted(async () => {
             <ProductPicker v-model="form.productId" width="240px" />
             <span class="muted">挂载角色</span>
             <el-select v-model="attachRole" style="width: 120px">
-              <el-option label="主图" value="MAIN" />
-              <el-option label="图集" value="GALLERY" />
-              <el-option label="详情图" value="DETAIL" />
-              <el-option label="视频" value="VIDEO" />
-              <el-option label="规格图" value="SPEC" />
+              <el-option v-for="item in options('MEDIA_ATTACH_ROLE')" :key="item.code"
+                         :label="item.label" :value="item.code" />
             </el-select>
           </div>
           <el-empty v-if="!jobs.length" description="本页还没有提交记录" :image-size="60" />

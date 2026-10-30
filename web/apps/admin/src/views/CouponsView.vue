@@ -3,6 +3,9 @@ import { onMounted, reactive, ref } from 'vue'
 import { ElMessage } from 'element-plus'
 import { VALIDATION } from '@fullmall/api-client'
 import { api } from '../api'
+import { useEnums } from '../composables/useEnums'
+
+const { enumLabel, options } = useEnums()
 
 interface CouponTemplate {
   id: string
@@ -243,8 +246,8 @@ onMounted(load)
         </el-form-item>
         <el-form-item label="类型">
           <el-select v-model="form.type">
-            <el-option label="满减券" value="AMOUNT" />
-            <el-option label="折扣券" value="PERCENT" />
+            <el-option v-for="item in options('COUPON_TYPE')" :key="item.code"
+                       :label="item.label" :value="item.code" />
           </el-select>
         </el-form-item>
         <el-form-item v-if="form.type === 'AMOUNT'" label="面额（元）">

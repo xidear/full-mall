@@ -30,6 +30,14 @@ public class AiAskController {
         this.answers = answers;
     }
 
+    /** 未命中/被拦截的问题（运营补知识库用）。 */
+    @org.springframework.web.bind.annotation.GetMapping("/unanswered")
+    @PreAuthorize("hasAnyRole('ADMIN','OPERATOR','CS')")
+    public java.util.List<java.util.Map<String, Object>> unanswered(
+            @org.springframework.web.bind.annotation.RequestParam(defaultValue = "20") int limit) {
+        return answers.recentUnanswered(limit);
+    }
+
     @PostMapping("/ask")
     @PreAuthorize("hasAnyRole('ADMIN','OPERATOR','CS')")
     public AiAnswerService.Answer ask(@RequestBody AskRequest body, Authentication authentication) {

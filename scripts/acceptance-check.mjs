@@ -168,6 +168,23 @@ async function main() {
   }
   record('供应商启停端点可用（列表内直接切换）', supOk, supDetail);
 
+  // 11) AI 客服：问答三态 + 禁词拦截 + 未命中清单
+  const askBlank = await fetch(API + '/admin/v1/ai/ask', {
+    method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },
+    body: JSON.stringify({ question: '   ' })
+  });
+  const askBanned = await fetch(API + '/admin/v1/ai/ask', {
+    method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },
+    body: JSON.stringify({ question: '你这个傻逼机器人' })
+  });
+  const bannedBody = await askBanned.json().catch(() => ({}));
+  const unanswered = await get('/admin/v1/ai/unanswered?limit=5', token);
+  const guardOk = askBlank.status === 400
+    && askBanned.status === 200 && bannedBody.fallback === true
+    && unanswered.status === 200 && Array.isArray(JSON.parse(unanswered.body));
+  record('AI 客服：空问题 400 / 禁词转人工 / 未命中清单可查', guardOk,
+    'empty=' + askBlank.status + ' banned=' + askBanned.status + ' unanswered=' + unanswered.status);
+
   const failed = results.filter(r => !r.ok);
   console.log('\n' + (results.length - failed.length) + '/' + results.length + ' 通过');
   if (failed.length) {

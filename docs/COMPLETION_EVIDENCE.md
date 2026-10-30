@@ -25,7 +25,7 @@ npm run build -w @fullmall/admin    # 前端构建
 | ③ | 导出存储去兜底 | 未配置创建任务 → `503 EXPORT_STORAGE_NOT_CONFIGURED`；配置后 → `202` | `9e76725` |
 | ④ | StatusToggle 推广 | 供应商：停用/启用 200 + 审计 `SUPPLIER_STATUS_CHANGED`；优惠券：DRAFT→启用 200→停用 200→`DISABLED` | `a1b637a` `a3428ea` |
 | ⑤ | 枚举字典覆盖 | 素材库用途下拉 = 商品图/规格图/视频封面/AI 生成/批量导入/自动化测试（后端下发）；POS 类型列中文 | `e11188f` |
-| ⑥ | 三态测试 | `Tests run: 12, Failures: 0, Errors: 0`（storage 4 / export 3 / readiness 5） | `8aefd5d` |
+| ⑥ | 三态测试 | storage/export/readiness 12 条 + AI 问答 8 条（含禁词拦截、低分拒答、409→503 映射），全绿 | `8aefd5d` `ccae294` |
 | ⑦ | 生效值显示 | `GET /admin/v1/settings/effective?market=CN` → 12 项；页面渲染 12 行，来源 MARKET/GLOBAL | `1adf776` |
 | ⑧ | 前端 locale | admin / store-console 均 `locale: zhCn`；admin 无英文 empty-text/placeholder；其余前端不用 Element Plus | `71aaeb9` `1adf776` |
 | ⑨ | 构建 + 实测 + 提交 | 见下方"最近一次全量验证" | 本文件 |
@@ -50,7 +50,7 @@ $ npm run build -w @fullmall/storefront → 0
 
 | 项 | 状态 | 原因 |
 |---|---|---|
-| ⑥ 的 AI 三态 | 未测 | `POST /admin/v1/ai/ask` **从未实现**（前端只有外壳）；为不存在的接口写"未配置返回 503"没有意义 |
+| ⑥ 的 AI 真实命中路径 | 未验证 | 需要可用的 `openai-embedding` 供应商；当前环境没有，代码路径已由单测覆盖 |
 | ④ 门店启停 | 未做 | admin 没有门店管理页，没有可挂载的列表 |
 | ④ 促销启停 | 不做 | 促销/规则是 `DRAFT→ACTIVE→ENDED` 生命周期，布尔开关会把"草稿"表达成"停用"，语义错 |
 

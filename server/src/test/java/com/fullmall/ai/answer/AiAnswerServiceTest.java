@@ -38,7 +38,7 @@ class AiAnswerServiceTest {
             when(index.search(anyString(), anyString(), anyInt(), anyString())).thenReturn(hits);
         }
 
-        return new AiAnswerService(jdbc, index, mock(AuditEventService.class), 0.72, 5);
+        return new AiAnswerService(jdbc, index, mock(AuditEventService.class), 0.72, 5, "");
     }
 
     @Test
@@ -93,6 +93,17 @@ class AiAnswerServiceTest {
         assertThat(answer.fallback()).isTrue();
         assertThat(answer.answer()).isNull();
         assertThat(answer.reason()).contains("阈值");
+    }
+
+    @Test
+    void bannedQuestionIsRefusedWithFixedReply() {
+        var svc = service(List.of("ollama"), true, List.of(), null);
+
+        var answer = svc.ask("你这个傻逼机器人", "admin");
+
+        assertThat(answer.fallback()).isTrue();
+        assertThat(answer.answer()).isNull();
+        assertThat(answer.reason()).contains("不当内容");
     }
 
     @Test

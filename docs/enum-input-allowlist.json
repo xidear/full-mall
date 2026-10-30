@@ -1,0 +1,70 @@
+{
+  "entries": [
+    {
+      "file": "web/apps/admin/src/views/BrandsView.vue",
+      "kind": "hand-typed-enum",
+      "snippet": "placeholder=\"例如 BRAND-A\"",
+      "reason": "待复核"
+    },
+    {
+      "file": "web/apps/admin/src/views/CouponsView.vue",
+      "kind": "hand-typed-enum",
+      "snippet": "placeholder=\"例如 NEW-YEAR-50\"",
+      "reason": "待复核"
+    },
+    {
+      "file": "web/apps/admin/src/views/MarketsView.vue",
+      "kind": "hand-typed-enum",
+      "snippet": "placeholder=\"如 JP / HK / US\"",
+      "reason": "待复核"
+    },
+    {
+      "file": "web/apps/admin/src/views/MarketsView.vue",
+      "kind": "hand-typed-enum",
+      "snippet": "placeholder=\"如 XX 株式会社\"",
+      "reason": "待复核"
+    },
+    {
+      "file": "web/apps/admin/src/views/PosMembersView.vue",
+      "kind": "hand-typed-enum",
+      "snippet": "placeholder=\"例如 POS20\"",
+      "reason": "待复核"
+    },
+    {
+      "file": "web/apps/admin/src/views/ProductEditView.vue",
+      "kind": "hand-typed-enum",
+      "snippet": "placeholder=\"例如 PHONE\"",
+      "reason": "待复核"
+    },
+    {
+      "file": "web/apps/admin/src/views/PromotionsView.vue",
+      "kind": "hand-typed-enum",
+      "snippet": "placeholder=\"例如 FULL-200-20\"",
+      "reason": "待复核"
+    },
+    {
+      "file": "web/apps/admin/src/views/SetupView.vue",
+      "kind": "hand-typed-enum",
+      "snippet": "placeholder=\"例如 Full Mall\"",
+      "reason": "待复核"
+    },
+    {
+      "file": "web/apps/admin/src/views/SetupView.vue",
+      "kind": "hand-typed-enum",
+      "snippet": "placeholder=\"例如 shop.example.com 或 shop.example.com:15052\"",
+      "reason": "待复核"
+    },
+    {
+      "file": "web/apps/admin/src/views/SkuMatrixView.vue",
+      "kind": "hand-typed-enum",
+      "snippet": "placeholder=\"例如 PHONE-COLOR-MEM（大写字母/数字/-/_）\"",
+      "reason": "待复核"
+    },
+    {
+      "file": "web/apps/admin/src/views/StaffView.vue",
+      "kind": "hand-typed-enum",
+      "snippet": "placeholder=\"字母数字与 . _ -，如 zhangsan\"",
+      "reason": "待复核"
+    }
+  ]
+}

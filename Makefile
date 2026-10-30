@@ -93,6 +93,8 @@ contract-check:
 	node scripts/generate-permission-help.mjs --check
 	# 静默兜底检查（AGENTS §1）：缺配置被默认值掩盖的地方必须登记理由
 	python3 scripts/check-fallbacks.py --check
+	# 枚举/裸码检查（AGENTS 13 / 13.1）
+	python3 scripts/check-enum-inputs.py --check
 
 # 页面呈现审计（对比度 / 裂图 / 控制台报错 / 横向溢出）。需要 API(41280) 与 admin(41281) 已启动。
 ui-audit:

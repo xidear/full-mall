@@ -8,6 +8,8 @@
 import { onMounted, reactive, ref } from 'vue'
 import { ElMessage } from 'element-plus'
 import { api } from '../api'
+/** 辖区以国家码为主，但允许自定义（如 CN-VAT）：国家码不该靠手背。 */
+const countryOptions = ref<Array<{ code: string; name: string }>>([])
 
 interface RuleRow {
   id: string
@@ -99,7 +101,18 @@ async function remove(row: RuleRow) {
   }
 }
 
-onMounted(load)
+async function loadCountries() {
+  try {
+    countryOptions.value = await api.get<Array<{ code: string; name: string }>>('/api/v1/regions/countries', { locale: 'zh-CN' })
+  } catch (cause) {
+    ElMessage.error('国家候选加载失败：' + (cause instanceof Error ? cause.message : ''))
+  }
+}
+
+onMounted(async () => {
+  await loadCountries()
+  await load()
+})
 </script>
 
 <template>
@@ -144,7 +157,11 @@ onMounted(load)
     <el-dialog v-model="dialogVisible" :title="editing.id ? '编辑税率' : '新增税率'" width="520px">
       <el-form label-width="110px">
         <el-form-item label="税务辖区">
-          <el-input v-model="editing.jurisdiction" placeholder="国家码或市场辖区，如 SG / CN-VAT" />
+          <el-select v-model="editing.jurisdiction" filterable allow-create default-first-option
+                     placeholder="选择国家码，或直接输入自定义辖区（如 CN-VAT）" style="width: 100%">
+            <el-option v-for="item in countryOptions" :key="item.code"
+                       :label="item.name + '（' + item.code + '）'" :value="item.code" />
+          </el-select>
         </el-form-item>
         <el-form-item label="名称">
           <el-input v-model="editing.name" placeholder="如 增值税 13%" />

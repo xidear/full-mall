@@ -21,3 +21,11 @@ export const SUPPLIER_BASE = base('E2E_SUPPLIER_BASE', 'http://localhost:41283')
 export const SUPPORT_BASE = base('E2E_SUPPORT_BASE', 'http://localhost:41284')
 export const STOREFRONT_BASE = base('E2E_STOREFRONT_BASE', 'http://localhost:41285')
 export const MOBILE_BASE = base('E2E_MOBILE_BASE', 'http://localhost:41286')
+
+/**
+ * 商城主机名（不含端口）：写 cookie 时必须与访问地址同域。
+ *
+ * <p>踩过的坑：spec 里写死 domain: 'localhost'，而 E2E 用 127.0.0.1 访问时浏览器不会带上该 cookie，
+ * 页面表现就是"会员明明登录了却没有数据"。
+ */
+export const STOREFRONT_HOST = new URL(STOREFRONT_BASE).hostname

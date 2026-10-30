@@ -57,7 +57,7 @@ test('admin picks assets and products instead of typing ids', async ({ page, req
   // 手填 UUID 的输入框必须彻底消失——这条计数断言就是“不再手填”的回归线。
 
   // 测试自清理：上传的素材必须删掉，否则演示库会被 picker.png/m.png 这类垃圾图填满
-  const removed = await request.delete(`http://localhost:41280/admin/v1/assets/${uploadedAssetId}`, {
+  const removed = await request.delete(`${API_BASE}/admin/v1/assets/${uploadedAssetId}`, {
     headers: { Authorization: `Bearer ${token}` }
   })
   expect(removed.ok(), await removed.text()).toBeTruthy()

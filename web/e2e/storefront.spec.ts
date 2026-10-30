@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test'
 import { e2ePhone } from './utils/e2ePhone'
-import { API_BASE } from './env'
+import { API_BASE, STOREFRONT_HOST } from './env'
 
 async function waitForNuxtHydration(page: import('@playwright/test').Page) {
   await page.waitForFunction(() => {
@@ -44,7 +44,7 @@ test('storefront can browse and create a pickup order', async ({ page, request }
   const member = (await (await request.post(API_BASE + '/api/v1/member/auth/verify',
     { data: { phone, code } })).json()).token
   await page.context().addCookies([{
-    name: 'fullmall_member_token', value: member, domain: 'localhost', path: '/', sameSite: 'Lax'
+    name: 'fullmall_member_token', value: member, domain: STOREFRONT_HOST, path: '/', sameSite: 'Lax'
   }])
   await page.reload({ waitUntil: 'networkidle' })
   await expect(page.getByRole('heading', { name: '结算' })).toBeVisible()

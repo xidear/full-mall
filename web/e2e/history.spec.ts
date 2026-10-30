@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test'
 import { e2ePhone } from './utils/e2ePhone'
-import { API_BASE, STOREFRONT_BASE } from './env'
+import { API_BASE, STOREFRONT_BASE, STOREFRONT_HOST } from './env'
 
 const API = API_BASE
 const SKU = 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb'
@@ -26,7 +26,7 @@ test('browse history page shows recorded product', async ({ page, request }) => 
   expect(title.length).toBeGreaterThan(0)
 
   await page.context().addCookies([{
-    name: 'fullmall_member_token', value: token, domain: 'localhost', path: '/', sameSite: 'Lax'
+    name: 'fullmall_member_token', value: token, domain: STOREFRONT_HOST, path: '/', sameSite: 'Lax'
   }])
   await page.goto(STOREFRONT_BASE + '/history')
   await expect(page.getByRole('heading', { name: '浏览足迹' })).toBeVisible()

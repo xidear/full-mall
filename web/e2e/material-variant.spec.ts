@@ -6,6 +6,14 @@ import { ADMIN_BASE, API_BASE } from './env'
 // 依赖：41280/41281、素材上传（purpose=PRODUCT）、变体 worker（每 10s 消费一次）与 AI mock（41288）。
 // 失败线索：90s 仍无标签 → 先看 worker 在不在跑、AI provider 是否指向 mock；失败原因看 .job-state 文案。
 test('material library generates a variant end to end', async ({ page, request }) => {
+  // 依赖真实图像生成能力（AI 供应商 + 变体 worker）。未配置供应商时"跳过"而不是"失败"，
+  // 否则任何没有 AI 凭证的环境都会永远红——那不是代码缺陷。
+  const providerProbe = await request.get(API_BASE + '/admin/v1/ai/providers')
+  const providerList = providerProbe.ok() ? await providerProbe.json() : []
+  const hasImageProvider = Array.isArray(providerList)
+    && providerList.some((item: { kind?: string }) => (item.kind ?? '').toUpperCase() === 'IMAGE')
+  test.skip(!hasImageProvider, '未配置 IMAGE 类 AI 供应商：该用例需要真实图像生成能力，跳过而非失败')
+
   const captcha = await (await request.get(API_BASE + '/admin/v1/auth/captcha')).json()
   const nums = (captcha.question.match(/\d+/g) ?? []).map(Number)
   const login = await request.post(API_BASE + '/admin/v1/auth/login', {
@@ -49,7 +57,7 @@ test('material library generates a variant end to end', async ({ page, request }
 
   // 测试自清理：参考图与生成结果都要删掉（否则每跑一次素材库多两张垃圾图）
   const uploadedAssetId = (await uploaded.json()).assetId as string
-  await request.delete(`http://localhost:41280/admin/v1/assets/${uploadedAssetId}`, {
+  await request.delete(`${API_BASE}/admin/v1/assets/${uploadedAssetId}`, {
     headers: { Authorization: `Bearer ${token}` }
   })
   const listed = await request.get(API_BASE + '/admin/v1/assets/search?page=0&size=5', {
@@ -58,7 +66,7 @@ test('material library generates a variant end to end', async ({ page, request }
   const page1 = await listed.json() as { items: Array<{ id: string; name: string }> }
   const generated = page1.items.find(item => item.name.startsWith('AI '))
   if (generated) {
-    const removed = await request.delete(`http://localhost:41280/admin/v1/assets/${generated.id}`, {
+    const removed = await request.delete(`${API_BASE}/admin/v1/assets/${generated.id}`, {
       headers: { Authorization: `Bearer ${token}` }
     })
     expect(removed.ok(), await removed.text()).toBeTruthy()

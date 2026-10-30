@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test'
 import { e2ePhone } from './utils/e2ePhone'
-import { API_BASE, STOREFRONT_BASE } from './env'
+import { API_BASE, STOREFRONT_BASE, STOREFRONT_HOST } from './env'
 
 const API = API_BASE
 
@@ -17,7 +17,7 @@ test('member pages require login and render once signed in', async ({ page, requ
 
   // 登录后：页面正常渲染（空列表也算通过）
   await page.context().addCookies([{
-    name: 'fullmall_member_token', value: token, domain: 'localhost', path: '/', sameSite: 'Lax'
+    name: 'fullmall_member_token', value: token, domain: STOREFRONT_HOST, path: '/', sameSite: 'Lax'
   }])
   await page.goto(STOREFRONT_BASE + '/notifications')
   await expect(page.getByRole('heading', { name: '消息中心' })).toBeVisible()

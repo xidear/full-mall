@@ -1,7 +1,7 @@
 import { expect, test } from '@playwright/test'
 import type { Page } from '@playwright/test'
 import { e2ePhone } from './utils/e2ePhone'
-import { API_BASE } from './env'
+import { API_BASE, STOREFRONT_HOST } from './env'
 
 /**
  * 国别驱动地址表单（ADR-0013 §8 / ADR-0014）真机测试。
@@ -23,7 +23,7 @@ async function loginCookie(page: Page, request: import('@playwright/test').APIRe
   const token = (await (await request.post(`${API}/api/v1/member/auth/verify`,
     { data: { phone, code } })).json()).token
   await page.context().addCookies([{
-    name: 'fullmall_member_token', value: token, domain: 'localhost', path: '/', sameSite: 'Lax'
+    name: 'fullmall_member_token', value: token, domain: STOREFRONT_HOST, path: '/', sameSite: 'Lax'
   }])
   return phone
 }

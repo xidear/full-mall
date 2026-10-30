@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test'
-import { API_BASE } from './env'
+import { API_BASE, STOREFRONT_BASE, STOREFRONT_HOST } from './env'
 
 const API = API_BASE
 const SKU = 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb'
@@ -62,9 +62,9 @@ test('customer sees tracking on order page after shipment', async ({ page, reque
   // 4) 顾客打开订单页（cookie 带身份，SSR 也要能取到）并查询轨迹
   await page.context().addCookies([{
     name: 'fullmall_member_token', value: token,
-    domain: 'localhost', path: '/', sameSite: 'Lax'
+    domain: STOREFRONT_HOST, path: '/', sameSite: 'Lax'
   }])
-  await page.goto(`http://localhost:41285/orders/${order.id}`)
+  await page.goto(`${STOREFRONT_BASE}/orders/${order.id}`)
   // D11 验证：硬刷新（SSR）也能拿到会员身份并渲染履约
   await expect(page.getByRole('heading', { name: '履约' })).toBeVisible({ timeout: 15_000 })
   await expect(page.getByText('物流单号：SF-E2E-TRACK-1')).toBeVisible()

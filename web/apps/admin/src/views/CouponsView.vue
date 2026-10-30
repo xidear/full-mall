@@ -152,9 +152,9 @@ async function submit() {
 
 /** 启用=activate，停用=disable；失败抛出让开关保持原状态。 */
 async function toggleCoupon(row: { id: string; title: string; status: string }, next: boolean) {
-  const suffix = next ? `/activate` : `/disable`
-  await api.post(`/admin/v1/coupons/templates/${row.id}${suffix}`)
-  row.status = next ? `ACTIVE` : `DISABLED`
+  const suffix = next ? '/activate' : '/disable'
+  await api.post('/admin/v1/coupons/templates/' + row.id + suffix)
+  row.status = next ? 'ACTIVE' : 'DISABLED'
 }
 
 async function activate(template: CouponTemplate) {

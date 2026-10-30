@@ -99,7 +99,7 @@ async function load() {
 /** 只切换启用状态；失败抛出让开关保持原值。 */
 async function toggleActive(row: { supplierId?: string; id?: string; active: boolean }, next: boolean) {
   const id = row.supplierId ?? row.id
-  await api.post(`/admin/v1/suppliers/` + id + `/active`, { active: next })
+  await api.post('/admin/v1/suppliers/' + id + '/active', { active: next })
   row.active = next
 }
 

@@ -71,7 +71,13 @@ const effective = ref<EffectiveSetting[]>([])
 const effectiveMarket = ref('CN')
 
 async function loadEffective(marketCode?: string) {
-  const target = (marketCode ?? form.default_market ?? 'CN') || 'CN'
+  // 不编造默认市场：没有默认市场时明确提示，而不是拿 CN 冒充
+  const target = marketCode ?? form.default_market ?? ''
+  if (!target) {
+    effective.value = []
+    ElMessage.warning('尚未设置默认市场：无法计算市场级生效值，请在下方先选择运营地区')
+    return
+  }
   try {
     effective.value = await api.get<EffectiveSetting[]>('/admin/v1/settings/effective', { market: target })
     effectiveMarket.value = target

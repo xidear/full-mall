@@ -45,9 +45,10 @@ const API = import.meta.env.VITE_API_BASE || ''
 // API 空串 = 同源（vite dev 把 /api、/support 代理到 41280）。
 // 社区版没有登录：坐席身份就是 localStorage 里的 agentId，后端信任该参数——
 // 知道 agentId 的人就能以该坐席发言，接 SSO/PIN 之前不要把它当权限边界。
-const STOREFRONT = import.meta.env.VITE_STOREFRONT_BASE || 'http://localhost:3000'
-// 商品卡要指回顾客端：未配 VITE_STOREFRONT_BASE 时退回 localhost:3000（AGENTS.md §8 是 41285），
-// 部署必须显式配置，否则卡片链接指向不存在的端口。
+const STOREFRONT = import.meta.env.VITE_STOREFRONT_BASE || ''
+// 商品卡要指回顾客端。**不再兜底 localhost:3000**（那个端口本项目根本不用，链接必然 404）：
+// 未配置 VITE_STOREFRONT_BASE 时商品链接不渲染，并在顶部提示缺配置。
+const STOREFRONT_MISSING = !STOREFRONT
 const agents = ref<Agent[]>([])
 const agentId = ref(localStorage.getItem('fullmall.support.agent') || '')
 const conversations = ref<Conversation[]>([])

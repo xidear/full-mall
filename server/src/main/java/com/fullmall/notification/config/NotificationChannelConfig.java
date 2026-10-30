@@ -21,6 +21,23 @@ import java.util.Locale;
 public class NotificationChannelConfig {
 
     private final boolean production;
+    private static final org.slf4j.Logger log =
+            org.slf4j.LoggerFactory.getLogger(NotificationChannelConfig.class);
+
+    /**
+     * 通道服务商必须显式配置：以前默认 mock，生产会"发送成功"但一条短信都没发出去，
+     * 是最难发现的静默兜底。现在缺失直接启动失败；mock 也要显式写出来并打 WARN。
+     */
+    private static String requireProvider(String provider) {
+        if (provider == null || provider.isBlank()) {
+            throw new IllegalStateException(
+                    "通知通道未配置：设置 APP_SMS_PROVIDER=aliyun（真实）或 mock（开发用，不会真发）");
+        }
+        if ("mock".equalsIgnoreCase(provider.trim())) {
+            log.warn("通知通道使用 mock：消息只会落库，不会真正发送（APP_SMS_PROVIDER=mock）");
+        }
+        return provider.trim();
+    }
 
     public NotificationChannelConfig(@Value("${app.mode:dev}") String mode) {
         this.production = "prod".equals(mode == null ? "" : mode.trim().toLowerCase(Locale.ROOT));
@@ -34,29 +51,29 @@ public class NotificationChannelConfig {
     // 外部渠道：只有非生产模式才装 mock，避免"假发送成功"污染生产数据。
     @Bean
     public NotificationChannelSender smsNotificationSender(
-            @Value("${app.sms.provider:mock}") String provider,
+            @Value("${app.sms.provider:}") String provider,
             @Value("${app.sms.aliyun.access-key-id:}") String aliyunKeyId,
             @Value("${app.sms.aliyun.access-key-secret:}") String aliyunKeySecret,
             @Value("${app.sms.aliyun.endpoint:}") String aliyunEndpoint,
             @Value("${app.sms.aliyun.sign-name:}") String aliyunSignName,
             @Value("${app.sms.aliyun.template-code:}") String aliyunTemplateCode) {
-        if ("aliyun".equalsIgnoreCase(provider == null ? "" : provider.trim())) {
+        if ("aliyun".equalsIgnoreCase(requireProvider(provider))) {
             // 真实通道：配置缺失会在这里启动失败，不会假装发送成功
             return new com.fullmall.notification.channel.AliyunSmsSender(
                     aliyunKeyId, aliyunKeySecret, aliyunEndpoint, aliyunSignName, aliyunTemplateCode);
         }
-        return externalSender("SMS", provider);
+        return externalSender("SMS", requireProvider(provider));
     }
 
     @Bean
     public NotificationChannelSender emailNotificationSender(
-            @Value("${app.sms.provider:mock}") String provider) {
-        return externalSender("EMAIL", provider);
+            @Value("${app.sms.provider:}") String provider) {
+        return externalSender("EMAIL", requireProvider(provider));
     }
 
     @Bean
     public NotificationChannelSender wechatNotificationSender(
-            @Value("${app.sms.provider:mock}") String provider,
+            @Value("${app.sms.provider:}") String provider,
             @Value("${app.notification.wechat.app-id:}") String wechatAppId,
             @Value("${app.notification.wechat.app-secret:}") String wechatAppSecret,
             @Value("${app.notification.wechat.template-id:}") String wechatTemplateId) {
@@ -64,12 +81,12 @@ public class NotificationChannelConfig {
             return new com.fullmall.notification.channel.WechatTemplateSender(
                     wechatAppId, wechatAppSecret, wechatTemplateId);
         }
-        return externalSender("WECHAT", provider);
+        return externalSender("WECHAT", requireProvider(provider));
     }
 
     @Bean
     public NotificationChannelSender appPushNotificationSender(
-            @Value("${app.sms.provider:mock}") String provider) {
+            @Value("${app.sms.provider:}") String provider) {
         return externalSender("APP", provider);
     }
 

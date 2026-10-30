@@ -40,7 +40,7 @@ public class PaymentService {
                           OrderService orderService,
                           PaymentConnector mockPaymentConnector,
                           AnalyticsService analyticsService,
-                          @Value("${app.payment.provider:mock}") String configuredProvider,
+                          @Value("${app.payment.provider:}") String configuredProvider,
                           com.fullmall.distribution.app.CommissionLedgerService commissionLedger,
                           com.fullmall.distribution.app.ReferralService referralService,
                           com.fullmall.member.app.MemberRewardService memberRewards,
@@ -57,7 +57,16 @@ public class PaymentService {
         this.orderService = orderService;
         this.mockPaymentConnector = mockPaymentConnector;
         this.analyticsService = analyticsService;
-        this.configuredProvider = configuredProvider;
+        // 支付通道必须显式配置：以前默认 mock，线上会"支付成功"但一分钱没收到。
+        if (configuredProvider == null || configuredProvider.isBlank()) {
+            throw new IllegalStateException(
+                    "支付通道未配置：设置 APP_PAYMENT_PROVIDER=mock（开发用，不会真扣款）或真实的 wechat/alipay");
+        }
+        if ("mock".equalsIgnoreCase(configuredProvider.trim())) {
+            org.slf4j.LoggerFactory.getLogger(PaymentService.class)
+                    .warn("支付使用 mock：下单会直接标记已支付，不会真实扣款（APP_PAYMENT_PROVIDER=mock）");
+        }
+        this.configuredProvider = configuredProvider.trim();
         this.commissionLedger = commissionLedger;
         this.referralService = referralService;
         this.memberRewards = memberRewards;

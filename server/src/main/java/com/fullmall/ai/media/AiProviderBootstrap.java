@@ -24,7 +24,7 @@ import java.util.UUID;
 // 可显式关闭：测试环境关掉（见 application-test.yml）。它注入的 ollama-embedding 优先级 510
 // 高于测试自建 mock 服务（10），被选中后会去连测试里不存在的地址，表现为 ConnectException。
 @org.springframework.boot.autoconfigure.condition.ConditionalOnProperty(
-        name = "app.ai.bootstrap.enabled", havingValue = "true", matchIfMissing = true)
+        name = "app.ai.bootstrap.enabled", havingValue = "true")
 public class AiProviderBootstrap {
 
     private static final Logger log = LoggerFactory.getLogger(AiProviderBootstrap.class);

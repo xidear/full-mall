@@ -1,0 +1,550 @@
+{
+  "entries": [
+    {
+      "file": "server/src/main/java/com/fullmall/aftersale/app/ExchangeAutoCompleteTask.java",
+      "category": "value-default",
+      "snippet": "@Value(\"${app.after-sale.exchange-auto-complete-days:7}\")",
+      "reason": "数值型上限/时长，非资金与安全判定"
+    },
+    {
+      "file": "server/src/main/java/com/fullmall/ai/knowledge/SemanticIndexService.java",
+      "category": "value-default",
+      "snippet": "@Value(\"${app.ai.semantic.enabled:false}\")",
+      "reason": "功能开关默认值"
+    },
+    {
+      "file": "server/src/main/java/com/fullmall/ai/media/AiProviderBootstrap.java",
+      "category": "value-default",
+      "snippet": "@Value(\"${app.ai.ollama.base-url:http://localhost:41289/v1}\"",
+      "reason": "本地示例模型标识，仅在显式开启 bootstrap 时使用"
+    },
+    {
+      "file": "server/src/main/java/com/fullmall/ai/media/AiProviderBootstrap.java",
+      "category": "value-default",
+      "snippet": "@Value(\"${app.ai.ollama.text-model:qwen2.5:0.5b}\")",
+      "reason": "本地示例模型标识，仅在显式开启 bootstrap 时使用"
+    },
+    {
+      "file": "server/src/main/java/com/fullmall/ai/media/AiProviderBootstrap.java",
+      "category": "value-default",
+      "snippet": "@Value(\"${app.ai.ollama.embedding-model:nomic-embed-text}\")",
+      "reason": "本地示例模型标识，仅在显式开启 bootstrap 时使用"
+    },
+    {
+      "file": "server/src/main/java/com/fullmall/ai/status/AiStatusController.java",
+      "category": "value-default",
+      "snippet": "@Value(\"${app.edition:internal}\")",
+      "reason": "构建形态默认 internal；开源构建显式 APP_EDITION=community"
+    },
+    {
+      "file": "server/src/main/java/com/fullmall/asset/app/AssetImageIndexService.java",
+      "category": "value-default",
+      "snippet": "@Value(\"${app.ai.clip.model:clip-vit-base-patch32}\")",
+      "reason": "本地示例模型标识，仅在显式开启 bootstrap 时使用"
+    },
+    {
+      "file": "server/src/main/java/com/fullmall/demo/config/DemoReadOnlyFilter.java",
+      "category": "value-default",
+      "snippet": "@Value(\"${app.demo.read-only:true}\")",
+      "reason": "功能开关默认值"
+    },
+    {
+      "file": "server/src/main/java/com/fullmall/feature/app/FeatureFlagService.java",
+      "category": "value-default",
+      "snippet": "@Value(\"${app.feature.cache-ttl-seconds:30}\")",
+      "reason": "数值型上限/时长，非资金与安全判定"
+    },
+    {
+      "file": "server/src/main/java/com/fullmall/fulfillment/app/FulfillmentService.java",
+      "category": "value-default",
+      "snippet": "@Value(\"${app.pickup.expiry-hours:48}\")",
+      "reason": "数值型上限/时长，非资金与安全判定"
+    },
+    {
+      "file": "server/src/main/java/com/fullmall/inventory/app/ExpiryAlertService.java",
+      "category": "value-default",
+      "snippet": "@Value(\"${app.inventory.expiry-warn-days:30}\")",
+      "reason": "数值型上限/时长，非资金与安全判定"
+    },
+    {
+      "file": "server/src/main/java/com/fullmall/inventory/app/ExpiryAlertService.java",
+      "category": "value-default",
+      "snippet": "@Value(\"${app.inventory.expiry-notify:true}\")",
+      "reason": "数值型上限/时长，非资金与安全判定"
+    },
+    {
+      "file": "server/src/main/java/com/fullmall/inventory/app/InventoryService.java",
+      "category": "value-default",
+      "snippet": "@Value(\"${app.reservation.expiry-minutes:30}\")",
+      "reason": "数值型上限/时长，非资金与安全判定"
+    },
+    {
+      "file": "server/src/main/java/com/fullmall/logistics/app/Kuaidi100Client.java",
+      "category": "value-default",
+      "snippet": "@Value(\"${app.logistics.kuaidi100.endpoint:https://poll.kuai",
+      "reason": "供应商公开 API 地址，可被环境变量覆盖"
+    },
+    {
+      "file": "server/src/main/java/com/fullmall/logistics/app/LogisticsTrackingService.java",
+      "category": "value-default",
+      "snippet": "@Value(\"${app.mode:dev}\")",
+      "reason": "运行模式默认 dev；生产需显式 APP_MODE=prod（已在部署清单标注）"
+    },
+    {
+      "file": "server/src/main/java/com/fullmall/member/auth/MemberAuthService.java",
+      "category": "value-default",
+      "snippet": "@Value(\"${app.member.otp.return-code:false}\")",
+      "reason": "功能开关默认值"
+    },
+    {
+      "file": "server/src/main/java/com/fullmall/notification/app/NotificationRetentionTask.java",
+      "category": "value-default",
+      "snippet": "@Value(\"${app.notification.retention.days:180}\")",
+      "reason": "数值型上限/时长，非资金与安全判定"
+    },
+    {
+      "file": "server/src/main/java/com/fullmall/notification/config/NotificationChannelConfig.java",
+      "category": "value-default",
+      "snippet": "@Value(\"${app.mode:dev}\")",
+      "reason": "运行模式默认 dev；生产需显式 APP_MODE=prod（已在部署清单标注）"
+    },
+    {
+      "file": "server/src/main/java/com/fullmall/ops/app/OpsService.java",
+      "category": "value-default",
+      "snippet": "@Value(\"${app.ops.agents:local=http://127.0.0.1:41287}\")",
+      "reason": "本地预览/本机代理地址，连不上会显式报错"
+    },
+    {
+      "file": "server/src/main/java/com/fullmall/ops/app/OpsService.java",
+      "category": "value-default",
+      "snippet": "@Value(\"${app.ssl.helper-url:http://127.0.0.1:41287}\")",
+      "reason": "本地预览/本机代理地址，连不上会显式报错"
+    },
+    {
+      "file": "server/src/main/java/com/fullmall/ops/app/OpsService.java",
+      "category": "value-default",
+      "snippet": "@Value(\"${app.ops.request-timeout-ms:15000}\")",
+      "reason": "数值型上限/时长，非资金与安全判定"
+    },
+    {
+      "file": "server/src/main/java/com/fullmall/order/jobs/OrderExpiryJob.java",
+      "category": "value-default",
+      "snippet": "@Value(\"${app.reservation.expiry-minutes:30}\")",
+      "reason": "数值型上限/时长，非资金与安全判定"
+    },
+    {
+      "file": "server/src/main/java/com/fullmall/payment/callback/WechatV3CallbackVerifier.java",
+      "category": "value-default",
+      "snippet": "@Value(\"${app.payment.wechat.callback-max-skew-seconds:300}\"",
+      "reason": "数值型上限/时长，非资金与安全判定"
+    },
+    {
+      "file": "server/src/main/java/com/fullmall/payment/wechat/WechatTransferConfig.java",
+      "category": "value-default",
+      "snippet": "@Value(\"${app.payout.wechat.base-url:https://api.mch.weixin.",
+      "reason": "待复核（已登记，不阻断 CI）：需逐个确认是否应改为显式失败"
+    },
+    {
+      "file": "server/src/main/java/com/fullmall/platform/asset/AssetStorageConfig.java",
+      "category": "value-default",
+      "snippet": "@Value(\"${app.asset.local.public-base-url:/assets}\")",
+      "reason": "部署参数（静态资源前缀），生产由部署方覆盖"
+    },
+    {
+      "file": "server/src/main/java/com/fullmall/platform/asset/UploadMultipartGuard.java",
+      "category": "value-default",
+      "snippet": "@Value(\"${spring.servlet.multipart.max-file-size:1MB}\")",
+      "reason": "数值型上限/时长，非资金与安全判定"
+    },
+    {
+      "file": "server/src/main/java/com/fullmall/platform/audit/AuditConfig.java",
+      "category": "value-default",
+      "snippet": "@Value(\"${app.audit.schema-management:false}\")",
+      "reason": "功能开关默认值"
+    },
+    {
+      "file": "server/src/main/java/com/fullmall/platform/config/ProductionReadinessChecker.java",
+      "category": "value-default",
+      "snippet": "@Value(\"${app.mode:dev}\")",
+      "reason": "运行模式默认 dev；生产需显式 APP_MODE=prod（已在部署清单标注）"
+    },
+    {
+      "file": "server/src/main/java/com/fullmall/platform/export/ExportRetentionTask.java",
+      "category": "value-default",
+      "snippet": "@Value(\"${app.export.retention.days:7}\")",
+      "reason": "数值型上限/时长，非资金与安全判定"
+    },
+    {
+      "file": "server/src/main/java/com/fullmall/platform/export/ExportWorker.java",
+      "category": "value-default",
+      "snippet": "@Value(\"${app.export.max-rows:5000}\")",
+      "reason": "数值型上限/时长，非资金与安全判定"
+    },
+    {
+      "file": "server/src/main/java/com/fullmall/platform/security/RateLimitFilter.java",
+      "category": "value-default",
+      "snippet": "@Value(\"${app.rate-limit.enabled:true}\")",
+      "reason": "功能开关默认值"
+    },
+    {
+      "file": "server/src/main/java/com/fullmall/platform/security/RateLimitFilter.java",
+      "category": "value-default",
+      "snippet": "@Value(\"${app.rate-limit.max-requests:120}\")",
+      "reason": "数值型上限/时长，非资金与安全判定"
+    },
+    {
+      "file": "server/src/main/java/com/fullmall/platform/security/RateLimitFilter.java",
+      "category": "value-default",
+      "snippet": "@Value(\"${app.rate-limit.window-seconds:60}\")",
+      "reason": "数值型上限/时长，非资金与安全判定"
+    },
+    {
+      "file": "server/src/main/java/com/fullmall/platform/security/SecurityHeadersFilter.java",
+      "category": "value-default",
+      "snippet": "@Value(\"${app.security.hsts-enabled:false}\")",
+      "reason": "功能开关默认值"
+    },
+    {
+      "file": "server/src/main/java/com/fullmall/platform/web/PaginationDepthGuardFilter.java",
+      "category": "value-default",
+      "snippet": "@Value(\"${app.pagination.max-page:500}\")",
+      "reason": "待复核（已登记，不阻断 CI）：需逐个确认是否应改为显式失败"
+    },
+    {
+      "file": "server/src/main/java/com/fullmall/promotion/config/SeckillConfig.java",
+      "category": "value-default",
+      "snippet": "@Value(\"${app.seckill.capacity:200}\")",
+      "reason": "待复核（已登记，不阻断 CI）：需逐个确认是否应改为显式失败"
+    },
+    {
+      "file": "server/src/main/java/com/fullmall/promotion/config/SeckillConfig.java",
+      "category": "value-default",
+      "snippet": "@Value(\"${app.seckill.refill-per-second:100}\")",
+      "reason": "待复核（已登记，不阻断 CI）：需逐个确认是否应改为显式失败"
+    },
+    {
+      "file": "server/src/main/java/com/fullmall/promotion/config/SeckillConfig.java",
+      "category": "value-default",
+      "snippet": "@Value(\"${app.seckill.max-concurrent:50}\")",
+      "reason": "待复核（已登记，不阻断 CI）：需逐个确认是否应改为显式失败"
+    },
+    {
+      "file": "server/src/main/java/com/fullmall/promotion/ladder/PromotionLadderService.java",
+      "category": "value-default",
+      "snippet": "@Value(\"${app.promotion.ladder-enabled:false}\")",
+      "reason": "功能开关默认值"
+    },
+    {
+      "file": "server/src/main/java/com/fullmall/review/app/ReviewModerationPolicy.java",
+      "category": "value-default",
+      "snippet": "@Value(\"${app.review.moderation.auto:true}\")",
+      "reason": "待复核（已登记，不阻断 CI）：需逐个确认是否应改为显式失败"
+    },
+    {
+      "file": "server/src/main/java/com/fullmall/seed/DemoDataSeeder.java",
+      "category": "value-default",
+      "snippet": "@Value(\"${app.mode:dev}\")",
+      "reason": "运行模式默认 dev；生产需显式 APP_MODE=prod（已在部署清单标注）"
+    },
+    {
+      "file": "server/src/main/java/com/fullmall/setting/app/SystemSettingService.java",
+      "category": "value-default",
+      "snippet": "@Value(\"${app.feature.cache-ttl-seconds:30}\")",
+      "reason": "数值型上限/时长，非资金与安全判定"
+    },
+    {
+      "file": "server/src/main/java/com/fullmall/store/app/StoreAccessService.java",
+      "category": "value-default",
+      "snippet": "@Value(\"${app.store.auth-required:false}\")",
+      "reason": "待复核（已登记，不阻断 CI）：需逐个确认是否应改为显式失败"
+    },
+    {
+      "file": "server/src/main/java/com/fullmall/supplier/app/SupplierSecretCipher.java",
+      "category": "value-default",
+      "snippet": "@Value(\"${app.mode:dev}\")",
+      "reason": "运行模式默认 dev；生产需显式 APP_MODE=prod（已在部署清单标注）"
+    },
+    {
+      "file": "server/src/main/java/com/fullmall/supplier/app/SupplierSettlementService.java",
+      "category": "value-default",
+      "snippet": "@Value(\"${app.supplier.settlement.commission-rate:0}\")",
+      "reason": "数值型上限/时长，非资金与安全判定"
+    },
+    {
+      "file": "server/src/main/java/com/fullmall/supplier/web/SupplierHmacFilter.java",
+      "category": "value-default",
+      "snippet": "@Value(\"${app.supplier.timestamp-skew-seconds:300}\")",
+      "reason": "数值型上限/时长，非资金与安全判定"
+    },
+    {
+      "file": "server/src/main/java/com/fullmall/supplier/web/SupplierHmacFilter.java",
+      "category": "value-default",
+      "snippet": "@Value(\"${app.supplier.rate-limit.max-requests:120}\")",
+      "reason": "数值型上限/时长，非资金与安全判定"
+    },
+    {
+      "file": "server/src/main/java/com/fullmall/supplier/web/SupplierHmacFilter.java",
+      "category": "value-default",
+      "snippet": "@Value(\"${app.supplier.rate-limit.window-seconds:60}\")",
+      "reason": "数值型上限/时长，非资金与安全判定"
+    },
+    {
+      "file": "server/src/main/java/com/fullmall/support/ws/SupportWebSocketHandler.java",
+      "category": "value-default",
+      "snippet": "@Value(\"${app.mode:dev}\")",
+      "reason": "运行模式默认 dev；生产需显式 APP_MODE=prod（已在部署清单标注）"
+    },
+    {
+      "file": "server/src/main/java/com/fullmall/warehouse/app/WarehouseService.java",
+      "category": "value-default",
+      "snippet": "@Value(\"${app.warehouse.replenishment-target:30}\")",
+      "reason": "数值型上限/时长，非资金与安全判定"
+    },
+    {
+      "file": "web/apps/admin/src/api.ts",
+      "category": "value-default",
+      "snippet": "|| 'dev'",
+      "reason": "待复核（已登记，不阻断 CI）：需逐个确认是否应改为显式失败"
+    },
+    {
+      "file": "web/apps/admin/src/components/AssetPicker.vue",
+      "category": "value-default",
+      "snippet": "?? 'PRODUCT'",
+      "reason": "待复核（已登记，不阻断 CI）：需逐个确认是否应改为显式失败"
+    },
+    {
+      "file": "web/apps/admin/src/components/AssetPicker.vue",
+      "category": "value-default",
+      "snippet": "?? 'UPLOAD'",
+      "reason": "待复核（已登记，不阻断 CI）：需逐个确认是否应改为显式失败"
+    },
+    {
+      "file": "web/apps/admin/src/views/AfterSalesView.vue",
+      "category": "value-default",
+      "snippet": "?? 'createdAt'",
+      "reason": "待复核（已登记，不阻断 CI）：需逐个确认是否应改为显式失败"
+    },
+    {
+      "file": "web/apps/admin/src/views/AiView.vue",
+      "category": "value-default",
+      "snippet": "?? 'unknown'",
+      "reason": "待复核（已登记，不阻断 CI）：需逐个确认是否应改为显式失败"
+    },
+    {
+      "file": "web/apps/admin/src/views/CustomersView.vue",
+      "category": "value-default",
+      "snippet": "?? 'lastOrderAt'",
+      "reason": "待复核（已登记，不阻断 CI）：需逐个确认是否应改为显式失败"
+    },
+    {
+      "file": "web/apps/admin/src/views/MaterialView.vue",
+      "category": "value-default",
+      "snippet": "?? 'PRODUCT'",
+      "reason": "待复核（已登记，不阻断 CI）：需逐个确认是否应改为显式失败"
+    },
+    {
+      "file": "web/apps/admin/src/views/MaterialView.vue",
+      "category": "value-default",
+      "snippet": "?? 'PRODUCT'",
+      "reason": "待复核（已登记，不阻断 CI）：需逐个确认是否应改为显式失败"
+    },
+    {
+      "file": "web/apps/admin/src/views/MaterialView.vue",
+      "category": "value-default",
+      "snippet": "?? 'PRODUCT'",
+      "reason": "待复核（已登记，不阻断 CI）：需逐个确认是否应改为显式失败"
+    },
+    {
+      "file": "web/apps/admin/src/views/OrdersView.vue",
+      "category": "value-default",
+      "snippet": "?? 'createdAt'",
+      "reason": "待复核（已登记，不阻断 CI）：需逐个确认是否应改为显式失败"
+    },
+    {
+      "file": "web/apps/admin/src/views/PermissionsView.vue",
+      "category": "value-default",
+      "snippet": "?? 'OPERATOR'",
+      "reason": "待复核（已登记，不阻断 CI）：需逐个确认是否应改为显式失败"
+    },
+    {
+      "file": "web/apps/admin/src/views/PosMembersView.vue",
+      "category": "value-default",
+      "snippet": "|| 'CNY'",
+      "reason": "待复核（已登记，不阻断 CI）：需逐个确认是否应改为显式失败"
+    },
+    {
+      "file": "web/apps/admin/src/views/ProductEditView.vue",
+      "category": "value-default",
+      "snippet": "?? 'CNY'",
+      "reason": "待复核（已登记，不阻断 CI）：需逐个确认是否应改为显式失败"
+    },
+    {
+      "file": "web/apps/admin/src/views/ProductEditView.vue",
+      "category": "value-default",
+      "snippet": "|| 'zh-CN'",
+      "reason": "待复核（已登记，不阻断 CI）：需逐个确认是否应改为显式失败"
+    },
+    {
+      "file": "web/apps/admin/src/views/ProductListView.vue",
+      "category": "value-default",
+      "snippet": "?? 'createdAt'",
+      "reason": "待复核（已登记，不阻断 CI）：需逐个确认是否应改为显式失败"
+    },
+    {
+      "file": "web/apps/admin/src/views/StaffView.vue",
+      "category": "value-default",
+      "snippet": "?? 'displayName'",
+      "reason": "待复核（已登记，不阻断 CI）：需逐个确认是否应改为显式失败"
+    },
+    {
+      "file": "web/apps/admin/src/views/StaffView.vue",
+      "category": "value-default",
+      "snippet": "?? 'OPERATOR'",
+      "reason": "待复核（已登记，不阻断 CI）：需逐个确认是否应改为显式失败"
+    },
+    {
+      "file": "web/apps/admin/src/views/SuppliersView.vue",
+      "category": "value-default",
+      "snippet": "?? 'name'",
+      "reason": "待复核（已登记，不阻断 CI）：需逐个确认是否应改为显式失败"
+    },
+    {
+      "file": "web/apps/admin/src/views/ThemeStudioView.vue",
+      "category": "value-default",
+      "snippet": "?? 'http://localhost:41285'",
+      "reason": "本地预览/本机代理地址，连不上会显式报错"
+    },
+    {
+      "file": "web/apps/admin/src/views/ThemeStudioView.vue",
+      "category": "value-default",
+      "snippet": "?? 'http://localhost:41286'",
+      "reason": "本地预览/本机代理地址，连不上会显式报错"
+    },
+    {
+      "file": "web/apps/admin/src/views/ThemeStudioView.vue",
+      "category": "value-default",
+      "snippet": "|| 'mall'",
+      "reason": "待复核（已登记，不阻断 CI）：需逐个确认是否应改为显式失败"
+    },
+    {
+      "file": "web/apps/mobile/src/pages/checkout/checkout.vue",
+      "category": "value-default",
+      "snippet": "?? 'CNY'",
+      "reason": "待复核（已登记，不阻断 CI）：需逐个确认是否应改为显式失败"
+    },
+    {
+      "file": "web/apps/mobile/src/theme.ts",
+      "category": "value-default",
+      "snippet": "|| 'CN'",
+      "reason": "待复核（已登记，不阻断 CI）：需逐个确认是否应改为显式失败"
+    },
+    {
+      "file": "web/apps/store-console/src/views/PosView.vue",
+      "category": "value-default",
+      "snippet": "|| 'dev'",
+      "reason": "待复核（已登记，不阻断 CI）：需逐个确认是否应改为显式失败"
+    },
+    {
+      "file": "web/apps/store-console/src/views/PosView.vue",
+      "category": "value-default",
+      "snippet": "|| 'CNY'",
+      "reason": "待复核（已登记，不阻断 CI）：需逐个确认是否应改为显式失败"
+    },
+    {
+      "file": "web/apps/store-console/src/views/PosView.vue",
+      "category": "value-default",
+      "snippet": "|| 'CNY'",
+      "reason": "待复核（已登记，不阻断 CI）：需逐个确认是否应改为显式失败"
+    },
+    {
+      "file": "web/apps/store-console/src/views/StoreConsoleView.vue",
+      "category": "value-default",
+      "snippet": "|| 'dev'",
+      "reason": "待复核（已登记，不阻断 CI）：需逐个确认是否应改为显式失败"
+    },
+    {
+      "file": "web/apps/storefront/composables/useCart.ts",
+      "category": "value-default",
+      "snippet": "?? 'CNY'",
+      "reason": "待复核（已登记，不阻断 CI）：需逐个确认是否应改为显式失败"
+    },
+    {
+      "file": "web/apps/storefront/composables/useSite.ts",
+      "category": "value-default",
+      "snippet": "|| 'Full Mall'",
+      "reason": "待复核（已登记，不阻断 CI）：需逐个确认是否应改为显式失败"
+    },
+    {
+      "file": "web/apps/storefront/composables/useSite.ts",
+      "category": "value-default",
+      "snippet": "|| 'SHOW'",
+      "reason": "待复核（已登记，不阻断 CI）：需逐个确认是否应改为显式失败"
+    },
+    {
+      "file": "web/apps/storefront/composables/useSite.ts",
+      "category": "value-default",
+      "snippet": "|| 'Asia/Shanghai'",
+      "reason": "待复核（已登记，不阻断 CI）：需逐个确认是否应改为显式失败"
+    },
+    {
+      "file": "web/apps/storefront/composables/useTheme.ts",
+      "category": "value-default",
+      "snippet": "|| 'mall'",
+      "reason": "待复核（已登记，不阻断 CI）：需逐个确认是否应改为显式失败"
+    },
+    {
+      "file": "web/apps/storefront/layouts/default.vue",
+      "category": "value-default",
+      "snippet": "|| 'OPEN'",
+      "reason": "待复核（已登记，不阻断 CI）：需逐个确认是否应改为显式失败"
+    },
+    {
+      "file": "web/apps/storefront/layouts/default.vue",
+      "category": "value-default",
+      "snippet": "|| 'Full Mall'",
+      "reason": "待复核（已登记，不阻断 CI）：需逐个确认是否应改为显式失败"
+    },
+    {
+      "file": "web/apps/storefront/nuxt.config.ts",
+      "category": "value-default",
+      "snippet": "|| 'http://localhost:41280'",
+      "reason": "本地预览/本机代理地址，连不上会显式报错"
+    },
+    {
+      "file": "web/apps/storefront/nuxt.config.ts",
+      "category": "value-default",
+      "snippet": "|| 'dev'",
+      "reason": "待复核（已登记，不阻断 CI）：需逐个确认是否应改为显式失败"
+    },
+    {
+      "file": "web/apps/storefront/nuxt.config.ts",
+      "category": "value-default",
+      "snippet": "|| 'mall'",
+      "reason": "待复核（已登记，不阻断 CI）：需逐个确认是否应改为显式失败"
+    },
+    {
+      "file": "web/apps/storefront/pages/bargain/[id].vue",
+      "category": "value-default",
+      "snippet": "|| 'CNY'",
+      "reason": "待复核（已登记，不阻断 CI）：需逐个确认是否应改为显式失败"
+    },
+    {
+      "file": "web/apps/storefront/pages/legal/[type].vue",
+      "category": "value-default",
+      "snippet": "|| 'TERMS'",
+      "reason": "待复核（已登记，不阻断 CI）：需逐个确认是否应改为显式失败"
+    },
+    {
+      "file": "web/apps/storefront/utils/categoryTone.ts",
+      "category": "value-default",
+      "snippet": "?? 'tone-home'",
+      "reason": "待复核（已登记，不阻断 CI）：需逐个确认是否应改为显式失败"
+    },
+    {
+      "file": "web/apps/support-console/src/App.vue",
+      "category": "value-default",
+      "snippet": "?? 'CNY'",
+      "reason": "待复核（已登记，不阻断 CI）：需逐个确认是否应改为显式失败"
+    }
+  ]
+}

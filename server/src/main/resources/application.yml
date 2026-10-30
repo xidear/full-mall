@@ -71,15 +71,17 @@ springdoc:
     path: /v3/api-docs
 
 app:
-  # 媒体公共基址：相对路径在写入快照/对外输出前统一转成绝对 http(s) URL
-  # 测试期本地上传，上线改为 CDN/云存储域名（只改配置，不改代码）
   media:
     # 必须是“可被浏览器/小程序直接访问”的绝对基址：开发默认 API 端口，生产设为 https://<公开域名>，
     # 换 CDN/对象存储时只改这里；数据库里的相对路径不需要迁移。
     public-base-url: ${MEDIA_PUBLIC_BASE_URL:http://localhost:${server.port:8080}}
   mode: ${APP_MODE:dev}
-  # 语义检索（素材/FAQ 的向量索引）：默认开启；没有 embedding 供应商时明确报 409，不静默降级成"按标题搜"
   ai:
+    # 示例供应商（ollama/mock）是否自动写入 ai_provider：默认 false，需显式 APP_AI_BOOTSTRAP=true。
+    # 开着会让"供应商列表"看起来已配置，实际连的是示例地址。
+    bootstrap:
+      enabled: ${APP_AI_BOOTSTRAP:false}
+    # 语义检索（素材/FAQ 的向量索引）：默认开启；没有 embedding 供应商时明确报 409，不静默降级成"按标题搜"
     semantic:
       enabled: ${APP_AI_SEMANTIC_ENABLED:true}
   # 构建分版标识：community（开源）/ enterprise（含 AI 与许可）。

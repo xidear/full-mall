@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test'
+import { ADMIN_BASE, API_BASE } from './env'
 
 /**
  * 市场三轴（ADR-0014）真实页面测试：
@@ -7,10 +8,10 @@ import { expect, test } from '@playwright/test'
  *
  * 用 PUT 做 upsert，重复跑不会因为"已存在"失败。
  */
-const API = 'http://localhost:41280'
+const API = API_BASE
 
 async function loginAdmin(page: import('@playwright/test').Page) {
-  await page.goto('http://localhost:41281/login')
+  await page.goto(ADMIN_BASE + '/login')
   await page.getByPlaceholder('请输入账号').fill('admin')
   await page.getByPlaceholder('请输入密码').fill('Admin@123456')
   const question = await page.locator('.captcha-question').innerText()

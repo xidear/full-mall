@@ -1,6 +1,7 @@
 import { expect, test } from '@playwright/test'
+import { API_BASE } from './env'
 
-const API = 'http://localhost:41280'
+const API = API_BASE
 const PRODUCT = 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa'
 const PNG = Buffer.from(
   'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==',

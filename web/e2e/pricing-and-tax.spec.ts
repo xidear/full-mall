@@ -1,5 +1,6 @@
 import { expect, test } from '@playwright/test'
 import type { Page } from '@playwright/test'
+import { ADMIN_BASE } from './env'
 
 /**
  * 批次 D/E 的 admin 页面真机测试：运费档位与税率规则。
@@ -8,7 +9,7 @@ import type { Page } from '@playwright/test'
  * 页面写错口径（例如把"价内含税"写成"价外"）比没有页面更危险。
  */
 async function loginAdmin(page: Page) {
-  await page.goto('http://localhost:41281/login')
+  await page.goto(ADMIN_BASE + '/login')
   await page.getByPlaceholder('请输入账号').fill('admin')
   await page.getByPlaceholder('请输入密码').fill('Admin@123456')
   const question = await page.locator('.captcha-question').innerText()

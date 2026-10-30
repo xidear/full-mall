@@ -1,5 +1,6 @@
 import { expect, test } from '@playwright/test'
 import { e2ePhone } from './utils/e2ePhone'
+import { API_BASE } from './env'
 
 async function waitForNuxtHydration(page: import('@playwright/test').Page) {
   await page.waitForFunction(() => {
@@ -38,9 +39,9 @@ test('storefront can browse and create a pickup order', async ({ page, request }
   // 结算现在要求先登录（页面给「登录后继续结算」入口），访客 OTP 表单已移除。
   // 这里直接用 API 拿会员 token 写 cookie，等价于已登录用户，覆盖的是"登录后可结算"这条真实路径。
   const phone = e2ePhone()
-  const issued = await request.post('http://localhost:41280/api/v1/member/auth/otp', { data: { phone } })
+  const issued = await request.post(API_BASE + '/api/v1/member/auth/otp', { data: { phone } })
   const code = (await issued.json()).debugCode
-  const member = (await (await request.post('http://localhost:41280/api/v1/member/auth/verify',
+  const member = (await (await request.post(API_BASE + '/api/v1/member/auth/verify',
     { data: { phone, code } })).json()).token
   await page.context().addCookies([{
     name: 'fullmall_member_token', value: member, domain: 'localhost', path: '/', sameSite: 'Lax'

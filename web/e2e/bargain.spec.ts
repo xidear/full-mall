@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test'
+import { API_BASE } from './env'
 
 async function waitForNuxtHydration(page: import('@playwright/test').Page) {
   await page.waitForFunction(() => {
@@ -12,11 +13,11 @@ async function waitForNuxtHydration(page: import('@playwright/test').Page) {
  * 不依赖种子数据。
  */
 test('bargain page renders real activity and blocks anonymous start', async ({ page, request }) => {
-  const captcha = await request.get('http://localhost:41280/admin/v1/auth/captcha')
+  const captcha = await request.get(API_BASE + '/admin/v1/auth/captcha')
   expect(captcha.ok()).toBeTruthy()
   const challenge = await captcha.json() as { captchaId: string; question: string }
   const numbers = (challenge.question.match(/\d+/g) ?? []).map(Number)
-  const login = await request.post('http://localhost:41280/admin/v1/auth/login', {
+  const login = await request.post(API_BASE + '/admin/v1/auth/login', {
     data: {
       username: 'admin',
       password: 'Admin@123456',
@@ -27,7 +28,7 @@ test('bargain page renders real activity and blocks anonymous start', async ({ p
   expect(login.ok(), `管理员登录失败：${login.status()}`).toBeTruthy()
 
   const token = (await login.json()).token as string
-  const products = await request.get('http://localhost:41280/admin/v1/products?size=1', {
+  const products = await request.get(API_BASE + '/admin/v1/products?size=1', {
     headers: { Authorization: `Bearer ${token}` }
   })
   expect(products.ok(), `读取商品列表失败：${products.status()}`).toBeTruthy()
@@ -36,7 +37,7 @@ test('bargain page renders real activity and blocks anonymous start', async ({ p
   expect(skuId, '商品列表里没有可用 SKU').toBeTruthy()
 
   const now = Date.now()
-  const created = await request.post('http://localhost:41280/admin/v1/bargain-activities', {
+  const created = await request.post(API_BASE + '/admin/v1/bargain-activities', {
     headers: { Authorization: `Bearer ${token}` },
     data: {
       skuId,

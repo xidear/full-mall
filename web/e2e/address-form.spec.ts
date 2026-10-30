@@ -1,6 +1,7 @@
 import { expect, test } from '@playwright/test'
 import type { Page } from '@playwright/test'
 import { e2ePhone } from './utils/e2ePhone'
+import { API_BASE } from './env'
 
 /**
  * 国别驱动地址表单（ADR-0013 §8 / ADR-0014）真机测试。
@@ -13,7 +14,7 @@ import { e2ePhone } from './utils/e2ePhone'
  * 加购走真实 UI（与 storefront.spec.ts 同一条路径）：用接口加购与页面读的购物车
  * 归属不一致，会得到"购物车为空"这种假失败。
  */
-const API = 'http://localhost:41280'
+const API = API_BASE
 
 async function loginCookie(page: Page, request: import('@playwright/test').APIRequestContext) {
   const phone = e2ePhone()

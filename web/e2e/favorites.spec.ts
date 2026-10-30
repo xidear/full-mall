@@ -1,7 +1,8 @@
 import { expect, test } from '@playwright/test'
 import { e2ePhone } from './utils/e2ePhone'
+import { API_BASE, STOREFRONT_BASE } from './env'
 
-const API = 'http://localhost:41280'
+const API = API_BASE
 const SKU = 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb'
 
 test('favorite added by member shows on favorites page', async ({ page, request }) => {
@@ -27,7 +28,7 @@ test('favorite added by member shows on favorites page', async ({ page, request 
   await page.context().addCookies([{
     name: 'fullmall_member_token', value: token, domain: 'localhost', path: '/', sameSite: 'Lax'
   }])
-  await page.goto('http://localhost:41285/favorites')
+  await page.goto(STOREFRONT_BASE + '/favorites')
   await expect(page.getByRole('heading', { name: '我的收藏' })).toBeVisible()
   // 标题与价格都要渲染（此前接口只返回 skuId，页面无法展示）
   await expect(page.getByRole('link', { name: title })).toBeVisible()

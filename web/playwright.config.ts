@@ -10,7 +10,8 @@ export default defineConfig({
   workers: 1,
   reporter: [['list']],
   use: {
-    baseURL: 'http://localhost:41285',
+    // 可用 E2E_STOREFRONT_BASE 覆盖：本地两套环境并存时不必再抢 41285
+    baseURL: process.env.E2E_STOREFRONT_BASE?.trim() || 'http://localhost:41285',
     trace: 'retain-on-failure',
     screenshot: 'only-on-failure',
     video: 'off'

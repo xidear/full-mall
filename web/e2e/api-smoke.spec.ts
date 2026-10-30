@@ -1,6 +1,7 @@
 import { expect, test } from '@playwright/test'
+import { API_BASE } from './env'
 
-const API = 'http://localhost:41280'
+const API = API_BASE
 
 /** 只读接口清单：这些是"后台一打开就会调"的接口，任何 5xx 都是真 bug。 */
 const ADMIN_GETS = [

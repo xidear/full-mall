@@ -1,8 +1,9 @@
 import { expect, test } from '@playwright/test'
 import { e2ePhone } from './utils/e2ePhone'
+import { API_BASE, MOBILE_BASE } from './env'
 
-const MOBILE = 'http://localhost:41286'
-const API = 'http://localhost:41280'
+const MOBILE = MOBILE_BASE
+const API = API_BASE
 
 /** 移动端 H5 用户端真实联调：首页 → 详情 → 加购 → 下单 → 看到订单号。 */
 test('mobile h5 browses products, adds to cart and checks out', async ({ page, request }) => {

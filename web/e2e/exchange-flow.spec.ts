@@ -1,7 +1,8 @@
 import { expect, test } from '@playwright/test'
 import { e2ePhone } from './utils/e2ePhone'
+import { API_BASE } from './env'
 
-const API = 'http://localhost:41280'
+const API = API_BASE
 const SKU = 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb'
 const STORE = '22222222-2222-2222-2222-222222222222'
 

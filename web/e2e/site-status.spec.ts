@@ -1,6 +1,7 @@
 import { expect, test } from '@playwright/test'
+import { API_BASE } from './env'
 
-const API = 'http://localhost:41280'
+const API = API_BASE
 
 test('maintenance status blocks storefront and restores', async ({ request }) => {
   const captcha = await (await request.get(`${API}/admin/v1/auth/captcha`)).json()

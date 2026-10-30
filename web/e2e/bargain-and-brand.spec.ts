@@ -1,7 +1,8 @@
 import { expect, test } from '@playwright/test'
 import { e2ePhone } from './utils/e2ePhone'
+import { ADMIN_BASE, API_BASE } from './env'
 
-const API = 'http://localhost:41280'
+const API = API_BASE
 
 async function adminToken(request: any) {
   const captcha = await (await request.get(`${API}/admin/v1/auth/captcha`)).json()
@@ -27,7 +28,7 @@ test('admin creates a brand, duplicates rejected by name, then cleans up', async
   })
   expect(created.ok(), await created.text()).toBeTruthy()
 
-  await page.goto('http://localhost:41281/login')
+  await page.goto(ADMIN_BASE + '/login')
   await page.getByPlaceholder('请输入账号').fill('admin')
   await page.getByPlaceholder('请输入密码').fill('Admin@123456')
   const question = await page.locator('.captcha-question').innerText()

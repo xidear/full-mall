@@ -1,13 +1,14 @@
 import { expect, test } from '@playwright/test'
+import { ADMIN_BASE, API_BASE } from './env'
 
 /** 素材库内一键生成变体：选参考图 → 提交 → worker 生成 → 结果回显 → 挂到商品。 */
 // 守住的回归：素材库“选参考图 → 生成变体 → worker 消费 → 结果回显 → 可挂载”整条链路不断。
 // 依赖：41280/41281、素材上传（purpose=PRODUCT）、变体 worker（每 10s 消费一次）与 AI mock（41288）。
 // 失败线索：90s 仍无标签 → 先看 worker 在不在跑、AI provider 是否指向 mock；失败原因看 .job-state 文案。
 test('material library generates a variant end to end', async ({ page, request }) => {
-  const captcha = await (await request.get('http://localhost:41280/admin/v1/auth/captcha')).json()
+  const captcha = await (await request.get(API_BASE + '/admin/v1/auth/captcha')).json()
   const nums = (captcha.question.match(/\d+/g) ?? []).map(Number)
-  const login = await request.post('http://localhost:41280/admin/v1/auth/login', {
+  const login = await request.post(API_BASE + '/admin/v1/auth/login', {
     data: { username: 'admin', password: 'Admin@123456', captchaId: captcha.captchaId, captchaAnswer: String(nums[0] + nums[1]) }
   })
   expect(login.ok()).toBeTruthy()
@@ -15,7 +16,7 @@ test('material library generates a variant end to end', async ({ page, request }
 
   // 造一张参考图（直接走上传接口，purpose=PRODUCT 才会进素材库）
   const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==', 'base64')
-  const uploaded = await request.post('http://localhost:41280/admin/v1/media?purpose=PRODUCT&source=E2E', {
+  const uploaded = await request.post(API_BASE + '/admin/v1/media?purpose=PRODUCT&source=E2E', {
     headers: { Authorization: `Bearer ${token}` },
     multipart: { file: { name: `e2e-ref-${Date.now()}.png`, mimeType: 'image/png', buffer: png } }
   })
@@ -24,7 +25,7 @@ test('material library generates a variant end to end', async ({ page, request }
   await page.addInitScript((value) => {
     localStorage.setItem('fullmall.admin.token', value)
   }, token)
-  await page.goto('http://localhost:41281/materials')
+  await page.goto(ADMIN_BASE + '/materials')
   await expect(page.locator('main h1, .page h1, h1').filter({ hasText: '素材库' }).first()).toBeVisible()
 
   await page.getByRole('button', { name: 'AI 生成变体' }).click()
@@ -51,7 +52,7 @@ test('material library generates a variant end to end', async ({ page, request }
   await request.delete(`http://localhost:41280/admin/v1/assets/${uploadedAssetId}`, {
     headers: { Authorization: `Bearer ${token}` }
   })
-  const listed = await request.get('http://localhost:41280/admin/v1/assets/search?page=0&size=5', {
+  const listed = await request.get(API_BASE + '/admin/v1/assets/search?page=0&size=5', {
     headers: { Authorization: `Bearer ${token}` }
   })
   const page1 = await listed.json() as { items: Array<{ id: string; name: string }> }

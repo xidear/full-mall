@@ -1,6 +1,7 @@
 import { expect, test } from '@playwright/test'
+import { API_BASE } from './env'
 
-const API = 'http://localhost:41280'
+const API = API_BASE
 
 /**
  * 写接口冒烟：**全部使用明显无效的参数**，让请求在校验层就被拒绝。

@@ -1,6 +1,7 @@
 import { expect, test } from '@playwright/test'
+import { API_BASE, SUPPORT_BASE } from './env'
 
-const API = 'http://localhost:41280'
+const API = API_BASE
 const OPERATOR = 'aaaaaaaa-0000-0000-0000-000000000002'
 const ADMIN = 'aaaaaaaa-0000-0000-0000-000000000001'
 
@@ -22,7 +23,7 @@ test('support agent claims conversation, sends product and transfers', async ({ 
   )
   expect(claimResponse.ok()).toBeTruthy()
 
-  await page.goto('http://localhost:41284')
+  await page.goto(SUPPORT_BASE + '')
   await page.locator('.agent-switch select').selectOption(OPERATOR)
   const item = page.locator('.conversation-item', { hasText: subject })
   await expect(item).toBeVisible()

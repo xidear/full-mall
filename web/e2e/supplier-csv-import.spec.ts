@@ -1,7 +1,8 @@
 import { createHmac, createHash, randomUUID } from 'node:crypto'
 import { expect, test } from '@playwright/test'
+import { API_BASE } from './env'
 
-const API = 'http://localhost:41280'
+const API = API_BASE
 const SUPPLIER_ID = '33333333-3333-3333-3333-333333333333'
 const SKU_CODE = 'SKU-SUP-001'
 

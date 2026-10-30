@@ -110,7 +110,17 @@ function open() {
   dialog.value = true
 }
 
+// 选中时立即记下 url：确认时不该再从"当前已加载的那一页"反查——
+// 跨页/刚上传的素材反查不到会变成空串，父组件的值就丢了（表现为"选了却没生效"）。
+const pickedUrls = ref<Record<string, string>>({})
+
+function rememberUrl(id: string) {
+  const asset = assets.value.find(item => item.id === id)
+  if (asset) pickedUrls.value = { ...pickedUrls.value, [id]: asset.url }
+}
+
 function toggle(id: string) {
+  rememberUrl(id)
   if (props.multiple) {
     const index = selected.value.indexOf(id)
     if (index >= 0) selected.value.splice(index, 1)
@@ -120,11 +130,12 @@ function toggle(id: string) {
   }
 }
 
-// url 模式只能从“已加载的 assets”反查地址：跨页选中的素材查不到会被 filter 丢掉，
-// 表现为“确定后少了几个值”。要根治得让后端在选择接口里直接返回 url。
+// url 模式优先用"选中时记下的 url"（pickedUrls），列表反查只作兜底
 function toOutput(ids: string[]): string | string[] {
   if (props.valueType === 'url') {
-    const urls = ids.map(id => assets.value.find(asset => asset.id === id)?.url ?? '').filter(Boolean)
+    const urls = ids
+      .map(id => pickedUrls.value[id] ?? assets.value.find(asset => asset.id === id)?.url ?? '')
+      .filter(Boolean)
     return props.multiple ? urls : (urls[0] ?? '')
   }
   return props.multiple ? ids : (ids[0] ?? '')
@@ -150,9 +161,12 @@ async function upload(event: Event) {
         body: form
       })
     if (!response.ok) throw new Error(await response.text())
-    const result = await response.json() as { assetId?: string }
+    const result = await response.json() as { assetId?: string; url?: string }
     if (!result.assetId) throw new Error('上传未返回素材 id')
     await load()
+    if (result.url) {
+      pickedUrls.value = { ...pickedUrls.value, [result.assetId]: result.url }
+    }
     selected.value = props.multiple ? [...selected.value, result.assetId] : [result.assetId]
     ElMessage.success('已上传并选中')
   } catch (cause) {

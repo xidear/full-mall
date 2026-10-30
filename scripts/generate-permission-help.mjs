@@ -38,7 +38,8 @@ function readSeeds() {
     .sort((a, b) => Number(a.slice(1).split('__')[0]) - Number(b.slice(1).split('__')[0]))
   for (const file of files) {
     const sql = readFileSync(join(MIGRATIONS, file), 'utf8')
-    if (!/INSERT INTO permission\s*\(/i.test(sql)) continue
+    // 兼容两种写法：手写迁移 `INSERT INTO permission (...)` 与 pg_dump 基线 `INSERT INTO public.permission (...)`
+    if (!/INSERT INTO (public\.)?permission\s*\(/i.test(sql)) continue
     const tuple = /\('([a-z][a-z0-9._]*)',\s*'([^']*)',\s*'([^']*)',\s*(\d+)\)/g
     for (const match of sql.matchAll(tuple)) {
       seeds.set(match[1], { label: match[2], group: match[3], sortOrder: Number(match[4]), file })

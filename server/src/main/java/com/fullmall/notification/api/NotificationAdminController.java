@@ -2,12 +2,14 @@ package com.fullmall.notification.api;
 
 import com.fullmall.notification.app.NotificationService;
 import com.fullmall.notification.domain.Notification;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.util.Map;
 import java.util.UUID;
 
 /**
@@ -27,6 +29,17 @@ public class NotificationAdminController {
     }
 
     public record TestSend(String channel, String title, String content) {
+    }
+
+    /**
+     * 后台未读数（右上角铃铛）。
+     *
+     * <p>只统计 STAFF 收件人的未读：把顾客通知也算进来，运营永远清不完，徽标就失去意义。
+     * 具体条数与内容走 {@code GET /admin/v1/notifications}（已有列表接口）。
+     */
+    @GetMapping("/unread-count")
+    public Map<String, Long> unreadCount() {
+        return Map.of("unread", notifications.countUnreadStaff());
     }
 
     /** 渠道连通性自检：发一条测试消息并返回真实投递结果（不伪造成功）。 */

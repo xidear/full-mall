@@ -24,12 +24,16 @@ public class NotificationService {
     private final NotificationRepository repository;
     private final JdbcTemplate jdbcTemplate;
     private final Map<String, NotificationChannelSender> senders;
+    /** 实时通道（本进程内存；多副本需 Redis，见 NotificationStreamService 注释）。 */
+    private final NotificationStreamService streams;
 
     public NotificationService(NotificationRepository repository,
                                JdbcTemplate jdbcTemplate,
-                               List<NotificationChannelSender> senders) {
+                               List<NotificationChannelSender> senders,
+                               NotificationStreamService streams) {
         this.repository = repository;
         this.jdbcTemplate = jdbcTemplate;
+        this.streams = streams;
         this.senders = senders.stream().collect(Collectors.toMap(
                 NotificationChannelSender::channel,
                 Function.identity()));
@@ -37,6 +41,8 @@ public class NotificationService {
 
     public void notifyStaff(String eventType, String title, String content) {
         deliver("STAFF", "ALL", eventType, "IN_APP", title, content);
+        // 推完再查未读数：顺序反了会推一个少 1 的旧值，前端徽标看起来"没更新"。
+        streams.publishUnread(countUnreadStaff());
     }
 
     public void notifyOrderEvent(UUID orderId, String eventType, String title, String content,

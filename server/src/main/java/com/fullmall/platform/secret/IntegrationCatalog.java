@@ -123,6 +123,16 @@ public final class IntegrationCatalog {
         return ALL.stream().map(Capability::code).collect(java.util.stream.Collectors.toUnmodifiableSet());
     }
 
+    /** 该能力允许的服务商对象（供设置页判断"哪些真的能用"）。 */
+    public static List<Provider> providers(String capability) {
+        String normalized = capability == null ? "" : capability.trim().toLowerCase(java.util.Locale.ROOT);
+        return ALL.stream()
+                .filter(item -> item.code().equals(normalized))
+                .findFirst()
+                .map(Capability::providers)
+                .orElse(List.of());
+    }
+
     /** 该能力允许的服务商（带中文名），用于错误提示与文档。 */
     public static String providersOf(String capability) {
         String normalized = capability == null ? "" : capability.trim().toLowerCase(java.util.Locale.ROOT);

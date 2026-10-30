@@ -2163,6 +2163,7 @@ CREATE TABLE public.staff_user (
     role character varying(32) NOT NULL,
     status character varying(16) DEFAULT 'ACTIVE'::character varying NOT NULL,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
     pin_hash character varying(255)
 );
 

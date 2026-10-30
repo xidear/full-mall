@@ -25,15 +25,15 @@ public class AssetImageIndexService {
 
     private final JdbcTemplate jdbc;
     private final ClipEmbeddingClient clip;
-    private final String localDirectory;
+    private final com.fullmall.platform.secret.IntegrationConfigService integrations;
     private final String model;
 
     public AssetImageIndexService(JdbcTemplate jdbc, ClipEmbeddingClient clip,
-                                  @Value("${app.asset.local.directory:./data/assets}") String localDirectory,
+                                  com.fullmall.platform.secret.IntegrationConfigService integrations,
                                   @Value("${app.ai.clip.model:clip-vit-base-patch32}") String model) {
         this.jdbc = jdbc;
         this.clip = clip;
-        this.localDirectory = localDirectory;
+        this.integrations = integrations;
         this.model = model;
     }
 
@@ -136,7 +136,7 @@ public class AssetImageIndexService {
         }
         String relative = url.startsWith("/assets/") ? url.substring("/assets/".length())
                 : url.replaceFirst("^/", "");
-        java.nio.file.Path path = java.nio.file.Path.of(localDirectory).resolve(relative).normalize();
+        java.nio.file.Path path = java.nio.file.Path.of(storageDirectory()).resolve(relative).normalize();
         try {
             return java.nio.file.Files.readAllBytes(path);
         } catch (java.io.IOException error) {
@@ -163,5 +163,16 @@ public class AssetImageIndexService {
             return 0;
         }
         return dot / (Math.sqrt(na) * Math.sqrt(nb));
+    }
+
+    /** 存储根目录只认「第三方服务」里配置的值：未配置就明确失败，不用任何默认目录。 */
+    private String storageDirectory() {
+        String directory = integrations.resolveAll("storage").get("directory");
+        if (directory == null || directory.isBlank()) {
+            throw com.fullmall.platform.error.ApiException.serviceUnavailable(
+                    "ASSET_STORAGE_DIRECTORY_NOT_CONFIGURED",
+                    "素材存储未配置目录：请到「第三方服务 → 对象存储」填写后重试");
+        }
+        return directory;
     }
 }

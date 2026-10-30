@@ -69,7 +69,7 @@ public final class IntegrationCatalog {
 
             new Capability("storage", "对象存储", "素材与视频的存放位置", List.of(
                     new Provider("local", "本机磁盘", List.of(
-                            Field.text("directory", "存储目录", "默认 ./data/assets，需与静态资源映射一致"))),
+                            new Field("directory", "存储目录", false, true, "必填：磁盘上的存储根目录（如 /data/assets），需与静态资源映射一致；未配置时上传会直接失败"))),
                     new Provider("qiniu", "七牛云", List.of(
                             Field.secret("access-key", "AccessKey", "七牛个人中心的密钥管理"),
                             Field.secret("secret-key", "SecretKey", "与 AccessKey 成对；留空表示沿用旧值"),

@@ -197,6 +197,35 @@ public class IntegrationConfigService {
         return resolved;
     }
 
+    /**
+     * 适配器装配用：**可回显字段(config_hint) + 解密后的敏感字段(config_enc)** 合并结果。
+     *
+     * <p>为什么不能只用 resolve()：非敏感字段（如本机磁盘的 directory、bucket、region）存在 config_hint，
+     * 而 resolve() 只解密 config_enc，于是"配置已保存但读不到"，适配器会误判成未配置。
+     */
+    public Map<String, String> resolveAll(String capability) {
+        List<String> hints = jdbc.query("""
+                SELECT COALESCE(config_hint::text, '{}') FROM integration_config
+                 WHERE capability = ? AND enabled
+                 """, (rs, rowNum) -> rs.getString(1), capability);
+        if (hints.isEmpty()) {
+            throw ApiException.conflict("INTEGRATION_NOT_CONFIGURED",
+                    "能力「" + capability + "」尚未在后台启用配置");
+        }
+        Map<String, String> merged = new LinkedHashMap<>();
+        readMap(hints.get(0)).forEach((k, v) -> merged.put(k, v == null ? null : String.valueOf(v)));
+        List<String> secrets = jdbc.query("""
+                SELECT config_enc FROM integration_config
+                 WHERE capability = ? AND enabled
+                """, (rs, rowNum) -> new String(rs.getBytes("config_enc"),
+                java.nio.charset.StandardCharsets.UTF_8), capability);
+        if (!secrets.isEmpty()) {
+            readMap(cipher.decrypt(secrets.get(0))).forEach((k, v) ->
+                    merged.put(k, v == null ? null : String.valueOf(v)));
+        }
+        return merged;
+    }
+
     private boolean isSensitive(String name) {
         String lower = name == null ? "" : name.toLowerCase(java.util.Locale.ROOT);
         return SENSITIVE_MARKERS.stream().anyMatch(lower::contains);

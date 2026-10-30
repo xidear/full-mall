@@ -19,11 +19,9 @@ public class AssetStorageConfig {
     // 所以后台切换不必重启。代价是密钥缺失要到上传时才抛错——有意为之，不能静默降级回 local。
     @Bean
     public AssetStorage assetStorage(
-            @Value("${app.asset.storage:local}") String fallbackProvider,
-            // 必须与 StaticAssetConfig 读同一个 app.asset.local.directory，否则上传成功但 /assets/** 404。
-            @Value("${app.asset.local.directory:./data/assets}") String localDirectory,
-            // 默认 /assets 是相对基址（key 以 assets/ 开头，故 URL 形如 /assets/assets/202610/x.jpg），
+            // 本机磁盘访问基址（部署参数）：key 以 assets/ 开头，URL 形如 /assets/assets/202610/x.jpg，
             // 绝对化交给 MediaUrlResolver；生产应配 CDN 域名。
+            // 存储目录不在这里读：那是运营在「第三方服务」里配的（见 ConfigurableAssetStorage）。
             @Value("${app.asset.local.public-base-url:/assets}") String localBaseUrl,
             @Value("${app.asset.qiniu.access-key:}") String qiniuAccessKey,
             @Value("${app.asset.qiniu.secret-key:}") String qiniuSecretKey,
@@ -34,9 +32,8 @@ public class AssetStorageConfig {
             @Value("${app.asset.cos.region:}") String cosRegion,
             @Value("${app.asset.cos.bucket:}") String cosBucket,
             @Value("${app.asset.cos.domain:}") String cosDomain,
-            SystemSettingService settings) {
-        LocalAssetStorage local = new LocalAssetStorage(localDirectory, localBaseUrl);
-        return new ConfigurableAssetStorage(local, settings, fallbackProvider,
+            com.fullmall.platform.secret.IntegrationConfigService integrations) {
+        return new ConfigurableAssetStorage(integrations, localBaseUrl,
                 qiniuAccessKey, qiniuSecretKey, qiniuBucket, qiniuDomain,
                 cosSecretId, cosSecretKey, cosRegion, cosBucket, cosDomain);
     }

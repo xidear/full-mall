@@ -32,15 +32,15 @@ public class AssetSearchService {
     private final SemanticIndexService semantic;
     private final com.fullmall.ai.media.AiMediaService media;
     /** 本站素材的本地根目录：视觉模型需要图片字节，用它把 /assets/** 转成 data URL。 */
-    private final String localDirectory;
+    private final com.fullmall.platform.secret.IntegrationConfigService integrations;
 
     public AssetSearchService(JdbcTemplate jdbc, SemanticIndexService semantic,
                               com.fullmall.ai.media.AiMediaService media,
-                              @org.springframework.beans.factory.annotation.Value("${app.asset.local.directory:./data/assets}") String localDirectory) {
+                              com.fullmall.platform.secret.IntegrationConfigService integrations) {
         this.jdbc = jdbc;
         this.semantic = semantic;
         this.media = media;
-        this.localDirectory = localDirectory;
+        this.integrations = integrations;
     }
 
     public record AssetRow(UUID id, String name, String url, String kind, String purpose,
@@ -185,7 +185,7 @@ public class AssetSearchService {
                 : url.replaceFirst("^/", "");
         // /assets/** 的剩余部分本身就带 assets/ 前缀（见 StaticAssetConfig），
         // 所以相对路径直接拼在存储根目录下，不能再补一层 assets/
-        java.nio.file.Path path = java.nio.file.Path.of(localDirectory)
+        java.nio.file.Path path = java.nio.file.Path.of(storageDirectory())
                 .resolve(relative).normalize();
         try {
             byte[] bytes = java.nio.file.Files.readAllBytes(path);
@@ -292,5 +292,16 @@ public class AssetSearchService {
 
     private int safeOffset(int page, int size) {
         return page * size;
+    }
+
+    /** 同 AssetImageIndexService：目录只认集成配置。 */
+    private String storageDirectory() {
+        String directory = integrations.resolveAll("storage").get("directory");
+        if (directory == null || directory.isBlank()) {
+            throw com.fullmall.platform.error.ApiException.serviceUnavailable(
+                    "ASSET_STORAGE_DIRECTORY_NOT_CONFIGURED",
+                    "素材存储未配置目录：请到「第三方服务 → 对象存储」填写后重试");
+        }
+        return directory;
     }
 }

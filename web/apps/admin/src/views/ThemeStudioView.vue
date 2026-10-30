@@ -27,19 +27,32 @@ const storefrontBase = ((import.meta.env.VITE_STOREFRONT_BASE as string | undefi
   .replace(/\/$/, '')
 const previewFrame = ref<HTMLIFrameElement | null>(null)
 const previewStatus = ref<'connecting' | 'ready' | 'unreachable'>('connecting')
+// 小程序渠道同样嵌真实 H5（uni-app，41286），不再用手搓手机壳
+const mobileBase = ((import.meta.env.VITE_MOBILE_BASE as string | undefined) ?? 'http://localhost:41286')
+  .replace(/\/$/, '')
+const mobileFrame = ref<HTMLIFrameElement | null>(null)
+const mobileStatus = ref<'connecting' | 'ready' | 'unreachable'>('connecting')
 let previewTimer: ReturnType<typeof setTimeout> | undefined
+let mobileTimer: ReturnType<typeof setTimeout> | undefined
 
 function pushPreview() {
-  const target = previewFrame.value?.contentWindow
-  if (!target) return
-  target.postMessage({ type: 'fullmall:theme-preview', vars: toCssVars(config) }, '*')
+  const vars = toCssVars(config)
+  for (const frame of [previewFrame.value, mobileFrame.value]) {
+    frame?.contentWindow?.postMessage({ type: 'fullmall:theme-preview', vars }, '*')
+  }
 }
 
+/** 用 event.source 区分哪个 iframe 握手，避免两个预览互相误判就绪 */
 function onPreviewMessage(event: MessageEvent) {
   const data = event.data as { type?: string } | null
   if (!data || data.type !== 'fullmall:theme-preview-ready') return
-  previewStatus.value = 'ready'
-  if (previewTimer) clearTimeout(previewTimer)
+  if (event.source === previewFrame.value?.contentWindow) {
+    previewStatus.value = 'ready'
+    if (previewTimer) clearTimeout(previewTimer)
+  } else if (event.source === mobileFrame.value?.contentWindow) {
+    mobileStatus.value = 'ready'
+    if (mobileTimer) clearTimeout(mobileTimer)
+  }
   pushPreview()
 }
 
@@ -51,6 +64,9 @@ onMounted(() => {
   // 8 秒还没握手：说明商城没起或地址不对，明确报出来，而不是留一块空白让人猜
   previewTimer = setTimeout(() => {
     if (previewStatus.value !== 'ready') previewStatus.value = 'unreachable'
+  }, 8000)
+  mobileTimer = setTimeout(() => {
+    if (mobileStatus.value !== 'ready') mobileStatus.value = 'unreachable'
   }, 8000)
 })
 
@@ -204,32 +220,15 @@ async function copyConfig() {
                     title="PC 商城实时预览" @load="pushPreview" />
           </div>
 
-          <div v-else class="phone-preview" :style="previewVars">
-            <div class="phone-status">9:41</div>
-            <div class="phone-header">
-              <strong>Full Mall</strong>
-              <span>{{ config.label }}</span>
-            </div>
-            <div v-if="config.showBanner" class="phone-hero">
-              <small>FULL MALL</small>
-              <strong>{{ config.bannerText }}</strong>
-            </div>
-            <div class="phone-product" :class="config.cardStyle">
-              <div class="phone-thumb">FM</div>
-              <div>
-                <strong>有机鲜牛奶</strong>
-                <p>批次/效期 · 就近自提</p>
-                <span class="phone-price">¥19.90</span>
-              </div>
-            </div>
-            <div class="phone-product" :class="config.cardStyle">
-              <div class="phone-thumb">FM</div>
-              <div>
-                <strong>手工陶瓷马克杯</strong>
-                <p>常规库存 · 送货上门</p>
-                <span class="phone-price">¥39.90</span>
-              </div>
-            </div>
+          <!-- 小程序渠道同样嵌真实 H5（uni-app，41286）：手搓手机壳看不出多语言/多币种等真实特征。
+               草稿配色同样通过 postMessage 注入；连不上就明确提示地址。 -->
+          <div v-else class="phone-frame">
+            <el-alert v-if="mobileStatus === 'unreachable'" type="warning" show-icon :closable="false"
+                      class="mb-8"
+                      :title="'未能连接到小程序 H5 预览：' + mobileBase"
+                      description="请确认 mobile H5 已启动（默认 41286），或用 VITE_MOBILE_BASE 指定地址。" />
+            <iframe ref="mobileFrame" :src="mobileBase + '/'" class="phone-frame-screen"
+                    title="小程序 H5 实时预览" @load="pushPreview" />
           </div>
         </aside>
       </div>
@@ -290,6 +289,23 @@ async function copyConfig() {
 
 .preview-column {
   align-self: start;
+}
+
+.phone-frame {
+  margin: 10px auto 0;
+  width: 390px;
+  border: 10px solid #1f2421;
+  border-radius: 36px;
+  overflow: hidden;
+  background: #fff;
+  box-shadow: 0 18px 40px rgba(0, 0, 0, 0.18);
+}
+
+.phone-frame-screen {
+  display: block;
+  width: 100%;
+  height: 720px;
+  border: 0;
 }
 
 .pc-frame-wrap {

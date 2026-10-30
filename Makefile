@@ -102,6 +102,9 @@ ui-audit:
 e2e: dev-stack
 	cd web && npm run e2e
 
+acceptance:
+	node scripts/acceptance-check.mjs
+
 dev-stack:
 	@bash scripts/dev-stack.sh start
 

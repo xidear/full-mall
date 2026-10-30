@@ -34,7 +34,12 @@ const { data: themeResponse } = await useAsyncData<{ config: ThemeConfig | null 
 )
 const savedTheme = computed(() => themeResponse.value?.config ?? null)
 // 带 ?theme= 时忽略市场已保存的配色，否则验收看到的不是模板本身。
+// 后台主题工作室的草稿预览：iframe 里运行时父窗口推 vars 覆盖，不落库、不写 cookie
+const { overrideVars } = useThemePreviewBridge()
 const effectiveVars = computed(() => {
+  if (overrideVars.value) {
+    return overrideVars.value
+  }
   if (route.query.theme) {
     return themeVars.value
   }

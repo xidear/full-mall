@@ -16,12 +16,44 @@ const presetList = themeNames().map(name => themePresets[name])
 const previewVars = computed(() => toCssVars(config))
 const channel = ref<'PC' | 'MINI'>('PC')
 
-// 预览用的样例商品：不请求接口，避免"主题页依赖商品数据才能看出效果"
-const previewProducts = [
-  { name: '有机鲜牛奶', note: '批次/效期 · 就近自提', price: '¥19.90' },
-  { name: '手工陶瓷马克杯', note: '常规库存 · 送货上门', price: '¥39.90' },
-  { name: '冷萃咖啡液 6 支', note: '常温 · 次日达', price: '¥59.00' }
-]
+/**
+ * PC 预览 = **真实商城首页的 iframe**。
+ *
+ * <p>之前这里是手搓的"浏览器壳 + 三张卡片"，用户一眼看出"只是把手机版放大"——示意图永远
+ * 和真实页面有差异，越维护越假。现在直接用真实页面，草稿主题通过 postMessage 推过去覆盖 CSS 变量：
+ * 改了不保存也能实时看到效果，且不会写 cookie / 不进服务端。
+ */
+const storefrontBase = ((import.meta.env.VITE_STOREFRONT_BASE as string | undefined) ?? 'http://localhost:41285')
+  .replace(/\/$/, '')
+const previewFrame = ref<HTMLIFrameElement | null>(null)
+const previewStatus = ref<'connecting' | 'ready' | 'unreachable'>('connecting')
+let previewTimer: ReturnType<typeof setTimeout> | undefined
+
+function pushPreview() {
+  const target = previewFrame.value?.contentWindow
+  if (!target) return
+  target.postMessage({ type: 'fullmall:theme-preview', vars: toCssVars(config) }, '*')
+}
+
+function onPreviewMessage(event: MessageEvent) {
+  const data = event.data as { type?: string } | null
+  if (!data || data.type !== 'fullmall:theme-preview-ready') return
+  previewStatus.value = 'ready'
+  if (previewTimer) clearTimeout(previewTimer)
+  pushPreview()
+}
+
+// 任何一处配色/形态改动都立刻推过去（deep 必须开：config 是嵌套对象）
+watch(config, () => pushPreview(), { deep: true })
+
+onMounted(() => {
+  window.addEventListener('message', onPreviewMessage)
+  // 8 秒还没握手：说明商城没起或地址不对，明确报出来，而不是留一块空白让人猜
+  previewTimer = setTimeout(() => {
+    if (previewStatus.value !== 'ready') previewStatus.value = 'unreachable'
+  }, 8000)
+})
+
 const saving = ref(false)
 const error = ref('')
 
@@ -161,48 +193,15 @@ async function copyConfig() {
         <aside class="preview-column">
           <span class="muted">{{ channel === 'PC' ? 'PC 商城实时预览（桌面视口）' : '微信小程序实时预览' }}</span>
 
-          <!-- 两个渠道是两套布局，不能共用一套 DOM：PC 是浏览器窗口 + 顶部导航 + 商品网格，
-               小程序是手机壳 + 单列卡片。共用一份模板的结果就是"选 PC 也显示手机版"。 -->
-          <div v-if="channel === 'PC'" class="pc-preview" :style="previewVars">
-            <div class="pc-chrome">
-              <span class="pc-dot" />
-              <span class="pc-dot" />
-              <span class="pc-dot" />
-              <span class="pc-url">company.binnarui.com</span>
-            </div>
-            <div class="pc-nav">
-              <strong class="pc-logo">Full Mall</strong>
-              <nav class="pc-menu">
-                <span>首页</span>
-                <span>全部商品</span>
-                <span>分类</span>
-                <span>我的订单</span>
-              </nav>
-              <span class="pc-cart">购物车</span>
-            </div>
-            <div v-if="config.showBanner" class="pc-hero">
-              <div class="pc-hero-text">
-                <small>FULL MALL</small>
-                <strong>{{ config.bannerText || '横幅文案为空' }}</strong>
-                <span class="pc-hero-cta">立即选购</span>
-              </div>
-              <div class="pc-hero-art">FM</div>
-            </div>
-            <div class="pc-section-title">
-              <h4>热卖推荐</h4>
-              <span>{{ config.productLayout === 'list' ? '列表布局' : '网格布局' }}</span>
-            </div>
-            <div class="pc-products" :class="config.productLayout">
-              <article v-for="item in previewProducts" :key="item.name"
-                       class="pc-card" :class="config.cardStyle">
-                <div class="pc-thumb">FM</div>
-                <div class="pc-card-body">
-                  <strong>{{ item.name }}</strong>
-                  <p>{{ item.note }}</p>
-                  <span class="pc-price">{{ item.price }}</span>
-                </div>
-              </article>
-            </div>
+          <!-- PC 预览直接嵌入真实商城首页（iframe），草稿配色通过 postMessage 注入，
+               不再手搓示意图——示意图永远和真实页面有差异（用户已指出"只是把手机版放大"）。 -->
+          <div v-if="channel === 'PC'" class="pc-frame-wrap">
+            <el-alert v-if="previewStatus === 'unreachable'" type="warning" show-icon :closable="false"
+                      class="mb-8"
+                      :title="'未能连接到商城预览：' + storefrontBase"
+                      description="请确认存storefront 已启动（默认 41285），或用 VITE_STOREFRONT_BASE 指定地址。" />
+            <iframe ref="previewFrame" :src="storefrontBase + '/'" class="pc-frame"
+                    title="PC 商城实时预览" @load="pushPreview" />
           </div>
 
           <div v-else class="phone-preview" :style="previewVars">
@@ -293,232 +292,28 @@ async function copyConfig() {
   align-self: start;
 }
 
-.pc-preview {
+.pc-frame-wrap {
   margin-top: 10px;
-  overflow: hidden;
   border: 1px solid var(--line);
   border-radius: 12px;
-  background: var(--bg);
-  color: var(--text);
-  box-shadow: 0 18px 40px rgba(0, 0, 0, 0.12);
-  font-size: calc(13px * var(--font-scale));
-}
-
-.pc-chrome {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 8px 10px;
-  border-bottom: 1px solid var(--line);
-  background: #f2f1ed;
-}
-
-.pc-dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: #d6d2c9;
-}
-
-.pc-url {
-  flex: 1;
-  margin-left: 8px;
-  padding: 3px 8px;
-  border-radius: 6px;
-  background: #fff;
-  color: #8a9199;
-  font-size: 10px;
-  text-align: center;
-}
-
-.pc-nav {
-  display: flex;
-  align-items: center;
-  gap: 14px;
-  padding: 12px 16px;
-  border-bottom: 1px solid var(--line);
-  background: var(--surface);
-}
-
-.pc-logo {
-  font-size: calc(14px * var(--font-scale));
-  color: var(--brand);
-}
-
-.pc-menu {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 12px;
-  margin-left: 8px;
-  color: var(--muted);
-  font-size: calc(12px * var(--font-scale));
-}
-
-.pc-menu span:first-child {
-  color: var(--text);
-  font-weight: 600;
-}
-
-.pc-cart {
-  margin-left: auto;
-  padding: 4px 10px;
-  border: 1px solid var(--line);
-  border-radius: 999px;
-  font-size: 11px;
-}
-
-.pc-hero {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-  margin: 14px 16px;
-  padding: 18px;
-  border-radius: var(--radius);
-  background: var(--surface-muted);
-}
-
-.pc-hero-text {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  min-width: 0;
-}
-
-.pc-hero-text small {
-  color: var(--accent);
-  font-size: 9px;
-  letter-spacing: 0.12em;
-}
-
-.pc-hero-text strong {
-  font-size: calc(18px * var(--font-scale));
-  line-height: 1.25;
-}
-
-.pc-hero-cta {
-  align-self: flex-start;
-  margin-top: 4px;
-  padding: 5px 12px;
-  border-radius: 999px;
-  background: var(--brand);
-  color: #fff;
-  font-size: 11px;
-}
-
-.pc-hero-art {
-  display: grid;
-  flex: 0 0 auto;
-  width: 96px;
-  height: 72px;
-  place-items: center;
-  border-radius: var(--radius);
-  background: var(--surface);
-  color: var(--muted);
-  font-weight: 800;
-}
-
-.pc-section-title {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  padding: 4px 16px 0;
-}
-
-.pc-section-title h4 {
-  margin: 0;
-  font-size: calc(13px * var(--font-scale));
-}
-
-.pc-section-title span {
-  color: var(--muted);
-  font-size: 10px;
-}
-
-.pc-products {
-  display: grid;
-  gap: 12px;
-  padding: 10px 16px 16px;
-}
-
-.pc-products.grid {
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-}
-
-.pc-products.list {
-  grid-template-columns: 1fr;
-}
-
-.pc-card {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  padding: 10px;
-  border: 1px solid var(--line);
-  background: var(--surface);
-}
-
-.pc-card.soft {
-  border-radius: var(--radius);
-}
-
-.pc-card.sharp {
-  border-radius: 0;
-}
-
-.pc-card.outline {
-  border-radius: 0;
-  border-color: var(--brand);
-}
-
-.pc-products.list .pc-card {
-  flex-direction: row;
-  align-items: center;
-}
-
-.pc-thumb {
-  display: grid;
-  aspect-ratio: 1 / 1;
-  place-items: center;
-  border-radius: calc(var(--radius) / 2);
-  background: var(--surface-muted);
-  color: var(--muted);
-  font-size: 12px;
-  font-weight: 800;
-}
-
-.pc-products.list .pc-thumb {
-  flex: 0 0 auto;
-  width: 56px;
-  height: 56px;
-  aspect-ratio: auto;
-}
-
-.pc-card-body {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  min-width: 0;
-}
-
-.pc-card-body strong {
   overflow: hidden;
-  font-size: calc(12px * var(--font-scale));
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  background: #fff;
+  box-shadow: 0 18px 40px rgba(0, 0, 0, 0.12);
 }
 
-.pc-card-body p {
-  margin: 0;
-  color: var(--muted);
-  font-size: 10px;
+/* 桌面视口：宽度固定 1180（常见 PC 断点），高度给足一屏，内部滚动交给 iframe 自己 */
+.pc-frame {
+  display: block;
+  width: 100%;
+  min-width: 1180px;
+  height: 720px;
+  border: 0;
 }
 
-.pc-price {
-  color: var(--brand);
-  font-size: calc(13px * var(--font-scale));
-  font-weight: 800;
+.mb-8 {
+  margin: 8px;
 }
+
 
 .phone-preview {
   margin-top: 10px;

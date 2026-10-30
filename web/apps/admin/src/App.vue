@@ -12,7 +12,7 @@ import {
 } from '@element-plus/icons-vue'
 import { VALIDATION, formatDateTime } from '@fullmall/api-client'
 import { api } from './api'
-import { auth, changePassword, logout } from './auth'
+import { auth, changePassword, loadMe, logout } from './auth'
 
 const route = useRoute()
 const router = useRouter()
@@ -233,6 +233,21 @@ const openGroupKeys = menuGroups.map(group => group.key)
 // 表现为分组全部收起、菜单看起来是空的。
 const menuReady = computed(() => Boolean(auth.user))
 
+/** 登录态加载失败时的手动重试：不刷新整页（会丢未保存的表单），只重取 /me */
+const retryingSession = ref(false)
+async function retrySession() {
+  if (retryingSession.value) return
+  retryingSession.value = true
+  try {
+    await loadMe()
+    ElMessage.success('登录态已恢复')
+  } catch (cause) {
+    ElMessage.error('仍未取到登录态：' + (cause instanceof Error ? cause.message : ''))
+  } finally {
+    retryingSession.value = false
+  }
+}
+
 const visibleGroups = computed(() => menuGroups
   .map(group => ({
     ...group,
@@ -313,9 +328,17 @@ async function submitPassword() {
         </el-sub-menu>
       </el-menu>
       <div class="admin-aside-footer" :class="{ 'is-collapsed': collapsed }">
+        <!-- 三种状态必须分开显示：把"登录态没取到"写成"未登录"会让人以为被登出了
+             （真未登录会被路由守卫送去 /login，根本看不到这个侧边栏） -->
         <div v-if="!collapsed" class="admin-user">
-          <strong>{{ auth.user?.displayName || '未登录' }}</strong>
-          <span>@{{ auth.user?.username || '-' }}</span>
+          <strong v-if="auth.user">{{ auth.user.displayName }}</strong>
+          <strong v-else-if="auth.token" class="admin-user-unknown">登录态加载失败</strong>
+          <strong v-else>未登录</strong>
+          <span v-if="auth.user">@{{ auth.user.username }}</span>
+          <span v-else-if="auth.token" class="admin-user-hint">
+            后端不可用 · <el-button link size="small" @click="retrySession">重试</el-button>
+          </span>
+          <span v-else>@-</span>
         </div>
         <el-button v-if="!collapsed" link class="logout-button" @click="handleLogout">退出</el-button>
       </div>
@@ -407,6 +430,14 @@ async function submitPassword() {
 </template>
 
 <style scoped>
+.admin-user-unknown {
+  color: #d98f00;
+}
+
+.admin-user-hint {
+  color: #d98f00;
+}
+
 .notify-badge {
   margin-right: 8px;
 }

@@ -427,11 +427,18 @@ export interface ProductUpsertRequest {
 type QueryValue = string | number | boolean | null | undefined
 
 export class ApiError extends Error {
+  /**
+   * @param status HTTP 状态码；**0 表示网络层失败**（后端不可达/被拦），此时没有响应体
+   * @param body   已解析的 message 或原始响应文本；status=0 时放"给人看的一句话"
+   * @param code   稳定错误码（如 NETWORK_UNREACHABLE），上层按它分支，不靠匹配文案
+   */
   constructor(
     public readonly status: number,
-    public readonly body: string
+    public readonly body: string,
+    public readonly code?: string
   ) {
-    super(`API ${status}: ${body}`)
+    // status=0 时不要把 "API 0:" 拼进用户可见文案
+    super(status === 0 ? body : `API ${status}: ${body}`)
     this.name = 'ApiError'
   }
 }
@@ -506,7 +513,12 @@ export class ApiClient {
   }
 
   private async request<T>(url: string, init?: RequestInit): Promise<T> {
-    const response = await fetch(url, {
+    // fetch 自身抛错＝网络层失败（后端挂了 / DNS / 证书 / 跨域拦截），此时没有 HTTP 状态码。
+    // 必须显式转换：否则上层只能拿到浏览器原文 "Failed to fetch"，既不能按 code 分支，
+    // 也没法区分"后端不可用"和"登录态失效"（后者才该跳登录页）。
+    let response: Response
+    try {
+      response = await fetch(url, {
       ...init,
       headers: {
         Accept: 'application/json',
@@ -515,7 +527,13 @@ export class ApiClient {
         ...(init?.headers ?? {}),
         ...(this.token ? { Authorization: `Bearer ${this.token}` } : {})
       }
-    })
+      })
+    } catch (cause) {
+      // 用户文案说人话、可行动；原始异常放进 cause 供控制台/日志排障（§10.2 文案可模糊、日志不能）
+      const error = new ApiError(0, '无法连接后端服务，请稍后重试（若持续出现，请检查服务是否在运行）', 'NETWORK_UNREACHABLE')
+      ;(error as ApiError & { cause?: unknown }).cause = cause
+      throw error
+    }
     // 非 2xx 统一抛 ApiError：把 body 里解出的 message/code 提出来，但保留整个 status，
     // 让上层按 401（重新登录）/404（空态）/409（冲突）分别处理；解析失败时退回原始文本，
     // 上游仍能看到网关返回的 HTML 错误页，而不是一句空 message。

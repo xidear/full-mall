@@ -3,6 +3,13 @@
 > 规则见 `AGENTS.md` §14：每批改动结束更新本文件，只保留最近 3 批。
 > 写清“已做并验证 / 已做未验证 / 未做”，以及环境事实（端口、容器、库是否重建）。
 
+## 2026-10-31 / 三态回归测试
+
+- 已做并验证：12 条单测（storage 4 / export 3 / readiness 5）全绿，BUILD SUCCESS
+- 已做未验证：无
+- 未做 / 已知缺口：ai 的三态（未配供应商时 /ai/ask 应 503）未测——问答链路本身还没实现
+- 环境事实：跑测命令 mvn -Dtest=ConfigurableAssetStorageTest,ExportStorageGatingTest,CapabilityReadinessServiceTest test
+
 ## 2026-10-31 / 枚举覆盖第二批
 
 - 已做并验证：MEDIA_PURPOSE / MEDIA_ATTACH_ROLE / COUPON_TYPE / PROMOTION_TYPE 四组进后端；

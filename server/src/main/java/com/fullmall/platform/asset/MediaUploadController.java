@@ -154,7 +154,7 @@ public class MediaUploadController {
         int inserted = jdbc.update("""
                 INSERT INTO asset (id, name, url, kind, owner_username, purpose, source, sha256, status)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'ACTIVE')
-                ON CONFLICT (sha256) DO NOTHING
+                ON CONFLICT (sha256) WHERE sha256 IS NOT NULL AND deleted_at IS NULL DO NOTHING
                 """, assetId, displayName, url, validated.kind().name(),
                 authentication.getName(), normalized, normalizedSource, sha256);
         if (inserted == 0) {

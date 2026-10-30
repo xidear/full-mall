@@ -5350,7 +5350,8 @@ ALTER TABLE ONLY public.webhook_delivery
 ALTER TABLE ONLY public.staff_user
     ADD CONSTRAINT staff_user_role_fk FOREIGN KEY (role) REFERENCES public.role(code);
 
-CREATE UNIQUE INDEX asset_sha256_key ON public.asset USING btree (sha256) WHERE (sha256 IS NOT NULL);
+-- 唯一性只约束未删除的行：软删的素材不应阻止重新上传同一张图
+CREATE UNIQUE INDEX asset_sha256_key ON public.asset USING btree (sha256) WHERE ((sha256 IS NOT NULL) AND (deleted_at IS NULL));
 
 CREATE TABLE public.asset_object (
     id uuid NOT NULL,

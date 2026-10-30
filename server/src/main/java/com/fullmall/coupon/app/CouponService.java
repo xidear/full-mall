@@ -43,10 +43,8 @@ public class CouponService {
     }
 
     /**
-     * 建全场券（scope=ALL）。
-     *
-     * <p>坑：{@code @Transactional} 只标在本重载上，类内自调用不会重新开事务；带 scope 的重载没有该注解，
-     * 它现在只写一条 INSERT（自身即原子），将来若在里面加第二次写入，必须自己补注解，否则失败不会一起回滚。
+     * 建全场券。{@code @Transactional} 只在本重载上，类内自调用不会重开事务；带 scope 的重载以后
+     * 若加入第二次写入，必须自己补注解，否则失败不会一起回滚。
      */
     @Transactional
     public UUID createTemplate(String code, String title, String type, long value, long minOrderAmount,
@@ -58,8 +56,7 @@ public class CouponService {
 
     /** 带适用范围的建券（scope：ALL / SKU / CATEGORY / BRAND）。 */
     /**
-     * 建券约束补充：新券一律落 DRAFT，发放前必须显式启用，避免"建错面额直接能领"；
-     * 非 ALL 而未给 {@code scopeIds} 直接 400——允许空范围会变成"看起来限类目、实际全场可用"的静默降级。
+     * 新券落 DRAFT，必须显式启用才能领；非 ALL 却没给 scopeIds 直接 400，否则会变成“看似限类目、实际全场可用”。
      */
     public UUID createTemplate(String code, String title, String type, long value, long minOrderAmount,
                               int totalQuantity, int perMemberLimit, int validityDays,
@@ -322,14 +319,9 @@ public class CouponService {
     }
 
     /**
-     * 券对某笔订单金额的可用性（**只读**：不改订单金额、不改券状态）。
-     *
-     * <p>金额单位为分。AMOUNT 券的抵扣是 min(面额, 订单金额)，不会把订单抵成负数；
-     * PERCENT 券按"打 value 折"计算并用 BigDecimal HALF_UP 取整到分——先算 double 再转 long
-     * 会在 0.5 分边界上少抵或多抵 1 分。
-     *
-     * <p>不可用返回 {@code usable=false} + 原因，而不是抛异常：调用方要把它展示成
-     * "这张券为什么不能用"。但券不存在或不属于该会员抛 404——那是借号试券，不能当成普通不可用。
+     * 券对某订单的可用性（只读）。金额单位为分：AMOUNT 券最多抵到 0，PERCENT 券用 BigDecimal HALF_UP
+     * 取整到分（先 double 再转 long 会在 0.5 分上错 1 分）。不可用返回 usable=false + 原因，
+     * 但券不存在/不属于该会员抛 404 —— 借号试券不能当成"不可用"。
      */
     public Eligibility checkUsable(UUID couponId, UUID memberId, long orderAmount) {
         if (orderAmount < 0) {

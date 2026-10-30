@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test'
+import { e2ePhone } from './utils/e2ePhone'
 
 const API = 'http://localhost:41280'
 
@@ -62,7 +63,7 @@ test('admin creates a brand, duplicates rejected by name, then cleans up', async
 // 依赖后端 dev 会把验证码放在 debugCode 里返回；生产关掉该字段后本用例会失败。
 test('bargain flow reaches READY then binds an order', async ({ request }) => {
   const token = await adminToken(request)
-  const phone = `136${String(Date.now()).slice(-8)}`
+  const phone = e2ePhone()
   const issued = await request.post(`${API}/api/v1/member/auth/otp`, { data: { phone } })
   const code = (await issued.json()).debugCode
   const memberToken = (await (await request.post(`${API}/api/v1/member/auth/verify`,

@@ -17,13 +17,8 @@ import java.util.Map;
 import java.util.UUID;
 
 /**
- * 新建商品的请求体（api 层 DTO，仅 {@code AdminCatalogController#create} 使用）。
- *
- * <p>约束值一律引用 {@code ValidationRules}，唯一来源是 `docs/validation.schema.json`
- * （AGENTS.md §9）：改规则要先改 schema，再同步常量，不要在注解里写裸数字或正则。
- *
- * <p>Bean Validation 只保证格式与必填；编码重复、币种一致性、类目是否存在等业务判断在
- * {@code CatalogService#createProduct} 中完成，所以“校验通过”不等于“一定建得成功”。
+ * 新建商品请求体。约束值一律引用 {@code ValidationRules}（唯一来源 docs/validation.schema.json），
+ * 不在注解里写裸数字；校验通过只代表格式合法，编码重复/类目存在等判断在 CatalogService。
  */
 public record ProductUpsertRequest(
         @NotBlank String title,
@@ -36,15 +31,8 @@ public record ProductUpsertRequest(
 ) {
 
     /**
-     * 随商品一次性创建的 SKU。
-     *
-     * <p>{@code priceAmount}/{@code compareAtAmount} 是最小货币单位（CNY=分）的整数，
-     * 不传小数以免舍入进账；{@code compareAtAmount} 只用于展示划线价，不参与应付金额。
-     * {@code currency} 是 ISO-4217 三位码，先由 {@code @Size} 卡长度、再由 {@code Money} 校验合法性。
-     *
-     * <p>{@code options} 会被回填进规格关联表（真相来源），{@code imageUrl} 按原样入库、
-     * 输出时才转绝对地址；{@code shelfLifePolicy} 为 null 时落 {@code ShelfLifePolicy.none()}。
-     * {@code skuCode} 格式见 {@code ValidationRules.SKU_CODE_PATTERN}，重复由数据库唯一约束兜底。
+     * 随商品一次性创建的 SKU。priceAmount/compareAtAmount 单位是分（整数，避免舍入进账），
+     * compareAtAmount 只作划线价、不参与应付；options 会回填规格关联表（真相来源），imageUrl 原样入库。
      */
     public record SkuUpsert(
             @NotBlank @Pattern(regexp = ValidationRules.SKU_CODE_PATTERN,

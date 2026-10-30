@@ -6,6 +6,7 @@
  */
 export * from './labels'
 export * from './validation'
+export * from './permissions.generated'
 
 export interface StaffUser {
   id: string

@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test'
+import { e2ePhone } from './utils/e2ePhone'
 
 const API = 'http://localhost:41280'
 
@@ -15,7 +16,7 @@ const MEMBER_GETS = [
 ]
 
 test('member read endpoints respond without server errors', async ({ request }) => {
-  const phone = `139${String(Date.now()).slice(-8)}`
+  const phone = e2ePhone()
   const issued = await request.post(`${API}/api/v1/member/auth/otp`, { data: { phone } })
   const code = (await issued.json()).debugCode
   const me = await request.post(`${API}/api/v1/member/auth/verify`, { data: { phone, code } })

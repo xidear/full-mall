@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue'
 import { ElMessage } from 'element-plus'
-import type { PermissionMatrixView, PermissionView } from '@fullmall/api-client'
+import { QuestionFilled } from '@element-plus/icons-vue'
+import { PERMISSION_DOCS, PERMISSION_RELATIONS, type PermissionMatrixView, type PermissionView } from '@fullmall/api-client'
 import { api } from '../api'
 
 const matrix = ref<PermissionMatrixView | null>(null)
@@ -71,6 +72,42 @@ async function save() {
 function checked(code: string) {
   return selectedRole.value === 'ADMIN' || selected.value.includes(code)
 }
+
+/** 说明来自生成产物（docs/permissions.catalog.json + PermissionService 路径映射），页面不手写文案。 */
+function docOf(code: string) {
+  return PERMISSION_DOCS[code]
+}
+
+function endpointsText(code: string): string {
+  const doc = docOf(code)
+  if (!doc) return '—'
+  if (doc.endpoints.length > 0) return doc.endpoints.join('、')
+  return doc.fallback ? '兜底：所有未登记路径' : '—'
+}
+
+function relationText(code: string): string {
+  const doc = docOf(code)
+  // PERMISSION_RELATIONS 是 as const（字面量类型），这里显式标成 string[] 才能 push 别的文案
+  const lines: string[] = [PERMISSION_RELATIONS.inheritance]
+  if (doc?.fallback) lines.push(PERMISSION_RELATIONS.fallback)
+  lines.push(PERMISSION_RELATIONS.menu)
+  return lines.join(' ')
+}
+
+/** 原生 title：hover 之外，读屏/alt 也能拿到完整说明（悬停提示只是好看，不能是唯一出口）。 */
+function hoverText(permission: PermissionView): string {
+  const doc = docOf(permission.code)
+  if (!doc) {
+    return permission.code + '：尚无说明，请补 docs/permissions.catalog.json 后重新生成'
+  }
+  return [
+    doc.summary,
+    '勾选后可做：' + (doc.grants.length ? doc.grants.join('；') : '—'),
+    '取消后：' + (doc.revokes.length ? doc.revokes.join('；') : '—'),
+    '关联接口：' + endpointsText(permission.code),
+    '关系：无父级、无继承（逐个授予）；ADMIN 始终拥有'
+  ].join('\n')
+}
 </script>
 
 <template>
@@ -83,6 +120,7 @@ function checked(code: string) {
           <h2>角色权限矩阵</h2>
           <p class="muted">
             权限在后端过滤器中强制校验，不只是隐藏菜单。ADMIN 始终拥有全部权限；门店和客服账号不能进入运营后台。
+            每项右侧 ⓘ 悬停可看：勾选/取消分别影响哪些操作、拦截哪些接口、有无继承关系。
           </p>
         </div>
         <el-button @click="load">刷新</el-button>
@@ -101,16 +139,46 @@ function checked(code: string) {
       <div class="permission-groups">
         <section v-for="[group, permissions] in groups" :key="group" class="permission-group">
           <h3>{{ group }}</h3>
-          <label v-for="permission in permissions" :key="permission.code" class="permission-row">
+          <label v-for="permission in permissions" :key="permission.code"
+                 class="permission-row" :title="hoverText(permission)">
             <el-checkbox
               :model-value="checked(permission.code)"
               :disabled="selectedRole === 'ADMIN'"
               @change="toggle(permission.code)"
             />
-            <span>
+            <span class="permission-text">
               <strong>{{ permission.label }}</strong>
               <code>{{ permission.code }}</code>
             </span>
+            <el-tooltip placement="right" effect="light" :show-after="120" popper-class="perm-tooltip">
+              <template #content>
+                <div class="perm-tip">
+                  <p class="perm-tip-title">{{ permission.label }} · {{ permission.code }}</p>
+                  <p v-if="docOf(permission.code)" class="perm-tip-summary">{{ docOf(permission.code)?.summary }}</p>
+                  <p v-else class="perm-tip-missing">
+                    该权限还没有说明：请在 docs/permissions.catalog.json 补一条后重新生成
+                  </p>
+                  <template v-if="docOf(permission.code)">
+                    <p class="perm-tip-label">勾选后可做</p>
+                    <ul>
+                      <li v-for="item in docOf(permission.code)?.grants ?? []" :key="item">{{ item }}</li>
+                    </ul>
+                    <p class="perm-tip-label">取消后</p>
+                    <ul>
+                      <li v-for="item in docOf(permission.code)?.revokes ?? []" :key="item">{{ item }}</li>
+                    </ul>
+                    <p class="perm-tip-label">关联接口</p>
+                    <p class="perm-tip-mono">{{ endpointsText(permission.code) }}</p>
+                    <p class="perm-tip-label">关系</p>
+                    <p class="perm-tip-rel">{{ relationText(permission.code) }}</p>
+                    <p v-if="docOf(permission.code)?.note" class="perm-tip-note">
+                      注意：{{ docOf(permission.code)?.note }}
+                    </p>
+                  </template>
+                </div>
+              </template>
+              <el-icon class="perm-help"><QuestionFilled /></el-icon>
+            </el-tooltip>
           </label>
         </section>
       </div>
@@ -127,6 +195,20 @@ function checked(code: string) {
 <style scoped>
 .role-tabs {
   margin-bottom: 18px;
+}
+
+.permission-text {
+  flex: 1;
+}
+
+.perm-help {
+  margin-left: auto;
+  color: #a8b0b8;
+  cursor: help;
+}
+
+.perm-help:hover {
+  color: var(--el-color-primary, #c4322b);
 }
 
 .admin-note {
@@ -190,5 +272,62 @@ function checked(code: string) {
 
 .mb-16 {
   margin-bottom: 16px;
+}
+</style>
+
+<!-- Element Plus 的 tooltip 渲染在 body 上，scoped 选择器打不到，这段必须保持非 scoped -->
+<style>
+.perm-tooltip {
+  max-width: 380px;
+}
+
+.perm-tooltip .perm-tip {
+  color: #40453f;
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+.perm-tooltip .perm-tip-title {
+  margin: 0 0 4px;
+  color: #1f2421;
+  font-weight: 700;
+}
+
+.perm-tooltip .perm-tip-summary {
+  margin: 0 0 8px;
+}
+
+.perm-tooltip .perm-tip-label {
+  margin: 8px 0 2px;
+  color: #6b5316;
+  font-weight: 600;
+}
+
+.perm-tooltip .perm-tip ul {
+  margin: 0;
+  padding-left: 16px;
+}
+
+.perm-tooltip .perm-tip li {
+  margin: 1px 0;
+}
+
+.perm-tooltip .perm-tip-mono {
+  margin: 0;
+  color: #5c574e;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 11px;
+  word-break: break-all;
+}
+
+.perm-tooltip .perm-tip-rel {
+  margin: 0;
+  color: #6b716c;
+}
+
+.perm-tooltip .perm-tip-note,
+.perm-tooltip .perm-tip-missing {
+  margin: 8px 0 0;
+  color: #b23b2e;
 }
 </style>

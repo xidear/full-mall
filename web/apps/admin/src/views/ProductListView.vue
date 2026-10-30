@@ -50,12 +50,21 @@ function changePage(next: number) {
   load()
 }
 
+// 商品到几百款时"翻页找"不可用；后端一直支持 keyword，前端之前没接
+const keyword = ref('')
+let keywordTimer: ReturnType<typeof setTimeout> | undefined
+function onKeywordInput() {
+  if (keywordTimer) clearTimeout(keywordTimer)
+  keywordTimer = setTimeout(() => { page.value = 0; void load() }, 350)
+}
+
 async function load() {
   loading.value = true
   error.value = ''
   try {
     const response = await api.get<ProductPage>('/admin/v1/products',
       { locale: 'zh-CN', page: page.value, size: size.value,
+        keyword: keyword.value.trim() || undefined,
         sort: sortKey.value, direction: sortDirection.value })
     products.value = response.items
     // total 兜底用本页长度：后端正常会返回 total，这个兜底只影响分页器显示，
@@ -99,7 +108,11 @@ function price(product: Product) {
         <h2>商品管理</h2>
         <p class="muted">草稿、在售、下架状态统一管理；新建商品后默认为草稿。</p>
       </div>
-      <el-button type="primary" @click="router.push('/products/new')">新建商品</el-button>
+      <div class="header-actions">
+        <el-input v-model="keyword" placeholder="搜索商品标题 / SKU 编码" clearable style="width: 260px"
+                  @input="onKeywordInput" />
+        <el-button type="primary" @click="router.push('/products/new')">新建商品</el-button>
+      </div>
     </div>
     <el-alert v-if="error" :title="error" type="error" show-icon :closable="false" class="mb-16" />
     <el-table :data="products" stripe @sort-change="onSortChange">
@@ -174,5 +187,11 @@ function price(product: Product) {
 <style scoped>
 .mb-16 {
   margin-bottom: 16px;
+}
+
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
 }
 </style>

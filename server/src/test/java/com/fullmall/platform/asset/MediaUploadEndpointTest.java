@@ -52,8 +52,12 @@ class MediaUploadEndpointTest {
                 .thenAnswer(call -> "http://cdn.example.com/" + call.getArgument(0));
         when(storage.provider()).thenReturn("local");
 
+        // 建图索引依赖多模态服务；单测里给个"未配置"的桩：走不到网络，也不影响上传断言
+        com.fullmall.asset.app.AssetImageIndexService imageIndex =
+                mock(com.fullmall.asset.app.AssetImageIndexService.class);
+        when(imageIndex.available()).thenReturn(false);
         admin = MockMvcBuilders.standaloneSetup(
-                        new MediaUploadController(storage, validator, settings, jdbc))
+                        new MediaUploadController(storage, validator, settings, jdbc, imageIndex))
                 .setControllerAdvice(new GlobalExceptionHandler())
                 .build();
         member = MockMvcBuilders.standaloneSetup(

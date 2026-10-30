@@ -42,6 +42,16 @@ public class SemanticIndexService {
         return enabled;
     }
 
+    /**
+     * 是否可用：开关打开 **且** 配了 embedding 供应商。
+     *
+     * <p>与 {@link #enabled()} 的区别是"没配供应商"≠"被关掉"：前者是安装未完成，
+     * 索引应跳过并记录；后者是运营主动关闭。两者都不该让调用方失败。
+     */
+    public boolean available(String providerCode) {
+        return enabled && media.embeddingAvailable(providerCode);
+    }
+
     @Transactional
     public int index(String kind, String sourceId, String content, String providerCode) {
         requireEnabled();

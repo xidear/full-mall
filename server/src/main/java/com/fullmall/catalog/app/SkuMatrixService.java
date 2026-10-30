@@ -78,7 +78,7 @@ public class SkuMatrixService {
             int inserted = jdbc.update("""
                     INSERT INTO sku (id, product_id, sku_code, price_amount, price_currency, options_json)
                     VALUES (?, ?, ?, ?, ?, jsonb_build_object(?, ?))
-                    ON CONFLICT (sku_code) DO NOTHING
+                    ON CONFLICT (product_id, sku_code) DO NOTHING
                     """, UUID.randomUUID(), productId, code, priceAmount, effectiveCurrency,
                     optionName.trim(), value);
             if (inserted == 1) {

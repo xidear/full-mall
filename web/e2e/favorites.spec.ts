@@ -1,10 +1,11 @@
 import { expect, test } from '@playwright/test'
+import { e2ePhone } from './utils/e2ePhone'
 
 const API = 'http://localhost:41280'
 const SKU = 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb'
 
 test('favorite added by member shows on favorites page', async ({ page, request }) => {
-  const phone = `134${String(Date.now()).slice(-8)}`
+  const phone = e2ePhone()
   const issued = await request.post(`${API}/api/v1/member/auth/otp`, { data: { phone } })
   const code = (await issued.json()).debugCode
   const token = (await (await request.post(`${API}/api/v1/member/auth/verify`,

@@ -7,6 +7,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 
@@ -30,6 +31,22 @@ public class MarketIntegrationService {
     private static final Set<String> CAPABILITIES =
             Set.of("sms", "payment", "storage", "moderation", "logistics", "ai", "address");
 
+    /**
+     * 每个能力支持的服务商（AGENTS §13：枚举必须可选、禁止手填）。
+     *
+     * <p>这里是**唯一来源**：后台下拉从 {@link #catalog()} 取，保存时用同一份清单校验，
+     * 避免"填错一个字、永远不生效"的死配置。新增服务商只改这里。
+     *
+     * <p>`ai` 不在静态清单里——它的服务商来自 `ai_provider` 表（由后台 AI 供应商页维护）。
+     */
+    private static final Map<String, List<String>> PROVIDERS = Map.of(
+            "payment", List.of("mock", "alipay", "wechat", "stripe", "paypal"),
+            "logistics", List.of("mock", "kuaidi100", "dhl", "fedex"),
+            "sms", List.of("mock", "aliyun", "tencent"),
+            "storage", List.of("local", "aliyun-oss", "qiniu", "s3"),
+            "moderation", List.of("mock", "aliyun", "tencent"),
+            "address", List.of("amap", "tencent-map", "google"));
+
     private final JdbcTemplate jdbcTemplate;
 
     public MarketIntegrationService(JdbcTemplate jdbcTemplate) {
@@ -37,6 +54,14 @@ public class MarketIntegrationService {
     }
 
     public record Row(String marketCode, String capability, String provider, boolean enabled) {
+    }
+
+    /** 后台下拉用：能力 → 可选服务商。`ai` 的候选来自已配置的 AI 供应商，没配就是空列表。 */
+    public Map<String, List<String>> catalog() {
+        Map<String, List<String>> result = new java.util.TreeMap<>(PROVIDERS);
+        result.put("ai", jdbcTemplate.queryForList(
+                "SELECT DISTINCT code FROM ai_provider ORDER BY code", String.class));
+        return result;
     }
 
     public List<Row> list(String marketCode) {
@@ -87,6 +112,11 @@ public class MarketIntegrationService {
         String prov = provider == null ? "" : provider.trim().toLowerCase(Locale.ROOT);
         if (prov.isEmpty()) {
             throw ApiException.badRequest("INTEGRATION_PROVIDER_REQUIRED", "服务商标识不能为空");
+        }
+        // 候选集合校验（AGENTS §13）：只有前端下拉是不够的，请求可以绕过页面
+        if (!catalog().getOrDefault(cap, List.of()).contains(prov)) {
+            throw ApiException.badRequest("INTEGRATION_PROVIDER_UNSUPPORTED",
+                    "能力 " + cap + " 不支持服务商 " + prov + "，可选：" + catalog().get(cap));
         }
         if (enabled) {
             // 先把市场行锁住再"关旧的、开新的"：否则两个并发启用会各自读到"没有别的启用项"，

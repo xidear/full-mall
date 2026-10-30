@@ -28,11 +28,13 @@ test('material library generates a variant end to end', async ({ page, request }
   await expect(page.locator('main h1, .page h1, h1').filter({ hasText: '素材库' }).first()).toBeVisible()
 
   await page.getByRole('button', { name: 'AI 生成变体' }).click()
-  await expect(page.getByRole('dialog')).toBeVisible()
+  // 素材库现在有多个弹窗（AI 生成 / 语言变体），按标题精确定位，避免 strict mode 撞到两个 dialog
+  const variantDialog = page.locator('.el-dialog', { hasText: 'AI 生成变体' })
+  await expect(variantDialog).toBeVisible()
 
   // 选第一张参考图 + 填提示词
-  await page.locator('.variant-grid .thumb').first().click()
-  await page.locator('.variant-grid textarea').first().fill('白底商品主图，45 度侧光')
+  await variantDialog.locator('.variant-grid .thumb').first().click()
+  await variantDialog.locator('.variant-grid textarea').first().fill('白底商品主图，45 度侧光')
   await page.getByRole('button', { name: '生成', exact: true }).click()
 
   // worker 每 10s 消费一次，给足时间；UI 显示的是本地化文案（已完成为 SUCCEEDED 的中文标签）

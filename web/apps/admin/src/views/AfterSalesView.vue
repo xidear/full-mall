@@ -286,9 +286,9 @@ function money(value?: { amount: number; currency: string }) {
       </el-table>
 
       <div class="table-footer">
-        <!-- keyset 模式（默认）下只有 loadMore 分支，从不给 total 赋值，所以这里恒显示“共 0 条售后”；
-             真实条数以“加载更多”按钮是否可点为准。 -->
-        <span class="muted">共 {{ total }} 条售后</span>
+        <!-- keyset 模式拿不到总数：只报“已加载 N 条”，不能说“共 0 条”（那会把“还有更多”说成“没有”）。
+             offset 模式才显示真实总数。 -->
+        <span class="muted">{{ useKeyset ? `已加载 ${afterSales.length} 条` : `共 ${total} 条售后` }}</span>
         <el-button v-if="useKeyset" data-testid="aftersale-load-more" :loading="loadingMore"
                    :disabled="!hasMore" @click="loadMore">
           {{ hasMore ? '加载更多' : '没有更多了' }}
@@ -317,9 +317,6 @@ function money(value?: { amount: number; currency: string }) {
         </el-descriptions>
         <h3 class="section-title">退货商品</h3>
         <el-table :data="detail.lines" size="small">
-          <!-- 注意：此处有一个未闭合的 <el-table-c（残缺开始标签，工作树现状），
-               Vue 可能把它当成未知元素而丢列，详情里的“退货商品”表要按实际渲染结果核对。 -->
-          <el-table-c
           <el-table-column prop="title" label="商品" min-width="180" />
           <el-table-column prop="skuCode" label="SKU" width="150" />
           <el-table-column prop="quantity" label="数量" width="80" />

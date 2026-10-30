@@ -19,6 +19,7 @@
     "dev:supplier": "npm --workspace @fullmall/supplier-portal run dev",
     "dev:support": "npm --workspace @fullmall/support-console run dev",
     "generate:validation": "node scripts/generate-validation.mjs",
+    "generate:permissions": "node ../scripts/generate-permission-help.mjs",
     "e2e": "playwright test"
   },
   "devDependencies": {

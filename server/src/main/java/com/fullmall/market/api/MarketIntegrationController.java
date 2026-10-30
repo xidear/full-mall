@@ -28,6 +28,12 @@ public class MarketIntegrationController {
     public record ToggleBody(@NotBlank String capability, @NotBlank String provider, boolean enabled) {
     }
 
+    /** 能力 → 可选服务商：后台下拉的唯一来源（AGENTS §13，禁止手填枚举）。 */
+    @GetMapping("/admin/v1/markets/integration-catalog")
+    public java.util.Map<String, java.util.List<String>> catalog() {
+        return integrations.catalog();
+    }
+
     @GetMapping("/admin/v1/markets/{code}/integrations")
     public List<MarketIntegrationService.Row> list(@PathVariable String code) {
         return integrations.list(code);

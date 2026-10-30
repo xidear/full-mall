@@ -3,4 +3,9 @@
 app:
   scheduling:
     enabled: false
+  # 测试不依赖本机 Ollama：关掉启动种子，避免它注入的 ollama 供应商（priority 510）
+  # 抢在测试自己起的 mock 服务（priority 10）前面被选中 -> ConnectException
+  ai:
+    bootstrap:
+      enabled: false
   secret-key: MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=

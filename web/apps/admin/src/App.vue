@@ -6,7 +6,7 @@ import { ElMessage } from 'element-plus'
 import { useLocalStorage } from '@vueuse/core'
 import {
   Bell, Box, Brush, ChatDotRound, Coin, Collection, Connection, CreditCard, DataBoard,
-  Discount, Document, Download, Expand, Film, Fold, Goods, Grid, Key, List, MagicStick,
+  Discount, Document, Download, Expand, Fold, Goods, Grid, Key, List, MagicStick,
   Monitor, OfficeBuilding, Odometer, Picture, Present, PriceTag, Service, Setting, Ticket,
   Tickets, Timer, UserFilled, Wallet
 } from '@element-plus/icons-vue'
@@ -113,8 +113,8 @@ const menuGroups = [
     { path: '/license', label: '许可证', icon: Document, roles: ['ADMIN'] },
     { path: '/audit', label: '操作审计', icon: Tickets, roles: ['ADMIN'] },
     { path: '/materials', label: '素材库', icon: Picture, roles: ['ADMIN', 'OPERATOR'] },
+    // 视频分镜不再是独立菜单：它是「AI 素材生成」里的一个标签（同一条流水线、同样产出素材）
     { path: '/ai-media', label: 'AI 素材生成', icon: MagicStick, roles: ['ADMIN', 'OPERATOR'] },
-    { path: '/ai-storyboard', label: '视频分镜', icon: Film, roles: ['ADMIN', 'OPERATOR'] },
     { path: '/integrations', label: '第三方服务', icon: Connection, roles: ['ADMIN'] },
     { path: '/markets', label: '市场配置', icon: Setting, roles: ['ADMIN'] },
     { path: '/shipping-rates', label: '运费档位', icon: Setting, roles: ['ADMIN'] },

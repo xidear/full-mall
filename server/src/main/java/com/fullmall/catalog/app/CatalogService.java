@@ -20,10 +20,8 @@ import java.util.Map;
 import java.util.UUID;
 
 /**
- * 商品读写的领域服务（app 层）：后台维护、前台浏览、订单侧取 SKU 都走这里。
- *
- * <p>金额一律是最小货币单位（CNY=分）的 long，本类不换算、不舍入，币种合法性由 {@code Money} 保证。
- * 本类无可变状态，并发正确性依赖数据库条件更新与唯一约束，而不是应用层锁。
+ * 商品读写领域服务：后台维护、前台浏览、订单侧取 SKU 都走这里。
+ * 金额一律是最小货币单位的 long，本类不换算不舍入；并发正确性靠数据库条件更新与唯一约束，不靠应用层锁。
  */
 @Service
 public class CatalogService {
@@ -36,19 +34,25 @@ public class CatalogService {
     /** 对外输出统一把媒体地址转成绝对 http(s) URL；域名/存储切换只改配置。 */
     private final MediaUrlResolver mediaUrls;
 
-    /** 富文本详情入库前清洗（服务端权威，前端编辑器限制可被绕过）。 */
+    /** 富文本入库前清洗：前端编辑器的限制可被绕过，服务端清洗才是权威。 */
     private final com.fullmall.platform.html.RichTextSanitizer richText;
+    private final com.fullmall.asset.app.RichTextMediaGuard richTextMedia;
+    private final com.fullmall.asset.app.AssetLocaleVariantService assetVariants;
 
     public CatalogService(CatalogRepository repository,
                           org.springframework.jdbc.core.JdbcTemplate jdbcTemplate,
                           SkuOptionsMigrationService optionsMigration,
                           MediaUrlResolver mediaUrls,
-                          com.fullmall.platform.html.RichTextSanitizer richText) {
+                          com.fullmall.platform.html.RichTextSanitizer richText,
+                          com.fullmall.asset.app.RichTextMediaGuard richTextMedia,
+                          com.fullmall.asset.app.AssetLocaleVariantService assetVariants) {
         this.repository = repository;
         this.jdbcTemplate = jdbcTemplate;
         this.optionsMigration = optionsMigration;
         this.mediaUrls = mediaUrls;
         this.richText = richText;
+        this.richTextMedia = richTextMedia;
+        this.assetVariants = assetVariants;
     }
 
     // 只改“出参投影”，不动库里的值：库里存相对路径或既有绝对地址，图片域名/CDN 迁移时
@@ -110,12 +114,7 @@ public class CatalogService {
         return new ProductPage(items, safePage, safeSize, total);
     }
 
-    /**
-     * 单商品上下架。
-     *
-     * <p>先取一次商品再更新，是为了把“商品不存在”暴露成明确的 404：
-     * 若只看 UPDATE 的影响行数，0 行会被误当成“改成功了”。
-     */
+    /** 单商品上下架。先查再更新是为了把“不存在”暴露成 404：只靠 UPDATE 影响行数，0 行会被误当成改成功。 */
     @Transactional
     public void updateStatus(UUID productId, ProductStatus status) {
         getProduct(productId, "zh-CN");
@@ -123,10 +122,7 @@ public class CatalogService {
     }
 
     /**
-     * 按 id 取商品并叠加译文。
-     *
-     * <p>{@code locale} 只影响标题/描述：仓储层只认 {@code status = 'PUBLISHED'} 的译文，
-     * 草稿/待审/过期或该语言没录入时**回落到源文**，前台因此看不到机翻草稿。
+     * 按 id 取商品并叠加译文。译文只认 {@code status = 'PUBLISHED'}，其余情况回落源文——前台不会出现机翻草稿。
      * 商品不存在抛 404 {@code PRODUCT_NOT_FOUND}，永不返回 null。
      */
     public Product getProduct(UUID productId, String locale) {
@@ -173,11 +169,8 @@ public class CatalogService {
     }
 
     /**
-     * 新建商品 + 首批 SKU，并回填规格关联表（关联表是真相来源，options_json 只是投影）。
-     *
-     * <p>三步写入在同一事务：insert product → 逐个 insert sku → backfill；任一步失败全部回滚，
-     * 不会留下没有 SKU 的孤儿商品。默认值（DRAFT / VARIANT / none）在这里落下，
-     * 返回的是回读后的商品而不是请求体——请求体没有 id，也没有这些默认值。
+     * 新建商品 + 首批 SKU + 回填规格关联表，三步在同一事务：失败全部回滚，不会留下没有 SKU 的孤儿商品。
+     * 返回回读后的商品（带 id 与默认值），不用请求体——请求体里没有这些字段。
      */
     @Transactional
     public Product createProduct(ProductUpsertRequest request) {
@@ -311,12 +304,9 @@ public class CatalogService {
         return rows.isEmpty() ? null : rows.get(0);
     }
 
-    /**
-     * 前台展示用的详情 HTML：优先取该语言**已发布**的译文详情，否则回退默认语言。
-     *
-     * <p>未发布（草稿/待审）的译文不能出现在商城，避免"机翻没审就上线"。
-     */
+    /** 前台详情 HTML：优先该语言已发布的译文详情，否则回退默认语言（草稿/待审不能出现在商城）。 */
     public String detailHtmlFor(UUID productId, String locale) {
+        String html = null;
         if (locale != null && !locale.isBlank()) {
             var translated = jdbcTemplate.query("""
                     SELECT detail_html FROM product_translation
@@ -324,10 +314,22 @@ public class CatalogService {
                        AND detail_html IS NOT NULL AND detail_html <> ''
                     """, (rs, rowNum) -> rs.getString("detail_html"), productId, locale);
             if (!translated.isEmpty() && translated.get(0) != null) {
-                return translated.get(0);
+                html = translated.get(0);
             }
         }
-        return detailHtml(productId);
+        if (html == null) {
+            html = detailHtml(productId);
+        }
+        // 图片按语言替换：详情里存的是默认语言图（带中文文案），英文页要换成英文图
+        return localizeImages(html, locale);
+    }
+
+    /** 把详情里“有该语言变体”的图片换成本地化版本。放在读取侧而非保存侧：后补的变体也要生效。 */
+    private String localizeImages(String html, String locale) {
+        if (html == null || html.isBlank() || locale == null || locale.isBlank()) {
+            return html;
+        }
+        return DetailImages.localize(html, assetVariants.urlMap(locale));
     }
 
     /**
@@ -343,6 +345,10 @@ public class CatalogService {
             throw ApiException.badRequest("PRODUCT_TITLE_REQUIRED", "商品标题不能为空");
         }
         String cleaned = detailHtml == null ? null : richText.sanitize(detailHtml);
+        if (cleaned != null) {
+            // 清洗只管"没有 XSS"，这里再管"素材必须在库"：外站图/base64 一律拒绝保存（见 RichTextMediaGuard）
+            richTextMedia.requireLibraryMedia(cleaned);
+        }
         int updated = jdbcTemplate.update("""
                 UPDATE product SET title = ?, description = ?, category_id = ?,
                                    detail_html = COALESCE(?, detail_html)

@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test'
+import { e2ePhone } from './utils/e2ePhone'
 
 const API = 'http://localhost:41280'
 const SKU = 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb'
@@ -15,7 +16,7 @@ test('partial return holds commission then reverses it on refund', async ({ requ
   const admin = { Authorization: `Bearer ${login.token}` }
 
   // 顾客带推广人下单（binding 策略：默认 PERMANENT + CART）
-  const phone = `138${String(Date.now()).slice(-8)}`
+  const phone = e2ePhone()
   const issued = await request.post(`${API}/api/v1/member/auth/otp`, { data: { phone } })
   const code = (await issued.json()).debugCode
   const member = (await (await request.post(`${API}/api/v1/member/auth/verify`,

@@ -30,7 +30,6 @@ import MaterialView from './views/MaterialView.vue'
 import PosPromotionsView from './views/PosPromotionsView.vue'
 import FaqView from './views/FaqView.vue'
 import AiMediaView from './views/AiMediaView.vue'
-import AiStoryboardView from './views/AiStoryboardView.vue'
 import SetupView from './views/SetupView.vue'
 import AuditLogView from './views/AuditLogView.vue'
 import ReviewsView from './views/ReviewsView.vue'
@@ -84,7 +83,8 @@ const router = createRouter({
     { path: '/translations', redirect: { path: '/products' } },
     { path: '/faq', name: 'faq', component: FaqView, meta: { title: 'FAQ 知识库' } },
     { path: '/ai-media', name: 'ai-media', component: AiMediaView, meta: { title: 'AI 素材生成' } },
-    { path: '/ai-storyboard', name: 'ai-storyboard', component: AiStoryboardView, meta: { title: '视频分镜' } },
+    // 视频分镜已并入「AI 素材生成」的第二个标签；旧地址重定向并带上 tab，收藏夹/文档里的链接不失效
+    { path: '/ai-storyboard', redirect: () => ({ path: '/ai-media', query: { tab: 'storyboard' } }) },
     { path: '/setup', name: 'setup', component: SetupView, meta: { title: '首次配置' } },
     { path: '/audit', name: 'audit', component: AuditLogView, meta: { title: '操作审计' } },
     { path: '/reviews', name: 'reviews', component: ReviewsView, meta: { title: '评价审核' } },

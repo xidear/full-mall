@@ -90,6 +90,7 @@ frontend-test:
 # 前端调用 vs 后端路由（方法 + 路径）：拦住"前端调了不存在的接口"这类只能在运行时暴露的问题
 contract-check:
 	python3 scripts/check-api-alignment.py
+	node scripts/generate-permission-help.mjs --check
 
 # 页面呈现审计（对比度 / 裂图 / 控制台报错 / 横向溢出）。需要 API(41280) 与 admin(41281) 已启动。
 ui-audit:
@@ -111,6 +112,9 @@ verify-fast: ## 同上但跳过 E2E
 
 api-restart:
 	@bash scripts/restart-api.sh
+
+demo-ensure: ## 确保演示数据存在（幂等，不删除已有数据；恢复出厂用 make db-reset）
+	@bash scripts/reset-demo-data.sh
 
 init:
 	@bash init.sh

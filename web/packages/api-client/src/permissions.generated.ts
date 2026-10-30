@@ -1,0 +1,201 @@
+/**
+ * 由 scripts/generate-permission-help.mjs 生成，**勿手改**。
+ *
+ * 数据来源：说明来自 docs/permissions.catalog.json，接口映射来自
+ * PermissionService.requiredPermission()。改完跑 `npm run generate:permissions`；
+ * 产物与源不一致时 `make contract-check` 会失败。
+ */
+export interface PermissionDoc {
+  code: string
+  label: string
+  group: string
+  sortOrder: number
+  summary: string
+  grants: string[]
+  revokes: string[]
+  endpoints: string[]
+  fallback: boolean
+  note?: string
+}
+
+/** 关系总则：没有继承、没有父子层级；ADMIN 短路；菜单按角色而非权限。 */
+export const PERMISSION_RELATIONS = {
+  inheritance: '本项目没有权限继承，也没有父子层级：每个权限各自独立，必须逐个授予。',
+  adminBypass: 'ADMIN 角色在 PermissionService 里直接短路返回 true，始终拥有全部权限，不进入本矩阵。',
+  menu: '菜单可见性按角色（roles）判断，不由权限控制：取消某个权限后，菜单仍在，但该页所有请求会 403。',
+  fallback: '权限过滤器对未登记路径默认要求 permission.manage，因此新增接口若忘了登记映射，会落到它身上。'
+} as const
+
+export const PERMISSION_DOCS: Record<string, PermissionDoc> = {
+  'dashboard.view': {
+    code: 'dashboard.view',
+    label: '查看经营总览',
+    group: '工作台',
+    sortOrder: 10,
+    summary: '查看经营总览：营收、订单量、库存告警等汇总指标。',
+    grants: ['打开「经营总览」并读取汇总指标与走势'],
+    revokes: ['总览页保持可见但接口返回 403，页面显示空数据与错误提示'],
+    endpoints: ['/admin/v1/dashboard/**'],
+    fallback: false
+  },
+  'product.manage': {
+    code: 'product.manage',
+    label: '商品管理',
+    group: '商品',
+    sortOrder: 20,
+    summary: '维护商品、SKU、品牌、规格矩阵，并审核商品评价。',
+    grants: ['新建/编辑/上下架商品与 SKU、改价改库存', '维护品牌与规格矩阵模板', '审核、回复、隐藏商品评价'],
+    revokes: ['商品页只能看不能改（接口 403）', '评价审核无法提交处理结果'],
+    endpoints: ['/admin/v1/products/**', '/admin/v1/reviews/**'],
+    fallback: false
+  },
+  'order.manage': {
+    code: 'order.manage',
+    label: '订单管理',
+    group: '交易',
+    sortOrder: 30,
+    summary: '处理订单与售后：发货、取消、退款、售后审核。',
+    grants: ['查看与操作订单（发货、取消、备注）', '处理售后申请：同意/拒绝/退款'],
+    revokes: ['订单列表与售后页的写操作全部 403；只读展示取决于接口实现，通常整页无数据'],
+    endpoints: ['/admin/v1/orders/**', '/admin/v1/after-sales/**'],
+    fallback: false
+  },
+  'customer.view': {
+    code: 'customer.view',
+    label: '客户与会员',
+    group: '客户',
+    sortOrder: 40,
+    summary: '查看客户与会员资料、积分与消费记录。',
+    grants: ['查看会员列表与详情、消费与积分流水'],
+    revokes: ['客户页无数据（接口 403）'],
+    endpoints: ['/admin/v1/customers/**'],
+    fallback: false
+  },
+  'inventory.view': {
+    code: 'inventory.view',
+    label: '库存与批次',
+    group: '库存',
+    sortOrder: 50,
+    summary: '查看库存与批次、临期商品。',
+    grants: ['查看库存余量、批次与效期、临期清单'],
+    revokes: ['库存相关页面无数据'],
+    endpoints: ['/admin/v1/inventory/**'],
+    fallback: false
+  },
+  'warehouse.manage': {
+    code: 'warehouse.manage',
+    label: '仓储作业',
+    group: '库存',
+    sortOrder: 60,
+    summary: '执行仓储作业：入库、拣货、盘点、调拨。',
+    grants: ['创建与确认入库单、拣货单、盘点单、调拨单'],
+    revokes: ['仓储作业页只能看不能操作'],
+    endpoints: ['/admin/v1/warehouse/**'],
+    fallback: false
+  },
+  'promotion.manage': {
+    code: 'promotion.manage',
+    label: '促销与分销',
+    group: '营销',
+    sortOrder: 65,
+    summary: '营销：促销活动、优惠券、分销（不含提现审核）。',
+    grants: ['创建/编辑促销与优惠券', '查看与管理分销关系与佣金'],
+    revokes: ['营销类页面无法保存；分销提现仍需单独的 withdrawal.review'],
+    endpoints: ['/admin/v1/promotions/**', '/admin/v1/distribution/**（不含 /admin/v1/distribution/withdrawals/**）'],
+    fallback: false
+  },
+  'pos.manage': {
+    code: 'pos.manage',
+    label: '门店收银',
+    group: '门店',
+    sortOrder: 70,
+    summary: '门店收银台相关操作：开单、结账、班次交接。',
+    grants: ['进入门店收银台并完成收款、退款、班次管理'],
+    revokes: ['收银相关接口 403'],
+    endpoints: ['/admin/v1/pos/**'],
+    fallback: false
+  },
+  'withdrawal.review': {
+    code: 'withdrawal.review',
+    label: '提现审核与打款',
+    group: '财务',
+    sortOrder: 70,
+    summary: '资金动作：审核分销提现并打款。',
+    grants: ['审核提现申请、标记打款结果'],
+    revokes: ['提现审核一律 403；这是与 promotion.manage 分开的独立授权，默认只给 ADMIN'],
+    endpoints: ['/admin/v1/distribution/withdrawals/**'],
+    fallback: false
+  },
+  'supplier.manage': {
+    code: 'supplier.manage',
+    label: '供应商与凭证',
+    group: '供应商',
+    sortOrder: 80,
+    summary: '供应商档案、凭证与供应商售后。',
+    grants: ['维护供应商资料与资质凭证', '处理供应商退货与售后'],
+    revokes: ['供应商与供应商售后页面无法提交'],
+    endpoints: ['/admin/v1/suppliers/**', '/admin/v1/supplier-returns/**'],
+    fallback: false
+  },
+  'notification.view': {
+    code: 'notification.view',
+    label: '通知中心',
+    group: '运营',
+    sortOrder: 90,
+    summary: '通知中心：站内通知与消息记录。',
+    grants: ['查看通知列表与详情'],
+    revokes: ['通知中心无数据'],
+    endpoints: ['/admin/v1/notifications/**'],
+    fallback: false
+  },
+  'theme.manage': {
+    code: 'theme.manage',
+    label: '主题配置',
+    group: '运营',
+    sortOrder: 100,
+    summary: '主题配置：PC 商城与微信小程序的主题、配色、首页模块。',
+    grants: ['修改并保存主题配置（按应用端分别保存）'],
+    revokes: ['主题工作室无法保存，预览仍可看'],
+    endpoints: ['/admin/v1/theme/**'],
+    fallback: false
+  },
+  'staff.manage': {
+    code: 'staff.manage',
+    label: '员工与权限',
+    group: '系统',
+    sortOrder: 110,
+    summary: '员工账号与门店：建号、改角色、设 PIN、绑定门店。',
+    grants: ['查看员工列表、设置 PIN、绑定/解绑门店', '（接口层同时覆盖 /admin/v1/stores 门店列表）'],
+    revokes: ['员工页与门店列表接口 403'],
+    endpoints: ['/admin/v1/staff/**', '/admin/v1/stores/**'],
+    fallback: false,
+    note: '门店（/admin/v1/stores）与员工共用本权限：没有独立的门店权限码。'
+  },
+  'settings.manage': {
+    code: 'settings.manage',
+    label: '系统设置',
+    group: '系统',
+    sortOrder: 120,
+    summary: '系统设置、首次配置引导与审计恢复。',
+    grants: ['修改系统设置（含支付、上传上限等）', '首次配置引导、审计事件恢复'],
+    revokes: ['设置与引导无法保存；审计恢复不可用'],
+    endpoints: ['/admin/v1/settings/**', '/admin/v1/setup/**', '/admin/v1/audit/**'],
+    fallback: false
+  },
+  'permission.manage': {
+    code: 'permission.manage',
+    label: '权限矩阵',
+    group: '系统',
+    sortOrder: 130,
+    summary: '权限矩阵本身；同时是未登记接口的兜底权限。',
+    grants: ['查看与修改角色权限矩阵', '访问任何未在过滤器里登记路径的接口（兜底）'],
+    revokes: ['无法打开或保存权限矩阵；未登记的新接口也会 403'],
+    endpoints: ['/admin/v1/permissions/**'],
+    fallback: true,
+    note: '给这个权限等于给出「改授权」的能力，非必要不要授予运营角色。'
+  }
+}
+
+export function permissionDoc(code: string): PermissionDoc | undefined {
+  return PERMISSION_DOCS[code]
+}

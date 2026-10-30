@@ -140,7 +140,7 @@ public class SkuMatrixMultiService {
             int inserted = jdbc.update("""
                     INSERT INTO sku (id, product_id, sku_code, price_amount, price_currency, options_json)
                     VALUES (?, ?, ?, ?, ?, ?::jsonb)
-                    ON CONFLICT (sku_code) DO NOTHING
+                    ON CONFLICT (product_id, sku_code) DO NOTHING
                     """, UUID.randomUUID(), productId, skuCode, priceAmount, resolvedCurrency,
                     toJson(combo));
             if (inserted == 1) {

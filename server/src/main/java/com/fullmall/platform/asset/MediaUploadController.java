@@ -44,13 +44,16 @@ public class MediaUploadController {
     private final MediaUploadValidator validator;
     private final SystemSettingService settings;
     private final JdbcTemplate jdbc;
+    private final com.fullmall.asset.app.AssetImageIndexService imageIndex;
 
     public MediaUploadController(AssetStorage storage, MediaUploadValidator validator,
-                                 SystemSettingService settings, JdbcTemplate jdbc) {
+                                 SystemSettingService settings, JdbcTemplate jdbc,
+                                 com.fullmall.asset.app.AssetImageIndexService imageIndex) {
         this.storage = storage;
         this.validator = validator;
         this.settings = settings;
         this.jdbc = jdbc;
+        this.imageIndex = imageIndex;
     }
 
     /**
@@ -117,6 +120,17 @@ public class MediaUploadController {
                 """, assetId, file.getOriginalFilename() == null ? "上传素材" : file.getOriginalFilename(),
                 url, validated.kind().name(), authentication.getName(), normalized);
         result.put("assetId", assetId.toString());
+        // 图片顺手建"图像内容向量"，这样素材一上传就能被"用一句话搜图"命中；
+        // 没配多模态供应商时跳过（能力可选），但要记一笔，不假装建好了。
+        if ("IMAGE".equals(validated.kind().name())) {
+            try {
+                imageIndex.index(assetId, null);
+                result.put("imageIndexed", true);
+            } catch (RuntimeException error) {
+                result.put("imageIndexed", false);
+                result.put("imageIndexError", error.getMessage());
+            }
+        }
         return result;
     }
 }

@@ -60,10 +60,8 @@ public class ProductCsvImporter {
                 throw ApiException.badRequest("CSV_DUPLICATED_SKU", "第 " + lineNo + " 行 SKU 编码重复：" + skuCode);
             }
             seen.add(skuCode);
-            Integer exists = jdbc.queryForObject("SELECT COUNT(*) FROM sku WHERE sku_code = ?", Integer.class, skuCode);
-            if (exists != null && exists > 0) {
-                throw ApiException.conflict("CSV_SKU_EXISTS", "第 " + lineNo + " 行 SKU 已存在：" + skuCode);
-            }
+            // 每行都会新建商品，SKU 编码的唯一性是"商品内唯一"，这里不再查全库是否已有同名编码
+            // （那样会把"别的商品用过同款编码"误判成冲突）；同文件内重复由上面的 seen 拦住。
             BigDecimal price;
             try {
                 price = new BigDecimal(cells[2].trim());

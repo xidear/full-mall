@@ -18,15 +18,20 @@ const orderNo = String(route.params.orderNo || '')
 // 会员/访客下单后都需要带 token 才能查看自己的订单（服务端按归属校验）
 // 服务端渲染读 cookie、客户端也读 cookie（localStorage 在 SSR 取不到，曾导致硬刷新 404）
 const memberToken = useCookie<string | null>('fullmall_member_token').value ?? ''
-const guestToken = process.client
-  ? (localStorage.getItem(`fullmall.orderToken.${orderNo}`) ?? '')
-  : ''
+// 游客令牌优先取 cookie（SSR 也能读），再退回 localStorage（老会话只存过 localStorage）。
+const guestTokenCookie = useCookie<string | null>(`fullmall_ot_${orderNo}`).value ?? ''
+const guestToken = guestTokenCookie
+  || (process.client ? (localStorage.getItem(`fullmall.orderToken.${orderNo}`) ?? '') : '')
 const authHeaders: Record<string, string> = {
   ...(memberToken ? { Authorization: `Bearer ${memberToken}` } : {}),
   ...(guestToken ? { 'X-Order-Token': guestToken } : {})
 }
+// 路由既能接业务订单号（顾客看到的规范地址），也能接 UUID：
+// 内部系统/测试/客服发的链接两种都有，只认一种会让其中一种直接 404（曾导致跟踪用例 404）。
+const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(orderNo)
+const orderEndpoint = isUuid ? `${base}/api/v1/orders/${orderNo}` : `${base}/api/v1/orders/no/${orderNo}`
 const { data: order, error, refresh: refreshOrder } = await useFetch<Order>(
-  `${base}/api/v1/orders/no/${orderNo}`,
+  orderEndpoint,
   {
     key: `order-${orderNo}`, headers: authHeaders }
 )

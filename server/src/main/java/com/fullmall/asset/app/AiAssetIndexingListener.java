@@ -25,9 +25,11 @@ public class AiAssetIndexingListener {
     private static final Logger log = LoggerFactory.getLogger(AiAssetIndexingListener.class);
 
     private final AssetSearchService assets;
+    private final AssetImageIndexService imageIndex;
 
-    public AiAssetIndexingListener(AssetSearchService assets) {
+    public AiAssetIndexingListener(AssetSearchService assets, AssetImageIndexService imageIndex) {
         this.assets = assets;
+        this.imageIndex = imageIndex;
     }
 
     /** 生成成功 → 写描述/标签并重建索引；失败必须抛出（生成成功但检索退化，不能静默）。 */
@@ -37,6 +39,10 @@ public class AiAssetIndexingListener {
         String prompt = event.prompt() == null ? "" : event.prompt();
         try {
             assets.updateMeta(assetId, keywords(prompt), prompt.isBlank() ? null : prompt);
+            // 生成的图片同样要有"图像内容向量"，否则用文字搜图搜不到刚生成的素材
+            if ("IMAGE".equalsIgnoreCase(event.kind()) && imageIndex.available()) {
+                imageIndex.index(assetId, null);
+            }
         } catch (RuntimeException error) {
             log.error("AI 素材打标签/建索引失败 asset={} prompt={}", assetId, prompt, error);
             throw error;

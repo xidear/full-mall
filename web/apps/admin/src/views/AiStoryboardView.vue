@@ -1,5 +1,7 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
+// 默认独立页；嵌进「AI 素材生成」的标签页时传 embedded，避免出现两级标题
+const props = defineProps<{ embedded?: boolean }>()
 import { useRoute } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { api } from '../api'
@@ -145,7 +147,7 @@ onMounted(load)
 
 <template>
   <div>
-    <h1>视频分镜</h1>
+    <h1 v-if="!props.embedded">视频分镜</h1>
     <el-alert type="info" :closable="false" show-icon class="mb-16"
               title="一个分镜本 = 多个镜头；每个镜头写提示词、选引导图（首帧）、设时长"
               description="逐镜头生成，完成后自动回填；引导图与提示词都会留痕。" />

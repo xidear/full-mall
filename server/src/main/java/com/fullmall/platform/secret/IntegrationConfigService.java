@@ -28,9 +28,11 @@ public class IntegrationConfigService {
 
     // 独立 ObjectMapper：不参与全局 Jackson 定制，否则命名策略一变已入库密文的字节形态就变、旧配置解不开。
     private static final ObjectMapper MAPPER = new ObjectMapper();
-    /** 允许的能力（与 ADR-005 一致）；拼错会产生永不生效的死配置，必须拒绝。 */
-    private static final Set<String> SUPPORTED_CAPABILITIES = Set.of(
-            "sms", "payment", "storage", "moderation", "logistics", "ai");
+    /**
+     * 允许的能力（与 ADR-005 一致）；拼错会产生永不生效的死配置，必须拒绝。
+     * 候选清单统一来自 {@link IntegrationCatalog}，不在本类再写一份。
+     */
+    private static final Set<String> SUPPORTED_CAPABILITIES = IntegrationCatalog.capabilityCodes();
 
     // 子串匹配：keyId 之类也会被当密文（列表不回显），新增服务商请按 xxx_secret_key / xxx_access_key 命名。
     private static final List<String> SENSITIVE_MARKERS =
@@ -42,6 +44,11 @@ public class IntegrationConfigService {
     public IntegrationConfigService(JdbcTemplate jdbc, SecretCipher cipher) {
         this.jdbc = jdbc;
         this.cipher = cipher;
+    }
+
+    /** 候选清单：前端据此渲染能力/服务商下拉与配置字段，不硬编码任何候选。 */
+    public List<IntegrationCatalog.Capability> catalog() {
+        return IntegrationCatalog.capabilities();
     }
 
     public record Saved(String capability, String provider, boolean enabled,
@@ -67,15 +74,47 @@ public class IntegrationConfigService {
             throw ApiException.badRequest("INTEGRATION_CAPABILITY_UNSUPPORTED",
                     "不支持的能力：" + capability + "（可选：" + SUPPORTED_CAPABILITIES + "）");
         }
+        // 服务商与配置键必须来自清单：自由文本会让运营填出永不生效的配置，且前端只能给输入框。
+        var providerSpec = IntegrationCatalog.provider(capability, provider);
+        if (providerSpec.isEmpty()) {
+            String allowed = IntegrationCatalog.providersOf(capability);
+            throw ApiException.badRequest("INTEGRATION_PROVIDER_UNSUPPORTED",
+                    "不支持的服务商：" + provider + "；能力 " + capability.trim().toLowerCase(java.util.Locale.ROOT)
+                            + " 可选：" + allowed);
+        }
+        Map<String, IntegrationCatalog.Field> fields = new LinkedHashMap<>();
+        for (IntegrationCatalog.Field field : providerSpec.get().fields()) {
+            fields.put(field.key(), field);
+        }
         if (config == null || config.isEmpty()) {
             throw ApiException.badRequest("INTEGRATION_CONFIG_EMPTY", "配置不能为空");
+        }
+        for (String name : config.keySet()) {
+            if (!fields.containsKey(name)) {
+                throw ApiException.badRequest("INTEGRATION_CONFIG_KEY_UNKNOWN",
+                        "未知配置项：" + name + "；服务商 " + providerSpec.get().code()
+                                + " 只接受：" + String.join("/", fields.keySet()));
+            }
+        }
+        boolean existingConfig = Boolean.TRUE.equals(jdbc.queryForObject(
+                "SELECT EXISTS (SELECT 1 FROM integration_config WHERE capability = ? AND provider = ?)",
+                Boolean.class, capability, provider));
+        for (IntegrationCatalog.Field field : fields.values()) {
+            if (field.required() && !existingConfig) {
+                String value = config.get(field.key());
+                if (value == null || value.isBlank()) {
+                    throw ApiException.badRequest("INTEGRATION_CONFIG_FIELD_REQUIRED",
+                            "缺少必填配置项：" + field.label() + "（" + field.key() + "）");
+                }
+            }
         }
         Map<String, String> secrets = new LinkedHashMap<>();
         Map<String, Object> hint = new LinkedHashMap<>();
         for (var entry : config.entrySet()) {
             String name = entry.getKey();
             String value = entry.getValue();
-            if (isSensitive(name)) {
+            // 敏感判定以清单为准（键名规则作为兜底）：清单说 secret 就必须加密，避免漏掉不含 key 字样的密文。
+            if (fields.get(name).secret() || isSensitive(name)) {
                 if (value != null && !value.isBlank()) {
                     // 空白表示"保持不变"：沿用旧密文
                     secrets.put(name, value);

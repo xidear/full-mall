@@ -1,9 +1,10 @@
 import { expect, test } from '@playwright/test'
+import { e2ePhone } from './utils/e2ePhone'
 
 const API = 'http://localhost:41280'
 
 test('member pages require login and render once signed in', async ({ page, request }) => {
-  const phone = `135${String(Date.now()).slice(-8)}`
+  const phone = e2ePhone()
   const issued = await request.post(`${API}/api/v1/member/auth/otp`, { data: { phone } })
   const code = (await issued.json()).debugCode
   const token = (await (await request.post(`${API}/api/v1/member/auth/verify`,
@@ -19,7 +20,8 @@ test('member pages require login and render once signed in', async ({ page, requ
   }])
   await page.goto('http://localhost:41285/notifications')
   await expect(page.getByRole('heading', { name: '消息中心' })).toBeVisible()
-  await expect(page.getByText('暂时没有消息。')).toBeVisible()
+  // 空态标题没有句号（"暂时没有消息" + 描述），断言用正则避免标点回归
+  await expect(page.getByText(/暂时没有消息/)).toBeVisible()
 
   await page.goto('http://localhost:41285/favorites')
   await expect(page.getByRole('heading', { name: '我的收藏' })).toBeVisible()

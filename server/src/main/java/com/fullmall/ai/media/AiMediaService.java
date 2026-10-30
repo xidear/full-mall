@@ -427,6 +427,16 @@ public class AiMediaService {
                 java.nio.charset.StandardCharsets.UTF_8);
     }
 
+    /**
+     * 是否配置了可用的 embedding 供应商（不抛异常）。
+     *
+     * <p>给"可选增强"用：语义索引没配供应商属于**未启用**，不是失败；
+     * 让调用方据此跳过，而不是让图片生成被一个可选功能拖挂。
+     */
+    public boolean embeddingAvailable(String providerCode) {
+        return findProviderByProtocol("openai-embedding", providerCode).isPresent();
+    }
+
     /** 同步取 embedding 文本（向量以 JSON 数组返回），供语义检索使用。 */
     public String embedding(String text, String providerCode) {
         // 必须按协议挑：TEXT 类型里还有 chat 供应商，按优先级盲选会选错
@@ -472,6 +482,16 @@ public class AiMediaService {
     }
 
     private ProviderConfig pickProviderByProtocol(String protocol, String code) {
+        var found = findProviderByProtocol(protocol, code);
+        if (found.isEmpty()) {
+            throw ApiException.conflict("AI_EMBEDDING_UNAVAILABLE",
+                    "没有可用的 embedding 供应商（需要 protocol=openai-embedding"
+                            + (code == null ? "" : "，指定 code=" + code) + "）");
+        }
+        return found.get();
+    }
+
+    private java.util.Optional<ProviderConfig> findProviderByProtocol(String protocol, String code) {
         var rows = jdbc.query("""
                 SELECT id, kind, code, name, protocol, endpoint, api_key, model, extra::text AS extra,
                        enabled, priority
@@ -485,11 +505,6 @@ public class AiMediaService {
                 rs.getString("endpoint"), decrypt(rs.getString("api_key")), rs.getString("model"),
                 Json.read(rs.getString("extra")), rs.getBoolean("enabled"), rs.getInt("priority")),
                 protocol, code, code);
-        if (rows.isEmpty()) {
-            throw ApiException.conflict("AI_EMBEDDING_UNAVAILABLE",
-                    "没有可用的 embedding 供应商（需要 protocol=openai-embedding"
-                            + (code == null ? "" : "，指定 code=" + code) + "）");
-        }
-        return rows.get(0);
+        return rows.stream().findFirst();
     }
 }

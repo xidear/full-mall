@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test'
+import { e2ePhone } from './utils/e2ePhone'
 
 const API = 'http://localhost:41280'
 const SKU = 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb'
@@ -16,7 +17,7 @@ async function adminToken(request: import('@playwright/test').APIRequestContext)
 
 test('exchange flows from request to completion', async ({ request }) => {
   const admin = await adminToken(request)
-  const phone = `132${String(Date.now()).slice(-8)}`
+  const phone = e2ePhone()
 
   // 会员下单并支付（自提，避免地址必填）
   const issued = await request.post(`${API}/api/v1/member/auth/otp`, { data: { phone } })

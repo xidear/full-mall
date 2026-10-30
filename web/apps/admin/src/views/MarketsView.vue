@@ -4,7 +4,7 @@
  * 这一页只编辑「市场」这一轴——币种、税辖区、法律主体、语言候选、市场级设置；
  * 收货地（地址国家）在顾客结算时决定，不在这里配置。
  */
-import { onMounted, reactive, ref } from 'vue'
+import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { ElMessage } from 'element-plus'
 import { api } from '../api'
 
@@ -21,6 +21,23 @@ interface MarketView {
   sort: number
   locales: string[]
   settings: Record<string, string>
+}
+
+interface LocaleView {
+  defaultLocale: string
+  enabledLocales: string[]
+  translationLocales: string[]
+}
+
+interface RegionOption {
+  code: string
+  name: string
+}
+
+interface CapabilitySchema {
+  code: string
+  label: string
+  providers: Array<{ code: string; label: string }>
 }
 
 interface IntegrationRow {
@@ -42,7 +59,19 @@ const saving = ref(false)
 const integrations = ref<IntegrationRow[]>([])
 const integrationSaving = ref(false)
 const newIntegration = reactive({ capability: 'payment', provider: '' })
-const CAPABILITIES = ['payment', 'logistics', 'sms', 'storage', 'moderation', 'ai', 'address']
+/** 能力 → 可选服务商，全部来自后端接口（AGENTS §13：枚举禁止手填，页面里不再写死候选）。 */
+const catalog = ref<Record<string, string[]>>({})
+const capabilities = computed(() => Object.keys(catalog.value))
+const providersForCapability = computed(() => catalog.value[newIntegration.capability] ?? [])
+
+// 候选全部来自后端/浏览器内置能力（AGENTS §13）：币种与 IANA 时区用 Intl 的 ISO 清单，
+// 语言用后台已启用的语言，国家用 region 数据，通道用第三方服务清单——页面里不写死任何候选。
+const localeOptions = ref<string[]>([])
+const countryOptions = ref<RegionOption[]>([])
+const currencyOptions = ref<string[]>([])
+const timezoneOptions = ref<string[]>([])
+const integrationSchema = ref<CapabilitySchema[]>([])
+const optionError = ref('')
 
 const dialogVisible = ref(false)
 const editing = reactive({
@@ -56,11 +85,63 @@ const editing = reactive({
   legalEntityName: '',
   active: true,
   sort: 0,
-  locales: '',
+  locales: [] as string[],
   primaryLocale: '',
   icpNumber: '',
   servicePhone: ''
 })
+
+/**
+ * 加载所有可枚举候选。失败时**不静默**：页面顶部会显示错误，且相关下拉为空（保存前会被拦下）。
+ */
+async function loadOptions() {
+  optionError.value = ''
+  try {
+    const [locales, countries, schema] = await Promise.all([
+      api.get<LocaleView>('/admin/v1/i18n/locales'),
+      api.get<RegionOption[]>('/api/v1/regions/countries', { locale: 'zh-CN' }),
+      api.get<CapabilitySchema[]>('/admin/v1/integrations/schema')
+    ])
+    localeOptions.value = [...new Set([...locales.translationLocales, ...locales.enabledLocales])]
+    countryOptions.value = countries
+    integrationSchema.value = schema
+  } catch (cause) {
+    optionError.value = '候选清单加载失败（币种/时区仍可用，语言/国家/通道需重新加载）：' + (cause as Error).message
+  }
+  // 币种与 IANA 时区用浏览器内置的 ISO 清单：不引依赖，也不会和后端数据不一致
+  const intlWithValues = Intl as typeof Intl & { supportedValuesOf?: (key: string) => string[] }
+  currencyOptions.value = intlWithValues.supportedValuesOf?.('currency') ?? []
+  timezoneOptions.value = intlWithValues.supportedValuesOf?.('timeZone') ?? []
+  if (currencyOptions.value.length === 0 || timezoneOptions.value.length === 0) {
+    optionError.value = '当前浏览器不支持 Intl.supportedValuesOf，币种/时区无法给出候选；请使用新版 Chrome/Edge/Safari'
+  }
+}
+
+function capabilityLabel(code: string): string {
+  return integrationSchema.value.find(item => item.code === code)?.label ?? code
+}
+
+function providerLabel(capability: string, provider: string): string {
+  return integrationSchema.value.find(item => item.code === capability)?.providers.find(item => item.code === provider)?.label ?? provider
+}
+
+// 主语言必须在候选内：取消勾选后自动回落到第一个候选，避免提交出"主语言不在候选里"的无效组合
+watch(() => editing.locales, value => {
+  if (!value.includes(editing.primaryLocale)) {
+    editing.primaryLocale = value[0] ?? ''
+  }
+})
+
+async function loadIntegrationCatalog() {
+  catalog.value = await api.get<Record<string, string[]>>('/admin/v1/markets/integration-catalog')
+  if (!catalog.value[newIntegration.capability]) {
+    const first = Object.keys(catalog.value)[0]
+    if (first) newIntegration.capability = first
+  }
+  if (!providersForCapability.value.includes(newIntegration.provider)) {
+    newIntegration.provider = providersForCapability.value[0] ?? ''
+  }
+}
 
 async function loadIntegrations(code: string) {
   integrations.value = code
@@ -122,10 +203,11 @@ function openEdit(market: MarketView) {
   editing.legalEntityName = market.legalEntityName ?? ''
   editing.active = market.active
   editing.sort = market.sort
-  editing.locales = market.locales.join(',')
+  editing.locales = [...market.locales]
   editing.primaryLocale = market.locales[0] ?? ''
   editing.icpNumber = market.settings.icp_number ?? ''
   editing.servicePhone = market.settings.service_phone ?? ''
+  void loadIntegrationCatalog()
   void loadIntegrations(market.code)
   dialogVisible.value = true
 }
@@ -134,9 +216,10 @@ function openCreate() {
   Object.assign(editing, {
     code: '', name: '', currency: 'CNY', countryCode: '', taxJurisdiction: '',
     priceIncludesTax: true, timezone: '', legalEntityName: '', active: true, sort: 0,
-    locales: '', primaryLocale: '', icpNumber: '', servicePhone: ''
+    locales: [], primaryLocale: '', icpNumber: '', servicePhone: ''
   })
   integrations.value = []
+  void loadIntegrationCatalog()
   dialogVisible.value = true
 }
 
@@ -163,7 +246,7 @@ async function save() {
       active: editing.active,
       sort: editing.sort
     })
-    const locales = editing.locales.split(',').map(x => x.trim()).filter(Boolean)
+    const locales = editing.locales.filter(Boolean)
     if (locales.length) {
       await api.put(`/admin/v1/markets/${encodeURIComponent(editing.code.trim())}/locales`, {
         locales,
@@ -186,7 +269,10 @@ async function save() {
   }
 }
 
-onMounted(load)
+onMounted(async () => {
+  await loadOptions()
+  await load()
+})
 </script>
 
 <template>
@@ -205,6 +291,7 @@ onMounted(load)
     </p>
 
     <el-alert v-if="error" :title="error" type="error" :closable="false" />
+    <el-alert v-if="optionError" :title="optionError" type="warning" :closable="false" class="mb-12" />
 
     <el-table :data="markets" v-loading="loading" empty-text="暂无市场">
       <el-table-column prop="code" label="市场码" width="100" />
@@ -242,13 +329,22 @@ onMounted(load)
           <el-input v-model="editing.name" placeholder="如 日本" />
         </el-form-item>
         <el-form-item label="币种">
-          <el-input v-model="editing.currency" placeholder="ISO-4217，如 JPY" />
+          <el-select v-model="editing.currency" filterable placeholder="选择币种（ISO-4217）" style="width: 100%">
+            <el-option v-for="currency in currencyOptions" :key="currency" :label="currency" :value="currency" />
+          </el-select>
         </el-form-item>
         <el-form-item label="国家">
-          <el-input v-model="editing.countryCode" placeholder="ISO 3166-1 alpha-2，如 JP" />
+          <el-select v-model="editing.countryCode" filterable clearable placeholder="选择国家/地区（可留空）" style="width: 100%">
+            <el-option v-for="country in countryOptions" :key="country.code"
+                       :label="country.name + '（' + country.code + '）'" :value="country.code" />
+          </el-select>
         </el-form-item>
         <el-form-item label="税务辖区">
-          <el-input v-model="editing.taxJurisdiction" placeholder="如 JP / EU-OSS" />
+          <el-input v-model="editing.taxJurisdiction" placeholder="与「税率规则」里的辖区代码一致，如 JP / EU-OSS" />
+          <span class="field-hint">
+            辖区是税率规则里的自定义代码（税率规则页创建），后台没有固定清单，因此仍需手填；
+            一旦「税率规则」提供辖区枚举，这里应改成下拉。
+          </span>
         </el-form-item>
         <el-form-item label="标价含税">
           <el-radio-group v-model="editing.priceIncludesTax">
@@ -257,16 +353,24 @@ onMounted(load)
           </el-radio-group>
         </el-form-item>
         <el-form-item label="时区">
-          <el-input v-model="editing.timezone" placeholder="IANA，如 Asia/Tokyo" />
+          <el-select v-model="editing.timezone" filterable placeholder="选择时区（IANA）" style="width: 100%">
+            <el-option v-for="zone in timezoneOptions" :key="zone" :label="zone" :value="zone" />
+          </el-select>
         </el-form-item>
         <el-form-item label="法律主体">
           <el-input v-model="editing.legalEntityName" placeholder="如 XX 株式会社" />
         </el-form-item>
         <el-form-item label="语言候选">
-          <el-input v-model="editing.locales" placeholder="逗号分隔，如 ja,en" />
+          <el-checkbox-group v-model="editing.locales">
+            <el-checkbox v-for="locale in localeOptions" :key="locale" :value="locale" :label="locale" />
+          </el-checkbox-group>
+          <span class="field-hint">候选来自后台已启用/需要翻译的语言；这里不勾就不在该市场展示</span>
         </el-form-item>
         <el-form-item label="主语言">
-          <el-input v-model="editing.primaryLocale" placeholder="必须在语言候选内，如 ja" />
+          <el-radio-group v-model="editing.primaryLocale" :disabled="editing.locales.length === 0">
+            <el-radio v-for="locale in editing.locales" :key="locale" :value="locale" :label="locale" />
+          </el-radio-group>
+          <span v-if="editing.locales.length === 0" class="field-hint">先勾选至少一个语言候选</span>
         </el-form-item>
         <el-form-item label="ICP 备案">
           <el-input v-model="editing.icpNumber" placeholder="该市场的备案号" />
@@ -289,8 +393,8 @@ onMounted(load)
         <el-form-item label="通道启用">
           <div class="integration-list">
             <div v-for="row in integrations" :key="row.capability + row.provider" class="integration-row">
-              <span class="cap">{{ row.capability }}</span>
-              <span class="prov">{{ row.provider }}</span>
+              <span class="cap">{{ capabilityLabel(row.capability) }}</span>
+              <span class="prov">{{ providerLabel(row.capability, row.provider) }}</span>
               <el-switch
                 :model-value="row.enabled"
                 :loading="integrationSaving"
@@ -298,11 +402,19 @@ onMounted(load)
               />
             </div>
             <div class="integration-row">
-              <el-select v-model="newIntegration.capability" style="width: 120px">
-                <el-option v-for="cap in CAPABILITIES" :key="cap" :label="cap" :value="cap" />
+              <el-select v-model="newIntegration.capability" style="width: 150px">
+                <el-option v-for="cap in capabilities" :key="cap"
+                           :label="capabilityLabel(cap)" :value="cap" />
               </el-select>
-              <el-input v-model="newIntegration.provider" placeholder="服务商标识，如 stripe" style="flex: 1" />
-              <el-button :loading="integrationSaving" @click="addIntegration">添加并启用</el-button>
+              <el-select v-model="newIntegration.provider" placeholder="选择服务商" style="flex: 1">
+                <el-option v-for="prov in providersForCapability" :key="prov"
+                           :label="providerLabel(newIntegration.capability, prov)" :value="prov" />
+              </el-select>
+              <el-button
+                :loading="integrationSaving"
+                :disabled="!newIntegration.provider"
+                @click="addIntegration"
+              >添加并启用</el-button>
             </div>
             <p class="field-hint">
               同一能力的服务商只能启用一个；凭据请在「第三方服务」页配置。未配置任何通道的市场，
@@ -327,4 +439,5 @@ onMounted(load)
 .integration-row .cap { width: 96px; color: var(--text-muted, #666); }
 .integration-row .prov { flex: 1; }
 .field-hint { color: var(--text-muted, #666); font-size: 12px; margin: 4px 0 0; line-height: 1.5; }
+.mb-12 { margin-bottom: 12px; }
 </style>

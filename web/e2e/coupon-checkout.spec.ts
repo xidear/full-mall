@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test'
+import { e2ePhone } from './utils/e2ePhone'
 
 const API = 'http://localhost:41280'
 const SKU = 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb'
@@ -45,7 +46,7 @@ test('coupon is claimable and discounts checkout', async ({ request }) => {
   expect(activated.ok(), await activated.text()).toBeTruthy()
 
   // 2) 会员领券
-  const phone = `133${String(Date.now()).slice(-8)}`
+  const phone = e2ePhone()
   const member = await memberToken(request, phone)
   const claimed = await request.post(`${API}/api/v1/coupons/${templateId}/claim`, {
     headers: { Authorization: `Bearer ${member}` }

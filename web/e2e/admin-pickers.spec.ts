@@ -38,18 +38,21 @@ test('admin picks assets and products instead of typing ids', async ({ page, req
   await page.getByRole('button', { name: /确定（已选 1）/ }).click()
   await expect(page.locator('.asset-picker .preview').first()).toBeVisible()
 
-  // AI 素材页：商品用远程搜索选择器
+  // AI 素材页：商品选择器已从表单顶部移到「生成成功后 → 挂到商品」（ProductPicker 组件），
+  // 需要真实生成才能出现，e2e 不跑生成。这里守住原来的意图：**页面上不允许手填商品 ID**。
+  // 选择器本身的正确性由上面的规格图选择器与 ProductPicker 的单元/组件层保证。
   await page.goto('http://localhost:41281/ai-media')
   await expect(page.getByText('AI 素材生成', { exact: true }).first()).toBeVisible()
-  const productSelect = page.locator('.el-form-item', { hasText: '商品' }).locator('.el-select').first()
-  await productSelect.click()
-  await expect(page.locator('.el-select-dropdown__item').first()).toBeVisible({ timeout: 10_000 })
-  await page.locator('.el-select-dropdown__item').first().click()
+  await expect(page.getByPlaceholder(/商品\s*ID/i)).toHaveCount(0)
+  await expect(page.locator('input[placeholder*="aaaaaaaa-"]')).toHaveCount(0)
 
-  // 视频分镜页：商品选择器存在（不再手填 UUID）
-  await page.goto('http://localhost:41281/ai-storyboard')
-  await expect(page.locator('.el-form-item', { hasText: '商品' }).locator('.el-select').first()).toBeVisible()
+  // 视频分镜：已并入「AI 素材生成」的第二个标签（旧地址 /ai-storyboard 会重定向到这里）
+  await page.goto('http://localhost:41281/ai-media?tab=storyboard')
+  await expect(page.getByRole('tab', { name: '视频分镜' })).toHaveClass(/is-active/)
+  // 商品选择器（ProductPicker）只在「生成成功后 → 挂到商品」渲染，e2e 不跑真实生成，因此这里
+  // 不做正向可见断言；回归线改为负向：页面上不允许出现手填商品 ID / UUID 的输入框。
   await expect(page.getByPlaceholder(/商品ID|UUID/)).toHaveCount(0)
+  await expect(page.locator('input[placeholder*="aaaaaaaa-"]')).toHaveCount(0)
   // 手填 UUID 的输入框必须彻底消失——这条计数断言就是“不再手填”的回归线。
 
   // 测试自清理：上传的素材必须删掉，否则演示库会被 picker.png/m.png 这类垃圾图填满

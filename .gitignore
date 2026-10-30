@@ -22,8 +22,9 @@ coverage/
 .vite/
 
 # Env & secrets
-# main/public must never contain secrets. Gitea turnkey env is a tracked .env on the
-# private gitea-dev branch (force-added there); never push that branch to GitHub/Gitee.
+# 事实（2026-10-30 核对）：.env **未入库**（被本文件忽略），仓库只提交 .env.example。
+# 此前注释写的「gitea-dev 分支上 track 了 .env」与实际不符（仓库只有一个 main 分支）。
+# 内部同事 clone 后：cp .env.example .env 再改本地值；真实密钥永不入库、永不推公开端。
 .env
 .env.*
 !.env.example
@@ -116,3 +117,15 @@ docs/**/*.zip
 # 评审快照目录整体不入库：里面除截图还有 acceptance/*.json，按扩展名逐个列会漏
 # （admin-results.json 就漏过一次，导致目录一直以 ?? 出现在 git status）。
 docs/review-*/
+
+# --- 素材与模型权重（2026-10-30）---
+# 上传的素材是**运行期数据**，不属于源码：每条记录的真实文件由对象存储/本地卷管理，
+# 进库只会让仓库随运营增长、历史还删不掉。
+server/data/
+# CLIP 多模态向量服务的模型权重（约 150–290MB）。按 §12：模型不入库、不随镜像，
+# 用 tools/clip-service/scripts/download-model.mjs 从 hf-mirror 拉（幂等，可离线预置）。
+tools/clip-service/models/
+# 兜底：任何模型权重文件都不入库（避免换个模型文件名又漏一次）
+*.onnx
+*.safetensors
+*.gguf

@@ -98,7 +98,10 @@ const match = computed(() => {
   return result
 })
 const hasSelection = computed(() => Object.keys(match.value).length > 0)
-const signedAmount = computed(() => (direction.value === 'SUB' ? -amount.value : amount.value))
+// 界面按"元"输入（输入框旁标了 元），后端一律收"分"：
+// 不做这层换算的话，输入 10 元只会加 10 分（0.1 元），且预览看起来"正常"。
+const amountInCents = computed(() => Math.round((amount.value || 0) * 100))
+const signedAmount = computed(() => (direction.value === 'SUB' ? -amountInCents.value : amountInCents.value))
 
 let timer: ReturnType<typeof setTimeout> | undefined
 function schedulePreview() {

@@ -60,11 +60,13 @@ export const HELP_ENTRIES: HelpEntry[] = [
     ],
     tips: [
       '同一商品多规格用多个 SKU，不要建多个商品',
-      '改价后 AI 客服知识库会自动重建该 SKU 的知识块'
+      '改价后 AI 客服知识库会自动重建该 SKU 的知识块',
+      '「详情」标签的富文本可以直接拖图/粘贴截图：上传后自动进素材库，正文里存的是库内素材'
     ],
     pitfalls: [
       '只改商品标题不改 SKU 标题，前台展示可能不一致',
-      '误删商品会导致历史订单详情缺失'
+      '误删商品会导致历史订单详情缺失',
+      '从网页复制的外站图片会被丢弃（保存时服务端也会拒）：请先用上传按钮或素材库插图'
     ],
     related: ['/inventory', '/promotions']
   },
@@ -294,11 +296,25 @@ export const HELP_ENTRIES: HelpEntry[] = [
   },
   {
     route: '/permissions',
+    // 说明来源：docs/permissions.catalog.json → scripts/generate-permission-help.mjs
+    // 生成 docs/PERMISSIONS.md 与 api-client 的 permissions.generated.ts（页面 tooltip 用）
     title: '权限矩阵',
-    description: '按角色配置功能权限。',
-    steps: ['选择角色 → 勾选权限 → 保存', '保存后相关员工重新登录生效'],
-    tips: ['先收紧写权限，再放开读权限'],
-    pitfalls: ['把所有权限都给 ADMIN 会让审计失去意义']
+    description: '按角色配置功能权限；每项 ⓘ 显示该权限影响的操作与接口。',
+    steps: [
+      '选角色 → 悬停每项右侧 ⓘ 看清「勾选后可做 / 取消后」再勾选',
+      '保存；后端权限缓存 30 秒，最迟半分钟后生效（员工无需重新登录）',
+      '要改说明或补新权限：改 docs/permissions.catalog.json 后跑 npm run generate:permissions'
+    ],
+    tips: [
+      '先收紧写权限，再放开读权限',
+      '权限只控接口、不控菜单：取消后菜单还在，点进去会 403（页面上 ⓘ 里也这么写）',
+      '权限之间没有继承：给「提现审核」不会顺带得到「促销与分销」'
+    ],
+    pitfalls: [
+      '把所有权限都给 ADMIN 会让审计失去意义',
+      'permission.manage 同时是未登记接口的兜底权限，不要随手给运营',
+      '说明与代码不一致时 make contract-check 会失败：改 PermissionService 的路径映射后必须重新生成'
+    ]
   },
   {
     route: '/notifications',
@@ -395,14 +411,22 @@ export const HELP_ENTRIES: HelpEntry[] = [
   {
     route: '/integrations',
     title: '第三方服务',
-    description: '配置短信、支付、存储、审核、物流、AI 的服务商与密钥。',
+    description: '配置短信、支付、存储、审核、物流、AI 的服务商与密钥；候选全部由后端下发。',
     steps: [
-      '选能力与填服务商标识',
-      '按 key=value 填写配置（密钥类会自动加密）',
+      '选能力（短信/支付/对象存储/内容审核/物流/AI）',
+      '选服务商——只能从该能力的候选里选，不需要记标识',
+      '按字段填写配置（敏感字段是密码框，留空表示沿用旧值）',
       '需要立即生效则打开「启用」后保存'
     ],
-    tips: ['密钥保存后不再回显，留空表示沿用旧值', '同一能力只能启用一个服务商'],
-    pitfalls: ['能力名不可自造（只允许 sms/payment/storage/moderation/logistics/ai）'],
+    tips: [
+      '密钥保存后不再回显；留空表示沿用旧值',
+      '同一能力只能启用一个服务商，启用新的会自动停用旧的',
+      '字段说明里的等宽字（如 access-key）是入库的键名，仅供排障对照'
+    ],
+    pitfalls: [
+      '能力与服务商都不能自造：提交的值必须在后端清单里，否则返回 INTEGRATION_PROVIDER_UNSUPPORTED',
+      '新增服务商要改后端清单（IntegrationCatalog），不是在页面上输一个名字就行'
+    ],
     related: ['/settings']
   },
   {
@@ -435,8 +459,11 @@ export const HELP_ENTRIES: HelpEntry[] = [
     route: '/themes',
     title: '主题装修',
     description: '配置前台主题、配色与首页模块。',
-    steps: ['选择主题模板', '调整配色与 banner', '预览后发布'],
-    tips: ['发布前用前台预览确认移动端表现'],
+    steps: ['选择应用端（PC 商城 / 微信小程序）', '选择主题模板', '调整配色与 banner', '按当前应用端预览后保存'],
+    tips: [
+      'PC 与小程序各存一套配置：切到「PC 商城」保存只影响 PC 站，小程序要单独切过去保存',
+      '预览区按应用端切换：PC 显示浏览器视口 + 商品网格，小程序显示手机壳'
+    ],
     pitfalls: ['直接改生产主题无法回滚，先复制一份']
   },
   {
@@ -511,17 +538,21 @@ export const HELP_ENTRIES: HelpEntry[] = [
   {
     route: '/ai-media',
     title: 'AI 素材生成',
-    description: '用 AI 生成商品主图、规格图、详情图、主图视频与详情文案，异步执行并自动入素材库。',
-    steps: ['选类型与用途（主图/规格/详情/视频/文案）', '选供应商（可多家）', '写提示词或点历史提示词上屏', '选导图（已有实拍图）', '提交，完成后自动进素材库'],
+    description: '用 AI 生成商品图、主图视频、详情文案，以及多镜头分镜视频；异步执行并自动入素材库。',
+    steps: [
+      '「图片 / 视频 / 文案」标签：选类型与用途 → 选供应商 → 写提示词 → 提交，完成后自动进素材库',
+      '「视频分镜」标签：一个分镜本 = 多个镜头，逐镜头写提示词/选引导图/设时长，再按镜头生成',
+      '两个标签产出同一件事——素材，因此都在本页；生成结果统一到素材库取用'
+    ],
     tips: ['提示词与导图都会留痕，下次可直接复用', '可点「用模型优化提示词」再人工修改', '视频可用已有主图做首帧'],
     pitfalls: ['没配置对应类型的供应商时按钮不可用——先去第三方服务配置', '同类供应商可配多家，按优先级自动选，也可手动指定'],
     related: ['/materials', '/products']
   },
   {
     route: '/ai-storyboard',
-    title: '视频分镜',
-    description: '把商品短视频拆成多个镜头，逐镜头写提示词、选引导图并生成。',
-    steps: ['填标题与商品ID', '逐镜头写提示词、选引导图（首帧）、设时长', '保存分镜', '选视频供应商并点「按镜头生成」', '生成完成后点「同步结果」看视频'],
+    title: '视频分镜（已并入 AI 素材生成）',
+    description: '该入口已并入「AI 素材生成 → 视频分镜」标签；打开旧地址会自动跳转过去。',
+    steps: ['打开后会自动跳到 /ai-media?tab=storyboard', '在「视频分镜」标签里填标题与商品', '逐镜头写提示词、选引导图（首帧）、设时长', '保存分镜 → 按镜头生成 → 同步结果'],
     tips: ['引导图用实拍商品图，保证外观一致', '每个镜头可单独重生成'],
     pitfalls: ['没保存分镜就点生成会提示先保存'],
     related: ['/ai-media', '/materials']

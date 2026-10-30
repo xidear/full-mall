@@ -5,6 +5,8 @@ import { useRouter } from 'vue-router'
 import { api } from '../api'
 import { apiErrorMessage } from '../composables/useAsyncState'
 import AiGeneratePanel from '../components/AiGeneratePanel.vue'
+import AssetPicker from '../components/AssetPicker.vue'
+import ProductPicker from '../components/ProductPicker.vue'
 import MediaPreview from '../components/MediaPreview.vue'
 import { aiJobStatusLabels, labelOf } from '../labels'
 import { acceptAttribute, loadUploadLimits, megabytes, uploadMedia, type UploadLimits } from '../upload'
@@ -28,8 +30,60 @@ const assetTags = ref<Array<{ tag: string; count: number }>>([])
 const page = ref(0)
 const pageSize = ref(20)
 const total = ref(0)
-const loading = ref(false)
+// 搜索模式：关键词（DB 模糊）/ 描述语义（文本向量）/ 图片内容（CLIP 图像向量）
+const searchMode = ref<'keyword' | 'semantic' | 'image'>('keyword')
+const imageSearchAvailable = ref(false)
+const scores = ref<Record<string, number>>({})
+// 语言变体：同一素材在不同语言下用不同图片
 const variantDialog = ref(false)
+const variantAsset = ref<AssetRow | null>(null)
+const variantLocales = ref<string[]>([])
+const variantMap = ref<Record<string, string>>({})
+const variantSaving = ref(false)
+
+async function loadSearchCapabilities() {
+  try {
+    const status = await api.get<{ available: boolean }>('/admin/v1/assets/image-search/status')
+    imageSearchAvailable.value = status.available
+  } catch (cause) {
+    imageSearchAvailable.value = false
+  }
+}
+
+async function openVariants(row: AssetRow) {
+  variantAsset.value = row
+  variantDialog.value = true
+  variantMap.value = {}
+  try {
+    // 接口返回 {defaultLocale, enabledLocales, translationLocales}：
+    // 只有"需要翻译的语言"才有变体意义（默认语言就是原图）
+    const locales = await api.get<{ translationLocales?: string[] }>('/admin/v1/i18n/locales')
+    variantLocales.value = locales.translationLocales ?? []
+    const existing = await api.get<Array<{ locale: string; url: string }>>(
+      '/admin/v1/assets/' + row.id + '/variants')
+    variantMap.value = Object.fromEntries(existing.map(item => [item.locale, item.url]))
+  } catch (cause) {
+    ElMessage.error(apiErrorMessage(cause, '语言变体加载失败'))
+  }
+}
+
+async function saveVariants() {
+  if (!variantAsset.value) return
+  variantSaving.value = true
+  try {
+    for (const [locale, url] of Object.entries(variantMap.value)) {
+      if (!url) continue
+      await api.put('/admin/v1/assets/' + variantAsset.value.id + '/variants/' + locale, { url })
+    }
+    ElMessage.success('语言变体已保存')
+    variantDialog.value = false
+  } catch (cause) {
+    ElMessage.error(apiErrorMessage(cause, '保存语言变体失败'))
+  } finally {
+    variantSaving.value = false
+  }
+}
+const loading = ref(false)
 // 上传区的「AI 生成」：图片/视频共用同一面板，按已配置模型决定显示哪种
 const aiDialog = ref(false)
 // 视觉模型是否可用（未配置时按钮禁用并提示；不影响其它功能）
@@ -196,8 +250,24 @@ async function handleFile(file: File) {
 // 结果列表里混进已删除素材（文件已删 → 缩略图 404）。改用检索接口。
 async function loadAssets() {
   void loadVisionStatus()
+  void loadSearchCapabilities()
   loading.value = true
   try {
+    if (searchMode.value !== 'keyword' && keyword.value.trim()) {
+      // 语义/图像检索走各自端点：返回的是"相似度排序的结果集"，不分页
+      const path = searchMode.value === 'image' ? '/admin/v1/assets/image-search' : '/admin/v1/assets/semantic'
+      const hits = await api.get<Array<{ asset: AssetRow; score: number }>>(path, {
+        q: keyword.value.trim(),
+        limit: pageSize.value
+      })
+      assets.value = hits.map(hit => hit.asset)
+      scores.value = Object.fromEntries(hits.map(hit => [hit.asset.id, hit.score]))
+      total.value = hits.length
+      assetTags.value = await api.get<Array<{ tag: string; count: number }>>('/admin/v1/assets/tags')
+      aiJobs.value = await api.get('/admin/v1/ai/media/jobs?limit=10')
+      return
+    }
+    scores.value = {}
     const result = await api.get<{ items: AssetRow[]; total: number }>('/admin/v1/assets/search', {
       keyword: keyword.value.trim() || undefined,
       tag: activeTag.value || undefined,
@@ -296,8 +366,19 @@ loadAssets()
       <AiGeneratePanel @generated="onGenerated" />
     </el-dialog>
 
-    <el-input v-model="keyword" placeholder="名称 / 描述 / 标签（自然语言也可）" clearable
-              style="width: 280px; margin-bottom: 10px" @input="onKeywordInput" />
+    <div class="search-row">
+      <el-input v-model="keyword" placeholder="名称 / 描述 / 标签；语义与图片检索可直接写一句话" clearable
+                style="width: 320px" @input="onKeywordInput" />
+      <el-radio-group v-model="searchMode" @change="loadAssets">
+        <el-radio-button value="keyword">关键词</el-radio-button>
+        <el-radio-button value="semantic">描述语义</el-radio-button>
+        <el-tooltip :disabled="imageSearchAvailable" content="未配置多模态向量服务（ai_provider protocol=clip-http）">
+          <span>
+            <el-radio-button value="image" :disabled="!imageSearchAvailable">图片内容</el-radio-button>
+          </span>
+        </el-tooltip>
+      </el-radio-group>
+    </div>
     <div v-if="assetTags.length" class="tag-row">
       <span class="muted">标签：</span>
       <el-tag v-for="item in assetTags.slice(0, 12)" :key="item.tag" class="tag-chip"
@@ -319,6 +400,12 @@ loadAssets()
         </template>
       </el-table-column>
       <el-table-column prop="kind" label="类型" width="100" />
+      <el-table-column label="相似度" width="90">
+        <template #default="{ row }">
+          <span v-if="scores[row.id]">{{ scores[row.id] }}</span>
+          <span v-else class="muted">—</span>
+        </template>
+      </el-table-column>
       <el-table-column label="描述 / 标签" min-width="220">
         <template #default="{ row }">
           <div class="asset-caption">{{ row.caption || '—' }}</div>
@@ -336,10 +423,27 @@ loadAssets()
                          :loading="describingId === row.id" @click="describeAsset(row)">AI 识别</el-button>
             </span>
           </el-tooltip>
+          <el-button link type="primary" @click="openVariants(row)">语言变体</el-button>
           <el-button link type="primary" @click="openVariant(row)">用它生成变体</el-button>
         </template>
       </el-table-column>
     </el-table>
+
+    <el-dialog v-model="variantDialog" title="素材语言变体" width="640px" append-to-body>
+      <p class="muted">
+        同一张素材在不同语言下改用另一张图（例如中文主图带中文文案）。商品详情渲染时会按语言自动替换，
+        不需要为每种语言复制商品详情。
+      </p>
+      <div v-for="locale in variantLocales" :key="locale" class="variant-row">
+        <span class="variant-locale">{{ locale }}</span>
+        <AssetPicker v-model="variantMap[locale]" value-type="url" :label="'选择 ' + locale + ' 图片'" />
+      </div>
+      <el-empty v-if="!variantLocales.length" description="还没有启用其它语言（设置 → 启用语言）" />
+      <template #footer>
+        <el-button @click="variantDialog = false">取消</el-button>
+        <el-button type="primary" :loading="variantSaving" @click="saveVariants">保存</el-button>
+      </template>
+    </el-dialog>
 
     <h3>AI 生成记录</h3>
     <el-table :data="aiJobs" empty-text="还没有 AI 生成任务">
@@ -435,8 +539,7 @@ loadAssets()
 
           <template v-if="variantJob?.status === 'SUCCEEDED'">
             <h4>4. 挂到商品</h4>
-            <!-- ProductPicker 没有在本文件 import：script setup 下未注册的组件不会渲染，
-                 attachProductId 永远为空 → 下方“挂载”只提示“填商品ID 才能挂载”。 -->
+            <!-- 挂载需要选商品：ProductPicker 必须在 script 里 import，否则组件不渲染、attachProductId 永远为空 -->
             <ProductPicker v-model="attachProductId" width="100%" />
             <el-select v-model="attachRole" style="width: 100%; margin-top: 8px">
               <el-option label="主图" value="MAIN" />
@@ -456,6 +559,27 @@ loadAssets()
 .mb-16 { margin-bottom: 16px; }
 .toolbar { display: flex; align-items: center; gap: 12px; }
 .label { color: #666; }
+
+.search-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 10px;
+  flex-wrap: wrap;
+}
+
+.variant-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+
+.variant-locale {
+  width: 64px;
+  font-size: 13px;
+  color: #4a4f55;
+}
 
 .tag-row {
   display: flex;

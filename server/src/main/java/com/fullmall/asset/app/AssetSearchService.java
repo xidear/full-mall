@@ -25,6 +25,9 @@ import java.util.UUID;
 @Service
 public class AssetSearchService {
 
+    private static final org.slf4j.Logger log =
+            org.slf4j.LoggerFactory.getLogger(AssetSearchService.class);
+
     private final JdbcTemplate jdbc;
     private final SemanticIndexService semantic;
     private final com.fullmall.ai.media.AiMediaService media;
@@ -234,7 +237,19 @@ public class AssetSearchService {
         return count;
     }
 
+    /**
+     * 重建语义索引。
+     *
+     * <p>没配 embedding 供应商时**跳过并记录**，不抛异常：索引是检索增强，
+     * 不该让"生成图片/编辑素材"这种主流程失败（此前会连累 AI 生成直接报错）。
+     * 配了供应商但调用失败仍然抛错——那是真故障，不能当成"没配"吞掉。
+     */
     public void reindex(UUID assetId) {
+        if (!semantic.available(null)) {
+            log.info("语义索引未启用（semantic.enabled={} 或未配 openai-embedding 供应商），跳过重建：asset={}",
+                    semantic.enabled(), assetId);
+            return;
+        }
         AssetRow asset = find(assetId);
         String content = contentOf(asset);
         semantic.index("ASSET", assetId.toString(), content, null);

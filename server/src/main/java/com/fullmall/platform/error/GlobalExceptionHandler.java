@@ -13,13 +13,9 @@ import java.util.List;
 import java.util.UUID;
 
 /**
- * 全局异常 → HTTP 状态 + 稳定错误码 的唯一出口（MVC 层）。
- *
- * <p>口径（AGENTS.md §10）：message 面向用户、不泄露实现，所以兜底固定 {@code Internal server error}，
- * 不要拼异常文本（会把 SQL、类名送到顾客浏览器）；原始原因只进日志，管理端凭 requestId 反查。
- *
- * <p>边界：① 只覆盖进入 MVC 之后的异常，过滤器阶段自己手写 JSON；② 有 {@code Exception} 兜底，
- * 故 Spring 的 {@code ResponseStatusException}（如 ManagerAuthController 的 401）也会变成 500。
+ * 全局异常 → 状态 + 稳定错误码的唯一出口。message 面向用户必须模糊（兜底固定 Internal server error，
+ * 拼异常文本会把 SQL/类名送到浏览器），原始原因只进日志。过滤器阶段的错误不经过这里，且 Exception
+ * 兜底会让 ResponseStatusException（如 ManagerAuth 的 401）变成 500。
  */
 @RestControllerAdvice
 public class GlobalExceptionHandler {
@@ -135,12 +131,8 @@ public class GlobalExceptionHandler {
     }
 
     /**
-     * 上传文件超过 multipart 解析层上限 → **413**，并给出可行动信息。
-     *
-     * <p>为什么必须单独处理：未配置 multipart 上限时 Spring Boot 默认单文件 1MB，超过会在进入
-     * Controller 之前抛这个异常，落到兜底处理器变成 "Internal server error"，于是"图片传不上去"
-     * 看起来像服务端崩了。业务侧体积上限（图片/视频）由 MediaUploadValidator 判定，
-     * 这里只负责解析层天花板，两者报同一个错误码 ASSET_TOO_LARGE 但文案不同。
+     * 超过 multipart 解析层上限 → 413。必须单独处理：否则会落到兜底变成 500，看起来像服务端崩了。
+     * 业务侧体积由 MediaUploadValidator 判定，这里只管解析层天花板，两者同码不同文案。
      */
     @ExceptionHandler(org.springframework.web.multipart.MaxUploadSizeExceededException.class)
     public ResponseEntity<ErrorResponse> onUploadTooLarge(

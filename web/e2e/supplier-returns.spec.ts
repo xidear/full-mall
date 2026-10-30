@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test'
+import { e2ePhone } from './utils/e2ePhone'
 
 const API = 'http://localhost:41280'
 const SUPPLIER_ID = '33333333-3333-3333-3333-333333333333'
@@ -19,7 +20,7 @@ test('supplier sees platform return request and can accept it', async ({ page, r
     `${API}/admin/v1/suppliers/${SUPPLIER_ID}/credentials`, { headers: authorization })).json()
 
   // 造一笔订单，再由平台发起供应商退货
-  const phone = `131${String(Date.now()).slice(-8)}`
+  const phone = e2ePhone()
   const issued = await request.post(`${API}/api/v1/member/auth/otp`, { data: { phone } })
   const code = (await issued.json()).debugCode
   const member = (await (await request.post(`${API}/api/v1/member/auth/verify`,

@@ -344,6 +344,86 @@ Full Mall 的落地：
 
 落地方式：npm 数据包只在「生成规范化快照」这一步需要（构建期/运维期）；运行期数据以 Flyway 迁移灌入 region 表，客户机器零外网依赖。未实施。
 
+## 3.9 已决策：富文本详情编辑器与"素材必须来自素材库"闸门（2026-10-30）
+
+背景：商品详情走富文本（`product.detail_html`）。现状编辑器为 TipTap 2.11.5，只能贴地址、不能上传；
+服务端 `RichTextSanitizer` 只做 XSS 白名单，**不校验素材归属**——直接 PUT 一段 HTML 就能把外站图或
+base64 内联大图写进详情，素材因此脱离 `asset` 表（不可检索、不可复用、无法统计），外站图还会因防盗链
+裂图并把访客 IP 送给第三方。同期评估过"换成市场常用编辑器（UEditor/FCKEditor）"。
+
+候选（活跃度/许可证均于 2026-10-30 实测）：
+
+| 候选 | 许可证 | 结论 | 理由 |
+|---|---|---|---|
+| fex-team/ueditor | MIT | **淘汰** | GitHub API `archived=true`，最后推送 2023-01-06，open issues 1101；ES5 全局脚本 + 自带 PHP/JSP/ASP 上传端，素材进 `/ueditor/php/upload`，与 `asset` 表无关——正是"素材脱离素材库"的源头 |
+| FCKEditor | — | 前提不成立 | 2009 年改名 CKEditor 3，作为独立产品已不存在 |
+| CKEditor 5 | GPL2+/商业（GitHub 标 NOASSERTION） | 不采用 | 许可条款需法务确认、需自建 bundle；**未逐条核对商业条款，属未验证项** |
+| @wangeditor/editor 5.1.23 | MIT | 淘汰 | npm 最后发布 2022-11-14（停更约 4 年），Vue3 封装停在 2022-06 |
+| wangEditor-next | MIT | 备选不选 | 活跃（2026-10-27），但 850★ / 28 issues，体量换不来收益 |
+| UEditorPlus | Apache-2.0 | 不选 | 仍是 UEditor 老架构（配置式上传端），只是社区打补丁 |
+| **TipTap 3.32.1（保留并升级）** | MIT | **采用** | 38.9k★，2026-10-29 仍在提交；表格/链接/下划线/对齐/字数/占位扩展均 MIT；与现有 Vue3 栈零迁移成本 |
+| Lexical / Quill | MIT / BSD-3 | 不采用 | 框架级重写，收益不匹配当前需求 |
+
+结论：
+
+1. **保留 TipTap 并升到 3.x**，补齐表格、链接、下划线、对齐、字数、占位；
+   StarterKit 已内置 Link/Underline，二者不得再单独注册（否则 `Duplicate extension names`）。
+2. **上传只有一个入口**：编辑器的按钮/拖拽/粘贴/截图全部走 `web/apps/admin/src/upload.ts#uploadMedia()`
+   → `POST /admin/v1/media?purpose=PRODUCT` → 落对象存储并登记 `asset`。编辑器不拥有上传端，
+   不写 base64，不直插外站图。插入的图片带 `data-asset-id`，服务端按 id 精确校验归属。
+3. **服务端闸门**：新增 `RichTextMediaGuard`，`CatalogService.updateBasics` 在清洗之后调用。
+   放行 `/images/`（随包内置演示图）、能在 `asset.url`/`asset_locale_variant.url` 命中的地址、
+   以及 `data-asset-id` 有效的元素；其余（外站 http(s)、base64、库里没有的相对路径）拒绝保存，
+   错误码 `RICH_TEXT_MEDIA_NOT_IN_LIBRARY`，消息列出具体地址（§10.1 管理员要能排障）。
+4. `style` 白名单收窄成"只保留 `text-align`"：放行任意 CSS 等于放开 `position:fixed`（盖住购买按钮）
+   与 `background:url()`（外站探针），因此清洗后统一归一化，其它声明整条丢弃。
+5. 译文详情（`ProductTranslationWorkflowService`）由源详情逐节点翻译而来，src 与源一致，
+   因此**不重复过闸门**；若将来允许 AI 往译文里插图，必须先补这一步。
+
+拒绝的方案：
+
+- **换 UEditor/FCKEditor**：停更 + 自带上传端，与"素材必须入库"直接冲突（详见上表）。
+- **前端 only 校验**：请求可绕过编辑器，前端限制不是边界。
+- **把外站图下载后直接内联**：会让详情 HTML 与素材库出现两份事实，裂图与体积问题照旧。
+
+验证：`RichTextSanitizerTest`（表格结构、data-asset-id、text-align 归一化）、
+`RichTextMediaGuardTest`（外链/base64/不存在 assetId 被拒，CDN 改写地址按 id 放行）、
+`npm run build -w @fullmall/admin`。
+
+## 3.10 已决策：权限说明的单一来源与生成（2026-10-30）
+
+背景：权限矩阵页只有 `label` + `code`（来自 `permission` 表），运营看不出"勾了会怎样、取消会怎样"，
+更看不出该权限拦的是哪些接口。手工在页面写说明会立刻与 `PermissionService.requiredPermission()` 的
+路径映射说两套话（"取消 product.manage 后到底哪几个接口 403"只有那段 if 链知道）。
+
+候选：
+
+| 候选 | 结论 | 理由 |
+|---|---|---|
+| TypeDoc / vue-docgen-api | 不采用 | 面向 API 签名与组件 props；本需求是业务语义（取消后的可见后果），且权限映射在 Java 侧，TS 工具读不到 |
+| Docusaurus / VitePress 文档站 | 不采用 | 成熟但只解决"人看手册"，页面 tooltip 仍需运行时数据；还要新增站点与端口，收益不匹配 |
+| springdoc / OpenAPI | 不采用 | 能列出接口，但权限由自定义过滤器按 URL 前缀判定，注解里没有权限→接口关系 |
+| 前端手写说明常量 | 否决 | 与代码两套事实，必然漂移（相当于再造一份字段权限矩阵） |
+| **单一来源 + 生成器（采用）** | **采用** | 说明只写在 `docs/permissions.catalog.json`；接口映射由脚本解析 `PermissionService`；迁移播种用于交叉校验 |
+
+落地：
+
+- `scripts/generate-permission-help.mjs`：
+  1. 解析 `PermissionService.requiredPermission()` 的"路径前缀 → 权限码"映射（含兜底分支）；
+  2. 解析 Flyway 迁移里 `INSERT INTO permission` 的播种（code/label/group/sort 的真值）；
+  3. **三方集合必须一致**：catalog 有说明但没人播种、有播种但没说明、有权限码但没有任何接口映射，全部失败退出；
+  4. 生成 `web/packages/api-client/src/permissions.generated.ts`（页面 tooltip）与 `docs/PERMISSIONS.md`（内部手册）。
+- `make contract-check` 增加 `--check` 模式：产物与源不一致即失败，等同于"help 手册随代码自动更新"的强制点。
+- 页面：[PermissionsView.vue](web/apps/admin/src/views/PermissionsView.vue) 每项右侧 ⓘ 悬停显示
+  "勾选后可做 / 取消后 / 关联接口 / 关系"；同时带原生 `title`（读屏与 alt 也能拿到），说明文案一条也不写在页面里。
+
+已核实的关系事实（写进生成产物，页面直接展示）：
+
+1. **没有权限继承、没有父子层级**：每个权限独立授予；
+2. **ADMIN 短路**：`PermissionService.hasPermission` 对 ADMIN 直接返回 true，不参与矩阵；
+3. **菜单按角色、不按权限**：取消权限后菜单还在，但该页请求 403（这是当前实现的真实行为，不是理想设计）；
+4. **兜底权限**：未登记路径默认要求 `permission.manage`，新增接口忘了登记映射会落到它身上。
+
 ## 4. 禁止事项
 
 - 禁止自研字段-角色权限矩阵作为默认方案。

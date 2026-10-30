@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
-import { useRoute } from 'vue-router'
+import { computed, onMounted, ref, watch } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { api } from '../api'
 import ProductPicker from '../components/ProductPicker.vue'
@@ -8,6 +8,7 @@ import SkuPicker from '../components/SkuPicker.vue'
 import AssetPicker from '../components/AssetPicker.vue'
 import AssetImage from '../components/AssetImage.vue'
 import { aiJobStatusLabels, labelOf } from '../labels'
+import AiStoryboardView from './AiStoryboardView.vue'
 
 interface Provider { code: string; kind: string; name: string; protocol: string; model: string }
 interface PromptRow { prompt: string; negative: string; providerCode: string; createdAt: string; purpose: string }
@@ -15,6 +16,20 @@ interface AssetRow { id: string; name: string; url: string; kind: string }
 interface Job { id: string; status: string; assetId?: string | null; error?: string | null; prompt: string }
 
 const route = useRoute()
+const router = useRouter()
+
+/**
+ * 「视频分镜」原本是独立菜单项，但它产出的也是素材（按镜头生成视频后自动回填素材库），
+ * 与本发明是同一条流水线，因此并入本页第二个标签。
+ * 标签状态写回 `?tab=`：刷新/收藏/旧链接（/ai-storyboard 重定向）都能落回同一个标签。
+ */
+const activeTab = ref(route.query.tab === 'storyboard' ? 'storyboard' : 'generate')
+watch(activeTab, tab => {
+  const query = { ...route.query }
+  if (tab === 'storyboard') query.tab = 'storyboard'
+  else delete query.tab
+  void router.replace({ path: '/ai-media', query })
+})
 const providers = ref<Provider[]>([])
 const prompts = ref<PromptRow[]>([])
 const assets = ref<AssetRow[]>([])
@@ -183,6 +198,9 @@ onMounted(async () => {
 <template>
   <div>
     <h1>AI 素材生成</h1>
+
+    <el-tabs v-model="activeTab">
+      <el-tab-pane label="图片 / 视频 / 文案" name="generate">
     <el-alert type="info" :closable="false" show-icon class="mb-16"
               title="只做内容生产：商品图 / 规格图 / 详情图 / 视频 / 文案"
               description="生成是异步的，完成后自动进入素材库；提示词、参考图/引导图都会留痕并真实传给模型。" />
@@ -302,6 +320,14 @@ onMounted(async () => {
         </el-card>
       </el-col>
     </el-row>
+      </el-tab-pane>
+
+      <!-- 分镜与单镜头生成共用供应商/引导图/素材回填，只是"多个镜头排一次"；
+           embedded 让它不再重复渲染自己的 H1 与信息条 -->
+      <el-tab-pane label="视频分镜" name="storyboard">
+        <AiStoryboardView embedded />
+      </el-tab-pane>
+    </el-tabs>
   </div>
 </template>
 

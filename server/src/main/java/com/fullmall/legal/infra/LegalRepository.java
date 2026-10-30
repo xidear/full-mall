@@ -19,13 +19,8 @@ public class LegalRepository {
     }
 
     /**
-     * 取当前生效版本：只认 PUBLISHED 且在生效窗口内（{@code effective_to} 为空表示长期有效），
-     * 多条命中时取生效时间最新的那条。
-     *
-     * <p>返回值语义：{@code null} 表示"该 type/locale/market 组合当前没有生效版本"（合规配置缺失），
-     * 调用方要按缺失处理并报错，不能当成"没有法律文本要求"就放过——那会让用户在无条款状态下下单。
-     *
-     * <p>{@code pdfUrl} 在本查询里恒为 null：当前只存 HTML 正文，PDF 由渲染侧生成。
+     * 取当前生效版本（PUBLISHED 且在生效窗口内，多条取最新）。返回 null 表示合规配置缺失：
+     * 调用方必须报错，不能当成“没有条款要求”放过，否则用户会在无条款状态下下单。
      */
     public LegalDocument findActive(String type, String locale, String market) {
         List<LegalDocument> documents = jdbcTemplate.query("""
@@ -58,12 +53,7 @@ public class LegalRepository {
         return documents.stream().findFirst().orElse(null);
     }
 
-    /**
-     * 该版本是否"已发布"。
-     *
-     * <p>返回 false 同时覆盖"版本不存在"和"存在但未发布"两种情况：调用方若要区分，
-     * 必须自己再查一次；不要把它当成"版本是否存在"的判定用（空结果 ≠ 不存在）。
-     */
+    /** 是否已发布。false 同时包含“不存在”和“未发布”，要区分得自己再查——不能当存在性判定用。 */
     public boolean publishedVersionExists(UUID versionId) {
         Long count = jdbcTemplate.queryForObject("""
                 SELECT COUNT(*) FROM legal_document_version
@@ -76,13 +66,8 @@ public class LegalRepository {
     }
 
     /**
-     * 记录一次"用户已阅读并同意"，返回落库后的证据行。
-     *
-     * <p>{@code user_id} 恒为 NULL：同意发生在注册/下单前，此时可能还没有会员身份，
-     * 因此证据靠 {@code session_id + order_id + evidence_hash} 关联，而不是靠会员外键——
-     * 不要因为看到 NULL 就以为漏填。
-     *
-     * <p>只插入不更新：同意记录是争议时的证据链，改写等于篡改；同一用户多次同意即多行。
+     * 记录一次“已阅读并同意”。user_id 恒为 NULL 是设计（同意发生在注册/下单前，还没有会员身份），
+     * 证据靠 session_id + order_id + evidence_hash 关联；只插入不更新，改写等于篡改证据链。
      */
     public LegalAcceptance insertAcceptance(UUID versionId, String locale, Instant acceptedAt,
                                             String ip, String userAgent, String method,

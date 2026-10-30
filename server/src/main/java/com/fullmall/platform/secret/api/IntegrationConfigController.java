@@ -40,6 +40,18 @@ public class IntegrationConfigController {
         return configs.list(capability);
     }
 
+    /**
+     * 候选清单（能力 → 服务商 → 配置字段）。
+     *
+     * <p>给前端渲染下拉与字段用：服务商和键名都不能让运营手填，否则填错一个字就是一条
+     * 永不生效的死配置。返回内容不含任何密钥，不需要额外权限。
+     */
+    @GetMapping("/schema")
+    @PreAuthorize("hasAnyRole('ADMIN','OPERATOR')")
+    public List<com.fullmall.platform.secret.IntegrationCatalog.Capability> schema() {
+        return configs.catalog();
+    }
+
     @PostMapping
     @PreAuthorize("hasRole('ADMIN')")
     public IntegrationConfigService.Saved save(@RequestBody SaveRequest body,

@@ -45,4 +45,44 @@ class RichTextSanitizerTest {
         assertThat(sanitizer.sanitize("")).isEmpty();
         assertThat(sanitizer.sanitize(null)).isNull();
     }
+
+    @Test
+    void keepsTableStructureAndMergedCells() {
+        String html = "<table><tbody><tr><th colspan=\"2\">参数</th></tr>"
+                + "<tr><td>尺寸</td><td>183cm</td></tr></tbody></table>";
+
+        String cleaned = sanitizer.sanitize(html);
+
+        assertThat(cleaned).contains("<table>", "<th colspan=\"2\">参数</th>", "<td>尺寸</td>");
+    }
+
+    @Test
+    void keepsAssetIdOnMedia() {
+        // 前端插入素材库图片时会带 data-asset-id；被清洗掉就只剩 URL，服务端只能靠字符串比对归属
+        String html = "<img src=\"/assets/assets/202610/a.png\" data-asset-id=\"11111111-1111-1111-1111-111111111111\">";
+
+        String cleaned = sanitizer.sanitize(html);
+
+        assertThat(cleaned).contains("data-asset-id=\"11111111-1111-1111-1111-111111111111\"");
+    }
+
+    @Test
+    void keepsOnlyTextAlignInStyle() {
+        String html = "<p style=\"position:fixed;top:0;text-align:center\">居中且不该盖住按钮</p>";
+
+        String cleaned = sanitizer.sanitize(html);
+
+        assertThat(cleaned).contains("style=\"text-align:center\"");
+        assertThat(cleaned).doesNotContain("position", "top:0");
+    }
+
+    @Test
+    void dropsStyleThatIsNotTextAlign() {
+        String html = "<p style=\"background:url(https://evil.example/x.png)\">探针</p>";
+
+        String cleaned = sanitizer.sanitize(html);
+
+        assertThat(cleaned).doesNotContain("style=", "background", "evil.example");
+        assertThat(cleaned).contains("探针");
+    }
 }

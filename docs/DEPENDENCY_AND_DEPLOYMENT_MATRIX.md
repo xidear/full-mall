@@ -63,12 +63,21 @@
 | 依赖 | 层 | 谁装 | 缺了会怎样 | 离线/降级 | 验证方式 |
 |---|---|---|---|---|---|
 | `org.jsoup:jsoup:1.18.3`（MIT） | C 构建期 → 打进 server jar | Maven 构建时拉取 | 编译失败（不是运行期缺失） | 内网 Nexus 镜像；jar 已在本地 `~/.m2` | `mvn -o -DskipTests compile` |
-| `@tiptap/vue-3`、`starter-kit`、`extension-image` 2.11.5（MIT） | C 构建期 → 打进 admin dist | `npm install` | 构建失败 | 内网 npm 镜像；`package-lock.json` 已锁版本 | `npm run build -w @fullmall/admin` |
+| `scripts/generate-permission-help.mjs`（**零第三方依赖**，仅 Node 内置模块） | C 构建期/契约检查期 → 产出 api-client TS 与 `docs/PERMISSIONS.md` | `make contract-check` / `npm run generate:permissions` | 权限说明不生成：页面显示"暂无说明"，`contract-check` 失败（**不会静默通过**） | 无网络需求；仓库自带脚本 | `node scripts/generate-permission-help.mjs --check` |
+| `@tiptap/vue-3`、`starter-kit`、`extension-image`、`extension-table`、`extension-placeholder`、`extension-character-count`、`extension-text-align` **3.32.1**（MIT；2026-10-30 由 2.11.5 升级并补齐扩展） | C 构建期 → 打进 admin dist | `npm install` | 构建失败 | 内网 npm 镜像；`package-lock.json` 已锁版本 | `npm run build -w @fullmall/admin` |
+
+> tiptap **v2 → v3 是破坏性升级**：`editor.commands.setContent(content, emitUpdate: boolean)` 在 v3 变成
+> `setContent(content, { emitUpdate })`。升级时 `RichTextEditor.vue` 用的还是 v2 签名，admin 构建直接 TS 报错
+> （`Type 'false' has no properties in common with type 'SetContentOptions'`）。后续再升 tiptap 大版本时，
+> 先跑 `npm run build -w @fullmall/admin` 再合入。
+>
+> 另一个 v3 陷阱：**StarterKit 已内置 `Link` 与 `Underline`**，再把 `@tiptap/extension-link` / `-underline`
+> 单独注册会抛 `Duplicate extension names found`；这两个包因此不作为直依赖（只在 StarterKit 内部存在）。
 | 视觉模型（默认 `moondream`，1.7GB） | D→B 可选外部服务 | **不随镜像**，由运营在「AI 供应商」表单登记 endpoint/model | **不影响主流程**：未配置时「AI 识别」按钮禁用，接口返回 409 `AI_VISION_UNAVAILABLE` | 可换成远端公共模型（DashScope/OpenAI 兼容）或客户自建 CPU 推理服务；本地 ollama 不默认启动 | `GET /admin/v1/ai/providers/vision` 看 `configured` |
 | Ollama 容器（`--profile ai`，端口 41289） | B 运行期（可选） | 运维按需 `docker compose --profile ai up -d ollama` | 素材「AI 识别」不可用；素材库/生成/检索其余功能正常 | 不默认启动；无 GPU 也能跑（CPU 推理慢） | `docker exec fullmall-ollama-1 ollama list` |
 | 模型下载源 | C（一次性，人工） | 运维执行 `ollama pull <model>` | 无模型时上述 409 | 国内网络建议走 ModelScope / hf-mirror 的 GGUF，再 `ollama create`；docker 镜像可走 dockerproxy | `ollama list` 里有该模型 |
 | `@xenova/transformers` 2.17.2 + `sharp` 0.33.5（Apache-2.0 / MIT，ONNX 版 CLIP） | D（可选工具，`tools/clip-service`） | 开发者本地 `npm install --ignore-scripts` | **不影响主程序**：未配置时「图片内容」搜索按钮禁用，接口 409 `CLIP_UNAVAILABLE` | 模型文件从 hf-mirror 下到 `./models`（`node scripts/download-model.mjs`），运行时不联网；sharp 用 npm 预编译包，绕开 GitHub 下载与 node-gyp | `GET /admin/v1/assets/image-search/status` → `{available}` |
-| CLIP 模型（clip-vit-base-patch32 量化版，约 150MB） | D | `tools/clip-service/scripts/download-model.mjs` | 同上（能力不可用，功能不受影响） | 仓库不入库模型；客户可改为远端多模态服务 | `curl /health`（41291） |
+| CLIP 模型（clip-vit-base-patch32 量化版，约 150MB） | D | `tools/clip-service/scripts/download-model.mjs` | 同上（能力不可用，功能不受影响） | 仓库不入库模型；客户可改为远端多模态服务 | `curl /health`（41290） |
 
 ## 3.2 已决策待实施：行政区划数据集（ADR-0013，2026-10-29）
 

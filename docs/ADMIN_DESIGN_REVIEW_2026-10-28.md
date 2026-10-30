@@ -617,3 +617,107 @@ XSS 用例（script / onerror / javascript:）全部被清洗，正常段落保�
 最终验证：ui-audit 40 路由 0 问题；contract-check 368/168/0；admin 构建通过；
 admin + admin-pickers e2e 通过；后端 18 个单测通过；素材库 20 行 / 7 个标签 / 0 个 HTTP 错误。
 
+
+## S. 前端验收记录（2026-10-29 11:40-12:35，Playwright 真浏览器）
+
+### S.1 验收覆盖（按用户反馈的问题类别）
+
+| # | 问题类别 | 前端验收动作 | 结果 |
+|---|---|---|---|
+| 1 | 裂图 / 图标缺失 | 商品列表 20 张缩略图 `naturalWidth>0`；素材库 10 张；商城商品页全部图片 | 通过 |
+| 2 | 菜单配色对比度 | 计算 `.el-menu-item` 文字/底色对比度 | 17.2:1（≥3:1） |
+| 3 | 规格改价模型（价格属商品×规格） | 商品列表搜索 → 规格改价 → 勾维度/取值 → 加价 10 元 → 确定 | 只有命中取值下的 4 个 SKU +1000 分，其余不动；已复原 |
+| 4 | 规格矩阵：可复用、不含价格 | `/sku-matrix` 列出 COLOR-SIZE 模板，6/6 组合、被引用 2 个商品；无价格输入 | 通过 |
+| 5 | 品牌重复 | 同名品牌第二次创建 | 409 `BRAND_NAME_DUPLICATED` |
+| 6 | 首次引导 | `/setup` 安装示例数据 checkbox + 商城名称 + 对外域名 | 通过 |
+| 7 | 素材：分类/标签/理解型搜索/AI 入口 | 标签 chips 12 个、分页、关键词搜「马克杯」12 行、AI 生成面板（图片/视频 + 6 条历史提示词）、AI 识别可用 | 通过 |
+| 8 | 富文本详情（不是"仅图片"） | 商品编辑「详情」tab：编辑器回显、图片可见；商城商品页渲染富文本（标题/列表/图片，图片不裂） | 通过 |
+| 9 | 后台壳滚动 | 长列表滚到 771px → 点菜单 → 主区回到 0；侧栏 top=0 固定 | 通过 |
+| 10 | 已删除素材仍显示 | 素材库/商品页无 404 请求 | 通过 |
+
+### S.2 验收过程中发现并修复的真缺陷
+
+1. **SKU 编码全库唯一 → 模板复用失效**：第二个商品套同一模板时 6 条全部 `skipped`。
+   已改为"商品内唯一"（V137 + `ON CONFLICT (product_id, sku_code)`），复测 `created=6, skipped=0`。
+   连带修：CSV 导入不再按全库判重；AI 只读工具遇同码多商品时返回 `SKU_CODE_AMBIGUOUS`，不再随便挑一个。
+2. **加价 10 元实际只加 0.1 元**：弹窗按元输入却把数值当分发给后端。已加元→分换算，复测 +1000 分。
+3. **`scheduled_task` 约束不含 SKIPPED**：任务跳过时每 10 秒抛 DataIntegrityViolationException（日志噪音 + 跳过原因丢失）。
+   已补 V138 允许 `SKIPPED/RUNNING`。
+4. **商品列表没有搜索框**：后端一直支持 `keyword`，前端没接。已加搜索（标题/SKU），商品多时不用翻页找。
+5. storefront dev server 被 `npm run build` 覆盖 `.nuxt` 后 500，已重启（`ENOENT mkdir .nuxt/dev`）。
+
+### S.3 未通过 / 未覆盖（如实记录）
+
+- 全量 e2e：**49 通过 / 5 失败 / 2 跳过**。5 个失败都在别的应用页面：
+  `/account/messages`、`/account/favorites`、`/orders`（storefront 里是 404 页面不存在）、移动端 H5、供应商退货页 —— 
+  属于并行开发中的页面缺失，不是本轮改动引入；已用 Playwright 逐个确认返回 404 而非报错。
+- 视觉模型 `moondream` 输出英文描述（小模型不follow中文 JSON），换远端视觉供应商即可，无需改代码。
+- 演示数据里只有 2 个商品有规格维度（本次给"无线蓝牙耳机""加厚瑜伽垫"套了 COLOR-SIZE 模板），其余仍是单 SKU。
+
+
+## T. 5 个 e2e 失败修复 + 数据清理策略（2026-10-29 13:40-14:40）
+
+| 用例 | 真实原因 | 处理 |
+|---|---|---|
+| tracking | 订单页只认业务订单号，测试/客服链接给的是 UUID → 直接 404 | 页面同时接受 UUID 与订单号 |
+| member-pages | 空态标题是「暂时没有消息」（无句号），断言写了「暂时没有消息。」 | 断言改正则，不再被标点绊倒 |
+| storefront | 首页只显示最新 16 件，"有机鲜牛奶"不在首屏 | 改走「全部商品 + 关键词」路径（顺带覆盖搜索） |
+| storefront（结算） | 结算已改为"先登录再下单"，访客 OTP 表单被移除；且联系人手机号必须是本人 | 用例先取会员 token 写 cookie，用本人手机号 |
+| mobile-h5 | 结算页新增"同意条款"勾选框；点 label 会冒泡两次等于没勾 | 点方框本身（`.legal .uni-checkbox-input`） |
+| supplier-returns | 依赖上面几处数据/时序，修复后在整轮里稳定通过 | 无需改动 |
+
+### T.1 顺带发现并修掉的真 bug
+
+- **手机端下单成功页显示「应付 ¥0.00」**：后端返回 `Order.total`（Money 对象），页面读 `totalAmount`（不存在）→ undefined → 0。
+  已改为读 `total.amount` + `currency`；实测 `应付：¥45.00`。
+- **商品列表没有搜索框**（后端支持 keyword，前端没接）→ 已加（标题/SKU）。
+
+### T.2 e2e 数据清理策略（不再让测试污染演示库）
+
+- 测试手机号统一 **199 前缀**（`e2e/utils/e2ePhone.ts`，13 个用例已切换），可识别、可清理；
+- `e2e/global-teardown.ts` 每轮结束清理：先删非资金子行（会话/收藏/足迹），再删会员；
+  **有订单/流水的会员保留并计数上报**（资金记录不能由测试收尾删除）；
+- `make demo-ensure`：幂等的"确保演示数据存在"（不删数据）；真要回出厂用 `make db-reset`。
+
+### T.3 最终验证
+
+- e2e：**54 passed / 0 failed / 2 skipped**（56 条全绿，含 teardown 正常执行）；
+- ui-audit 40 路由 0 问题；contract-check 368/168/0；帮助覆盖 37 页通过；
+- admin / storefront / mobile 三个前端构建均通过；后端 29 个单测通过。
+
+
+## U. 素材语言变体 + 多模态（CLIP）图像检索（2026-10-29 14:50-16:10）
+
+### U.1 素材 × 语言变体（详情图按语言替换）
+
+- 表：`asset_locale_variant(asset_id, locale, url)`（V141），同一素材同一语言一条；
+- 服务：`AssetLocaleVariantService`（list/upsert/delete + `urlMap(locale)`）；
+- 接口：`GET /admin/v1/assets/{id}/variants`、`PUT/DELETE /admin/v1/assets/{id}/variants/{locale}`；
+- 渲染：`GET /api/v1/products/{id}/detail?locale=` 读取时用 `DetailImages.localize()` 把 `img[src]` 换成本地化图，
+  **没有变体的图片保持原样**（不做删除）；放在读取侧而不是保存侧，便于运营后补变体；
+- UI：素材库行操作「语言变体」→ 按"需要翻译的语言"列出槽位，每个槽位用素材选择器（URL 模式）。
+
+实测（Playwright + API）：中文详情用默认图、英文详情（cookie `fullmall-locale=en`）用本地化图且图片能显示；
+`DetailImagesTest` 2 项通过（换对映射、无映射不动）。
+
+### U.2 多模态（CLIP）图像向量：真正"按图片内容搜"
+
+- `tools/clip-service`：Node + `@xenova/transformers` 2.17.2 + `sharp` 0.33.5，ONNX 量化版 clip-vit-base-patch32（~150MB，CPU 可跑）；
+  模型用 hf-mirror 预下到 `./models`（`node scripts/download-model.mjs`），**运行时不联网**；
+- 关键实现：CLIP 文本/图像是两套子模型，必须用 `CLIPTextModelWithProjection` / `CLIPVisionModelWithProjection`，
+  用通用 `feature-extraction` 管道会走视觉模型（喂文本报 "Missing pixel values"）；两路输出要自己 L2 归一化；
+- 表：`asset_image_embedding(asset_id, vector, model, provider, updated_at)`（V139），与 `knowledge_embedding` 分开（维度不同）；
+- 供应商：`ai_provider.protocol=clip-http`（V140 把协议加进 CHECK 枚举，否则配置时直接 500）；
+- 接口：`GET /assets/image-search?q=`、`GET /assets/image-search/status`、`POST /assets/{id}/image-index`、`POST /assets/image-index/reindex`；
+- 自动建索引：上传图片、AI 生成图片都会顺手建（失败会记录 `imageIndexed=false` + 原因，不假装成功）；
+- UI：素材库搜索框旁 关键词 / 描述语义 / **图片内容** 三态；未配置时按钮禁用并给提示。
+
+实测：`reindex` 22 张 → 搜"白色的杯子"返回带相似度结果（0.235…）；素材库切「图片内容」→ 30 行结果带相似度。
+
+### U.3 端口与依赖登记
+
+- 端口核查（按 /proc 反查，不是 /dev/tcp 粗探测）：41280–41289 十个槽位**全部是我们自己的**进程；
+  其中 41286 一度是空的，我最初误判成"全满"并把 CLIP 放到 41291。已纠正：CLIP 落到 **41290**，41286 还给 mobile H5；
+  新增 `scripts/port-owners.mjs` 用于随时核查"谁占了哪个端口"；
+- 依赖矩阵新增：transformers.js/sharp（构建期、可选工具）、CLIP 模型文件（可选下载）。
+

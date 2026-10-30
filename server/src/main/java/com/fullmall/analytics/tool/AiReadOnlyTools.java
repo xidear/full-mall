@@ -81,30 +81,43 @@ public class AiReadOnlyTools {
 
     private Map<String, Object> availability(String skuCode) {
         var rows = jdbc.query("""
-                SELECT s.sku_code, COALESCE(SUM(b.quantity - b.reserved_quantity), 0) AS available
+                SELECT s.product_id, s.sku_code,
+                       COALESCE(SUM(b.quantity - b.reserved_quantity), 0) AS available
                   FROM sku s
                   LEFT JOIN inventory_batch b ON b.sku_id = s.id
                                              AND b.status IN ('AVAILABLE', 'NEAR_EXPIRY')
                  WHERE s.sku_code = ?
-                 GROUP BY s.sku_code
+                 GROUP BY s.product_id, s.sku_code
                 """, (rs, rowNum) -> Map.<String, Object>of(
+                "productId", rs.getObject("product_id", java.util.UUID.class).toString(),
                 "skuCode", rs.getString("sku_code"),
                 "available", rs.getLong("available")), skuCode);
         if (rows.isEmpty()) {
             throw ApiException.notFound("SKU_NOT_FOUND", "SKU 不存在：" + skuCode);
+        }
+        // SKU 编码只在商品内唯一：多个商品同码时要问清楚，不能随便挑一个回答
+        if (rows.size() > 1) {
+            throw ApiException.conflict("SKU_CODE_AMBIGUOUS",
+                    "SKU 编码在 " + rows.size() + " 个商品下重复，请补充商品名：" + skuCode);
         }
         return rows.get(0);
     }
 
     private Map<String, Object> price(String skuCode) {
         var rows = jdbc.query("""
-                SELECT sku_code, price_amount, price_currency FROM sku WHERE sku_code = ?
+                SELECT product_id, sku_code, price_amount, price_currency
+                  FROM sku WHERE sku_code = ?
                 """, (rs, rowNum) -> Map.<String, Object>of(
+                "productId", rs.getObject("product_id", java.util.UUID.class).toString(),
                 "skuCode", rs.getString("sku_code"),
                 "priceAmount", rs.getLong("price_amount"),
                 "currency", rs.getString("price_currency")), skuCode);
         if (rows.isEmpty()) {
             throw ApiException.notFound("SKU_NOT_FOUND", "SKU 不存在：" + skuCode);
+        }
+        if (rows.size() > 1) {
+            throw ApiException.conflict("SKU_CODE_AMBIGUOUS",
+                    "SKU 编码在 " + rows.size() + " 个商品下重复，请补充商品名：" + skuCode);
         }
         return rows.get(0);
     }

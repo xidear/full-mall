@@ -11,9 +11,18 @@
 | mobile H5 | 41286 | `npm run dev:h5 --workspace @fullmall/mobile` |
 | wiremock | 41288 | `docker compose up -d wiremock` |
 | Ollama | 41289 | `bash scripts/start-local-ai.sh` |
+| CLIP 多模态向量服务（可选） | 41290 | `cd tools/clip-service && npm start` |
 | ops/SSL 辅助容器 | 41287 | `docker compose --env-file .env.ops -f compose.ops.yaml up -d ops` |
 
-规则见 `AGENTS.md` §8：只用 41280–41289，禁止 3000/5173/8080 及其变体；`localhost` 只是本机调试，不算对外服务。
+规则见 `AGENTS.md` §8：只用 **41280–41299（20 个）**，禁止 3000/5173/8080 及其变体；`localhost` 只是本机调试，不算对外服务。
+
+> **端口段说明（2026-10-30 扩展）**：原段落 41280–41289 十个槽位在加入 CLIP 服务后**已用满**，
+> 因此整段扩到 **41280–41299（20 个）**；当前 41291–41299 空闲。再不够时按 §8 先扩到 30 个（41280–41309）、
+> 再扩到 50 个（41280–41329），**每次扩展同步本表与 AGENTS.md**，禁止零散借用其它号段。
+>
+> 核查方式（不要用 `/dev/tcp` 粗探测，会误报）：按端口反查进程，见 `scripts/port-owners.mjs`。
+> CLIP 服务（41290）只在开发机按需启动，不属于交付组件；不启动时只有"图片内容搜索"不可用，
+> 主程序其它功能照常（把 `ai_provider`（code=`clip-local`）的 endpoint 指向远端多模态服务即可恢复）。
 
 ## 公网映射（iKuai，非 80/443）
 

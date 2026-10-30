@@ -55,11 +55,8 @@ public class MediaUrlResolver {
     }
 
     /**
-     * 把库里的媒体地址转成绝对 http(s) URL，顺序不能调整：绝对地址原样返回（历史快照指向当时的存储/CDN）、
-     * 协议相对补 {@code https:}、含 {@code ..} 抛 {@link IllegalArgumentException}、其余拼 {@link #baseUrl()}。
-     * 基址为空抛 {@link IllegalStateException} 而不退回相对路径：相对地址到小程序/APP 就是裂图。
-     *
-     * <p>已知边界：{@code ..} 是纯字符串包含，{@code a..b.jpg} 也会被拒；中间空格不拦（只 trim 首尾）。
+     * 相对路径 → 绝对 URL，判断顺序不可换：绝对地址原样返回、协议相对补 https:、含 {@code ..} 拒绝、其余拼基址。
+     * 基址为空抛错而不退回相对路径（相对地址在小程序/APP 里就是裂图）。已知边界：{@code a..b.jpg} 也会被拒。
      */
     public String absolute(String raw) {
         if (raw == null || raw.isBlank()) {

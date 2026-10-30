@@ -13,10 +13,8 @@ import java.util.List;
 import java.util.UUID;
 
 /**
- * 库存后台只读接口：批次查询与临期清单，均不写库、不加锁，结果不参与下单判定。
- *
- * <p>真正的扣减/预占是 {@code InventoryRepository} 里的原子条件更新（{@code WHERE quantity - reserved_quantity >= ?}，
- * 影响行数不足即失败），所以这里读到的数量随时可能已过期。
+ * 库存后台只读接口（不写库、不加锁），读到的数量随时可能过期：扣减/预占是
+ * InventoryRepository 的原子条件更新，影响行数不足即失败。
  */
 @RestController
 @RequestMapping("/admin/v1/inventory/batches")
@@ -31,10 +29,8 @@ public class InventoryAdminController {
     }
 
     /**
-     * 批次查询：四个筛选参数都可为空（为空即不过滤），返回结果未分页。
-     *
-     * <p>每条批次的 {@code quantity} 是账面在库，{@code reserved_quantity} 是已被订单预占但未出库，
-     * 可售量 = 两者之差；后台不要把 quantity 当可售量看，否则会跟下单时的可用性判断对不上。
+     * 批次查询（筛选参数为空即不过滤，未分页）。可售量 = quantity - reserved_quantity，
+     * 把 quantity 当可售量看会与下单时的可用性判断对不上。
      */
     @GetMapping
     public List<InventoryBatch> list(

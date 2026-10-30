@@ -96,8 +96,15 @@ contract-check:
 ui-audit:
 	node scripts/audit-ui.mjs
 
-e2e:
+# E2E 需要 API(41280)/admin(41281)/storefront(41285) 都在跑；dev-stack 用固定端口把它们起起来
+e2e: dev-stack
 	cd web && npm run e2e
+
+dev-stack:
+	@bash scripts/dev-stack.sh start
+
+dev-stack-stop:
+	@bash scripts/dev-stack.sh stop
 
 fmt:
 	cd server && mvn -q spotless:apply

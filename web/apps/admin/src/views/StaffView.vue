@@ -46,13 +46,11 @@ async function load() {
   loading.value = true
   error.value = ''
   try {
-    const [staffList, storeList, roles] = await Promise.all([
+    const [staffList, storeList] = await Promise.all([
       // 排序参数后端早已支持（ListSortingTest 有覆盖），前端之前没接
       api.get<StaffUser[]>('/admin/v1/staff', { sort: sortKey.value, direction: sortDirection.value }),
-      api.get<Store[]>('/admin/v1/stores'),
-      api.get<string[]>('/admin/v1/staff/roles')
+      api.get<Store[]>('/admin/v1/stores')
     ])
-    roleOptions.value = roles
     staff.value = staffList
     stores.value = storeList
     // N+1 请求：每个员工一次 /admin/v1/staff/{id}/stores。人数少时可接受，上百人首屏会明显变慢；
@@ -62,6 +60,13 @@ async function load() {
       return [user.id, ids] as const
     }))
     bindings.value = Object.fromEntries(entries)
+    // 角色候选单独取：它失败不该让员工列表整体变空（一个 Promise.all 会互相拖死）
+    try {
+      roleOptions.value = await api.get<string[]>('/admin/v1/staff/roles')
+    } catch (cause) {
+      roleOptions.value = []
+      ElMessage.error('角色候选加载失败，暂时无法新建/改角色：' + (cause instanceof Error ? cause.message : ''))
+    }
   } catch (cause) {
     error.value = cause instanceof Error ? cause.message : '员工加载失败'
   } finally {

@@ -3879,7 +3879,7 @@ INSERT INTO public.address_format (country_code, required, fmt, zip, zipex, stat
 
 
 
-INSERT INTO public.market (code, name, currency, active, created_at, country_code, tax_jurisdiction, price_includes_tax, timezone, legal_entity_name, sort) VALUES ('CN', 'CN', 'CNY', true, '2026-10-30 03:46:56.009015+00', 'CN', 'CN', NULL, NULL, NULL, 0);
+INSERT INTO public.market (code, name, currency, active, created_at, country_code, tax_jurisdiction, price_includes_tax, timezone, legal_entity_name, sort) VALUES ('CN', '中国大陆', 'CNY', true, '2026-10-30 03:46:56.009015+00', 'CN', 'CN', true, 'Asia/Shanghai', NULL, 0);
 
 
 

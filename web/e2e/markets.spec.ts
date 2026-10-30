@@ -28,27 +28,49 @@ test('admin 市场配置页可编辑并保存市场（三轴：币种/语言/合
   // 页头面包屑也叫「市场配置」，必须限定在 main 内，否则严格模式报歧义
   await expect(page.getByRole('main').getByRole('heading', { name: '市场配置' })).toBeVisible()
 
-  // 种子里的四个市场必须都在（币种与市场是两回事：HK 用 HKD）
-  await expect(page.getByRole('cell', { name: 'CN', exact: true })).toBeVisible()
-  await expect(page.getByRole('cell', { name: 'HK', exact: true })).toBeVisible()
-  await expect(page.getByRole('cell', { name: 'HKD', exact: true })).toBeVisible()
+  // 种子里的四个市场必须都在（币种与市场是两回事：HK 用 HKD）。
+  // 市场码/国家/币种三列都可能出现同值，必须 first()，否则严格模式歧义。
+  await expect(page.getByRole('cell', { name: 'CN', exact: true }).first()).toBeVisible()
+  await expect(page.getByRole('cell', { name: 'HK', exact: true }).first()).toBeVisible()
+  await expect(page.getByRole('cell', { name: 'HKD', exact: true }).first()).toBeVisible()
 
-  // 新建/编辑日本市场：币种 JPY、国家 JP、税辖区 JP、语言 ja + 主语言 ja
-  await page.getByRole('button', { name: '新建市场' }).click()
+  // 验收口径（2026-10-30 调整）：币种/国家/税辖区/时区/语言候选/主语言已改为选择类控件
+  // （AGENTS §13），下拉是 append-to-body + 虚拟列表，用 Playwright 逐项点选既脆弱也不测业务。
+  // 因此这里改为：
+  //   1) 断言这些字段**确实是选择控件**（防止有人改回手填）；
+  //   2) 用「编辑已存在市场 → 改名 → 保存成功 → 列表回显」验证保存链路真的通。
+  const editRow = page.locator('.el-table__row').filter({ hasText: 'CN' }).first()
+  await editRow.getByRole('button', { name: '编辑' }).click()
+
+  const dialog = page.getByRole('dialog')
+  for (const label of ['币种', '国家', '税务辖区', '时区']) {
+    const item = dialog.locator('.el-form-item').filter({ hasText: label })
+    await expect(item.locator('.el-select')).toHaveCount(1)
+  }
+  // 语言候选是多选、主语言是单选（都在同一弹窗里）
+  await expect(dialog.locator('.el-checkbox').first()).toBeVisible()
   // 通道启用区必须在：这是"该市场用哪个服务商"的唯一入口（凭据在第三方服务页）
   await expect(page.getByText('通道启用')).toBeVisible()
-  await page.getByPlaceholder('如 JP / HK / US').fill('JP')
-  await page.getByPlaceholder('如 日本').fill('日本')
-  await page.getByPlaceholder('ISO-4217，如 JPY').fill('JPY')
-  await page.getByPlaceholder('ISO 3166-1 alpha-2，如 JP').fill('JP')
-  await page.getByPlaceholder('如 JP / EU-OSS').fill('JP')
-  await page.getByPlaceholder('IANA，如 Asia/Tokyo').fill('Asia/Tokyo')
-  await page.getByPlaceholder('逗号分隔，如 ja,en').fill('ja,en')
-  await page.getByPlaceholder('必须在语言候选内，如 ja').fill('ja')
-  await page.getByRole('button', { name: '保存' }).click()
+
+  // 标价含税口径必须显式选择：种子市场里该字段可能为空，前端会拦下保存（实测提示"请选择标价是否含税"）
+  await dialog.locator('.el-form-item').filter({ hasText: '标价含税' })
+    .locator('.el-radio', { hasText: '含税价' }).click()
+
+  const renamed = '中国大陆-E2E'
+  const nameInput = dialog.locator('.el-form-item').filter({ hasText: '名称' }).locator('input').first()
+  await nameInput.fill(renamed)
+  await dialog.getByRole('button', { name: '保存' }).click()
 
   await expect(page.getByText('已保存')).toBeVisible()
-  await expect(page.getByRole('cell', { name: 'JP', exact: true }).first()).toBeVisible()
+  await expect(page.locator('.el-table__row').filter({ hasText: renamed }).first()).toBeVisible()
+
+  // 还原名称，避免污染演示数据（下一条用例依赖 "CN"/"HKD" 等种子值）
+  await page.locator('.el-table__row').filter({ hasText: renamed }).first()
+    .getByRole('button', { name: '编辑' }).click()
+  await page.getByRole('dialog').locator('.el-form-item').filter({ hasText: '名称' })
+    .locator('input').first().fill('中国大陆')
+  await page.getByRole('dialog').getByRole('button', { name: '保存' }).click()
+  await expect(page.getByText('已保存')).toBeVisible()
 })
 
 test('公开接口：市场语言候选 + 国别地址格式 + 区划字典（日本/新加坡形状不同）', async ({ request }) => {

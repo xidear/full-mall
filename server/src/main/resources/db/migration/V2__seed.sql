@@ -2,7 +2,6 @@
 -- session_replication_role=replica：跳过外键检查，否则 region 的自引用外键会因插入顺序报错。
 SET session_replication_role = replica;
 
-\restrict VbPTC3Sp6O3FaRHYpDWZNz1AQyX0uqbQS1d5sGpzwclxvswqMgwaOj6uow9IgbV
 
 
 
@@ -4747,7 +4746,6 @@ SELECT pg_catalog.setval('public.jv_snapshot_pk_seq', 1, false);
 
 
 
-\unrestrict VbPTC3Sp6O3FaRHYpDWZNz1AQyX0uqbQS1d5sGpzwclxvswqMgwaOj6uow9IgbV
 
 INSERT INTO public.role (code, label, editable, sort_order) VALUES
 ('ADMIN', '超级管理员', false, 10);

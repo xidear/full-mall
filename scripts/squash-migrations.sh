@@ -43,7 +43,9 @@ fi
 echo "== 2/5 导出 schema + seed =="
 docker exec "$PG_CONTAINER" pg_dump -U "$PG_USER" -d "$SCRATCH_DB" --schema-only --no-owner --no-privileges > /tmp/sq_schema.sql
 docker exec "$PG_CONTAINER" pg_dump -U "$PG_USER" -d "$SCRATCH_DB" --data-only --column-inserts --no-owner --no-privileges > /tmp/sq_seed.sql
-strip() { grep -v '^--' "$1" | grep -v '^SET ' | grep -v '^SELECT pg_catalog.set_config'; }
+# pg_dump 17 会输出 \restrict / \unrestrict 这类 psql 元命令：psql 认，但 Flyway 走 JDBC，会报
+# "syntax error at or near \"。必须在这里剔掉，否则"能 psql 建起来、应用启动却失败"。
+strip() { grep -v '^--' "$1" | grep -v '^SET ' | grep -v '^SELECT pg_catalog.set_config' | grep -v '^\\'; }
 {
   echo "-- 基线 schema：由 scripts/squash-migrations.sh 从"仅用旧迁移建出的库"导出（项目未上线，一次性初始化）。"
   echo "-- 结构改动请直接改本文件；上线后再用增量迁移（V3 起）。seed 数据见 V2__seed.sql。"

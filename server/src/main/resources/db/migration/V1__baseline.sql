@@ -1,7 +1,6 @@
 -- 基线 schema：由 scripts/squash-migrations.sh 从仅用旧迁移建出的库导出（项目未上线，一次性初始化）。
 -- 结构改动请直接改本文件；上线后再用增量迁移（V3 起）。seed 数据见 V2__seed.sql。
 
-\restrict OBPva8dsXrl9vwFgVKs8FEivUqKUUqk0bjYUR9uufTw39Mzz8F5KwBH8xGlgCsN
 
 
 
@@ -5346,7 +5345,6 @@ ALTER TABLE ONLY public.webhook_delivery
 
 
 
-\unrestrict OBPva8dsXrl9vwFgVKs8FEivUqKUUqk0bjYUR9uufTw39Mzz8F5KwBH8xGlgCsN
 
 ALTER TABLE ONLY public.staff_user
     ADD CONSTRAINT staff_user_role_fk FOREIGN KEY (role) REFERENCES public.role(code);

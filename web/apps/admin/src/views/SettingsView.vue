@@ -54,6 +54,32 @@ async function loadOptions() {
   }
 }
 
+interface EffectiveSetting {
+  key: string
+  label: string
+  globalValue?: string
+  marketValue?: string
+  effectiveValue?: string
+  source: 'MARKET' | 'GLOBAL'
+}
+
+/**
+ * 市场级覆盖的生效值：同一项在「系统设置」和「市场配置」都能填，
+ * 运营看不出最终用的是哪个。这里把 全局值 / 市场值 / 生效值 / 来源 摊开显示。
+ */
+const effective = ref<EffectiveSetting[]>([])
+const effectiveMarket = ref('CN')
+
+async function loadEffective(marketCode?: string) {
+  const target = (marketCode ?? form.default_market ?? 'CN') || 'CN'
+  try {
+    effective.value = await api.get<EffectiveSetting[]>('/admin/v1/settings/effective', { market: target })
+    effectiveMarket.value = target
+  } catch (cause) {
+    ElMessage.error('生效值加载失败：' + (cause instanceof Error ? cause.message : ''))
+  }
+}
+
 const form = reactive<Record<string, string>>({
   site_name: '',
   site_tagline: '',
@@ -173,6 +199,7 @@ const payoutMethods = computed({
 onMounted(async () => {
   await loadOptions()
   await load()
+  await loadEffective()
 })
 
 async function load() {
@@ -267,6 +294,39 @@ async function save() {
             </span>
           </el-form-item>
         </div>
+      </section>
+
+      <section class="form-section">
+        <h3>市场级覆盖与生效值</h3>
+        <p class="muted">
+          这些项在「系统设置」（全局）和「市场配置」（市场级）都能填。
+          <b>市场配置里有值就以市场为准</b>；市场里没有这一行才回退全局。
+          市场里填空串表示该项在本市场明确没有（例如香港没有 ICP 备案号），不再回退。
+        </p>
+        <el-table :data="effective" size="small" empty-text="暂无数据">
+          <el-table-column prop="label" label="配置项" width="150" />
+          <el-table-column label="全局值（系统设置）" min-width="190">
+            <template #default="{ row }">{{ row.globalValue ?? '—' }}</template>
+          </el-table-column>
+          <el-table-column label="市场值（市场配置）" min-width="190">
+            <template #default="{ row }">
+              <span v-if="row.marketValue === undefined" class="muted">未单独设置</span>
+              <span v-else-if="row.marketValue === ''" class="muted">已留空（不回退全局）</span>
+              <span v-else>{{ row.marketValue }}</span>
+            </template>
+          </el-table-column>
+          <el-table-column label="当前生效" min-width="190">
+            <template #default="{ row }">{{ row.effectiveValue ?? '—' }}</template>
+          </el-table-column>
+          <el-table-column label="来源" width="110">
+            <template #default="{ row }">
+              <el-tag size="small" :type="row.source === 'MARKET' ? 'warning' : 'info'">
+                {{ row.source === 'MARKET' ? '市场配置' : '全局' }}
+              </el-tag>
+            </template>
+          </el-table-column>
+        </el-table>
+        <p class="muted">当前查看的市场：{{ effectiveMarket }}</p>
       </section>
 
       <section class="form-section">

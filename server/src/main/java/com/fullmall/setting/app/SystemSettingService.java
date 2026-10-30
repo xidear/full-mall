@@ -189,6 +189,47 @@ public class SystemSettingService {
             "service_phone", "service_email", "default_currency", "enabled_locales",
             "sms_provider", "payment_provider", "logistics_provider", "storage_provider");
 
+    /** 市场级可覆盖项的中文名（后端单一来源，前端不要再写一份）。 */
+    private static final java.util.Map<String, String> SCOPED_LABELS = new java.util.LinkedHashMap<>();
+
+    static {
+        SCOPED_LABELS.put("company_name", "公司主体");
+        SCOPED_LABELS.put("icp_number", "ICP 备案号");
+        SCOPED_LABELS.put("public_security_record", "公安网安备案");
+        SCOPED_LABELS.put("business_license_no", "营业执照/经营编号");
+        SCOPED_LABELS.put("service_phone", "客服电话");
+        SCOPED_LABELS.put("service_email", "客服邮箱");
+        SCOPED_LABELS.put("default_currency", "默认币种");
+        SCOPED_LABELS.put("enabled_locales", "语言候选");
+        SCOPED_LABELS.put("sms_provider", "短信服务商");
+        SCOPED_LABELS.put("payment_provider", "支付服务商");
+        SCOPED_LABELS.put("logistics_provider", "物流服务商");
+        SCOPED_LABELS.put("storage_provider", "存储服务商");
+    }
+
+    public record EffectiveSetting(String key, String label, String globalValue,
+                                   String marketValue, String effectiveValue, String source) {
+    }
+
+    /**
+     * 某些 key 在全局与市场两处都能填，运营看不出最终生效的是哪一个。
+     * 这里把三件事摊开：全局值、市场值（null=该市场没有单独设置，空串=明确留空）、生效值与来源。
+     */
+    public java.util.List<EffectiveSetting> effectiveSettings(String marketCode) {
+        String market = marketCode == null || marketCode.isBlank() ? null : marketCode.trim().toUpperCase(java.util.Locale.ROOT);
+        Map<String, String> globals = repository.findAll();
+        java.util.List<EffectiveSetting> result = new java.util.ArrayList<>();
+        for (String key : MARKET_SCOPED_KEYS) {
+            String global = globals.get(key);
+            String scoped = market == null ? null : markets.scopedSetting(market, key);
+            boolean fromMarket = scoped != null;
+            String effective = fromMarket ? scoped : global;
+            result.add(new EffectiveSetting(key, SCOPED_LABELS.getOrDefault(key, key),
+                    global, scoped, effective, fromMarket ? "MARKET" : "GLOBAL"));
+        }
+        return result;
+    }
+
     public Map<String, String> publicSettings() {
         return publicSettings(null);
     }

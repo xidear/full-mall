@@ -40,6 +40,13 @@ public class SystemSettingController {
         return service.publicSettings(market);
     }
 
+    /** 市场级覆盖的实际生效值：全局值 / 市场值 / 生效值 / 来源，一次摊开。 */
+    @GetMapping("/admin/v1/settings/effective")
+    public java.util.List<com.fullmall.setting.app.SystemSettingService.EffectiveSetting> effective(
+            @org.springframework.web.bind.annotation.RequestParam(defaultValue = "") String market) {
+        return service.effectiveSettings(market);
+    }
+
     @GetMapping("/admin/v1/settings")
     public Map<String, String> adminSettings() {
         return service.adminSettings();

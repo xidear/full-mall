@@ -158,7 +158,7 @@ onMounted(async () => {
     <div class="page-heading">
       <h1>运费档位</h1>
       <div class="actions">
-        <el-select v-model="market" style="width: 160px" @change="onMarketChange">
+        <el-select v-model="market" placeholder="请选择市场" style="width: 180px" @change="onMarketChange">
           <el-option v-for="item in markets" :key="item.code" :label="`${item.code} · ${item.name}`" :value="item.code" />
         </el-select>
         <el-button @click="load">刷新</el-button>

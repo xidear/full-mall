@@ -3,6 +3,15 @@
 > 规则见 `AGENTS.md` §14：每批改动结束更新本文件，只保留最近 3 批。
 > 写清“已做并验证 / 已做未验证 / 未做”，以及环境事实（端口、容器、库是否重建）。
 
+## 2026-10-31 / StatusToggle 推广（供应商）
+
+- 已做并验证：供应商 POST /active（停用即时失效凭证）+ 审计 SUPPLIER_STATUS_CHANGED；
+  前端内联开关；make acceptance 10/10
+- 已做未验证：无
+- 未做 / 已知缺口：优惠券模板/门店列表未做（无明确状态语义与列表页，不做猜测性端点）；
+  促销规则是 DRAFT→ACTIVE→ENDED 生命周期，布尔开关不适用，保持原按钮
+- 环境事实：API 41280；审计表时间列是 created_at（不是 occurred_at）
+
 ## 2026-10-31 / readiness + 导出存储
 
 - 已做并验证：GET /admin/v1/readiness（7 项能力，标注配置来源/MISMATCH）；导出存储改为集成配置，

@@ -20,10 +20,16 @@ public class SupplierAdminService {
 
     private final SupplierRepository repository;
     private final SupplierSecretCipher cipher;
+    private final org.springframework.jdbc.core.JdbcTemplate jdbcTemplate;
+    private final com.fullmall.platform.audit.AuditEventService auditEvents;
 
-    public SupplierAdminService(SupplierRepository repository, SupplierSecretCipher cipher) {
+    public SupplierAdminService(SupplierRepository repository, SupplierSecretCipher cipher,
+                                org.springframework.jdbc.core.JdbcTemplate jdbcTemplate,
+                                com.fullmall.platform.audit.AuditEventService auditEvents) {
         this.repository = repository;
         this.cipher = cipher;
+        this.jdbcTemplate = jdbcTemplate;
+        this.auditEvents = auditEvents;
     }
 
     public List<SupplierCredentialView> listSuppliers() {
@@ -36,6 +42,23 @@ public class SupplierAdminService {
     }
 
     @Transactional
+    /**
+     * 启用/停用供应商。停用后该供应商的凭证立即不可用（登录态与 token 校验都查 active）。
+     *
+     * <p>做成独立端点而不是复用"编辑供应商"：列表里点一下开关就生效，
+     * 不需要为了改一个布尔值打开整张表单。
+     */
+    public void setActive(UUID supplierId, boolean active, String actor) {
+        int updated = jdbcTemplate.update("UPDATE supplier SET active = ? WHERE id = ?", active, supplierId);
+        if (updated != 1) {
+            throw com.fullmall.platform.error.ApiException.notFound("SUPPLIER_NOT_FOUND",
+                    "供应商不存在: " + supplierId);
+        }
+        auditEvents.record(new com.fullmall.platform.audit.AuditEventService.AuditEvent(
+                "SUPPLIER_STATUS_CHANGED", actor, "supplier", supplierId.toString(),
+                "active=" + active, null));
+    }
+
     public SupplierCredentialCreated rotateCredential(UUID supplierId) {
         if (!repository.supplierExists(supplierId)) {
             throw ApiException.notFound("SUPPLIER_NOT_FOUND", "供应商不存在或已停用：" + supplierId);

@@ -50,6 +50,19 @@ public class AdminSupplierController {
                                    boolean tokenRevoked, boolean active, List<String> warnings) {
     }
 
+    public record ActiveRequest(boolean active) {
+    }
+
+    /** 列表内直接启用/停用：只改一个布尔值，不要求打开整张表单。 */
+    @PostMapping("/{supplierId}/active")
+    @org.springframework.security.access.prepost.PreAuthorize("hasRole('ADMIN')")
+    public java.util.Map<String, Object> setActive(@PathVariable UUID supplierId,
+                                                   @RequestBody ActiveRequest body,
+                                                   org.springframework.security.core.Authentication authentication) {
+        adminService.setActive(supplierId, body.active(), authentication.getName());
+        return java.util.Map.of("id", supplierId.toString(), "active", body.active());
+    }
+
     /** 签发/轮换 Bearer Token：明文只在此响应中出现一次。 */
     @PostMapping("/{supplierId}/token")
     @org.springframework.security.access.prepost.PreAuthorize("hasRole('ADMIN')")

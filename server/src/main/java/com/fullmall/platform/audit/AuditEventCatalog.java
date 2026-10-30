@@ -37,6 +37,7 @@ public final class AuditEventCatalog {
             new Def("STOCK_ADJUST_APPROVED", "库存调整审批", "库存与仓储"),
             new Def("STOCK_TRANSFER_SHIPPED", "调拨出库", "库存与仓储"),
             new Def("SETTLEMENT_GENERATED", "生成结算单", "结算"),
+            new Def("SUPPLIER_STATUS_CHANGED", "启用/停用供应商", "供应商"),
             new Def("EXPORT_JOB_CREATED", "创建导出任务", "导出"),
             new Def("FEATURE_FLAG_CHANGED", "修改功能开关", "系统"),
             new Def("TRANSLATION_DRAFT_SAVED", "保存译文草稿", "翻译"),

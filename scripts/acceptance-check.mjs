@@ -148,6 +148,26 @@ async function main() {
   }
   record('能力就绪端点返回每项配置来源', readyOk, readyDetail);
 
+  // 10) 供应商启停：把当前值原样回写（幂等），验证端点与鉴权可用
+  const suppliers = await get('/admin/v1/suppliers', token);
+  let supOk = false, supDetail = 'status=' + suppliers.status;
+  if (suppliers.status === 200) {
+    const list = JSON.parse(suppliers.body);
+    if (!list.length) {
+      supOk = true; supDetail = '无供应商（跳过）';
+    } else {
+      const s = list[0];
+      const id = s.supplierId ?? s.id;
+      const res = await fetch(API + '/admin/v1/suppliers/' + id + '/active', {
+        method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },
+        body: JSON.stringify({ active: s.active })
+      });
+      supOk = res.ok;
+      supDetail = s.name + ' active=' + s.active + ' 回写=' + res.status;
+    }
+  }
+  record('供应商启停端点可用（列表内直接切换）', supOk, supDetail);
+
   const failed = results.filter(r => !r.ok);
   console.log('\n' + (results.length - failed.length) + '/' + results.length + ' 通过');
   if (failed.length) {

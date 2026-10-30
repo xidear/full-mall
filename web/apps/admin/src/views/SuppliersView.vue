@@ -4,6 +4,7 @@ import { onMounted, ref } from 'vue'
 import { ElMessage } from 'element-plus'
 import type { SupplierCredentialView } from '@fullmall/api-client'
 import { api } from '../api'
+import StatusToggle from '../components/StatusToggle.vue'
 import { useEnums } from '../composables/useEnums'
 
 const { enumLabel } = useEnums()
@@ -95,6 +96,13 @@ async function load() {
   }
 }
 
+/** 只切换启用状态；失败抛出让开关保持原值。 */
+async function toggleActive(row: { supplierId?: string; id?: string; active: boolean }, next: boolean) {
+  const id = row.supplierId ?? row.id
+  await api.post(`/admin/v1/suppliers/` + id + `/active`, { active: next })
+  row.active = next
+}
+
 async function rotate(supplier: SupplierCredentialView) {
   loading.value = true
   error.value = ''
@@ -141,9 +149,12 @@ async function copy(text: string, label: string) {
       <el-table :data="suppliers" @sort-change="onSortChange" empty-text="暂无供应商">
         <el-table-column prop="code" sortable="custom" label="供应商编码" width="150" />
         <el-table-column prop="name" sortable="custom" label="供应商名称" min-width="180" />
-        <el-table-column label="状态" width="100">
+        <el-table-column label="状态" width="130">
           <template #default="{ row }">
-            <el-tag :type="row.active ? 'success' : 'info'">{{ row.active ? '启用' : '停用' }}</el-tag>
+            <!-- 列表内直接切换：停用后该供应商凭证立即失效 -->
+            <StatusToggle :active="row.active" active-text="启用" inactive-text="停用"
+                          :confirm-text="'停用供应商 ' + row.name + ' 后其接口凭证立即不可用，确定吗？'"
+                          :on-change="next => toggleActive(row, next)" />
           </template>
         </el-table-column>
         <el-table-column label="Access Key" min-width="240">

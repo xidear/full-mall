@@ -18,7 +18,7 @@ class ExportFileCleanupTest {
 
     @Test
     void deletesOnlyOldFiles(@TempDir Path dir) throws IOException {
-        var storage = new LocalExportStorage(dir.toString());
+        var storage = new LocalExportStorage(dir);
         storage.store("old.csv", "a,b".getBytes());
         storage.store("new.csv", "c,d".getBytes());
 
@@ -35,7 +35,7 @@ class ExportFileCleanupTest {
 
     @Test
     void rejectsNonPositiveDays(@TempDir Path dir) {
-        var storage = new LocalExportStorage(dir.toString());
+        var storage = new LocalExportStorage(dir);
 
         assertThatThrownBy(() -> storage.deleteOlderThan(0))
                 .isInstanceOf(IllegalArgumentException.class)
@@ -44,7 +44,7 @@ class ExportFileCleanupTest {
 
     @Test
     void returnsZeroWhenDirectoryMissing(@TempDir Path dir) {
-        var storage = new LocalExportStorage(dir.resolve("not-created").toString());
+        var storage = new LocalExportStorage(dir.resolve("not-created"));
 
         assertThat(storage.deleteOlderThan(7)).isZero();
     }

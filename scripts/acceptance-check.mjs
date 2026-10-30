@@ -137,6 +137,17 @@ async function main() {
   }
   record('存储已配置时上传成功（未配置必须 503，见下方说明）', storageOk, storageDetail);
 
+  // 9) 能力就绪：必须能列出每个外部能力的配置来源（集成配置 / 环境变量 / 缺失 / 冲突）
+  const readiness = await get('/admin/v1/readiness', token);
+  let readyOk = false, readyDetail = 'status=' + readiness.status;
+  if (readiness.status === 200) {
+    const body = JSON.parse(readiness.body);
+    const caps = (body.items || []).map(i => i.capability);
+    readyOk = caps.includes('storage') && caps.includes('export') && caps.includes('payment');
+    readyDetail = caps.map((c, idx) => c + '=' + body.items[idx].state).join(' ');
+  }
+  record('能力就绪端点返回每项配置来源', readyOk, readyDetail);
+
   const failed = results.filter(r => !r.ok);
   console.log('\n' + (results.length - failed.length) + '/' + results.length + ' 通过');
   if (failed.length) {

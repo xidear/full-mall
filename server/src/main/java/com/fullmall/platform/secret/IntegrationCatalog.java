@@ -81,6 +81,11 @@ public final class IntegrationCatalog {
                             Field.text("bucket", "存储桶", "形如 example-1250000000"),
                             Field.text("region", "地域", "形如 ap-guangzhou"))))),
 
+            new Capability("export", "导出文件存储", "导出中心的 CSV 存放位置（含顾客手机号，禁止公开访问）", List.of(
+                    new Provider("local", "本机磁盘", List.of(
+                            new Field("directory", "存储目录", false, true, "必填：磁盘上的导出目录（如 /data/fullmall-exports），不要放在静态资源目录下"),
+                            new Field("retention-days", "保留天数", false, false, "过期文件自动清理；留空表示不自动清理"))))),
+
             new Capability("moderation", "内容审核", "商品图与评价图的合规检查", List.of(
                     new Provider("tencent", "腾讯云内容安全", List.of(
                             Field.secret("secret-id", "SecretId", "访问管理 → API 密钥"),

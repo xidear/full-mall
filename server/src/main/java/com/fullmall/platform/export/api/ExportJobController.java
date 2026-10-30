@@ -30,6 +30,10 @@ public class ExportJobController {
     @ResponseStatus(HttpStatus.ACCEPTED)
     @PreAuthorize("hasAnyRole('ADMIN','OPERATOR')")
     public Map<String, UUID> create(@RequestBody CreateExport body, Authentication authentication) {
+        // 创建即校验存储：否则任务会 PENDING→FAILED，用户白等一轮才发现没配存储
+        if (storage instanceof com.fullmall.platform.export.LocalExportStorage local) {
+            local.assertConfigured();
+        }
         UUID id = service.create(authentication.getName(), body.resource(), body.projection(),
                 body.params(), null);
         return Map.of("jobId", id);

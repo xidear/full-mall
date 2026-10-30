@@ -3,6 +3,14 @@
 > 规则见 `AGENTS.md` §14：每批改动结束更新本文件，只保留最近 3 批。
 > 写清“已做并验证 / 已做未验证 / 未做”，以及环境事实（端口、容器、库是否重建）。
 
+## 2026-10-31 / readiness + 导出存储
+
+- 已做并验证：GET /admin/v1/readiness（7 项能力，标注配置来源/MISMATCH）；导出存储改为集成配置，
+  未配置创建任务 503、配置后 202；make acceptance 9/9
+- 已做未验证：支付/短信/物流仍读环境变量（readiness 已标"来源：环境变量"），统一到集成配置留待下一批
+- 未做 / 已知缺口：StatusToggle 推广、枚举覆盖、三态测试、系统设置"生效值"显示、locale 复核
+- 环境事实：export 已启用 local + directory=/data/full-mall/server/data/exports
+
 ## 2026-10-31 / 验收体系
 
 - 已做并验证：scripts/acceptance-check.mjs（8/8 通过）+ docs/ACCEPTANCE.md（28 条对照 + 7 项未完成）

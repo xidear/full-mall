@@ -18,6 +18,30 @@ const loading = ref(false)
 const error = ref('')
 const eventType = ref('')
 const actor = ref('')
+
+// 筛选候选由后端下发（/admin/v1/audit/event-types|actors|resources）：
+// 事件码是内部标识，不能让人手填、也不能直接摆在界面上（AGENTS §13）。
+interface EventTypeOption { code: string; label: string; group: string }
+const eventTypes = ref<EventTypeOption[]>([])
+const actors = ref<string[]>([])
+const resources = ref<string[]>([])
+const eventLabel = (code: string) => eventTypes.value.find(item => item.code === code)?.label ?? code
+
+async function loadMeta() {
+  try {
+    const [types, actorList, resourceList] = await Promise.all([
+      api.get<EventTypeOption[]>('/admin/v1/audit/event-types'),
+      api.get<string[]>('/admin/v1/audit/actors'),
+      api.get<string[]>('/admin/v1/audit/resources')
+    ])
+    eventTypes.value = types
+    actors.value = actorList
+    resources.value = resourceList
+  } catch (cause) {
+    // 候选拿不到不影响查询（仍可按时间/手动输入），但必须说出来
+    error.value = '筛选候选加载失败：' + (cause instanceof Error ? cause.message : '')
+  }
+}
 const range = ref<Date[] | null>(null)
 const page = ref(0)
 const size = ref(20)
@@ -47,7 +71,10 @@ async function loadSnapshots() {
   }
 }
 
-onMounted(load)
+onMounted(() => {
+  // 先取候选再查列表：下拉里没选项时用户会以为"没有这个事件类型"
+  void loadMeta().then(load)
+})
 
 async function load() {
   loading.value = true
@@ -93,10 +120,18 @@ function changePage(next: number) {
         <p class="muted">记录支付、退款、提现、权限、库存等关键操作；只读，不可修改或删除。</p>
       </div>
       <div class="header-actions">
-        <el-input v-model="eventType" placeholder="事件类型，如 PAYMENT_REFUNDED"
-                  clearable style="width: 220px" @keyup.enter="search" />
-        <el-input v-model="actor" placeholder="操作人（模糊）" clearable
-                  style="width: 180px" @keyup.enter="search" />
+        <el-select v-model="eventType" filterable clearable placeholder="事件类型（全部）"
+                   style="width: 260px" @change="search">
+          <el-option-group v-for="group in Array.from(new Set(eventTypes.map(item => item.group)))"
+                           :key="group" :label="group">
+            <el-option v-for="item in eventTypes.filter(t => t.group === group)" :key="item.code"
+                       :label="item.label + '（' + item.code + '）'" :value="item.code" />
+          </el-option-group>
+        </el-select>
+        <el-select v-model="actor" filterable clearable placeholder="操作人（全部）"
+                   style="width: 180px" @change="search">
+          <el-option v-for="name in actors" :key="name" :label="name" :value="name" />
+        </el-select>
         <el-date-picker v-model="range" type="datetimerange" style="width: 340px" />
         <el-button type="primary" @click="search">查询</el-button>
       </div>
@@ -109,7 +144,12 @@ function changePage(next: number) {
       <el-table-column label="时间" width="180">
         <template #default="{ row }">{{ formatDateTime(row.createdAt) }}</template>
       </el-table-column>
-      <el-table-column prop="eventType" label="事件" width="220" show-overflow-tooltip />
+      <el-table-column label="事件" width="240">
+        <template #default="{ row }">
+          <div>{{ eventLabel(row.eventType) }}</div>
+          <div class="muted-code">{{ row.eventType }}</div>
+        </template>
+      </el-table-column>
       <el-table-column prop="actor" label="操作人" width="180" show-overflow-tooltip />
       <el-table-column label="对象" width="200">
         <template #default="{ row }">{{ row.resource }} / {{ row.resourceId }}</template>
@@ -131,7 +171,10 @@ function changePage(next: number) {
                   title="只有注册了审计类型的实体可查（当前仅 asset）"
                   description="用于核对某条记录的历史版本；普通业务变更请看「操作事件」。" />
         <div class="snapshot-actions mb-16">
-          <el-input v-model="snapshotType" placeholder="实体类型，如 asset" style="width: 200px" />
+          <el-select v-model="snapshotType" filterable allow-create default-first-option
+                     placeholder="实体类型" style="width: 200px">
+            <el-option v-for="item in resources" :key="item" :label="item" :value="item" />
+          </el-select>
           <el-input v-model="snapshotId" aria-label="按实体 ID 查看历史快照" placeholder="调试：实体 ID（UUID）" style="width: 320px" />
           <el-button type="primary" :loading="snapshotLoading" @click="loadSnapshots">查询</el-button>
         </div>
@@ -148,5 +191,10 @@ function changePage(next: number) {
 </template>
 
 <style scoped>
+.muted-code {
+  color: #a8aeb8;
+  font-size: 11px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
 .snapshot-actions { display: flex; gap: 12px; }
 </style>

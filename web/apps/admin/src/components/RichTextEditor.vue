@@ -201,7 +201,7 @@ function onFilePicked(event: Event, input: HTMLInputElement) {
 function askLink() {
   const previous = editor.getAttributes('link').href as string | undefined
   const href = window.prompt('链接地址（站内 / 开头或 http(s)://）', previous ?? '')
-  if (href === null) return
+  if (href == null) return
   if (!href.trim()) {
     editor.chain().focus().extendMarkRange('link').unsetLink().run()
     return

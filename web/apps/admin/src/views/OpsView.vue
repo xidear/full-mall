@@ -174,7 +174,7 @@ async function act(container: Container, action: 'start' | 'stop' | 'restart', h
 }
 
 function bytes(value?: number | null) {
-  if (value === null || value === undefined || !Number.isFinite(value)) return '-'
+  if (value == null || !Number.isFinite(value)) return '-'
   const units = ['B', 'KB', 'MB', 'GB', 'TB']
   let size = value
   let unit = 0

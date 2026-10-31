@@ -243,7 +243,7 @@ async function save() {
   }
   // 含税口径与税辖区必须显式声明：留空会让税额算错（后端同样强制，见 MarketService）
   // 后端 non_null 序列化会把未配置的字段整个省略，前端拿到 undefined：必须用 == null
-  if (editing.priceIncludesTax === null || editing.priceIncludesTax === undefined) {
+  if (editing.priceIncludesTax == null) {
     ElMessage.error('请选择标价是否含税')
     return
   }

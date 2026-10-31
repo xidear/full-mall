@@ -11,7 +11,7 @@
 
 行为：
   生产未配置         → 不自动拉取；手工汇率可用；应用正常启动
-  demo/dev 未配置    → 显式使用 mock
+  demo 未配置        → 才用 mock 兜底（dev/prod 未配置=不自动拉取）
   配置且拉取成功     → 写入 source=frankfurter/mock 的新汇率（生效时间=现在）
   配置但拉取失败     → 不写/不删任何汇率，保留上次自动或手工汇率；记录 lastError
   定时任务           → 默认 1 小时；也可在后台「汇率」页点「立即拉取」
@@ -73,5 +73,5 @@ order_line_refund 新增：
 
 ## 5. 回归
 
-- 全量后端：**812 tests / 0 failures / 0 errors**（clean test，244 个测试类）。
+- 全量后端：**816 tests / 0 failures / 0 errors**（第六轮补 4 项 mock 语义测试后 clean test，244 个测试类）。
 - Playwright：**62 passed / 0 failed / 3 skipped**。

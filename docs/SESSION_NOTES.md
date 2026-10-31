@@ -6,7 +6,7 @@
 ## 2026-10-31 / 自动汇率 + 退款汇率快照 + 金额去浮点
 
 - 已做并验证：
-  - 自动汇率：`exchange_rate` 集成能力（mock / Frankfurter，无 API Key）；演示/开发未配置用 mock，
+  - 自动汇率：`exchange_rate` 集成能力（mock / Frankfurter，无 API Key）；只有 demo 未配置才用 mock，
     生产未配置不自动拉取；失败保留上次/手工汇率；`GET /provider`、`POST /refresh`
   - 退款汇率：V7 `order_line_refund.fx_*`；退款仍原币种，允许退款时汇率与下单不同
   - 金额去浮点：POS 百分比券改 `Money.mulDiv`，砍价 1.05 改整数比例，
@@ -20,6 +20,11 @@
   - 自动汇率偏差告警未做
 - 环境事实：
   - migration 到 V7；`APP_FX_AUTO_INTERVAL_MS` 默认 3600000
+  - 运行环境 exchange_rate 已启用 **frankfurter**（`api.frankfurter.dev/v1`，旧 `.app` 域名 301），
+    mock 置为 disabled；mock 只在 `app.mode=demo` 且未配置时兜底，dev/prod 未配置不自动拉取
+  - 坑：`server/target` 曾有 278 个 root 属主 class（早前用 root 跑过 Maven），
+    非 root 容器写不进去 → `error while writing ...class`。用 root 容器 `rm -rf server/target` 清掉。
+    **Maven 容器一律带 `-u $(id -u):$(id -g)`**
   - 41281 Vite dev / 41280 API / embedding 41291
 
 ## 2026-10-31 / 订单汇率快照 + 积分按币种 + 测试债清零

@@ -17,8 +17,8 @@ import java.util.Map;
  *
  * <p>行为约定（用户明确要求）：
  * <ul>
- *   <li>生产未配置供应商：**不自动拉取**，继续用手工汇率；应用照常启动；</li>
- *   <li>演示模式（app.mode=demo）未配置：显式使用 mock，方便演示；</li>
+ *   <li>dev/prod 未配置供应商：**不自动拉取**，继续用手工汇率；应用照常启动；</li>
+ *   <li>只有演示模式（app.mode=demo）未配置时才用 mock 兜底；配了 Frankfurter 就用真实汇率；</li>
  *   <li>配置了但拉取失败：**保留上次自动/手工汇率**，只记录失败原因，不影响换算；</li>
  *   <li>拉取成功：写入新汇率（生效时间=现在），后续换算自然使用新值。</li>
  * </ul>
@@ -53,22 +53,30 @@ public class ExchangeRateFetchService {
 
     public Status status() {
         ensureStateRow();
+        String provider = resolveProviderCode();
+        // demoMock 只在"演示模式且没有配置任何供应商"时为真：显式选 mock 不算演示兜底
+        boolean demoFallback = provider != null && "mock".equals(provider)
+                && isBlankConfigured();
         var rows = jdbc.query("""
                 SELECT provider, last_attempt_at, last_success_at, last_error
                   FROM exchange_rate_fetch_state WHERE id = true
                 """, (rs, rowNum) -> new Status(
-                resolveProviderCode() != null,
-                rs.getString("provider") == null ? resolveProviderCode() : rs.getString("provider"),
-                isDemoMock(),
+                provider != null,
+                rs.getString("provider") == null ? provider : rs.getString("provider"),
+                demoFallback,
                 rs.getTimestamp("last_attempt_at") == null ? null
                         : rs.getTimestamp("last_attempt_at").toInstant(),
                 rs.getTimestamp("last_success_at") == null ? null
                         : rs.getTimestamp("last_success_at").toInstant(),
                 rs.getString("last_error")));
         return rows.isEmpty()
-                ? new Status(resolveProviderCode() != null, resolveProviderCode(), isDemoMock(),
-                null, null, null)
+                ? new Status(provider != null, provider, demoFallback, null, null, null)
                 : rows.get(0);
+    }
+
+    private boolean isBlankConfigured() {
+        String configured = integrations.enabledProvider("exchange_rate");
+        return configured == null || configured.isBlank();
     }
 
     /**
@@ -111,12 +119,13 @@ public class ExchangeRateFetchService {
         if (configured != null && !configured.isBlank()) {
             return configured.trim().toLowerCase(java.util.Locale.ROOT);
         }
-        // 演示模式显式使用 mock；生产/开发未配置则不做自动拉取
+        // mock 只是演示模式（app.mode=demo）且未配置供应商时的兜底；
+        // dev/prod 未配置一律不自动拉取——真实源（Frankfurter）配好后就用它，不拿固定值糊弄
         return isDemoMock() ? "mock" : null;
     }
 
     private boolean isDemoMock() {
-        return "demo".equals(mode) || "dev".equals(mode);
+        return "demo".equals(mode);
     }
 
     private ExchangeRateProvider provider(String code) {

@@ -37,18 +37,21 @@ public class AiAnswerService {
     }
 
     private final JdbcTemplate jdbc;
+    private final com.fullmall.ai.media.AiMediaService media;
     private final SemanticIndexService index;
     private final AuditEventService auditEvents;
     private final double minScore;
     private final int topK;
 
-    public AiAnswerService(JdbcTemplate jdbc, SemanticIndexService index,
+    public AiAnswerService(JdbcTemplate jdbc, com.fullmall.ai.media.AiMediaService media,
+                           SemanticIndexService index,
                            AuditEventService auditEvents,
                            @Value("${app.ai.ask.min-score:0.72}") double minScore,
                            @Value("${app.ai.ask.top-k:5}") int topK,
                            @Value("${app.ai.ask.banned-words:}")
                            String bannedWords) {
         this.jdbc = jdbc;
+        this.media = media;
         this.index = index;
         this.auditEvents = auditEvents;
         this.minScore = minScore;

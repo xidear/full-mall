@@ -385,6 +385,24 @@ public class AiMediaService {
         return message.length() > 500 ? message.substring(0, 500) : message;
     }
 
+    /**
+     * 通用对话（openai-chat 协议）。供 AI 客服使用：调用方负责把"只能依据给定片段"写进 system。
+     * 未配置可用供应商时抛 503，不静默返回空串。
+     */
+    public String chat(String userPrompt, String systemPrompt, String providerCode) {
+        if (userPrompt == null || userPrompt.isBlank()) {
+            throw ApiException.badRequest("AI_PROMPT_REQUIRED", "提示词不能为空");
+        }
+        ProviderConfig provider = pickProvider(MediaKind.TEXT, providerCode);
+        MediaGenerationAdapter adapter = adapters.get(provider.protocol());
+        if (adapter == null) {
+            throw ApiException.serviceUnavailable("AI_PROTOCOL_UNSUPPORTED",
+                    "协议未实现：" + provider.protocol());
+        }
+        var media = adapter.generate(provider, userPrompt, null, Map.of("system", systemPrompt));
+        return new String(media.content() == null ? new byte[0] : media.content(), StandardCharsets.UTF_8);
+    }
+
     /** 提示词优化（可选）：走 openai-chat 供应商，未配置则明确不可用。 */
     public String optimizePrompt(String prompt, String providerCode) {
         if (prompt == null || prompt.isBlank()) {

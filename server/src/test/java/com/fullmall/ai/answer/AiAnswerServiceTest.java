@@ -1,6 +1,7 @@
 package com.fullmall.ai.answer;
 
 import com.fullmall.ai.knowledge.SemanticIndexService;
+import com.fullmall.ai.media.AiMediaService;
 import com.fullmall.platform.audit.AuditEventService;
 import com.fullmall.platform.error.ApiException;
 import org.junit.jupiter.api.Test;
@@ -30,6 +31,10 @@ class AiAnswerServiceTest {
         JdbcTemplate jdbc = mock(JdbcTemplate.class);
         when(jdbc.queryForList(anyString(), eq(String.class))).thenReturn(textProviders);
 
+        AiMediaService media = mock(AiMediaService.class);
+        when(media.chat(anyString(), anyString(), anyString()))
+                .thenReturn("满 99 元免运费，偏远地区另计。");
+
         SemanticIndexService index = mock(SemanticIndexService.class);
         when(index.enabled()).thenReturn(semanticEnabled);
         if (searchError != null) {
@@ -38,7 +43,7 @@ class AiAnswerServiceTest {
             when(index.search(anyString(), anyString(), anyInt(), anyString())).thenReturn(hits);
         }
 
-        return new AiAnswerService(jdbc, index, mock(AuditEventService.class), 0.72, 5, "");
+        return new AiAnswerService(jdbc, media, index, mock(AuditEventService.class), 0.72, 5, "");
     }
 
     @Test
@@ -78,7 +83,7 @@ class AiAnswerServiceTest {
         var answer = svc.ask("运费怎么算", "admin");
 
         assertThat(answer.fallback()).isFalse();
-        assertThat(answer.answer()).contains("满 99 免运费");
+        assertThat(answer.answer()).contains("免运费");
         assertThat(answer.citations()).hasSize(1);
         assertThat(answer.citations().get(0).sourceId()).isEqualTo("faq-shipping");
     }

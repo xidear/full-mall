@@ -185,6 +185,50 @@ async function main() {
   record('AI 客服：空问题 400 / 禁词转人工 / 未命中清单可查', guardOk,
     'empty=' + askBlank.status + ' banned=' + askBanned.status + ' unanswered=' + unanswered.status);
 
+  // 12) 门店管理：列表字段与启停端点（把当前值原样回写，幂等）
+  const stores = await get('/admin/v1/stores?includeInactive=true', token);
+  let storeOk = false, storeDetail = 'status=' + stores.status;
+  if (stores.status === 200) {
+    const list = JSON.parse(stores.body);
+    const sample = list[0];
+    storeOk = Array.isArray(list) && !!sample && typeof sample.code === 'string'
+      && typeof sample.marketCode === 'string' && typeof sample.active === 'boolean';
+    if (sample) {
+      const res = await fetch(API + '/admin/v1/stores/' + sample.id + '/active', {
+        method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },
+        body: JSON.stringify({ active: sample.active })
+      });
+      storeOk = storeOk && res.ok;
+      storeDetail = list.length + ' 家，示例 ' + sample.code + ' active=' + sample.active + ' 回写=' + res.status;
+    } else {
+      storeDetail = '没有门店（字段/端点无法验证）';
+    }
+  }
+  record('门店管理端点：编码/市场/状态字段 + 启停可用', storeOk, storeDetail);
+
+  // 13) 促销规则：编辑需要回填范围，接口必须返回 scopeIds 数组
+  const rules = await get('/admin/v1/promotions/rules', token);
+  let ruleOk = false, ruleDetail = 'status=' + rules.status;
+  if (rules.status === 200) {
+    const list = JSON.parse(rules.body);
+    ruleOk = Array.isArray(list) && list.every(rule => Array.isArray(rule.scopeIds));
+    ruleDetail = list.length + ' 条规则，scopeIds=' + (list[0] ? JSON.stringify(list[0].scopeIds) : '无数据');
+  }
+  record('满减规则返回 scopeIds（编辑不回退范围）', ruleOk, ruleDetail);
+
+  // 14) AI 状态：必须交代当前检索方式与就绪判定（缺配置要列出缺什么）
+  const aiStatus = await get('/admin/v1/ai/status', token);
+  let aiReadyOk = false, aiReadyDetail = 'status=' + aiStatus.status;
+  if (aiStatus.status === 200) {
+    const body = JSON.parse(aiStatus.body);
+    aiReadyOk = typeof body.ready === 'boolean'
+      && ['KEYWORD', 'SEMANTIC'].includes(body.retrieval)
+      && Array.isArray(body.missing);
+    aiReadyDetail = 'ready=' + body.ready + ' retrieval=' + body.retrieval
+      + ' chat=' + (body.chatModel || '未配置') + ' missing=' + body.missing.join(',');
+  }
+  record('AI 状态交代就绪判定与检索方式', aiReadyOk, aiReadyDetail);
+
   const failed = results.filter(r => !r.ok);
   console.log('\n' + (results.length - failed.length) + '/' + results.length + ' 通过');
   if (failed.length) {

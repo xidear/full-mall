@@ -36,6 +36,19 @@ const unavailable = ref(false)
 const status = ref<AiStatus | null>(null)
 const loading = ref(false)
 
+interface UnansweredRow { at: string; type: string; actor: string; question?: string | null }
+
+/** 未命中/被拦截的问题：运营据此补知识库，而不是让同样的空白反复出现。 */
+const unanswered = ref<UnansweredRow[]>([])
+
+async function loadUnanswered() {
+  try {
+    unanswered.value = await api.get<UnansweredRow[]>('/admin/v1/ai/unanswered', { limit: 20 })
+  } catch (cause) {
+    ElMessage.error('未命中清单加载失败：' + (cause instanceof Error ? cause.message : ''))
+  }
+}
+
 const question = ref('')
 const asking = ref(false)
 const result = ref<AskResult | null>(null)
@@ -66,6 +79,7 @@ async function ask() {
   result.value = null
   try {
     result.value = await api.post<AskResult>('/admin/v1/ai/ask', { question: question.value.trim() })
+    await loadUnanswered()
   } catch (cause) {
     ElMessage.error(cause instanceof Error ? cause.message : '提问失败')
   } finally {
@@ -100,7 +114,10 @@ function onFileChange(event: Event) {
   }
 }
 
-onMounted(loadStatus)
+onMounted(async () => {
+  await loadStatus()
+  await loadUnanswered()
+})
 </script>
 
 <template>
@@ -178,6 +195,17 @@ onMounted(loadStatus)
             <el-table-column prop="snippet" label="命中片段" min-width="320" show-overflow-tooltip />
           </el-table>
         </template>
+        <h3>未命中问题（补知识库用）</h3>
+        <el-table :data="unanswered" size="small" empty-text="暂无未命中记录">
+          <el-table-column prop="at" label="时间" width="180" />
+          <el-table-column prop="type" label="类型" width="200">
+            <template #default="{ row }">
+              {{ row.type === 'AI_QUESTION_BLOCKED' ? '被拦截（不当内容）' : '知识库无依据' }}
+            </template>
+          </el-table-column>
+          <el-table-column prop="actor" label="提问人" width="140" />
+          <el-table-column prop="question" label="问题" min-width="320" show-overflow-tooltip />
+        </el-table>
       </section>
     </template>
   </div>

@@ -63,8 +63,8 @@ public class PromotionAdminService {
     }
 
     public record RuleView(UUID id, String code, String title, String type, String status,
-                           long thresholdAmount, long value, String scope, String channel,
-                           int priority, Instant startsAt, Instant endsAt) {
+                           long thresholdAmount, long value, String scope, List<UUID> scopeIds,
+                           String channel, int priority, Instant startsAt, Instant endsAt) {
     }
 
     /** 范围可选项（SKU/类目/品牌），供后台选择器使用。 */
@@ -106,6 +106,7 @@ public class PromotionAdminService {
                        COALESCE((rules->>'thresholdAmount')::bigint, 0) AS threshold_amount,
                        COALESCE((rules->>'value')::bigint, 0) AS rule_value,
                        COALESCE(rules->>'scope', 'ALL') AS scope,
+                       COALESCE(rules->'scopeIds', '[]'::jsonb)::text AS scope_ids,
                        COALESCE(rules->>'channel', 'ONLINE') AS channel
                   FROM promotion
                  WHERE type IN ('FULL_REDUCTION', 'FULL_DISCOUNT')
@@ -115,9 +116,25 @@ public class PromotionAdminService {
                 rs.getObject("id", UUID.class), rs.getString("code"), rs.getString("title"),
                 rs.getString("type"), rs.getString("status"),
                 rs.getLong("threshold_amount"), rs.getLong("rule_value"),
-                rs.getString("scope"), rs.getString("channel"), rs.getInt("priority"),
+                rs.getString("scope"), parseScopeIds(rs.getString("scope_ids")),
+                rs.getString("channel"), rs.getInt("priority"),
                 rs.getTimestamp("starts_at").toInstant(), rs.getTimestamp("ends_at").toInstant()),
                 filter, filter, limit);
+    }
+
+    /** 编辑弹窗要能回填已选范围；缺这个字段时一保存就把范围清空（旧的真实 bug）。 */
+    private static List<UUID> parseScopeIds(String json) {
+        if (json == null || json.isBlank()) {
+            return List.of();
+        }
+        try {
+            var node = MAPPER.readTree(json);
+            List<UUID> ids = new java.util.ArrayList<>();
+            node.forEach(item -> ids.add(UUID.fromString(item.asText())));
+            return List.copyOf(ids);
+        } catch (Exception error) {
+            throw new IllegalStateException("促销范围配置损坏：" + json, error);
+        }
     }
 
     /** 编辑仅允许草稿：已生效规则被静默改动会让"试算与结算"在用户眼皮下变化。 */

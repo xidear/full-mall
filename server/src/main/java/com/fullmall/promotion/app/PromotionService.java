@@ -89,6 +89,12 @@ public class PromotionService {
      */
     @Transactional
     public PromotionView create(CreatePromotionRequest request) {
+        if (request == null || request.startsAt() == null || request.endsAt() == null
+                || request.skuId() == null || request.type() == null) {
+            // DTO 注解没有 @Valid 时不会生效，服务层必须自己兜住缺字段，避免 NPE 变成 500
+            throw ApiException.badRequest("PROMOTION_FIELDS_REQUIRED",
+                    "type/skuId/startsAt/endsAt 必填");
+        }
         Instant startsAt = request.startsAt();
         Instant endsAt = request.endsAt();
         if (!endsAt.isAfter(startsAt)) {
@@ -137,13 +143,114 @@ public class PromotionService {
     public PromotionView updateStatus(UUID promotionId, PromotionStatus status) {
         Promotion promotion = repository.find(promotionId)
                 .orElseThrow(() -> ApiException.notFound("PROMOTION_NOT_FOUND", "促销不存在：" + promotionId));
-        repository.updateStatus(promotionId, status);
+        PromotionStatus current = promotion.status();
+        if (current == status) {
+            return view(promotion, Instant.now());
+        }
+        // 生命周期只有三条合法边：草稿→启用、草稿→结束（取消）、进行中→结束。
+        // 不允许"已结束→启用"：那会让历史订单按新规则重算，是隐形的改价。
+        boolean allowed = (current == PromotionStatus.DRAFT
+                && (status == PromotionStatus.ACTIVE || status == PromotionStatus.ENDED))
+                || (current == PromotionStatus.ACTIVE && status == PromotionStatus.ENDED);
+        if (!allowed) {
+            throw ApiException.conflict("PROMOTION_STATUS_TRANSITION_INVALID",
+                    "促销状态不能从 " + current + " 变为 " + status);
+        }
+        if (status == PromotionStatus.ACTIVE && !promotion.endsAt().isAfter(Instant.now())) {
+            throw ApiException.conflict("PROMOTION_WINDOW_EXPIRED",
+                    "活动结束时间已过，不能启用；请先修改活动时间");
+        }
+        int updated = repository.updateStatus(promotionId, current, status);
+        if (updated != 1) {
+            throw ApiException.conflict("PROMOTION_STATUS_CHANGED",
+                    "促销状态已被其他人修改，请刷新后重试：" + promotionId);
+        }
         return view(new Promotion(promotion.id(), promotion.code(), promotion.type(), promotion.title(),
                 promotion.description(), status, promotion.startsAt(), promotion.endsAt(), promotion.skuId(),
                 promotion.promoPriceAmount(), promotion.giftSkuId(), promotion.buyQuantity(),
                 promotion.giftQuantity(), promotion.maxGiftPerOrder(), promotion.stockLimit(),
                 promotion.soldQuantity(), promotion.perUserLimit(), promotion.groupSize(),
                 promotion.groupDurationHours(), promotion.priority(), promotion.createdAt()), Instant.now());
+    }
+
+    /**
+     * 编辑草稿活动。
+     *
+     * <p>只允许 DRAFT：进行中的活动改价/改限购会让"用户看到的价"和"结算算出的价"在眼皮下变化，
+     * 出问题也无法归因。要改进行中的活动，先结束再复制（{@link #duplicate}）成新草稿。
+     */
+    @Transactional
+    public PromotionView updateDraft(UUID promotionId, CreatePromotionRequest request) {
+        if (request == null || request.startsAt() == null || request.endsAt() == null
+                || request.skuId() == null || request.type() == null) {
+            throw ApiException.badRequest("PROMOTION_FIELDS_REQUIRED",
+                    "type/skuId/startsAt/endsAt 必填");
+        }
+        Promotion existing = repository.find(promotionId)
+                .orElseThrow(() -> ApiException.notFound("PROMOTION_NOT_FOUND", "促销不存在：" + promotionId));
+        if (existing.status() != PromotionStatus.DRAFT) {
+            throw ApiException.conflict("PROMOTION_NOT_EDITABLE",
+                    "只有草稿状态的促销可以编辑，当前=" + existing.status()
+                            + "；进行中的活动请先结束再复制为草稿");
+        }
+        if (!request.endsAt().isAfter(request.startsAt())) {
+            throw ApiException.badRequest("PROMOTION_WINDOW_INVALID", "促销结束时间必须晚于开始时间");
+        }
+        Sku sku = catalogService.getSku(request.skuId());
+        validateRequest(request, sku);
+        if (request.giftSkuId() != null) {
+            catalogService.getSku(request.giftSkuId());
+        }
+        String code = request.code().trim().toUpperCase();
+        if (repository.findAll().stream()
+                .anyMatch(promotion -> promotion.code().equals(code) && !promotion.id().equals(promotionId))) {
+            throw ApiException.conflict("PROMOTION_CODE_EXISTS", "促销编码已存在：" + code);
+        }
+        Promotion updated = new Promotion(existing.id(), code, request.type(), request.title().trim(),
+                request.description(), existing.status(), request.startsAt(), request.endsAt(),
+                request.skuId(), request.promoPriceAmount(), request.giftSkuId(),
+                request.buyQuantity(), request.giftQuantity(), request.maxGiftPerOrder(),
+                request.stockLimit(), existing.soldQuantity(), request.perUserLimit(),
+                request.groupSize(), request.groupDurationHours(),
+                request.priority() == null ? 0 : request.priority(), existing.createdAt());
+        int rows = repository.updateDraft(updated);
+        if (rows != 1) {
+            throw ApiException.conflict("PROMOTION_NOT_EDITABLE", "促销已不是草稿，请刷新后重试");
+        }
+        return view(updated, Instant.now());
+    }
+
+    /**
+     * 复制为草稿：运营改进行中活动的标准路径（先结束旧活动，再改副本启用）。
+     *
+     * <p>新编码追加 4 位随机后缀，避免与历史（含已结束）编码撞唯一键；
+     * 售出数量归零，库存上限沿用——它是配置，不是交易事实。
+     */
+    @Transactional
+    public PromotionView duplicate(UUID promotionId) {
+        Promotion source = repository.find(promotionId)
+                .orElseThrow(() -> ApiException.notFound("PROMOTION_NOT_FOUND", "促销不存在：" + promotionId));
+        Instant now = Instant.now();
+        Instant endsAt = source.endsAt().isAfter(now) ? source.endsAt() : now.plus(Duration.ofDays(7));
+        String baseCode = source.code().length() > 58
+                ? source.code().substring(0, 58) : source.code();
+        String code = baseCode + "-C" + UUID.randomUUID().toString()
+                .replace("-", "").substring(0, 4).toUpperCase();
+        String title = source.title() + "（副本）";
+        if (title.length() > 200) {
+            title = title.substring(0, 200);
+        }
+        Promotion copy = new Promotion(Ids.newId(), code, source.type(), title, source.description(),
+                PromotionStatus.DRAFT, now, endsAt, source.skuId(), source.promoPriceAmount(),
+                source.giftSkuId(), source.buyQuantity(), source.giftQuantity(),
+                source.maxGiftPerOrder(), source.stockLimit(), 0, source.perUserLimit(),
+                source.groupSize(), source.groupDurationHours(), source.priority(), now);
+        try {
+            repository.insert(copy);
+        } catch (org.springframework.dao.DuplicateKeyException exception) {
+            throw ApiException.conflict("PROMOTION_CODE_EXISTS", "复制失败：编码已存在 " + code);
+        }
+        return view(copy, now);
     }
 
     /**

@@ -97,6 +97,31 @@ public class PromotionRepository {
         }
     }
 
+    /**
+     * 条件更新：只有当前状态等于 from 才改成 to。
+     *
+     * <p>为什么不用"先查再改"：两个运营同时点「结束」，先查后改会双双成功、写两次审计；
+     * 条件更新把并发结果交给数据库判定，返回 0 行即代表状态已被别人改过。
+     */
+    public int updateStatus(UUID id, PromotionStatus from, PromotionStatus to) {
+        return jdbcTemplate.update("UPDATE promotion SET status = ? WHERE id = ? AND status = ?",
+                to.name(), id, from.name());
+    }
+
+    /** 草稿编辑：type 与 sold_quantity 不在这里改（改类型等于换一种玩法，库存是交易事实）。 */
+    public int updateDraft(Promotion promotion) {
+        return jdbcTemplate.update("""
+                UPDATE promotion
+                   SET code = ?, title = ?, description = ?, starts_at = ?, ends_at = ?,
+                       rules = CAST(? AS jsonb), priority = ?, type = ?
+                 WHERE id = ? AND status = 'DRAFT'
+                """, promotion.code(), promotion.title(), promotion.description(),
+                java.sql.Timestamp.from(promotion.startsAt()),
+                java.sql.Timestamp.from(promotion.endsAt()),
+                com.fullmall.promotion.domain.PromotionRules.toJson(promotion),
+                promotion.priority(), promotion.type().name(), promotion.id());
+    }
+
     public void lockGroup(UUID groupBuyId) {
         jdbcTemplate.execute("SELECT pg_advisory_xact_lock(hashtext(?))",
                 (org.springframework.jdbc.core.PreparedStatementCallback<Void>) statement -> {

@@ -1,5 +1,7 @@
 package com.fullmall.promotion.api;
 
+import com.fullmall.platform.audit.AuditEventService;
+import com.fullmall.platform.error.ApiException;
 import com.fullmall.promotion.api.PromotionDtos.CreatePromotionRequest;
 import com.fullmall.promotion.api.PromotionDtos.PromotionView;
 import com.fullmall.promotion.app.PromotionAdminService;
@@ -29,10 +31,13 @@ public class AdminPromotionController {
 
     private final PromotionAdminService rules;
     private final PromotionService promotions;
+    private final AuditEventService auditEvents;
 
-    public AdminPromotionController(PromotionAdminService rules, PromotionService promotions) {
+    public AdminPromotionController(PromotionAdminService rules, PromotionService promotions,
+                                    AuditEventService auditEvents) {
         this.rules = rules;
         this.promotions = promotions;
+        this.auditEvents = auditEvents;
     }
 
     public record CreateRule(String code, String title, String type, long thresholdAmount, long value,
@@ -62,19 +67,56 @@ public class AdminPromotionController {
     /** 新建促销（秒杀/买赠/拼团），与顾客端同一套校验。 */
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
-    public PromotionView createPromotion(@RequestBody CreatePromotionRequest request) {
-        return promotions.create(request);
+    public PromotionView createPromotion(@RequestBody CreatePromotionRequest request,
+                                         Authentication authentication) {
+        PromotionView created = promotions.create(request);
+        audit("PROMOTION_CREATED", created.id(), authentication.getName(),
+                "code=" + created.code() + " type=" + created.type());
+        return created;
+    }
+
+    /** 编辑草稿促销：只有 DRAFT 可以改，进行中的活动请先结束再复制。 */
+    @PutMapping("/{id}")
+    public PromotionView updatePromotion(@PathVariable UUID id,
+                                         @RequestBody CreatePromotionRequest request,
+                                         Authentication authentication) {
+        PromotionView updated = promotions.updateDraft(id, request);
+        audit("PROMOTION_UPDATED", id, authentication.getName(), "code=" + updated.code());
+        return updated;
+    }
+
+    /** 复制为草稿：改进行中活动的标准路径，避免直接改动生效中的价格与限购。 */
+    @PostMapping("/{id}/duplicate")
+    @ResponseStatus(HttpStatus.CREATED)
+    public PromotionView duplicate(@PathVariable UUID id, Authentication authentication) {
+        PromotionView copy = promotions.duplicate(id);
+        audit("PROMOTION_DUPLICATED", copy.id(), authentication.getName(),
+                "source=" + id + " code=" + copy.code());
+        return copy;
     }
 
     /** 启用 / 结束。 */
     @PostMapping("/{id}/status")
-    public PromotionView changeStatus(@PathVariable UUID id, @RequestParam String status) {
+    public PromotionView changeStatus(@PathVariable UUID id, @RequestParam String status,
+                                      Authentication authentication) {
         if (status == null || status.isBlank()) {
-            throw com.fullmall.platform.error.ApiException.badRequest(
-                    "STATUS_REQUIRED", "必须指定目标状态");
+            throw ApiException.badRequest("STATUS_REQUIRED", "必须指定目标状态");
         }
-        // 只接受 DRAFT/ACTIVE/ENDED（promotion_status_check）；拼错时 valueOf 抛成 500，这里按后台输入错误处理。
-        return promotions.updateStatus(id, PromotionStatus.valueOf(status.trim().toUpperCase(Locale.ROOT)));
+        PromotionStatus target;
+        try {
+            target = PromotionStatus.valueOf(status.trim().toUpperCase(Locale.ROOT));
+        } catch (IllegalArgumentException error) {
+            // 拼错状态不能变成 500：这是后台输入错误，必须给可读错误码
+            throw ApiException.badRequest("PROMOTION_STATUS_INVALID",
+                    "状态只能是 ACTIVE / ENDED，实际=" + status);
+        }
+        if (target == PromotionStatus.DRAFT) {
+            throw ApiException.badRequest("PROMOTION_STATUS_INVALID", "不能把促销改回草稿");
+        }
+        PromotionView changed = promotions.updateStatus(id, target);
+        audit(target == PromotionStatus.ACTIVE ? "PROMOTION_ACTIVATED" : "PROMOTION_ENDED",
+                id, authentication.getName(), "code=" + changed.code());
+        return changed;
     }
 
     // ---- 满减/满折规则（结构化表单，JSON 由服务端生成） ----
@@ -123,5 +165,10 @@ public class AdminPromotionController {
     @PostMapping("/rules/{id}/end")
     public void endRule(@PathVariable UUID id, Authentication authentication) {
         rules.end(id, authentication.getName());
+    }
+
+    private void audit(String type, UUID id, String actor, String detail) {
+        auditEvents.record(new AuditEventService.AuditEvent(
+                type, actor, "promotion", id.toString(), detail, null));
     }
 }

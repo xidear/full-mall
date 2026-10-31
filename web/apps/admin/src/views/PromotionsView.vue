@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { formatDateTime } from '@fullmall/api-client'
 import { computed, onMounted, reactive, ref } from 'vue'
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import type {
   CreatePromotionInput,
   GroupBuyView,
@@ -13,7 +13,7 @@ import type {
 import { api } from '../api'
 import { useEnums } from '../composables/useEnums'
 
-const { enumLabel } = useEnums()
+const { enumLabel, options } = useEnums()
 
 const promotions = ref<PromotionView[]>([])
 const products = ref<Product[]>([])
@@ -24,6 +24,23 @@ const error = ref('')
 const dialog = ref(false)
 const groupDialog = ref(false)
 const selectedPromotion = ref<PromotionView | null>(null)
+const editingPromotionId = ref('')
+const typeFilter = ref('')
+const statusFilter = ref('ALL')
+
+/**
+ * 过滤在客户端做：促销总量是几十条，后端分页会把"筛选后为空"误显示成"没有促销"。
+ * 状态筛选按生命周期 + 时间窗组合，避免"ACTIVE 但未开始"被当成进行中。
+ */
+const filteredPromotions = computed(() => promotions.value.filter(row => {
+  if (typeFilter.value && row.type !== typeFilter.value) return false
+  if (statusFilter.value === 'ALL') return true
+  if (statusFilter.value === 'DRAFT') return row.status === 'DRAFT'
+  if (statusFilter.value === 'ENDED') return row.status === 'ENDED'
+  if (statusFilter.value === 'RUNNING') return row.active
+  if (statusFilter.value === 'SCHEDULED') return row.status === 'ACTIVE' && !row.active
+  return true
+}))
 
 const form = reactive({
   code: '',
@@ -89,6 +106,7 @@ async function load() {
 }
 
 function openCreate() {
+  editingPromotionId.value = ''
   form.code = `PROMO-${Date.now().toString().slice(-6)}`
   form.title = ''
   form.description = ''
@@ -109,7 +127,6 @@ function openCreate() {
 }
 
 async function submit() {
-  error.value = ''
   if (!form.title.trim() || !form.skuId || form.window.length !== 2) {
     error.value = '请填写活动名称、商品和活动时间'
     return
@@ -143,19 +160,78 @@ async function submit() {
   }
   saving.value = true
   try {
-    await api.post<PromotionView>('/admin/v1/promotions', payload)
-    ElMessage.success('促销已创建并生效')
+    if (editingPromotionId.value) {
+      await api.put<PromotionView>(`/admin/v1/promotions/${editingPromotionId.value}`, payload)
+      ElMessage.success('草稿已保存（启用后才对顾客生效）')
+    } else {
+      await api.post<PromotionView>('/admin/v1/promotions', payload)
+      ElMessage.success('促销已创建并生效')
+    }
     dialog.value = false
     await load()
   } catch (cause) {
-    error.value = cause instanceof Error ? cause.message : '创建促销失败'
+    error.value = cause instanceof Error ? cause.message : '保存促销失败'
   } finally {
     saving.value = false
   }
 }
 
+/** 编辑只对草稿开放：进行中的活动改价会让"看到的价"与"结算价"在用户眼皮下变化。 */
+function openEditPromotion(promotion: PromotionView) {
+  editingPromotionId.value = promotion.id
+  form.code = promotion.code
+  form.title = promotion.title
+  form.description = promotion.description ?? ''
+  form.type = promotion.type
+  form.skuId = promotion.skuId
+  form.window = [new Date(promotion.startsAt), new Date(promotion.endsAt)]
+  form.priceYuan = promotion.promoPrice ? promotion.promoPrice.amount / 100 : undefined
+  form.giftSkuId = promotion.giftSkuId ?? ''
+  form.buyQuantity = promotion.buyQuantity ?? 2
+  form.giftQuantity = promotion.giftQuantity ?? 1
+  form.maxGiftPerOrder = promotion.maxGiftPerOrder ?? 2
+  form.stockLimit = promotion.stockLimit ?? 50
+  form.perUserLimit = promotion.perUserLimit ?? 5
+  form.groupSize = promotion.groupSize ?? 2
+  form.groupDurationHours = promotion.groupDurationHours ?? 24
+  form.priority = promotion.priority
+  dialog.value = true
+}
+
+/** 复制为草稿：改进行中活动的标准路径（先结束旧活动，再改副本启用）。 */
+async function duplicatePromotion(promotion: PromotionView) {
+  if (actionId.value) return
+  try {
+    await ElMessageBox.confirm(
+      `将复制「${promotion.title}」为草稿（编码加随机后缀，售出数量归零）。当前活动不受影响。`,
+      '复制为草稿', { confirmButtonText: '复制', cancelButtonText: '取消', type: 'info' })
+  } catch {
+    return
+  }
+  actionId.value = promotion.id
+  try {
+    await api.post<PromotionView>(`/admin/v1/promotions/${promotion.id}/duplicate`)
+    ElMessage.success('已复制为草稿，可在列表里编辑')
+    await load()
+  } catch (cause) {
+    ElMessage.error(cause instanceof Error ? cause.message : '复制失败')
+  } finally {
+    actionId.value = ''
+  }
+}
+
 async function changeStatus(promotion: PromotionView, status: 'ACTIVE' | 'ENDED') {
   if (actionId.value) return
+  try {
+    await ElMessageBox.confirm(
+      status === 'ACTIVE'
+        ? `启用「${promotion.title}」后，符合条件的订单会立即按活动价结算。`
+        : `结束「${promotion.title}」后不可恢复（可复制为草稿再启用）；已产生的订单不重算。`,
+      status === 'ACTIVE' ? '确认启用' : '确认结束',
+      { confirmButtonText: status === 'ACTIVE' ? '启用' : '结束', cancelButtonText: '取消', type: 'warning' })
+  } catch {
+    return
+  }
   actionId.value = promotion.id
   try {
     await api.post<PromotionView>(`/admin/v1/promotions/${promotion.id}/status?status=${status}`)
@@ -194,11 +270,27 @@ function money(value?: { amount: number; currency: string }) {
 interface ScopeOption { id: string; label: string; extra?: string }
 interface PromotionRule {
   id: string; code: string; title: string; type: string; status: string
-  thresholdAmount: number; value: number; scope: string; channel: string
+  thresholdAmount: number; value: number; scope: string; scopeIds: string[]; channel: string
   priority: number; startsAt: string; endsAt: string
 }
 
 const rules = ref<PromotionRule[]>([])
+const ruleStatusFilter = ref('ALL')
+const filteredRules = computed(() =>
+  ruleStatusFilter.value === 'ALL'
+    ? rules.value
+    : rules.value.filter(rule => rule.status === ruleStatusFilter.value)
+)
+/** 规则构建器只支持满减/满折：候选仍来自后端枚举字典，不在页面写死数组。 */
+const ruleTypeOptions = computed(() =>
+  options('PROMOTION_TYPE').filter(option => option.code.startsWith('FULL_'))
+)
+const channelOptions = computed(() => options('PROMOTION_CHANNEL'))
+const scopeChoiceOptions = computed(() => options('PROMOTION_SCOPE'))
+const activityTypeOptions = computed(() =>
+  options('PROMOTION_TYPE').filter(option =>
+    ['FLASH_SALE', 'BUY_GIFT', 'GROUP_BUY'].includes(option.code))
+)
 // 正在执行启停的 ID：避免重复点击
 const actionId = ref('')
 // 编辑草稿规则：只允许改 DRAFT（生效中的规则改动会影响正在进行的活动）
@@ -240,6 +332,15 @@ async function loadScopeOptions(scope: string) {
   }
 }
 
+async function generateRuleCode() {
+  try {
+    const result = await api.get<{ code: string }>('/admin/v1/codes/suggest', { type: 'PROMOTION' })
+    ruleForm.code = result.code
+  } catch (cause) {
+    ElMessage.error('生成编码失败：' + (cause instanceof Error ? cause.message : String(cause)))
+  }
+}
+
 function openRuleCreate() {
   ruleForm.code = ''
   ruleForm.title = ''
@@ -259,6 +360,10 @@ function openRuleCreate() {
 }
 
 async function submitRule() {
+  if (!ruleForm.code.trim() || !ruleForm.title.trim()) {
+    ElMessage.error('编码与名称不能为空（编码可点「生成」）')
+    return
+  }
   if (ruleForm.window.length !== 2) {
     ElMessage.error('请选择活动时间')
     return
@@ -303,18 +408,24 @@ function openEditRule(rule: PromotionRule) {
   ruleForm.valueYuan = rule.type === 'FULL_DISCOUNT' ? 0 : rule.value / 100
   ruleForm.percent = rule.type === 'FULL_DISCOUNT' ? rule.value : 90
   ruleForm.scope = rule.scope as 'ALL' | 'SKU' | 'CATEGORY' | 'BRAND'
-  // 编辑时把范围项清空：PUT 会提交全量字段，scope 仍保留 SKU/CATEGORY/BRAND 而 scopeIds 变成空数组，
-  // 保存后原有指定范围会被抹掉——编辑非全场规则前要先看清这一点。
-  ruleForm.scopeIds = []
+  // 后端返回 scopeIds，编辑时原样回填：旧实现清空范围，PUT 全量提交后把已选范围悄悄抹掉。
+  ruleForm.scopeIds = [...(rule.scopeIds ?? [])]
   ruleForm.channel = rule.channel as 'ONLINE' | 'POS' | 'PICKUP'
   ruleForm.priority = rule.priority
   ruleForm.window = [new Date(rule.startsAt), new Date(rule.endsAt)]
   scopeOptions.value = []
+  if (rule.scope !== 'ALL') {
+    void loadScopeOptions(rule.scope)
+  }
   ruleDialog.value = true
 }
 
 async function submitEditRule() {
   if (!editingRuleId.value || editSaving.value) return
+  if (!ruleForm.code.trim() || !ruleForm.title.trim()) {
+    ElMessage.error('编码与名称不能为空')
+    return
+  }
   if (!ruleForm.window || ruleForm.window.length !== 2) {
     ElMessage.error('请选择活动时间')
     return
@@ -375,15 +486,16 @@ async function endRule(rule: PromotionRule) {
 }
 
 function typeLabel(type: PromotionType) {
-  return { FLASH_SALE: '秒杀', BUY_GIFT: '买赠', GROUP_BUY: '拼团' }[type]
+  // 候选与中文标签只来自后端枚举字典（AGENTS §14.2），前端不再写死第二份
+  return enumLabel('PROMOTION_TYPE', type)
 }
 
 function ruleStatusLabel(status: string) {
-  return { DRAFT: '草稿', ACTIVE: '进行中', ENDED: '已结束' }[status] ?? status
+  return enumLabel('PROMOTION_STATUS', status)
 }
 
 function statusLabel(status: string) {
-  return { ACTIVE: '进行中', DRAFT: '草稿', ENDED: '已结束' }[status] ?? status
+  return enumLabel('PROMOTION_STATUS', status)
 }
 
 function windowLabel(promotion: PromotionView) {
@@ -407,15 +519,19 @@ function windowLabel(promotion: PromotionView) {
 
     <div class="header-actions" style="margin-bottom: 8px">
       <strong>满减 / 满折规则</strong>
+      <el-select v-model="ruleStatusFilter" size="small" style="width: 130px">
+        <el-option label="全部状态" value="ALL" />
+        <el-option label="草稿" value="DRAFT" />
+        <el-option label="进行中" value="ACTIVE" />
+        <el-option label="已结束" value="ENDED" />
+      </el-select>
       <el-button size="small" @click="openRuleCreate">新建规则</el-button>
     </div>
-    <el-table :data="rules" size="small" stripe style="margin-bottom: 24px">
+    <el-table :data="filteredRules" size="small" stripe style="margin-bottom: 24px">
       <el-table-column prop="code" label="编码" width="160" />
       <el-table-column prop="title" label="名称" min-width="160" />
       <el-table-column label="类型" width="120">
-        <template #default="{ row }">
-          {{ row.type === 'FULL_DISCOUNT' ? '满折' : '满减' }}
-        </template>
+        <template #default="{ row }">{{ enumLabel('PROMOTION_TYPE', row.type) }}</template>
       </el-table-column>
       <el-table-column label="门槛/优惠" width="160">
         <template #default="{ row }">
@@ -423,7 +539,9 @@ function windowLabel(promotion: PromotionView) {
           {{ row.type === 'FULL_DISCOUNT' ? row.value / 10 + ' 折' : (row.value / 100).toFixed(2) + ' 元' }}
         </template>
       </el-table-column>
-      <el-table-column prop="scope" label="范围" width="110" />
+      <el-table-column label="范围" width="110">
+        <template #default="{ row }">{{ enumLabel('PROMOTION_SCOPE', row.scope) }}</template>
+      </el-table-column>
       <el-table-column label="渠道">
         <template #default="{ row }">{{ enumLabel('PROMOTION_CHANNEL', row.channel) }}</template>
       </el-table-column>
@@ -446,15 +564,18 @@ function windowLabel(promotion: PromotionView) {
                :title="editingRuleId ? '编辑满减/满折规则' : '新建满减/满折规则'" width="520px">
       <el-form label-width="110px">
         <el-form-item label="编码">
-          <el-input v-model="ruleForm.code" placeholder="例如 FULL-200-20" />
+          <div style="display: flex; gap: 8px; width: 100%">
+            <el-input v-model="ruleForm.code" placeholder="例如 FULL-200-20" maxlength="64" />
+            <el-button @click="generateRuleCode">生成</el-button>
+          </div>
         </el-form-item>
         <el-form-item label="名称">
           <el-input v-model="ruleForm.title" placeholder="例如 满 200 减 20" />
         </el-form-item>
         <el-form-item label="类型">
           <el-select v-model="ruleForm.type">
-            <el-option label="满减" value="FULL_REDUCTION" />
-            <el-option label="满折" value="FULL_DISCOUNT" />
+            <el-option v-for="option in ruleTypeOptions" :key="option.code"
+                       :label="option.label" :value="option.code" />
           </el-select>
         </el-form-item>
         <el-form-item label="门槛（元）">
@@ -468,17 +589,14 @@ function windowLabel(promotion: PromotionView) {
         </el-form-item>
         <el-form-item label="适用渠道">
           <el-select v-model="ruleForm.channel">
-            <el-option label="线上" value="ONLINE" />
-            <el-option label="收银台" value="POS" />
-            <el-option label="自提" value="PICKUP" />
+            <el-option v-for="option in channelOptions" :key="option.code"
+                       :label="option.label" :value="option.code" />
           </el-select>
         </el-form-item>
         <el-form-item label="范围">
           <el-select v-model="ruleForm.scope" @change="loadScopeOptions(ruleForm.scope)">
-            <el-option label="全场" value="ALL" />
-            <el-option label="指定商品" value="SKU" />
-            <el-option label="指定类目" value="CATEGORY" />
-            <el-option label="指定品牌" value="BRAND" />
+            <el-option v-for="option in scopeChoiceOptions" :key="option.code"
+                       :label="option.label" :value="option.code" />
           </el-select>
         </el-form-item>
         <el-form-item v-if="ruleForm.scope !== 'ALL'" label="范围项">
@@ -505,7 +623,23 @@ function windowLabel(promotion: PromotionView) {
       </template>
     </el-dialog>
 
-    <el-table :data="promotions" stripe>
+    <div class="header-actions" style="margin-bottom: 8px">
+      <strong>促销活动</strong>
+      <el-select v-model="typeFilter" size="small" clearable placeholder="全部类型" style="width: 130px">
+        <el-option v-for="option in activityTypeOptions" :key="option.code"
+                   :label="option.label" :value="option.code" />
+      </el-select>
+      <el-select v-model="statusFilter" size="small" style="width: 140px">
+        <el-option label="全部状态" value="ALL" />
+        <el-option label="进行中" value="RUNNING" />
+        <el-option label="已启用未开始" value="SCHEDULED" />
+        <el-option label="草稿" value="DRAFT" />
+        <el-option label="已结束" value="ENDED" />
+      </el-select>
+      <span class="muted">共 {{ filteredPromotions.length }} 个</span>
+    </div>
+
+    <el-table :data="filteredPromotions" stripe empty-text="没有符合条件的促销">
       <el-table-column prop="title" label="活动" min-width="180">
         <template #default="{ row }">
           <strong>{{ row.title }}</strong>
@@ -542,28 +676,38 @@ function windowLabel(promotion: PromotionView) {
           </span>
         </template>
       </el-table-column>
-      <el-table-column label="状态" width="110">
+      <el-table-column label="状态" width="120">
         <template #default="{ row }">
           <el-tag :type="row.active ? 'success' : row.status === 'ENDED' ? 'info' : 'warning'">
-            {{ row.active ? '进行中' : statusLabel(row.status) }}
+            {{ row.active ? '进行中' : (row.status === 'ACTIVE' ? '已启用未开始' : statusLabel(row.status)) }}
           </el-tag>
           <div v-if="row.soldOut" class="muted">已售罄</div>
         </template>
       </el-table-column>
-      <el-table-column label="操作" width="210">
+      <el-table-column label="操作" width="260">
         <template #default="{ row }">
           <el-button v-if="row.type === 'GROUP_BUY'" link @click="openGroupBuys(row)">拼团记录</el-button>
-          <el-button v-if="row.status !== 'ACTIVE'" link type="success" @click="changeStatus(row, 'ACTIVE')">
+          <el-button v-if="row.status === 'DRAFT'" link type="primary" @click="openEditPromotion(row)">
+            编辑
+          </el-button>
+          <el-button v-if="row.status === 'DRAFT'" link type="success"
+                     :loading="actionId === row.id" @click="changeStatus(row, 'ACTIVE')">
             启用
           </el-button>
-          <el-button v-if="row.status === 'ACTIVE'" link type="danger" @click="changeStatus(row, 'ENDED')">
+          <el-button v-if="row.status === 'DRAFT'" link type="info"
+                     :loading="actionId === row.id" @click="changeStatus(row, 'ENDED')">
+            取消
+          </el-button>
+          <el-button v-if="row.status === 'ACTIVE'" link type="danger"
+                     :loading="actionId === row.id" @click="changeStatus(row, 'ENDED')">
             结束
           </el-button>
+          <el-button link @click="duplicatePromotion(row)">复制为草稿</el-button>
         </template>
       </el-table-column>
     </el-table>
 
-    <el-dialog v-model="dialog" title="新建促销" width="720px">
+    <el-dialog v-model="dialog" :title="editingPromotionId ? '编辑促销草稿' : '新建促销'" width="720px">
       <el-form label-position="top">
         <div class="form-grid">
           <el-form-item label="活动名称">
@@ -571,9 +715,8 @@ function windowLabel(promotion: PromotionView) {
           </el-form-item>
           <el-form-item label="活动类型">
             <el-select v-model="form.type">
-              <el-option label="秒杀" value="FLASH_SALE" />
-              <el-option label="买赠" value="BUY_GIFT" />
-              <el-option label="拼团" value="GROUP_BUY" />
+              <el-option v-for="option in activityTypeOptions" :key="option.code"
+                         :label="option.label" :value="option.code" />
             </el-select>
           </el-form-item>
           <el-form-item label="活动编码">
@@ -634,7 +777,9 @@ function windowLabel(promotion: PromotionView) {
       </el-form>
       <template #footer>
         <el-button @click="dialog = false">取消</el-button>
-        <el-button type="primary" :loading="saving" @click="submit">创建并启用</el-button>
+        <el-button type="primary" :loading="saving" @click="submit">
+          {{ editingPromotionId ? '保存草稿' : '创建并启用' }}
+        </el-button>
       </template>
     </el-dialog>
 

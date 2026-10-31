@@ -2,6 +2,8 @@ package com.fullmall.promotion;
 
 import com.fullmall.catalog.app.CatalogService;
 import com.fullmall.catalog.domain.Product;
+import com.fullmall.catalog.domain.InventoryTrackingLevel;
+import com.fullmall.catalog.domain.ProductStatus;
 import com.fullmall.catalog.domain.Sku;
 import com.fullmall.platform.error.ApiException;
 import com.fullmall.platform.money.Money;
@@ -126,5 +128,54 @@ class PromotionServiceTest {
 
         assertThat(service.listActive()).isEmpty();
         assertThat(service.listAll()).isEmpty();
+    }
+
+    @Test
+    void endedPromotionCannotBeReActivated() {
+        UUID id = UUID.randomUUID();
+        Promotion ended = new Promotion(id, "ENDED-1", PromotionType.FLASH_SALE, "已结束", null,
+                PromotionStatus.ENDED, Instant.now().minusSeconds(3600), Instant.now().plusSeconds(3600),
+                MUG_SKU, 2990L, null, null, null, null, 30, 0, 5, null, null, 0, Instant.now());
+        when(repository.find(id)).thenReturn(java.util.Optional.of(ended));
+
+        assertThatThrownBy(() -> service.updateStatus(id, PromotionStatus.ACTIVE))
+                .isInstanceOf(ApiException.class)
+                .satisfies(error -> assertThat(((ApiException) error).code())
+                        .isEqualTo("PROMOTION_STATUS_TRANSITION_INVALID"));
+    }
+
+    @Test
+    void concurrentStatusChangeIsReportedInsteadOfOverwriting() {
+        UUID id = UUID.randomUUID();
+        Promotion draft = new Promotion(id, "DRAFT-1", PromotionType.FLASH_SALE, "草稿", null,
+                PromotionStatus.DRAFT, Instant.now().minusSeconds(60), Instant.now().plusSeconds(3600),
+                MUG_SKU, 2990L, null, null, null, null, 30, 0, 5, null, null, 0, Instant.now());
+        when(repository.find(id)).thenReturn(java.util.Optional.of(draft));
+        // 另一个运营已把状态改掉：条件更新命中 0 行
+        when(repository.updateStatus(id, PromotionStatus.DRAFT, PromotionStatus.ACTIVE)).thenReturn(0);
+
+        assertThatThrownBy(() -> service.updateStatus(id, PromotionStatus.ACTIVE))
+                .isInstanceOf(ApiException.class)
+                .satisfies(error -> assertThat(((ApiException) error).code())
+                        .isEqualTo("PROMOTION_STATUS_CHANGED"));
+    }
+
+    @Test
+    void draftActivationReturnsUpdatedView() {
+        UUID id = UUID.randomUUID();
+        Promotion draft = new Promotion(id, "DRAFT-2", PromotionType.FLASH_SALE, "草稿", null,
+                PromotionStatus.DRAFT, Instant.now().minusSeconds(60), Instant.now().plusSeconds(3600),
+                MUG_SKU, 2990L, null, null, null, null, 30, 0, 5, null, null, 0, Instant.now());
+        when(repository.find(id)).thenReturn(java.util.Optional.of(draft));
+        when(repository.updateStatus(id, PromotionStatus.DRAFT, PromotionStatus.ACTIVE)).thenReturn(1);
+        when(catalogService.getSku(MUG_SKU)).thenReturn(sku(MUG_SKU, 3990));
+        when(catalogService.getProduct(any(), any())).thenReturn(new Product(
+                PRODUCT_ID, "测试商品", null, null, ProductStatus.ACTIVE,
+                InventoryTrackingLevel.VARIANT, false, List.of(sku(MUG_SKU, 3990))));
+
+        var view = service.updateStatus(id, PromotionStatus.ACTIVE);
+
+        assertThat(view.status()).isEqualTo("ACTIVE");
+        assertThat(view.active()).isTrue();
     }
 }

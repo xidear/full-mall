@@ -21,8 +21,8 @@ public class NotificationRepository {
     public Notification insert(Notification notification) {
         jdbcTemplate.update("""
                 INSERT INTO notification (id, recipient_type, recipient_id, event_type, channel,
-                                          title, content, status, read_at, sent_at, error_message, created_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, now())
+                                          title, content, status, read_at, sent_at, error_message, created_at, link)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, now(), ?)
                 """,
                 notification.id(),
                 notification.recipientType(),
@@ -34,7 +34,8 @@ public class NotificationRepository {
                 notification.status(),
                 notification.readAt() == null ? null : java.sql.Timestamp.from(notification.readAt()),
                 notification.sentAt() == null ? null : java.sql.Timestamp.from(notification.sentAt()),
-                notification.errorMessage());
+                notification.errorMessage(),
+                notification.link());
         return notification;
     }
 
@@ -153,7 +154,7 @@ public class NotificationRepository {
     public List<Notification> findForStaff(String username, int limit) {
         return jdbcTemplate.query("""
                 SELECT n.id, n.recipient_type, n.recipient_id, n.event_type, n.channel, n.title, n.content,
-                       n.status, COALESCE(r.read_at, n.read_at) AS read_at, n.sent_at, n.error_message, n.created_at
+                       n.status, COALESCE(r.read_at, n.read_at) AS read_at, n.sent_at, n.error_message, n.created_at, n.state, n.link
                   FROM notification n
                   LEFT JOIN notification_read r
                     ON r.notification_id = n.id AND r.principal_type = 'STAFF' AND r.principal_id = ?
@@ -173,7 +174,9 @@ public class NotificationRepository {
                 rs.getTimestamp("read_at") == null ? null : rs.getTimestamp("read_at").toInstant(),
                 rs.getTimestamp("sent_at") == null ? null : rs.getTimestamp("sent_at").toInstant(),
                 rs.getString("error_message"),
-                rs.getTimestamp("created_at").toInstant()), username, username, Math.min(Math.max(limit, 1), 200));
+                rs.getTimestamp("created_at").toInstant(),
+                rs.getString("state"),
+                rs.getString("link")), username, username, Math.min(Math.max(limit, 1), 200));
     }
 
     /** 按人标记已读：只能标记"自己可见"的通知。 */
@@ -186,6 +189,25 @@ public class NotificationRepository {
                 ON CONFLICT DO NOTHING
                 """, username, notificationId, username);
         return inserted >= 1;
+    }
+
+    /** 认领：OPEN -> ACK。已读不等于已处理，这一步才是"有人接手了"。 */
+    public int ack(String username, UUID notificationId) {
+        return jdbcTemplate.update("""
+                UPDATE notification SET state = 'ACK', ack_by = ?, ack_at = now()
+                 WHERE id = ? AND recipient_type = 'STAFF'
+                   AND (recipient_id = 'ALL' OR recipient_id = ?) AND state = 'OPEN'
+                """, username, notificationId, username);
+    }
+
+    /** 修复完成：OPEN/ACK -> RESOLVED。 */
+    public int resolve(String username, UUID notificationId) {
+        return jdbcTemplate.update("""
+                UPDATE notification SET state = 'RESOLVED', resolved_by = ?, resolved_at = now(),
+                       ack_by = COALESCE(ack_by, ?), ack_at = COALESCE(ack_at, now())
+                 WHERE id = ? AND recipient_type = 'STAFF'
+                   AND (recipient_id = 'ALL' OR recipient_id = ?) AND state <> 'RESOLVED'
+                """, username, username, notificationId, username);
     }
 
     /** 全部已读：只作用于当前员工可见且未读的通知（广播按人算）。 */

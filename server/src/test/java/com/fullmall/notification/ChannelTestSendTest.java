@@ -45,7 +45,7 @@ class ChannelTestSendTest {
 
     @Test
     void sendsTestMessageAndReportsStatus() {
-        var sent = notifications.sendTest("sms", null, null);
+        var sent = notifications.sendTest("sms", null, null, null);
 
         assertThat(sent.channel()).isEqualTo("SMS");
         assertThat(sent.eventType()).isEqualTo("CHANNEL_TEST");
@@ -55,8 +55,8 @@ class ChannelTestSendTest {
 
     @Test
     void rejectsUnknownChannel() {
-        assertThatThrownBy(() -> notifications.sendTest("carrier-pigeon", null, null))
+        assertThatThrownBy(() -> notifications.sendTest("carrier-pigeon", null, null, null))
                 .isInstanceOf(com.fullmall.platform.error.ApiException.class)
-                .hasMessageContaining("未知渠道");
+                .hasMessageContaining("未知渠道", null);
     }
 }

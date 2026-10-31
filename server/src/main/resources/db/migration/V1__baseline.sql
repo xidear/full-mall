@@ -1224,7 +1224,13 @@ CREATE TABLE public.notification (
     read_at timestamp with time zone,
     sent_at timestamp with time zone,
     error_message character varying(255),
-    created_at timestamp with time zone DEFAULT now() NOT NULL
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    state character varying(16) DEFAULT 'OPEN'::character varying NOT NULL,
+    ack_by character varying(128),
+    ack_at timestamp with time zone,
+    resolved_by character varying(128),
+    resolved_at timestamp with time zone,
+    link text
 );
 
 
@@ -4100,6 +4106,9 @@ CREATE INDEX idx_member_card_ledger_member ON public.member_card_ledger USING bt
 
 
 CREATE INDEX idx_notification_created ON public.notification USING btree (created_at);
+
+ALTER TABLE ONLY public.notification
+    ADD CONSTRAINT notification_state_check CHECK (state IN ('OPEN', 'ACK', 'RESOLVED'));
 
 CREATE TABLE public.notification_read (
     notification_id uuid NOT NULL,

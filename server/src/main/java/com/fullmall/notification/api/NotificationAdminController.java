@@ -29,7 +29,7 @@ public class NotificationAdminController {
         this.notifications = notifications;
     }
 
-    public record TestSend(String channel, String title, String content) {
+    public record TestSend(String channel, String title, String content, String eventType) {
     }
 
     /**
@@ -47,7 +47,7 @@ public class NotificationAdminController {
     /** 渠道连通性自检：发一条测试消息并返回真实投递结果（不伪造成功）。 */
     @PostMapping("/test-send")
     public Notification testSend(@RequestBody TestSend body) {
-        return notifications.sendTest(body.channel(), body.title(), body.content());
+        return notifications.sendTest(body.channel(), body.title(), body.content(), body.eventType());
     }
 
     /** 重试失败投递：仅 FAILED 可重试（已 SENT 的重试会重复打扰顾客）。 */

@@ -39,6 +39,24 @@ public class NotificationService {
                 Function.identity()));
     }
 
+    /**
+     * 事件 -> 后台页面。放后端是唯一来源：前端曾经各自维护 eventType 映射，
+     * 新增事件时必然漏一处，导致"查看"按钮点了跳不到或跳错页。
+     */
+    static String linkFor(String eventType) {
+        if (eventType == null) {
+            return null;
+        }
+        return switch (eventType) {
+            case "ORDER_CREATED", "ORDER_PAID", "ORDER_CANCELLED", "ORDER_SHIPPED",
+                 "ORDER_COMPLETED", "PAYMENT_SUCCEEDED", "PAYMENT_FAILED", "PICKUP_READY" -> "/orders";
+            case "REFUND_REQUESTED", "REFUND_COMPLETED" -> "/after-sales";
+            case "STOCK_LOW", "NEAR_EXPIRY" -> "/inventory";
+            case "SUPPLIER_RETURN" -> "/suppliers";
+            default -> null;
+        };
+    }
+
     public void notifyStaff(String eventType, String title, String content) {
         deliver("STAFF", "ALL", eventType, "IN_APP", title, content);
         // 推完再查未读数：顺序反了会推一个少 1 的旧值，前端徽标看起来"没更新"。
@@ -130,14 +148,19 @@ public class NotificationService {
      * <p>为什么需要：运营改了短信/邮件配置后无法确认是否真的能发出去。
      * 该接口**不伪造成功**——渠道未配置或发送失败时返回 FAILED 与原因。
      */
-    public Notification sendTest(String channel, String title, String content) {
+    /**
+     * 渠道连通性测试。可传 eventType 以便验证"事件 -> 跳转链接"的映射（默认 CHANNEL_TEST 无链接）。
+     */
+    public Notification sendTest(String channel, String title, String content, String eventType) {
         String normalized = channel == null ? "" : channel.trim().toUpperCase(java.util.Locale.ROOT);
         if (!senders.containsKey(normalized)) {
             throw com.fullmall.platform.error.ApiException.badRequest(
                     "NOTIFICATION_CHANNEL_INVALID",
                     "未知渠道 " + channel + "，可选：" + senders.keySet());
         }
-        deliver("STAFF", "ALL", "CHANNEL_TEST", normalized,
+        String event = eventType == null || eventType.isBlank()
+                ? "CHANNEL_TEST" : eventType.trim().toUpperCase(java.util.Locale.ROOT);
+        deliver("STAFF", "ALL", event, normalized,
                 title == null || title.isBlank() ? "渠道连通性测试" : title.trim(),
                 content == null || content.isBlank() ? "这是一条测试消息" : content.trim());
         return repository.findRecent(1, normalized, "STAFF").stream()
@@ -205,6 +228,14 @@ public class NotificationService {
         return rows.stream().filter(item -> wanted.equals(item.channel())).toList();
     }
 
+    public boolean ackForStaff(String staffUsername, UUID id) {
+        return repository.ack(staffUsername, id) == 1;
+    }
+
+    public boolean resolveForStaff(String staffUsername, UUID id) {
+        return repository.resolve(staffUsername, id) == 1;
+    }
+
     public boolean markReadForStaff(String staffUsername, UUID id) {
         return repository.markReadForStaff(staffUsername, id);
     }
@@ -258,7 +289,9 @@ public class NotificationService {
                 null,
                 null,
                 null,
-                Instant.now());
+                Instant.now(),
+                "OPEN",
+                linkFor(eventType));
         repository.insert(base);
 
         NotificationChannelSender sender = senders.get(channel);

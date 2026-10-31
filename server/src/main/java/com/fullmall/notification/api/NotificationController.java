@@ -42,6 +42,18 @@ public class NotificationController {
         notificationService.markReadForStaff(authentication.getName(), id);
     }
 
+    /** 认领：OPEN 变 ACK。已读不等于已处理。 */
+    @PostMapping("/{id}/ack")
+    public Map<String, Object> ack(@PathVariable UUID id, Authentication authentication) {
+        return Map.of("changed", notificationService.ackForStaff(authentication.getName(), id));
+    }
+
+    /** 修复完成：OPEN/ACK 变 RESOLVED。 */
+    @PostMapping("/{id}/resolve")
+    public Map<String, Object> resolve(@PathVariable UUID id, Authentication authentication) {
+        return Map.of("changed", notificationService.resolveForStaff(authentication.getName(), id));
+    }
+
     /** 全部已读：只影响自己（广播按人记已读）。 */
     @PostMapping("/read-all")
     public Map<String, Integer> readAll(org.springframework.security.core.Authentication authentication) {

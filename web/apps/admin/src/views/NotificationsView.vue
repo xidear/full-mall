@@ -17,6 +17,8 @@ interface Notification {
   sentAt?: string
   errorMessage?: string
   createdAt: string
+  state?: 'OPEN' | 'ACK' | 'RESOLVED'
+  link?: string | null
 }
 
 const filters = reactive({
@@ -81,8 +83,29 @@ const eventRoutes: Record<string, string> = {
   SUPPLIER_RETURN: '/suppliers'
 }
 
+/** 跳转地址由后端下发（link）；后端没给说明该事件暂无对应页面，不猜。 */
 function routeOf(notification: Notification): string | null {
-  return eventRoutes[notification.eventType] ?? null
+  return notification.link ?? null
+}
+
+async function ackRow(row: Notification) {
+  try {
+    await api.post('/admin/v1/notifications/' + row.id + '/ack')
+    ElMessage.success('已认领')
+    await load()
+  } catch (cause) {
+    ElMessage.error('认领失败：' + (cause instanceof Error ? cause.message : ''))
+  }
+}
+
+async function resolveRow(row: Notification) {
+  try {
+    await api.post('/admin/v1/notifications/' + row.id + '/resolve')
+    ElMessage.success('已标记为修复')
+    await load()
+  } catch (cause) {
+    ElMessage.error('标记失败：' + (cause instanceof Error ? cause.message : ''))
+  }
 }
 
 async function markAllRead() {
@@ -198,6 +221,13 @@ function label(map: Record<string, string>, key: string) {
           </el-tag>
         </template>
       </el-table-column>
+      <el-table-column label="处理状态" width="110">
+        <template #default="{ row }">
+          <el-tag :type="row.state === 'RESOLVED' ? 'success' : row.state === 'ACK' ? 'warning' : 'info'">
+            {{ row.state === 'RESOLVED' ? '已修复' : row.state === 'ACK' ? '处理中' : '待处理' }}
+          </el-tag>
+        </template>
+      </el-table-column>
       <el-table-column label="已读" width="80">
         <template #default="{ row }">{{ row.readAt ? '是' : '否' }}</template>
       </el-table-column>
@@ -208,6 +238,8 @@ function label(map: Record<string, string>, key: string) {
           <el-button v-else-if="!row.readAt" link type="primary" @click="markRead(row)">标记已读</el-button>
           <!-- 只有配置了 eventType → 页面的映射才给"查看"，避免点了跳到不相关页面 -->
           <el-button v-if="routeOf(row)" link type="primary" @click="$router.push(routeOf(row)!)">查看</el-button>
+          <el-button v-if="row.state === 'OPEN'" link type="warning" @click="ackRow(row)">认领</el-button>
+          <el-button v-if="row.state !== 'RESOLVED'" link type="success" @click="resolveRow(row)">标记已修复</el-button>
         </template>
       </el-table-column>
     </el-table>

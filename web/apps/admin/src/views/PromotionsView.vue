@@ -59,6 +59,17 @@ onMounted(async () => {
   await loadRules()
 })
 
+
+/** 让后端给一个未占用的编码：编码唯一性由数据库约束保证，前端随机拼会撞。 */
+async function generateCode() {
+  try {
+    const result = await api.get<{ code: string }>('/admin/v1/codes/suggest', { type: 'PROMOTION' })
+    form.code = result.code
+  } catch (cause) {
+    ElMessage.error('生成编码失败：' + (cause instanceof Error ? cause.message : ''))
+  }
+}
+
 async function load() {
   loading.value = true
   error.value = ''
@@ -566,7 +577,7 @@ function windowLabel(promotion: PromotionView) {
             </el-select>
           </el-form-item>
           <el-form-item label="活动编码">
-            <el-input v-model="form.code" maxlength="64" />
+            <div style="display:flex;gap:8px;width:100%"><el-input v-model="form.code" maxlength="64" /><el-button @click="generateCode()">生成</el-button></div>
           </el-form-item>
           <el-form-item label="优先级">
             <el-input-number v-model="form.priority" :min="0" :max="1000" />

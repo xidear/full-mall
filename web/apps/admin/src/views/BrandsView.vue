@@ -18,6 +18,17 @@ const saving = ref(false)
 const form = ref({ code: '', name: '', sortOrder: 0 })
 const editingId = ref('')
 
+
+/** 让后端给一个未占用的编码：编码唯一性由数据库约束保证，前端随机拼会撞。 */
+async function generateCode() {
+  try {
+    const result = await api.get<{ code: string }>('/admin/v1/codes/suggest', { type: 'BRAND' })
+    form.value.code = result.code
+  } catch (cause) {
+    ElMessage.error('生成编码失败：' + (cause instanceof Error ? cause.message : ''))
+  }
+}
+
 async function load() {
   loading.value = true
   try {
@@ -126,7 +137,7 @@ onMounted(load)
     <el-dialog v-model="dialog" :title="editingId ? '编辑品牌' : '新建品牌'" width="420px">
       <el-form label-width="90px">
         <el-form-item label="编码">
-          <el-input v-model="form.code" :disabled="!!editingId" placeholder="例如 BRAND-A" />
+          <div style="display:flex;gap:8px;width:100%"><el-input v-model="form.code" :disabled="!!editingId" placeholder="例如 BRAND-A" /><el-button @click="generateCode()">生成</el-button></div>
         </el-form-item>
         <el-form-item label="名称">
           <el-input v-model="form.name" placeholder="例如 示例品牌" />

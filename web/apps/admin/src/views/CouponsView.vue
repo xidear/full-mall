@@ -32,6 +32,17 @@ const statsDialog = ref(false)
 const statsLoading = ref(false)
 const stats = ref<CouponStats | null>(null)
 
+
+/** 让后端给一个未占用的编码：编码唯一性由数据库约束保证，前端随机拼会撞。 */
+async function generateCode() {
+  try {
+    const result = await api.get<{ code: string }>('/admin/v1/codes/suggest', { type: 'COUPON' })
+    form.code = result.code
+  } catch (cause) {
+    ElMessage.error('生成编码失败：' + (cause instanceof Error ? cause.message : ''))
+  }
+}
+
 async function openStats(template: CouponTemplate) {
   statsDialog.value = true
   statsLoading.value = true
@@ -250,7 +261,7 @@ onMounted(load)
     <el-dialog v-model="dialog" title="新建券模板" width="520px">
       <el-form label-width="110px">
         <el-form-item label="编码">
-          <el-input v-model="form.code" :maxlength="64" placeholder="例如 NEW-YEAR-50" />
+          <div style="display:flex;gap:8px;width:100%"><el-input v-model="form.code" :maxlength="64" placeholder="例如 NEW-YEAR-50" /><el-button @click="generateCode()">生成</el-button></div>
         </el-form-item>
         <el-form-item label="名称">
           <el-input v-model="form.title" placeholder="例如 新年满减券" />

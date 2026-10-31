@@ -28,6 +28,29 @@ class MoneyPrecisionTest {
     }
 
     @Test
+    void majorFormattingFollowsCurrencyDigits() {
+        assertThat(Money.toMajor(1234, "JPY")).isEqualTo("1234");
+        assertThat(Money.toMajor(1234, "USD")).isEqualTo("12.34");
+        assertThat(Money.toMajor(1234, "KWD")).isEqualTo("1.234");
+        assertThat(Money.parseMajor("1234", "JPY")).isEqualTo(1234);
+        assertThat(Money.parseMajor("1.234", "KWD")).isEqualTo(1234);
+        // USD 只有 2 位，多给一位必须报错而不是静默截断
+        assertThatThrownBy(() -> Money.parseMajor("1.234", "USD"))
+                .isInstanceOf(ArithmeticException.class);
+    }
+
+    @Test
+    void currencyPrecisionFollowsIsoMinorUnits() {
+        assertThat(CurrencyPrecision.minorUnits("JPY")).isZero();
+        assertThat(CurrencyPrecision.minorUnits("KWD")).isEqualTo(3);
+        // TWD/HUF 是 2 位；旧实现误写成 0，会让金额放大 100 倍
+        assertThat(CurrencyPrecision.minorUnits("TWD")).isEqualTo(2);
+        assertThat(CurrencyPrecision.minorUnits("HUF")).isEqualTo(2);
+        assertThatThrownBy(() -> CurrencyPrecision.minorUnits("CNY1"))
+                .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
     void mulDivRoundsHalfUpWithoutFloatingPointDrift() {
         // 1990 * 1 / 3 = 663.33 → 663；1990*2/3 = 1326.67 → 1327
         assertThat(Money.mulDiv(1990, 1, 3)).isEqualTo(663);

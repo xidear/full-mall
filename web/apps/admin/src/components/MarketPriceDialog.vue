@@ -7,6 +7,7 @@
  */
 import { computed, ref, watch } from 'vue'
 import { ElMessage } from 'element-plus'
+import { currencyDigits, formatAmount, toMajor, toMinor } from '@fullmall/api-client'
 import { api } from '../api'
 
 const props = defineProps<{
@@ -42,7 +43,7 @@ async function load() {
     const next: Record<string, string> = {}
     for (const market of marketList) {
       const row = priceRows.find(price => price.marketCode === market.code)
-      next[market.code] = row ? (row.amount / 100).toFixed(2) : ''
+      next[market.code] = row ? toMajor(row.amount, row.currency).toFixed(currencyDigits(row.currency)) : ''
     }
     overrides.value = next
   } catch (cause) {
@@ -61,7 +62,7 @@ async function saveMarket(market: MarketView) {
       await api.delete(`/admin/v1/skus/${props.skuId}/prices/${market.code}`).catch(() => null)
       ElMessage.success(`${market.code} 已回到基础价`)
     } else {
-      const amount = Math.round(Number(raw) * 100)
+      const amount = toMinor(Number(raw), market.currency)
       if (!Number.isFinite(amount) || amount <= 0) {
         ElMessage.error('金额必须大于 0')
         return
@@ -87,7 +88,7 @@ watch(() => props.modelValue, (open) => { if (open) load() })
 <template>
   <el-dialog v-model="visible" :title="`分市场价格 · ${skuCode}`" width="560px" append-to-body>
     <p class="hint">
-      基础价：<b>{{ (baseAmount / 100).toFixed(2) }} {{ baseCurrency }}</b>。
+      基础价：<b>{{ formatAmount(baseAmount, baseCurrency) }}</b>。
       留空某个市场 = 该市场沿用基础价（币种必须与市场一致，否则下单会被拒绝）。
     </p>
     <el-table :data="markets" v-loading="loading" size="small">
@@ -97,9 +98,9 @@ watch(() => props.modelValue, (open) => { if (open) load() })
       <el-table-column label="币种" width="80">
         <template #default="{ row }">{{ row.currency }}</template>
       </el-table-column>
-      <el-table-column label="覆盖价（元）" width="160">
+      <el-table-column label="覆盖价（市场币种）" width="160">
         <template #default="{ row }">
-          <el-input v-model="overrides[row.code]" :placeholder="`基础价 ${(baseAmount / 100).toFixed(2)}`" />
+          <el-input v-model="overrides[row.code]" :placeholder="`基础价 ${formatAmount(baseAmount, baseCurrency)}`" />
         </template>
       </el-table-column>
       <el-table-column label="操作" width="90">

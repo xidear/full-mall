@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue'
+import { formatMoney } from '@fullmall/api-client'
 
 interface Sku { id: string; skuCode: string; price?: { amount: number; currency?: string } }
 interface Product { id: string; title: string; skus?: Sku[] }
@@ -15,8 +16,8 @@ const emit = defineEmits<{ 'update:modelValue': [value: string] }>()
 const skus = computed(() => props.product?.skus ?? [])
 
 function price(sku: Sku): string {
-  if (!sku.price) return ''
-  return `¥${(sku.price.amount / 100).toFixed(2)}`
+  if (!sku.price?.currency) return ''
+  return formatMoney({ amount: sku.price.amount, currency: sku.price.currency })
 }
 </script>
 

@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from 'vue'
 import { ElMessage } from 'element-plus'
-import { VALIDATION } from '@fullmall/api-client'
+import { VALIDATION, toMajor, toMinor } from '@fullmall/api-client'
 import { api } from '../api'
 
 const loading = ref(false)
@@ -193,8 +193,9 @@ const siteUrlPreview = computed(() => {
 // 分 ↔ 元 的唯一转换点（设置项存分，输入框显示元）。边界：输入框被清空或输入非数字时
 // Number() 得到 NaN，会被写成 "NaN" 存库；改这里时要保证非法输入有兜底或拦截。
 const minWithdrawalYuan = computed({
-  get: () => Number(form['distribution.min-withdrawal'] || 0) / 100,
-  set: (value: number) => { form['distribution.min-withdrawal'] = String(Math.round(value * 100)) }
+  // 提现门槛是 CNY 金额（设置项存分）；按币种小数位换算，禁止写死 /100
+  get: () => toMajor(Number(form['distribution.min-withdrawal'] || 0), 'CNY'),
+  set: (value: number) => { form['distribution.min-withdrawal'] = String(toMinor(value, 'CNY')) }
 })
 
 const payoutMethods = computed({

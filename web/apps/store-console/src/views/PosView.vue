@@ -14,7 +14,7 @@ import {
   type PosSaleLine,
   type PosSaleView,
   type PosShiftView,
-  type Store, formatDateTime, formatDate } from '@fullmall/api-client'
+  type Store, formatDateTime, formatDate, formatMoney, toMajor, toMinor } from '@fullmall/api-client'
 
 interface CartLine {
   skuId: string
@@ -213,7 +213,8 @@ async function openShift() {
 
 function openCloseDialog() {
   if (!shiftView.value) return
-  closeForm.actualCash = shiftView.value.expectedCash.amount / 100
+  closeForm.actualCash = toMajor(shiftView.value.expectedCash.amount,
+    shiftView.value.expectedCash.currency)
   closeForm.reason = ''
   closeDialog.value = true
 }
@@ -405,24 +406,33 @@ async function redeemPoints() {
   }
 }
 
+function saleCurrency(): string {
+  const currency = saleView.value?.sale.payable.currency
+  if (!currency) {
+    // 销售单一定有币种；缺失说明后端契约异常，宁可报错也不按 CNY 猜
+    throw new Error('销售单缺少币种，无法计算收款金额')
+  }
+  return currency
+}
+
 function syncTenderAmount() {
-  tenderAmountYuan.value = remaining.value / 100
+  tenderAmountYuan.value = toMajor(remaining.value, saleCurrency())
 }
 
 function startCashTender() {
-  const amount = Math.round(tenderAmountYuan.value * 100)
+  const amount = toMinor(tenderAmountYuan.value, saleCurrency())
   if (amount <= 0 || amount > remaining.value) {
     ElMessage.warning('本次收款金额必须大于 0 且不超过待收金额')
     return
   }
-  cashForm.amount = amount / 100
-  cashForm.cashTendered = amount / 100
+  cashForm.amount = toMajor(amount, saleCurrency())
+  cashForm.cashTendered = toMajor(amount, saleCurrency())
   cashDialog.value = true
 }
 
 async function submitTender(type: string) {
   if (!saleView.value) return
-  let amount = Math.round(tenderAmountYuan.value * 100)
+  let amount = toMinor(tenderAmountYuan.value, saleCurrency())
   if (type === 'CASH') {
     amount = yuanToFen(cashForm.amount)
   }
@@ -621,15 +631,11 @@ function clearFeedback() {
 }
 
 function money(value?: { amount: number; currency: string }) {
-  if (!value) return '-'
-  return new Intl.NumberFormat('zh-CN', {
-    style: 'currency',
-    currency: value.currency
-  }).format(value.amount / 100)
+  return formatMoney(value)
 }
 
 function yuanToFen(value: number) {
-  return Math.round(Number(value || 0) * 100)
+  return toMinor(Number(value || 0), 'CNY')
 }
 
 function messageOf(cause: unknown, fallback: string) {
@@ -1006,7 +1012,7 @@ function messageOf(cause: unknown, fallback: string) {
           <el-input-number v-model="cashForm.cashTendered" :min="0" :precision="2" :step="10" style="width: 100%" />
         </el-form-item>
         <el-alert
-          :title="`找零 ${money({ amount: Math.max(yuanToFen(cashForm.cashTendered) - yuanToFen(cashForm.amount), 0), currency: 'CNY' })}`"
+          :title="`找零 ${money({ amount: Math.max(toMinor(cashForm.cashTendered, saleCurrency()) - toMinor(cashForm.amount, saleCurrency()), 0), currency: saleCurrency() })}`"
           type="info"
           :closable="false"
         />

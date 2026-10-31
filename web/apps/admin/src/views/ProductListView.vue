@@ -3,6 +3,7 @@ import { onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import {
+  formatMoney,
   inventoryTrackingLabel,
   productStatusLabel,
   type Product,
@@ -93,11 +94,11 @@ async function toggleStatus(product: Product) {
 }
 
 // 起售价取第一个 SKU（列表不做最低价聚合，那要后端算）；没有 SKU 返回 "-" 而不是 0，
-// 0 会被误读成“免费”。amount 单位是分，展示前 /100，币种用后端给的 currency。
+// 0 会被误读成“免费”。金额按币种小数位换算，禁止写死 /100。
 function price(product: Product) {
   const money = product.skus[0]?.price
   if (!money) return '-'
-  return new Intl.NumberFormat('zh-CN', { style: 'currency', currency: money.currency }).format(money.amount / 100)
+  return formatMoney(money)
 }
 </script>
 

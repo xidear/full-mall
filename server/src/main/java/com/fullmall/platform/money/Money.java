@@ -55,24 +55,36 @@ public record Money(long amount, String currency) {
     }
 
     /**
-     * 分 → 元的**精确**文本（两位小数），用于对接渠道报文。
+     * 最小单位整数 → 主单位**精确**文本（小数位由币种决定）。
      *
-     * <p>禁止用 `fen / 100.0`：double 在 0.1/0.01 上不可精确表示，
-     * 大额或连续四舍五入会产生一分钱误差（支付报文里这是事故）。
+     * <p>禁止用 `minor / 100.0`：double 不能精确表示 0.1/0.01；日元 0 位、第纳尔 3 位，
+     * 写死两位还会直接差 100 倍。
      */
-    public static String toYuan(long fen) {
-        return java.math.BigDecimal.valueOf(fen)
-                .movePointLeft(2)
-                .setScale(2, java.math.RoundingMode.UNNECESSARY)
+    public static String toMajor(long amountMinor, String currency) {
+        int units = CurrencyPrecision.minorUnits(currency);
+        return java.math.BigDecimal.valueOf(amountMinor)
+                .movePointLeft(units)
+                .setScale(units, java.math.RoundingMode.UNNECESSARY)
                 .toPlainString();
     }
 
-    /** 元（字符串）→ 分，精确到 0.01；多余小数位直接报错而不是静默截断。 */
-    public static long parseYuan(String yuan) {
-        return new java.math.BigDecimal(yuan.trim())
-                .movePointRight(2)
+    /** 主单位字符串 → 最小单位整数；超出该币种精度直接报错，不静默截断。 */
+    public static long parseMajor(String amountMajor, String currency) {
+        int units = CurrencyPrecision.minorUnits(currency);
+        return new java.math.BigDecimal(amountMajor.trim())
+                .movePointRight(units)
                 .setScale(0, java.math.RoundingMode.UNNECESSARY)
                 .longValueExact();
+    }
+
+    /** 兼容旧调用（支付宝/微信 CNY 报文）：等价于 {@code toMajor(fen, "CNY")}。 */
+    public static String toYuan(long fen) {
+        return toMajor(fen, "CNY");
+    }
+
+    /** 兼容旧调用：等价于 {@code parseMajor(yuan, "CNY")}。 */
+    public static long parseYuan(String yuan) {
+        return parseMajor(yuan, "CNY");
     }
 
     /**

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { formatDateTime } from '@fullmall/api-client'
+import { formatDateTime, formatAmount } from '@fullmall/api-client'
 import { onMounted, ref } from 'vue'
 import { ElMessage } from 'element-plus'
 import type { SupplierCredentialView } from '@fullmall/api-client'
@@ -191,16 +191,16 @@ async function copy(text: string, label: string) {
           </template>
         </el-table-column>
         <el-table-column label="毛额" width="100">
-          <template #default="{ row }">{{ (row.grossAmount / 100).toFixed(2) }}</template>
+          <template #default="{ row }">{{ formatAmount(row.grossAmount, 'CNY') }}</template>
         </el-table-column>
         <el-table-column label="退货扣减" width="110">
-          <template #default="{ row }">{{ (row.refundAmount / 100).toFixed(2) }}</template>
+          <template #default="{ row }">{{ formatAmount(row.refundAmount, 'CNY') }}</template>
         </el-table-column>
         <el-table-column label="佣金" width="100">
-          <template #default="{ row }">{{ (row.commissionAmount / 100).toFixed(2) }}</template>
+          <template #default="{ row }">{{ formatAmount(row.commissionAmount, 'CNY') }}</template>
         </el-table-column>
         <el-table-column label="应付" width="110">
-          <template #default="{ row }"><strong>{{ (row.payableAmount / 100).toFixed(2) }}</strong></template>
+          <template #default="{ row }"><strong>{{ formatAmount(row.payableAmount, 'CNY') }}</strong></template>
         </el-table-column>
         <el-table-column label="状态" width="90">
           <template #default="{ row }">{{ enumLabel('SUPPLIER_STATUS', row.status) }}</template>

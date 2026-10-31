@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { onMounted, reactive, ref, watch } from 'vue'
-import { formatDate } from '@fullmall/api-client'
+import { formatDate, formatMoney } from '@fullmall/api-client'
 
 interface SupplierOrderLine {
   skuId: string
@@ -110,7 +110,7 @@ function labelOf(map: Record<string, string>, value: string) {
 }
 
 function formatAmount(amount: number, currency = 'CNY') {
-  return new Intl.NumberFormat('zh-CN', { style: 'currency', currency }).format(amount / 100)
+  return formatMoney({ amount, currency })
 }
 
 // 只对看起来合法的凭据（sup_ 前缀）自动重连：避免拿空值/占位符去签名，
@@ -421,8 +421,7 @@ function hex(buffer: ArrayBuffer) {
 }
 
 function money(value?: { amount: number; currency: string }) {
-  if (!value) return '-'
-  return new Intl.NumberFormat('zh-CN', { style: 'currency', currency: value.currency }).format(value.amount / 100)
+  return formatMoney(value)
 }
 
 function messageOf(cause: unknown) {

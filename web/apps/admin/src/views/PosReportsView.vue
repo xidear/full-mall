@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
-import { posSaleStatusLabel, posShiftStatusLabel, formatDateTime, formatDate } from '@fullmall/api-client'
+import { posSaleStatusLabel, posShiftStatusLabel, formatDateTime, formatDate, formatMoney } from '@fullmall/api-client'
 import type {
   PosDailyReport,
   PosReconciliationReport,
@@ -53,8 +53,7 @@ async function load() {
 }
 
 function money(value?: { amount: number; currency: string }) {
-  if (!value) return '-'
-  return new Intl.NumberFormat('zh-CN', { style: 'currency', currency: value.currency }).format(value.amount / 100)
+  return formatMoney(value)
 }
 
 function tenderLabel(type: string) {

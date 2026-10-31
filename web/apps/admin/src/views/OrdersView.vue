@@ -6,6 +6,9 @@ import {
   fulfillmentStatusLabel,
   fulfillmentTypeLabel,
   orderStatusLabel,
+  formatAmount,
+  toMajor,
+  toMinor,
   type Fulfillment,
   type Order,
   type OrderSummary, formatDateTime, formatDate } from '@fullmall/api-client'
@@ -125,7 +128,7 @@ async function load() {
 
 function openRefund() {
   if (!selected.value) return
-  refundYuan.value = selected.value.total.amount / 100
+  refundYuan.value = toMajor(selected.value.total.amount, selected.value.total.currency)
   refundReason.value = ''
   refundDialog.value = true
 }
@@ -139,7 +142,7 @@ async function submitRefund() {
   refundSaving.value = true
   try {
     await api.post(`/admin/v1/orders/${selected.value.id}/refunds`, {
-      amount: Math.round(refundYuan.value * 100),
+      amount: toMinor(refundYuan.value, selected.value.total.currency),
       reason: refundReason.value.trim()
     })
     ElMessage.success('退款已提交')
@@ -167,7 +170,7 @@ async function viewOrder(order: OrderSummary) {
 }
 
 function money(amount: number, currency: string) {
-  return new Intl.NumberFormat('zh-CN', { style: 'currency', currency }).format(amount / 100)
+  return formatAmount(amount, currency)
 }
 </script>
 

@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
+import { formatMoney } from '@fullmall/api-client'
 import { api } from '../api'
 
 interface Money {
@@ -42,8 +43,7 @@ async function load() {
 }
 
 function money(value: Money | undefined) {
-  if (!value) return '-'
-  return new Intl.NumberFormat('zh-CN', { style: 'currency', currency: value.currency }).format(value.amount / 100)
+  return formatMoney(value)
 }
 </script>
 

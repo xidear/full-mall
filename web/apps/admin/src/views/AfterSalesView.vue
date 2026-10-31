@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { formatDateTime } from '@fullmall/api-client'
+import { formatDateTime, formatMoney } from '@fullmall/api-client'
 import { onMounted, reactive, ref } from 'vue'
 import { useRoute } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
@@ -228,8 +228,7 @@ async function refund(afterSale: AfterSaleView) {
 }
 
 function money(value?: { amount: number; currency: string }) {
-  if (!value) return '-'
-  return new Intl.NumberFormat('zh-CN', { style: 'currency', currency: value.currency }).format(value.amount / 100)
+  return formatMoney(value)
 }
 </script>
 

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { formatDateTime, roleLabel } from '@fullmall/api-client'
+import { formatDateTime, roleLabel, formatMoney } from '@fullmall/api-client'
 import { computed, onBeforeUnmount, onMounted, reactive, ref } from 'vue'
 
 interface Agent {
@@ -299,7 +299,7 @@ function productLink(message: Message) {
 function money(meta: Record<string, unknown>) {
   const amount = Number(meta.priceAmount ?? 0)
   const currency = String(meta.currency ?? 'CNY')
-  return new Intl.NumberFormat('zh-CN', { style: 'currency', currency }).format(amount / 100)
+  return formatMoney({ amount, currency })
 }
 
 function messageOf(cause: unknown) {

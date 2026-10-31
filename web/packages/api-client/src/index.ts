@@ -8,6 +8,7 @@ export * from './labels'
 export * from './validation'
 export * from './permissions.generated'
 export * from './datetime'
+export * from './money'
 
 export interface StaffUser {
   id: string
@@ -19,7 +20,7 @@ export interface StaffUser {
 
 /**
  * 金额一律“分 + 币种”，不用小数：后端以整型存储，跨语言的浮点表示（0.1+0.2）会让对账差几分钱。
- * 展示时除以 100，见各端 money 工具。
+ * 展示时按币种小数位换算，统一用 money.ts（禁止页面写死 /100）。
  */
 export interface Money {
   amount: number

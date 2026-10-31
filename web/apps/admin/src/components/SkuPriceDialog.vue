@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
 import { ElMessage } from 'element-plus'
+import { formatAmount } from '@fullmall/api-client'
 import { api } from '../api'
 import { apiErrorMessage } from '../composables/useAsyncState'
 
@@ -149,7 +150,8 @@ async function apply() {
 }
 
 function yuan(amountInCents: number): string {
-  return (amountInCents / 100).toFixed(2)
+  // 规格改价预览接口只返回最小单位金额（无币种）；当前 SKU 均为 CNY
+  return formatAmount(amountInCents, 'CNY')
 }
 </script>
 

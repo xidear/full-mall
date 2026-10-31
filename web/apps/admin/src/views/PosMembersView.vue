@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { formatDateTime } from '@fullmall/api-client'
+import { formatDateTime, formatMoney } from '@fullmall/api-client'
 import { computed, onMounted, reactive, ref } from 'vue'
 import { ElMessage } from 'element-plus'
 import type { MemberAdminView, MemberLevel, PosCoupon, PosMember } from '@fullmall/api-client'
@@ -235,8 +235,7 @@ async function searchMembers() {
 }
 
 function money(value?: { amount: number; currency: string }) {
-  if (!value) return '-'
-  return new Intl.NumberFormat('zh-CN', { style: 'currency', currency: value.currency }).format(value.amount / 100)
+  return formatMoney(value)
 }
 
 function couponValue(coupon: PosCoupon) {

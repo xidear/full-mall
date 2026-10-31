@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { formatDateTime } from '@fullmall/api-client'
+import { formatDateTime, formatMoney } from '@fullmall/api-client'
 import { onMounted, ref } from 'vue'
 import { api } from '../api'
 
@@ -52,7 +52,7 @@ async function load() {
 }
 
 function money(value: Customer['totalSpent']) {
-  return new Intl.NumberFormat('zh-CN', { style: 'currency', currency: value.currency }).format(value.amount / 100)
+  return formatMoney(value)
 }
 </script>
 

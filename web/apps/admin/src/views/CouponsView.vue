@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { onMounted, reactive, ref } from 'vue'
 import { ElMessage } from 'element-plus'
-import { VALIDATION } from '@fullmall/api-client'
+import { VALIDATION, formatAmount } from '@fullmall/api-client'
 import { api } from '../api'
 import StatusToggle from '../components/StatusToggle.vue'
 import { useEnums } from '../composables/useEnums'
@@ -184,7 +184,7 @@ async function activate(template: CouponTemplate) {
 
 function valueLabel(template: CouponTemplate) {
   return template.type === 'AMOUNT'
-    ? `${(template.value / 100).toFixed(2)} 元`
+    ? formatAmount(template.value, 'CNY')
     : `${template.value / 10} 折`
 }
 
@@ -232,7 +232,7 @@ onMounted(load)
       </el-table-column>
       <el-table-column label="门槛" width="120">
         <template #default="{ row }">
-          {{ row.minOrderAmount > 0 ? (row.minOrderAmount / 100).toFixed(2) + ' 元' : '无门槛' }}
+          {{ row.minOrderAmount > 0 ? formatAmount(row.minOrderAmount, 'CNY') : '无门槛' }}
         </template>
       </el-table-column>
       <el-table-column label="已发/总量" width="130">

@@ -4,6 +4,7 @@ import { ElMessage } from 'element-plus'
 import {
   pickupStatusLabel,
   pickTaskStatusLabel,
+  formatMoney,
   type PickTask,
   type PickTaskLine,
   type PickupDetail,
@@ -295,7 +296,7 @@ function remainingLabel(detail: PickupDetail) {
         <el-descriptions-item label="自提门店">{{ pickupDetail.storeName }}</el-descriptions-item>
         <el-descriptions-item label="核销次数">{{ remainingLabel(pickupDetail) }}</el-descriptions-item>
         <el-descriptions-item label="订单金额">
-          ¥{{ (pickupDetail.total.amount / 100).toFixed(2) }}
+          {{ formatMoney(pickupDetail.total) }}
         </el-descriptions-item>
       </el-descriptions>
 

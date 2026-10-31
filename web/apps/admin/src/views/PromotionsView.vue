@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { formatDateTime } from '@fullmall/api-client'
+import { formatDateTime, formatAmount, formatMoney, toMajor, toMinor } from '@fullmall/api-client'
 import { computed, onMounted, reactive, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import type {
@@ -48,6 +48,7 @@ const form = reactive({
   description: '',
   type: 'FLASH_SALE' as PromotionType,
   skuId: '',
+  currency: 'CNY',
   window: [] as Date[],
   priceYuan: undefined as number | undefined,
   giftSkuId: '',
@@ -66,7 +67,8 @@ const skuOptions = computed(() =>
     product.skus.map(sku => ({
       value: sku.id,
       label: `${product.title} · ${Object.values(sku.options).join(' / ') || sku.skuCode} · ${money(sku.price)}`,
-      productTitle: product.title
+      productTitle: product.title,
+      currency: sku.price.currency
     }))
   )
 )
@@ -112,6 +114,7 @@ function openCreate() {
   form.description = ''
   form.type = 'FLASH_SALE'
   form.skuId = skuOptions.value[0]?.value ?? ''
+  form.currency = skuOptions.value[0]?.currency ?? ''
   form.window = [new Date(), new Date(Date.now() + 7 * 24 * 3600 * 1000)]
   form.priceYuan = 29.9
   form.giftSkuId = ''
@@ -139,6 +142,11 @@ async function submit() {
     error.value = '请选择赠品'
     return
   }
+  form.currency = skuOptions.value.find(option => option.value === form.skuId)?.currency ?? form.currency
+  if (form.type !== 'BUY_GIFT' && !form.currency) {
+    ElMessage.error('所选商品缺少币种，无法保存活动价')
+    return
+  }
   const payload: CreatePromotionInput = {
     code: form.code.trim(),
     type: form.type,
@@ -148,7 +156,7 @@ async function submit() {
     endsAt: form.window[1].toISOString(),
     skuId: form.skuId,
     priority: form.priority,
-    promoPriceAmount: form.type === 'BUY_GIFT' ? undefined : Math.round((form.priceYuan ?? 0) * 100),
+    promoPriceAmount: form.type === 'BUY_GIFT' ? undefined : toMinor(form.priceYuan ?? 0, form.currency),
     giftSkuId: form.type === 'BUY_GIFT' ? form.giftSkuId : undefined,
     buyQuantity: form.type === 'BUY_GIFT' ? form.buyQuantity : undefined,
     giftQuantity: form.type === 'BUY_GIFT' ? form.giftQuantity : undefined,
@@ -184,8 +192,13 @@ function openEditPromotion(promotion: PromotionView) {
   form.description = promotion.description ?? ''
   form.type = promotion.type
   form.skuId = promotion.skuId
+  form.currency = promotion.promoPrice?.currency
+    ?? skuOptions.value.find(option => option.value === promotion.skuId)?.currency
+    ?? ''
   form.window = [new Date(promotion.startsAt), new Date(promotion.endsAt)]
-  form.priceYuan = promotion.promoPrice ? promotion.promoPrice.amount / 100 : undefined
+  form.priceYuan = promotion.promoPrice
+    ? toMajor(promotion.promoPrice.amount, promotion.promoPrice.currency)
+    : undefined
   form.giftSkuId = promotion.giftSkuId ?? ''
   form.buyQuantity = promotion.buyQuantity ?? 2
   form.giftQuantity = promotion.giftQuantity ?? 1
@@ -258,8 +271,7 @@ async function openGroupBuys(promotion: PromotionView) {
 }
 
 function money(value?: { amount: number; currency: string }) {
-  if (!value) return '-'
-  return new Intl.NumberFormat('zh-CN', { style: 'currency', currency: value.currency }).format(value.amount / 100)
+  return formatMoney(value)
 }
 
 
@@ -378,9 +390,9 @@ async function submitRule() {
       code: ruleForm.code.trim().toUpperCase(),
       title: ruleForm.title.trim(),
       type: ruleForm.type,
-      thresholdAmount: Math.round(ruleForm.thresholdYuan * 100),
+      thresholdAmount: toMinor(ruleForm.thresholdYuan, 'CNY'),
       value: ruleForm.type === 'FULL_REDUCTION'
-        ? Math.round(ruleForm.valueYuan * 100)
+        ? toMinor(ruleForm.valueYuan, 'CNY')
         : ruleForm.percent,
       scope: ruleForm.scope,
       scopeIds: ruleForm.scope === 'ALL' ? [] : ruleForm.scopeIds,
@@ -404,8 +416,8 @@ function openEditRule(rule: PromotionRule) {
   ruleForm.code = rule.code
   ruleForm.title = rule.title
   ruleForm.type = rule.type as 'FULL_REDUCTION' | 'FULL_DISCOUNT'
-  ruleForm.thresholdYuan = rule.thresholdAmount / 100
-  ruleForm.valueYuan = rule.type === 'FULL_DISCOUNT' ? 0 : rule.value / 100
+  ruleForm.thresholdYuan = toMajor(rule.thresholdAmount, 'CNY')
+  ruleForm.valueYuan = rule.type === 'FULL_DISCOUNT' ? 0 : toMajor(rule.value, 'CNY')
   ruleForm.percent = rule.type === 'FULL_DISCOUNT' ? rule.value : 90
   ruleForm.scope = rule.scope as 'ALL' | 'SKU' | 'CATEGORY' | 'BRAND'
   // 后端返回 scopeIds，编辑时原样回填：旧实现清空范围，PUT 全量提交后把已选范围悄悄抹掉。
@@ -436,9 +448,9 @@ async function submitEditRule() {
       code: ruleForm.code.trim().toUpperCase(),
       title: ruleForm.title.trim(),
       type: ruleForm.type,
-      thresholdAmount: Math.round(ruleForm.thresholdYuan * 100),
+      thresholdAmount: toMinor(ruleForm.thresholdYuan, 'CNY'),
       value: ruleForm.type === 'FULL_REDUCTION'
-        ? Math.round(ruleForm.valueYuan * 100) : ruleForm.percent,
+        ? toMinor(ruleForm.valueYuan, 'CNY') : ruleForm.percent,
       scope: ruleForm.scope,
       scopeIds: ruleForm.scopeIds,
       channel: ruleForm.channel,
@@ -535,8 +547,8 @@ function windowLabel(promotion: PromotionView) {
       </el-table-column>
       <el-table-column label="门槛/优惠" width="160">
         <template #default="{ row }">
-          {{ (row.thresholdAmount / 100).toFixed(2) }} 元 →
-          {{ row.type === 'FULL_DISCOUNT' ? row.value / 10 + ' 折' : (row.value / 100).toFixed(2) + ' 元' }}
+          {{ formatAmount(row.thresholdAmount, 'CNY') }} →
+          {{ row.type === 'FULL_DISCOUNT' ? row.value / 10 + ' 折' : formatAmount(row.value, 'CNY') }}
         </template>
       </el-table-column>
       <el-table-column label="范围" width="110">

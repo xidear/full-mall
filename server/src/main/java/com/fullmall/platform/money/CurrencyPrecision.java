@@ -21,7 +21,7 @@ public final class CurrencyPrecision {
 
     static {
         // 0 位小数
-        for (String code : new String[]{"JPY", "KRW", "VND", "CLP", "ISK", "HUF", "TWD"}) {
+        for (String code : new String[]{"JPY", "KRW", "VND", "CLP", "ISK"}) {
             OVERRIDES.put(code, 0);
         }
         // 3 位小数
@@ -37,7 +37,18 @@ public final class CurrencyPrecision {
         if (currencyCode == null || currencyCode.isBlank()) {
             throw new IllegalArgumentException("币种不能为空");
         }
-        return OVERRIDES.getOrDefault(currencyCode.trim().toUpperCase(Locale.ROOT), DEFAULT_MINOR_UNITS);
+        String code = currencyCode.trim().toUpperCase(Locale.ROOT);
+        Integer override = OVERRIDES.get(code);
+        if (override != null) {
+            return override;
+        }
+        // 以 JDK 的 ISO-4217 数据为默认（TWD/HUF 等易被手写错的币种也以它为准）
+        try {
+            int digits = java.util.Currency.getInstance(code).getDefaultFractionDigits();
+            return digits < 0 ? DEFAULT_MINOR_UNITS : digits;
+        } catch (IllegalArgumentException exception) {
+            throw new IllegalArgumentException("不是有效的 ISO-4217 币种：" + currencyCode, exception);
+        }
     }
 
     /** 供前端取用：一次拿全，避免逐个币种发请求。 */

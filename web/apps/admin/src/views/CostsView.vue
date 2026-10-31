@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref } from 'vue'
 import { ElMessage } from 'element-plus'
+import { formatAmount } from '@fullmall/api-client'
 import { api } from '../api'
 
 interface CostView {
@@ -45,7 +46,8 @@ function onProductSelect(product: { id: string; title: string; skus?: Array<{ id
 }
 
 function yuan(fen?: number) {
-  return fen === undefined ? '—' : (fen / 100).toFixed(2)
+  // 成本口径为 CNY（后端 cost 表没有币种列）；按 CNY 小数位显示，禁止写死 /100
+  return fen === undefined ? '—' : formatAmount(fen, 'CNY').replace('¥', '')
 }
 </script>
 

@@ -2,7 +2,7 @@
 import { computed, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { VALIDATION, type ProductUpsertRequest } from '@fullmall/api-client'
+import { VALIDATION, currencyDigits, toMajor, toMinor, type ProductUpsertRequest } from '@fullmall/api-client'
 import { api } from '../api'
 import AdminThumb from '../components/AdminThumb.vue'
 import AssetPicker from '../components/AssetPicker.vue'
@@ -239,7 +239,9 @@ function applyDetail(value: ProductDetail) {
   mediaList.value = value.media ?? []
   skuMatrixTemplateId.value = value.skuMatrixTemplateId ?? null
   currency.value = value.skus?.[0]?.price?.currency ?? 'CNY'
-  priceEdits.value = Object.fromEntries((value.skus ?? []).map(sku => [sku.id, sku.price.amount / 100]))
+  priceEdits.value = Object.fromEntries((value.skus ?? []).map(sku => [
+    sku.id, toMajor(sku.price.amount, sku.price.currency)
+  ]))
   const map: Record<string, TranslationEntry> = {}
   for (const entry of value.translations ?? []) {
     map[entry.locale] = { ...entry }
@@ -340,7 +342,7 @@ async function saveBasics() {
       skus: [{
         skuCode: firstSku.skuCode.trim(),
         barcode: firstSku.barcode.trim() || undefined,
-        priceAmount: Math.round(firstSku.priceYuan * 100),
+        priceAmount: toMinor(firstSku.priceYuan, firstSku.currency),
         currency: firstSku.currency,
         options: { [firstSku.optionName]: firstSku.optionValue.trim() },
         imageUrl: undefined
@@ -374,9 +376,12 @@ async function savePrices() {
   const items = skus.value
     .filter(sku => {
       const edited = priceEdits.value[sku.id]
-      return edited !== undefined && Math.round(edited * 100) !== sku.price.amount
+      return edited !== undefined && toMinor(edited, sku.price.currency) !== sku.price.amount
     })
-    .map(sku => ({ skuId: sku.id, priceAmount: Math.round(priceEdits.value[sku.id] * 100) }))
+    .map(sku => ({
+      skuId: sku.id,
+      priceAmount: toMinor(priceEdits.value[sku.id], sku.price.currency)
+    }))
   if (items.length === 0) {
     ElMessage.info('价格没有变化')
     return
@@ -415,7 +420,7 @@ async function applyTemplate() {
       {
         productId,
         prefix: skuPrefix.value.trim(),
-        priceAmount: Math.round(matrixPrice.value * 100),
+        priceAmount: toMinor(matrixPrice.value, currency.value),
         currency: currency.value
       })
     ElMessage.success('已生成 ' + result.created + ' 个 SKU（跳过 ' + result.skipped + '，禁用组合 ' + result.disabled + '）')
@@ -772,9 +777,10 @@ function skuOptions(options?: Record<string, string>) {
               <el-table-column label="规格" min-width="180">
                 <template #default="{ row }">{{ skuOptions(row.options) }}</template>
               </el-table-column>
-              <el-table-column label="价格（元）" width="180">
+              <el-table-column :label="`价格（${currency}）`" width="180">
                 <template #default="{ row }">
-                  <el-input-number v-model="priceEdits[row.id]" :min="0" :precision="2"
+                  <el-input-number v-model="priceEdits[row.id]" :min="0"
+                                   :precision="currencyDigits(currency)" :step="1 / 10 ** currencyDigits(currency)"
                                    controls-position="right" size="small" />
                 </template>
               </el-table-column>

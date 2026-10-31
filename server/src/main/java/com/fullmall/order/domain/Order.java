@@ -2,6 +2,7 @@ package com.fullmall.order.domain;
 
 import com.fullmall.platform.money.Money;
 
+import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
@@ -26,7 +27,12 @@ public record Order(
         FulfillmentMode fulfillmentMode,
         UUID storeId,
         Instant createdAt,
-        List<OrderLine> lines
+        List<OrderLine> lines,
+        /** 下单时 订单币种→基准币种 的汇率快照；无可用汇率时为空（不阻塞下单）。 */
+        BigDecimal fxRate,
+        String fxBaseCurrency,
+        Long fxBaseTotalAmount,
+        Instant fxRateAt
 ) {
     public Order {
         lines = lines == null ? List.of() : List.copyOf(lines);

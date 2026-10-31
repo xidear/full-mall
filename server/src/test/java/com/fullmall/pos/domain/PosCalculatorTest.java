@@ -24,7 +24,9 @@ class PosCalculatorTest {
         long coupon = PosCalculator.couponDiscount(CouponDiscountType.FIXED, 1000, null, 3980);
         long payable = PosCalculator.payable(3980, 0, coupon, 0, 500);
         assertEquals(2480, payable);
-        assertEquals(24, PosCalculator.pointsEarned(payable));
+        assertEquals(24, PosCalculator.pointsEarned(payable, "CNY"));
+        assertEquals(3980, PosCalculator.pointsEarned(3980, "JPY"));
+        assertEquals(3, PosCalculator.pointsEarned(3980, "KWD"));
     }
 
     @Test

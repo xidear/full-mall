@@ -88,6 +88,11 @@ class PostgresPickupFlowTest {
                 "legalAcceptanceIds", List.of()));
         String orderId = order.get("id").asText();
         assertEquals("PENDING_PAYMENT", order.get("status").asText());
+        // 订单币种与基准币种相同：汇率快照必须为 1，且基准总额等于订单总额
+        assertEquals(0, order.get("fxRate").decimalValue().compareTo(java.math.BigDecimal.ONE));
+        assertEquals("CNY", order.get("fxBaseCurrency").asText());
+        assertEquals(order.get("total").get("amount").asLong(),
+                order.get("fxBaseTotalAmount").asLong());
 
         JsonNode payment = post("/api/v1/payments/mock/" + orderId + "/pay", null);
         assertEquals("PAID", payment.get("status").asText());

@@ -21,15 +21,28 @@ import java.util.UUID;
 @Service
 public class SupplierSettlementService {
 
+    private static final org.slf4j.Logger log =
+            org.slf4j.LoggerFactory.getLogger(SupplierSettlementService.class);
+
     private final SupplierSettlementRepository repository;
     private final AuditEventService auditEvents;
     private final BigDecimal commissionRate;
     private final SupplierReturnService returns;
+    private final com.fullmall.exchange.app.ExchangeRateService exchangeRates;
+    private final String settlementCurrency;
 
     public SupplierSettlementService(SupplierSettlementRepository repository,
                                      AuditEventService auditEvents,
                                      @Value("${app.supplier.settlement.commission-rate:0}") BigDecimal commissionRate,
-                                     SupplierReturnService returns) {
+                                     SupplierReturnService returns,
+                                     com.fullmall.exchange.app.ExchangeRateService exchangeRates,
+                                     @Value("${app.fx.base-currency}") String settlementCurrency) {
+        this.exchangeRates = exchangeRates;
+        this.settlementCurrency = settlementCurrency == null ? null
+                : settlementCurrency.trim().toUpperCase(java.util.Locale.ROOT);
+        if (this.settlementCurrency == null || this.settlementCurrency.isBlank()) {
+            throw new IllegalStateException("app.fx.base-currency 未配置");
+        }
         this.repository = repository;
         this.auditEvents = auditEvents;
         this.commissionRate = commissionRate;
@@ -54,27 +67,32 @@ public class SupplierSettlementService {
                     "该周期内没有可结算的已支付供应商代发订单");
         }
         if (aggregates.size() > 1) {
-            throw ApiException.conflict("MULTI_CURRENCY_PERIOD",
-                    "该周期包含多币种订单，暂不支持自动换算，请按币种分批结算: "
-                            + aggregates.stream().map(SupplierSettlementRepository.PeriodAggregate::currency).toList());
+            // 多币种不再拒绝：逐币种按生效汇率折算到结算币种（缺失汇率明确失败）
+            log.info("结算周期包含多币种订单，将折算到 {}: {}", settlementCurrency,
+                    aggregates.stream().map(SupplierSettlementRepository.PeriodAggregate::currency).toList());
         }
 
-        var aggregate = aggregates.get(0);
-        // 退货扣减：已结算（SETTLED）的供应商退货从应付中扣除；未结算的不扣
-        long returnDeduction = returns.settledAmount(supplierId, periodStart, periodEnd,
-                aggregate.currency());
-        var amounts = SettlementCalculator.calculate(aggregate.grossAmount(), returnDeduction,
-                commissionRate);
+        long grossAmount = 0;
+        long returnDeduction = 0;
+        int orderCount = 0;
+        for (var aggregate : aggregates) {
+            grossAmount += toSettlement(aggregate.grossAmount(), aggregate.currency(), periodEnd);
+            long returnsInCurrency = returns.settledAmount(supplierId, periodStart, periodEnd,
+                    aggregate.currency());
+            returnDeduction += toSettlement(returnsInCurrency, aggregate.currency(), periodEnd);
+            orderCount += aggregate.orderCount();
+        }
+        var amounts = SettlementCalculator.calculate(grossAmount, returnDeduction, commissionRate);
 
         UUID id = UUID.randomUUID();
-        repository.insert(id, supplierId, periodStart, periodEnd, aggregate.orderCount(),
+        repository.insert(id, supplierId, periodStart, periodEnd, orderCount,
                 amounts.grossAmount(), amounts.refundAmount(), amounts.commissionAmount(),
-                amounts.payableAmount(), aggregate.currency(), "DRAFT");
+                amounts.payableAmount(), settlementCurrency, "DRAFT");
 
         auditEvents.record(new AuditEventService.AuditEvent(
                 "SETTLEMENT_GENERATED", actor, "supplier_settlement", id.toString(),
                 "supplier=" + supplierId + ";payable=" + amounts.payableAmount()
-                        + ";currency=" + aggregate.currency(), null));
+                        + ";currency=" + settlementCurrency, null));
 
         return repository.findBySupplier(supplierId, 1).stream()
                 .filter(row -> row.id().equals(id))
@@ -87,5 +105,20 @@ public class SupplierSettlementService {
             throw ApiException.badRequest("INVALID_LIMIT", "查询条数必须在 1..200，实际=" + limit);
         }
         return repository.findBySupplier(supplierId, limit);
+    }
+
+    /** 折算到结算币种；缺汇率明确失败，不按 1:1 兜底。 */
+    private long toSettlement(long amount, String fromCurrency, Instant at) {
+        try {
+            return exchangeRates.convert(amount, fromCurrency, settlementCurrency, at)
+                    .convertedAmount();
+        } catch (ApiException failure) {
+            if (!"EXCHANGE_RATE_NOT_FOUND".equals(failure.code())) {
+                throw failure;
+            }
+            throw ApiException.conflict("SETTLEMENT_FX_RATE_MISSING",
+                    "结算缺少汇率 " + fromCurrency + " -> " + settlementCurrency
+                            + "（生效时间 " + at + "），请先在「汇率」页维护后再生成结算单");
+        }
     }
 }

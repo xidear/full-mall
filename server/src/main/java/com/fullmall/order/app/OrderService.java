@@ -52,6 +52,9 @@ import java.util.UUID;
 @Service
 public class OrderService {
 
+    private static final org.slf4j.Logger log =
+            org.slf4j.LoggerFactory.getLogger(OrderService.class);
+
     private final com.fullmall.platform.media.MediaUrlResolver mediaUrls;
     private final MemberDiscountLookup memberDiscounts;
     private final com.fullmall.bargain.app.BargainService bargainService;
@@ -76,6 +79,9 @@ public class OrderService {
      * 缺任何一项都在定价/扣库存之前失败，避免"算完价才发现送不到"。
      */
     private final com.fullmall.capability.app.MarketCapabilityService capabilities;
+    /** 下单汇率快照：只写“订单币种→基准币种”的事实，不用它改订单金额。 */
+    private final com.fullmall.exchange.app.ExchangeRateService exchangeRates;
+    private final String fxBaseCurrency;
 
 
     private final OrderRepository orderRepository;
@@ -118,7 +124,10 @@ public class OrderService {
                         com.fullmall.catalog.app.SkuPricingService skuPricing,
                         com.fullmall.shipping.app.ShippingRateService shippingRates,
                         com.fullmall.tax.app.TaxService taxService,
-                        com.fullmall.capability.app.MarketCapabilityService capabilities) {
+                        com.fullmall.capability.app.MarketCapabilityService capabilities,
+                        com.fullmall.exchange.app.ExchangeRateService exchangeRates,
+                        @org.springframework.beans.factory.annotation.Value("${app.fx.base-currency}")
+                        String fxBaseCurrency) {
         this.orderRepository = orderRepository;
         this.catalogService = catalogService;
         this.inventoryService = inventoryService;
@@ -146,6 +155,13 @@ public class OrderService {
         this.shippingRates = shippingRates;
         this.taxService = taxService;
         this.capabilities = capabilities;
+        this.exchangeRates = exchangeRates;
+        this.fxBaseCurrency = fxBaseCurrency == null ? null
+                : fxBaseCurrency.trim().toUpperCase(java.util.Locale.ROOT);
+        if (this.fxBaseCurrency == null || this.fxBaseCurrency.isBlank()) {
+            // 基准币种是报价/对账口径，缺失时不允许启动（不要默认 CNY）
+            throw new IllegalStateException("app.fx.base-currency 未配置");
+        }
         this.globalCouponMode = com.fullmall.promotion.app.CouponStackingPolicy.parse(
                 couponMode, "app.promotion.coupon.mode");
 
@@ -380,6 +396,7 @@ public class OrderService {
                 discount = discount.plus(new Money(redemption.amount(), currency));
             }
         }
+        OrderFx fx = fxSnapshot(orderId, total, currency, Instant.now());
         Order order = new Order(
                 orderId,
                 Ids.orderNo(),
@@ -398,7 +415,11 @@ public class OrderService {
                 request.fulfillmentMode(),
                 request.storeId(),
                 Instant.now(),
-                List.of());
+                List.of(),
+                fx.rate(),
+                fx.baseCurrency(),
+                fx.baseTotalAmount(),
+                fx.rateAt());
         orderRepository.insertOrder(order);
         // 税行与订单同事务：税额/税率一起快照，事后调整税率不会改写历史订单
         taxLine.ifPresent(line -> orderRepository.insertTaxLine(order.id(), line.jurisdiction(),
@@ -720,6 +741,38 @@ public class OrderService {
         } catch (NoSuchAlgorithmException exception) {
             throw new IllegalStateException("SHA-256 is not available", exception);
         }
+    }
+
+    /**
+     * 下单汇率快照：只用于报表/对账/客服解释，订单金额与支付金额仍是订单币种。
+     *
+     * <p>没有汇率时**不阻塞下单**，但必须留下事实：写审计并在订单详情里显示“未快照”，
+     * 避免以后把“没有汇率”误当成“汇率为 1”。
+     */
+    private OrderFx fxSnapshot(UUID orderId, Money total, String currency, Instant at) {
+        if (currency.equals(fxBaseCurrency)) {
+            return new OrderFx(java.math.BigDecimal.ONE, fxBaseCurrency, total.amount(), at);
+        }
+        try {
+            var conversion = exchangeRates.convert(total.amount(), currency, fxBaseCurrency, at);
+            return new OrderFx(conversion.rate(), fxBaseCurrency, conversion.convertedAmount(),
+                    conversion.effectiveAt());
+        } catch (com.fullmall.platform.error.ApiException failure) {
+            if (!"EXCHANGE_RATE_NOT_FOUND".equals(failure.code())) {
+                throw failure;
+            }
+            log.warn("订单 {} 缺少汇率快照：{} -> {}，金额 {}（不阻塞下单）",
+                    orderId, currency, fxBaseCurrency, total.amount());
+            auditEvents.record(new com.fullmall.platform.audit.AuditEventService.AuditEvent(
+                    "ORDER_FX_RATE_MISSING", "system", "order", orderId.toString(),
+                    "currency=" + currency + " base=" + fxBaseCurrency
+                            + " amount=" + total.amount(), null));
+            return new OrderFx(null, fxBaseCurrency, null, null);
+        }
+    }
+
+    private record OrderFx(java.math.BigDecimal rate, String baseCurrency,
+                           Long baseTotalAmount, Instant rateAt) {
     }
 
     private record ResolvedItem(

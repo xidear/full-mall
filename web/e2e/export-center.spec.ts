@@ -20,7 +20,7 @@ test('admin generates sku_cost export from export center', async ({ page }) => {
   await page.getByRole('button', { name: '生成导出' }).click()
 
   // 轮询到 SUCCEEDED（导出处理任务默认开启）
-  await expect(page.getByRole('cell', { name: 'SUCCEEDED' }))
+  await expect(page.getByRole('cell', { name: '已完成' }))
     .toBeVisible({ timeout: 30_000 })
   const downloadButton = page.getByRole('button', { name: '下载' }).first()
   await expect(downloadButton).toBeEnabled()

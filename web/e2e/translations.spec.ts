@@ -61,7 +61,12 @@ test('admin publishes english title and storefront serves it', async ({ page, re
   }, token)
   // 译文已并入商品管理：直接打开该商品的「译文」标签页
   await page.goto(ADMIN_BASE + '/products/' + product.id + '/edit?tab=translations')
-  await expect(page.getByRole('tab', { name: 'English' }).first()).toBeVisible()
+  // 译文已并入「多语言」标签：语言列表里选 English，右侧出现 h3 与 AI 翻译
+  await expect(page.getByRole('tab', { name: '多语言' }).first()).toBeVisible()
+  await page.getByRole('tab', { name: '多语言' }).click()
+  const english = page.locator('.locale-list li', { hasText: 'English' }).first()
+  await expect(english).toBeVisible()
+  await english.click()
   await expect(page.locator('h3', { hasText: 'English（en）' }).first()).toBeVisible()
   await expect(page.getByRole('button', { name: 'AI 翻译' }).first()).toBeVisible()
 })

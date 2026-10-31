@@ -36,8 +36,9 @@ public class OrderRepository {
                 INSERT INTO orders (id, order_no, status, currency, market_code, subtotal_amount,
                                     shipping_fee_amount, total_weight_grams, discount_amount, total_amount,
                                     contact_name, contact_phone, contact_email, address_json,
-                                    fulfillment_mode, store_id, created_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?::jsonb, ?, ?, ?)
+                                    fulfillment_mode, store_id, created_at,
+                                    fx_rate, fx_base_currency, fx_base_total_amount, fx_rate_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?::jsonb, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 order.id(),
                 order.orderNo(),
@@ -55,7 +56,11 @@ public class OrderRepository {
                 order.addressJson(),
                 order.fulfillmentMode().name(),
                 order.storeId(),
-                java.sql.Timestamp.from(order.createdAt()));
+                java.sql.Timestamp.from(order.createdAt()),
+                order.fxRate(),
+                order.fxBaseCurrency(),
+                order.fxBaseTotalAmount(),
+                order.fxRateAt() == null ? null : java.sql.Timestamp.from(order.fxRateAt()));
     }
 
     /** 订单税行：与订单同事务写入，税额与税率一起快照，事后改税率不影响历史订单。 */
@@ -165,7 +170,8 @@ public class OrderRepository {
         List<Order> orders = jdbcTemplate.query("""
                 SELECT id, order_no, status, currency, market_code, subtotal_amount, shipping_fee_amount,
                        total_weight_grams, discount_amount, total_amount, contact_name, contact_phone,
-                       contact_email, address_json, fulfillment_mode, store_id, created_at
+                       contact_email, address_json, fulfillment_mode, store_id, created_at,
+                       fx_rate, fx_base_currency, fx_base_total_amount, fx_rate_at
                 FROM orders
                 WHERE id = ?
                 """, (rs, rowNum) -> mapOrderBase(rs), orderId);
@@ -336,7 +342,12 @@ public class OrderRepository {
                 FulfillmentMode.valueOf(rs.getString("fulfillment_mode")),
                 rs.getObject("store_id", UUID.class),
                 rs.getTimestamp("created_at").toInstant(),
-                List.of());
+                List.of(),
+                rs.getBigDecimal("fx_rate"),
+                rs.getString("fx_base_currency"),
+                rs.getObject("fx_base_total_amount") == null ? null
+                        : rs.getLong("fx_base_total_amount"),
+                rs.getTimestamp("fx_rate_at") == null ? null : rs.getTimestamp("fx_rate_at").toInstant());
     }
 
     private Order withLines(Order order) {
@@ -345,7 +356,8 @@ public class OrderRepository {
                 order.subtotal(), order.shippingFee(), order.totalWeightGrams(), order.discount(),
                 order.total(),
                 order.contactName(), order.contactPhone(), order.contactEmail(), order.addressJson(),
-                order.fulfillmentMode(), order.storeId(), order.createdAt(), findOrderLines(order.id()));
+                order.fulfillmentMode(), order.storeId(), order.createdAt(), findOrderLines(order.id()),
+                order.fxRate(), order.fxBaseCurrency(), order.fxBaseTotalAmount(), order.fxRateAt());
     }
 
     /** 记录订单行实际出库批次（拣货时写入）；同一行只允许写一次，避免被后续批次覆盖。 */

@@ -3,6 +3,26 @@
 > 规则见 `AGENTS.md` §14：每批改动结束更新本文件，只保留最近 3 批。
 > 写清“已做并验证 / 已做未验证 / 未做”，以及环境事实（端口、容器、库是否重建）。
 
+## 2026-10-31 / 订单汇率快照 + 积分按币种 + 测试债清零
+
+- 已做并验证：
+  - `V6__order_fx_snapshot`：订单写 `fx_rate/fx_base_currency/fx_base_total_amount/fx_rate_at`；
+    无汇率不阻塞下单，写 `ORDER_FX_RATE_MISSING` 审计，后台订单详情显示“未快照”
+  - 积分按币种：`PosCalculator.pointsEarned(payable,currency)` 与
+    `MemberRewardService.accrue(...,currency)` 按最小单位换算（JPY 每 1 日元 1 分、KWD 每 1 第纳尔 1 分）
+  - 测试债：7 个后端类（Export/Schedule/Maintenance/IntegrationConfig/AiMedia/AiProvider/MediaUpload）
+    通过测试夹具启用 integration_config 后全部转绿；6 个 Playwright 历史用例（admin-pickers/audit×2/
+    export×2/translations）按当前 UI 修复后通过
+- 已做未验证：
+  - 完整后端套件：**810 tests / 0 failures / 0 errors**（clean test）
+  - Playwright 全量：**62 passed / 0 failed / 3 skipped**
+- 未做 / 已知缺口：
+  - 供应商结算多币种仍明确拒绝（未做自动换算）
+  - 跨币种退款/分账、自动拉汇率未做
+- 环境事实：
+  - migration 到 V6；export 集成目录已修正为容器内 `/repo/server/data/exports`
+  - 41281 Vite dev / embedding 41291 / API 41280
+
 ## 2026-10-31 / 金额精度 + 汇率阶段1 + 门店软删除 + 完整测试
 
 - 已做并验证：
@@ -80,13 +100,3 @@
   - 模型端点：`https://company.binnarui.com:8500/v1` + `deepseek-v4.1-flash`（无需 API Key）；
     供应商行在 `ai_provider`，由后台维护，不写进迁移
   - AI 检索：`APP_AI_ASK_RETRIEVAL=SEMANTIC`（本机已配 `local-embedding`）；没有 embedding 的机器改 KEYWORD
-
-## 2026-10-31 / 补齐 8 项（状态机/link/未命中页/编码生成/迁移脚本/AI 接模型）
-
-- 已做并验证：通知状态机（OPEN-ACK-RESOLVED 实测）、后端下发 link（/inventory）、
-  AI 未命中清单页（截图）、编码生成（接口 + 页面按钮）、迁移脚本（--verify 抓到 1 个丢失文件）、
-  AI 接 chat 模型（单测 8 条）
-- 已做未验证：真实模型调用（本机无可用 chat 供应商，ollama 未运行）
-- 未做 / 已知缺口：跨云迁移未实现（脚本明确报错）；促销/门店不适用布尔开关
-- 环境事实：**存储目录必须是容器内路径（/repo/server/data/assets）**，
-  配成宿主路径会写进容器文件系统、重启即丢——脚本 --verify 可发现

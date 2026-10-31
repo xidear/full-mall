@@ -121,6 +121,11 @@ export interface Order {
   storeId?: string
   createdAt: string
   lines: OrderLine[]
+  /** 下单汇率快照；无可用汇率时为空（订单仍成立，后台显示“未快照”）。 */
+  fxRate?: number
+  fxBaseCurrency?: string
+  fxBaseTotalAmount?: number
+  fxRateAt?: string
 }
 
 export interface OrderSummary {

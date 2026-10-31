@@ -654,14 +654,14 @@ public class PosService {
             PosMember member = repository.findMember(sale.memberId());
             MemberLevel level = member == null ? null : repository.findMemberLevel(member.tier());
             int multiplier = level == null ? 1 : level.pointsMultiplier();
-            earned = PosCalculator.pointsEarned(sale.payable().amount()) * multiplier;
+            earned = PosCalculator.pointsEarned(sale.payable().amount(), sale.payable().currency()) * multiplier;
             if (earned > 0) {
                 repository.incrementPoints(sale.memberId(), earned);
                 long balanceAfter = repository.pointsBalance(sale.memberId());
                 repository.insertPointsLedger(sale.memberId(), saleId, PointsEntryType.EARN, earned,
                         balanceAfter, "收银消费积分", "POS_SALE:" + saleId + ":EARN");
             }
-            long growth = PosCalculator.pointsEarned(sale.payable().amount());
+            long growth = PosCalculator.pointsEarned(sale.payable().amount(), sale.payable().currency());
             if (growth > 0) {
                 long growthBalance = repository.addGrowth(sale.memberId(), growth);
                 repository.insertGrowthLedger(sale.memberId(), saleId, growth, growthBalance,

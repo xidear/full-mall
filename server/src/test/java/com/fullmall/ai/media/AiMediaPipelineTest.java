@@ -4,10 +4,13 @@ import com.fullmall.platform.secret.SecretCipher;
 import com.sun.net.httpserver.HttpServer;
 import io.zonky.test.db.postgres.embedded.EmbeddedPostgres;
 import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.jdbc.core.JdbcTemplate;
+import com.fullmall.platform.secret.IntegrationConfigService;
+import com.fullmall.platform.secret.TestIntegrationConfig;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
@@ -59,6 +62,11 @@ class AiMediaPipelineTest {
     private final java.util.concurrent.atomic.AtomicReference<String> lastImageRequest =
             new java.util.concurrent.atomic.AtomicReference<>();
 
+    @BeforeEach
+    void enableStorage() {
+        TestIntegrationConfig.enableLocal(integrations, "storage", "/tmp/fullmall-ai-assets");
+    }
+
     @AfterEach
     void stop() {
         if (server != null) {
@@ -74,6 +82,9 @@ class AiMediaPipelineTest {
 
     @Autowired
     JdbcTemplate jdbc;
+
+    @Autowired
+    IntegrationConfigService integrations;
 
     /** 直接写库（控制器上有 @PreAuthorize，测试无安全上下文）；密钥仍走加密，验证落库不是明文。 */
     private void upsertProvider(String code, MediaKind kind, String protocol, String base) {

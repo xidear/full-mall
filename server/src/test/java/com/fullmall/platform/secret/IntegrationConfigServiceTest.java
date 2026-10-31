@@ -73,7 +73,8 @@ class IntegrationConfigServiceTest {
 
     @Test
     void enablingAnotherProviderDisablesPrevious() {
-        configs.save("storage", "qiniu", Map.of("access-key", "a", "secret-key", "b"), true, "admin");
+        configs.save("storage", "qiniu", Map.of("access-key", "a", "secret-key", "b",
+                "bucket", "demo-bucket", "domain", "https://cdn.example.com"), true, "admin");
         configs.save("storage", "local", Map.of("directory", "/data/assets"), true, "admin");
 
         var views = configs.list("storage");

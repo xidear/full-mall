@@ -13,8 +13,10 @@ test('admin picks assets and products instead of typing ids', async ({ page, req
   })
   const token = (await login.json()).token as string
 
-  const png = Buffer.from(
+  const basePng = Buffer.from(
     'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==', 'base64')
+  // 追加唯一尾字节，避免 sha256 去重命中历史 E2E 素材（source=E2E 会被选择器过滤）
+  const png = Buffer.concat([basePng, Buffer.from(`#${Date.now()}`)])
   const uploaded = await request.post(API_BASE + '/admin/v1/media?purpose=PRODUCT', {
     headers: { Authorization: `Bearer ${token}` },
     multipart: { file: { name: `e2e-picker-${Date.now()}.png`, mimeType: 'image/png', buffer: png } }

@@ -15,7 +15,9 @@ test('admin can open audit log and filter by event type', async ({ page }) => {
   await expect(page.getByRole('heading', { name: '操作审计', level: 2 })).toBeVisible()
   await expect(page.getByText(/共 \d+ 条/)).toBeVisible()
 
-  await page.getByPlaceholder('事件类型，如 PAYMENT_REFUNDED').fill('PAYMENT_REFUNDED')
+  // 事件类型已改为后端枚举下拉，禁止手填
+  await page.locator('.el-select').first().click()
+  await page.locator('.el-select-dropdown__item').filter({ hasText: '支付退款' }).first().click()
   await page.getByRole('button', { name: '查询' }).click()
   await expect(page.getByText(/共 \d+ 条/)).toBeVisible()
 })

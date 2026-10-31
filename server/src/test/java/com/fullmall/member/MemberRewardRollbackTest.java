@@ -63,7 +63,7 @@ class MemberRewardRollbackTest {
     @Test
     void refundReversesEarnedPointsAndGrowthOnce() {
         UUID orderId = UUID.randomUUID();
-        var earned = rewards.accrue(orderId, PHONE, 1_900);
+        var earned = rewards.accrue(orderId, PHONE, 1_900, "CNY");
         assertThat(earned.points()).isEqualTo(38);
         assertThat(earned.growth()).isEqualTo(19);
 
@@ -81,7 +81,7 @@ class MemberRewardRollbackTest {
     void proportionalRollbackReversesShareOfEarnedPoints() {
         UUID orderId = UUID.randomUUID();
         // GOLD 2 倍：2000 分实付 → 40 积分 / 20 成长值
-        rewards.accrue(orderId, PHONE, 2_000);
+        rewards.accrue(orderId, PHONE, 2_000, "CNY");
 
         // 退一半（1000/2000）→ 积分 20、成长值 10
         var reversed = rewards.rollbackProportional(orderId, PHONE, 1_000, 2_000);
@@ -97,7 +97,7 @@ class MemberRewardRollbackTest {
     void proportionalRollbackRoundsDown() {
         UUID orderId = UUID.randomUUID();
         // GOLD 2 倍：1900 分实付 → 38 积分 / 19 成长值
-        rewards.accrue(orderId, PHONE, 1_900);
+        rewards.accrue(orderId, PHONE, 1_900, "CNY");
 
         // 退 1/3：38*633/1900 = 12.66 → 向下取整 12（不多退）
         var reversed = rewards.rollbackProportional(orderId, PHONE, 1_900 / 3, 1_900);
@@ -108,7 +108,7 @@ class MemberRewardRollbackTest {
     @Test
     void rollbackNeverDrivesBalanceNegative() {
         UUID orderId = UUID.randomUUID();
-        rewards.accrue(orderId, PHONE, 1_900);
+        rewards.accrue(orderId, PHONE, 1_900, "CNY");
         // 用户已把积分花掉
         jdbc.update("UPDATE member SET points_balance = 0 WHERE phone = ?", PHONE);
 

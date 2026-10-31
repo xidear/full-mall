@@ -36,8 +36,11 @@ public final class PosCalculator {
         return Math.max(Math.min(balance, payable), 0);
     }
 
-    public static long pointsEarned(long payable) {
-        return Math.max(payable / 100, 0);
+    /** 消费积分：每 1 个主单位（元/日元/第纳尔）1 分，按币种小数位换算，禁止写死 /100。 */
+    public static long pointsEarned(long payable, String currency) {
+        int units = com.fullmall.platform.money.CurrencyPrecision.minorUnits(currency);
+        long unitMinor = (long) Math.pow(10, units);
+        return Math.max(payable / unitMinor, 0);
     }
 
     /** Allocates sale-level discounts to one line using the payable/subtotal ratio. */

@@ -15,14 +15,17 @@ test('audit page exposes entity snapshot tab and queries history', async ({ page
   await page.getByRole('tab', { name: '实体快照' }).click()
 
   // 允许查询的类型（asset）+ 一个不存在的实体：应返回空列表而不是类型错误
-  await page.getByPlaceholder('实体类型，如 asset').fill('asset')
-  await page.getByPlaceholder('实体 ID（UUID）').fill(crypto.randomUUID())
+  // 实体类型默认 asset（下拉候选来自后端），只需填实体 ID
+  await page.getByPlaceholder('调试：实体 ID（UUID）').fill(crypto.randomUUID())
   await page.getByRole('tabpanel', { name: '实体快照' }).getByRole('button', { name: '查询' }).click()
 
   await expect(page.getByText('暂无快照')).toBeVisible({ timeout: 10_000 })
 
   // 非法类型必须给出明确错误，而不是静默空列表
-  await page.getByPlaceholder('实体类型，如 asset').fill('not-a-type')
+  await page.locator('.snapshot-actions .el-select').click()
+  const typeInput = page.locator('.snapshot-actions .el-select input')
+  await typeInput.fill('not-a-type')
+  await typeInput.press('Enter')
   await page.getByRole('tabpanel', { name: '实体快照' }).getByRole('button', { name: '查询' }).click()
   await expect(page.getByText(/不支持查询该类型的审计记录/)).toBeVisible({ timeout: 10_000 })
 })

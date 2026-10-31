@@ -21,7 +21,7 @@ public class MemberRewardService {
     }
 
     @Transactional
-    public Reward accrue(UUID orderId, String phone, long paidAmount) {
+    public Reward accrue(UUID orderId, String phone, long paidAmount, String currency) {
         if (phone == null || phone.isBlank() || paidAmount <= 0) {
             return new Reward(0, 0, null);
         }
@@ -37,7 +37,8 @@ public class MemberRewardService {
             return new Reward(0, 0, null);
         }
         MemberRow member = members.get(0);
-        long base = paidAmount / 100;
+        int units = com.fullmall.platform.money.CurrencyPrecision.minorUnits(currency);
+        long base = paidAmount / (long) Math.pow(10, units);
         long points = base * member.multiplier();
 
         if (points > 0) {

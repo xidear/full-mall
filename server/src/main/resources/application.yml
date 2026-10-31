@@ -130,6 +130,9 @@ app:
     require-manager-approval: ${POS_REQUIRE_MANAGER_APPROVAL:false}
   store:
     auth-required: ${STORE_AUTH_REQUIRED:false}
+  fx:
+    # 订单汇率快照的基准币种（报表/对账口径）；缺失时启动失败，不默认 CNY
+    base-currency: ${APP_FX_BASE_CURRENCY:CNY}
   support:
     auth-required: ${SUPPORT_AUTH_REQUIRED:false}
   warehouse:

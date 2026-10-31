@@ -241,6 +241,13 @@ function money(amount: number, currency: string) {
         <el-descriptions-item label="联系人">{{ selected.contactName }} · {{ selected.contactPhone }}</el-descriptions-item>
         <el-descriptions-item label="履约方式">{{ fulfillmentModeLabel(selected.fulfillmentMode) }}</el-descriptions-item>
         <el-descriptions-item label="订单金额">{{ money(selected.total.amount, selected.total.currency) }}</el-descriptions-item>
+        <el-descriptions-item label="汇率快照">
+          <template v-if="selected.fxRate != null && selected.fxBaseCurrency && selected.fxBaseTotalAmount != null">
+            {{ formatAmount(selected.fxBaseTotalAmount, selected.fxBaseCurrency) }}
+            <span class="muted">@ {{ selected.fxRate }}</span>
+          </template>
+          <span v-else class="muted">未快照（无可用汇率）</span>
+        </el-descriptions-item>
         <el-descriptions-item label="下单时间">{{ formatDateTime(selected.createdAt) }}</el-descriptions-item>
       </el-descriptions>
 

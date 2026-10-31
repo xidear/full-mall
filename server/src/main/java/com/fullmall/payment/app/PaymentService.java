@@ -216,7 +216,7 @@ public class PaymentService {
         // 佣金：支付成功后按实付生成（写入即为 FROZEN，冻结期满才可提现）
         referralService.settleOrder(orderId, paid.amount().amount(), paid.amount().currency());
         // 会员积分与成长值（MEM-002）：匿名订单不产生
-        memberRewards.accrue(orderId, order.contactPhone(), paid.amount().amount());
+        memberRewards.accrue(orderId, order.contactPhone(), paid.amount().amount(), paid.amount().currency());
         auditEvents.record(new com.fullmall.platform.audit.AuditEventService.AuditEvent(
                 "PAYMENT_SUCCEEDED", "customer:" + order.contactPhone(), "order",
                 orderId.toString(), "金额 " + paid.amount().amount() + " " + paid.amount().currency(),

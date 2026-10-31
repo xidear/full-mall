@@ -51,6 +51,8 @@ class MediaUploadEndpointTest {
         when(storage.put(anyString(), any(byte[].class), anyString()))
                 .thenAnswer(call -> "http://cdn.example.com/" + call.getArgument(0));
         when(storage.provider()).thenReturn("local");
+        // 去重 upsert：mock JdbcTemplate 默认 update=0 会被当成"并发去重失败"，这里返回 1 表示新插入
+        when(jdbc.update(anyString(), any(Object[].class))).thenReturn(1);
 
         // 建图索引依赖多模态服务；单测里给个"未配置"的桩：走不到网络，也不影响上传断言
         com.fullmall.asset.app.AssetImageIndexService imageIndex =
@@ -87,7 +89,7 @@ class MediaUploadEndpointTest {
                 .andExpect(jsonPath("$.kind").value("VIDEO"))
                 .andExpect(jsonPath("$.url").value(org.hamcrest.Matchers.containsString(".mp4")));
 
-        verify(jdbc).update(anyString(), any(Object[].class));
+        verify(jdbc, org.mockito.Mockito.atLeastOnce()).update(anyString(), any(Object[].class));
         verify(storage).put(org.mockito.ArgumentMatchers.argThat(key -> key.startsWith("assets/")),
                 any(byte[].class), eq("video/mp4"));
     }

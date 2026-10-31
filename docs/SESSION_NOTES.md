@@ -38,6 +38,8 @@
   - 生产构建资源目录是 `/ui/**`（不是 `/assets/**`，后者代理给 API 的媒体）
   - embedding 服务：`cd tools/embedding-service && npm start`；模型缓存在 `tools/embedding-service/models`
     （已下载，约 23MB，不入库）；离线设 `EMBEDDING_ALLOW_REMOTE=0`
+  - 宿主机：24 核 Xeon / 62G；**NVIDIA RTX 5070 Ti（驱动 610.43.02）**，Docker 有 nvidia runtime/CDI；
+    当前 shell 无 `/dev/nvidia*`、未装 `nvidia-smi`；本批未用 GPU
   - 供应商：`company-chat`（deepseek-v4.1-flash）、`local-embedding`（bge-small-zh-v1.5，优先级 5）；
     `ollama-*` 已显式停用（本机未运行 Ollama）
   - 容器：`fullmall-api-dev`、`fullmall-worker-dev`、`fullmall-postgres-1`

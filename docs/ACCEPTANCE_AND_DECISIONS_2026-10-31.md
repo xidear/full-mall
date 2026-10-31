@@ -98,8 +98,9 @@ embedding 服务不可用时仍明确 503，不会偷偷退回关键词。
    该服务是可选组件，未启动时 503（不会偷偷退回关键词）。
 2. **15052 当前是 Vite dev**（按开发阶段选择）；上线前用 `scripts/admin-preview.sh` 切构建产物。
    只验证了 HTTP 直连，TLS/网关层未改。
-3. **宿主机 GPU**：NVIDIA 内核模块在（610.43.02），但当前执行环境没有 `/dev/nvidia*` 与 `nvidia-smi`；
-   本批未使用 GPU，embedding 走 CPU。
+3. **宿主机 GPU**：NVIDIA RTX 5070 Ti（驱动 610.43.02），Docker 有 nvidia runtime/CDI；
+   当前 shell 没有 `/dev/nvidia*`、未装 `nvidia-smi`，容器可用 `--gpus all`。本批按你的选择用 CPU 跑
+   embedding，未占用 GPU。
 4. **金额精度/汇率**（审计 L10/L11）不在本批范围，仍按币种 2 位处理。
 5. **旧库升级**：只支持 V1/V2 之后的增量；squash 之前的库必须重建。
 6. **门店软删除**：未实现；`active` 启停已覆盖停业/不可选，等确有长期归档需求再加 `deleted_at`。

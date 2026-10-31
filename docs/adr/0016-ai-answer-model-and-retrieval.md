@@ -8,9 +8,11 @@
 AI 客服此前只做“检索片段拼装答案”，没有调用任何对话模型；当时也没有可用的 embedding 服务，
 于是 `/admin/v1/ai/ask` 在真实环境里要么 503、要么只能拒答。
 
-宿主机复核（2026-10-31，用户纠正后）：24 核 Xeon / 62G 内存；NVIDIA 内核模块已加载（610.43.02），
-但当前执行环境没有 `/dev/nvidia*` 设备节点与 `nvidia-smi`。因此本机可稳定使用的是 **CPU 推理**；
-9B 对话模型仍不适合 CPU 并发，embedding 这种小模型则完全可行。
+宿主机复核（2026-10-31，用户纠正后）：24 核 Xeon / 62G 内存；**NVIDIA RTX 5070 Ti**
+（驱动 610.43.02，`/proc/driver/nvidia/gpus/0000:03:00.0`），Docker 提供 `nvidia` runtime 与 CDI
+（`nvidia.com/gpu=all`）。当前 shell 内没有 `/dev/nvidia*`、也未安装 `nvidia-smi`，但容器可通过
+`--gpus all` 使用 GPU。本批按用户选择用 **CPU** 跑 embedding（小模型足够），未占用 GPU；
+以后要上 9B 对话模型时可直接走 GPU 容器，不必换协议。
 
 需求是“用真实模型回答，可以用免费小模型”。候选有三类：
 

@@ -166,7 +166,7 @@ npm run build --workspace @fullmall/admin
 
 - 15052 当前是开发阶段（Vite dev）；上线前用 `scripts/admin-preview.sh` 切生产构建。
 - 15052 的 TLS/网关层未改动，只验证了 HTTP 直连映射。
-- 宿主机 NVIDIA 内核模块在（610.43.02），但当前执行环境无 `/dev/nvidia*` 与 `nvidia-smi`；
-  本批使用 CPU embedding，未使用 GPU。
+- 宿主机 GPU：NVIDIA RTX 5070 Ti（驱动 610.43.02，Docker nvidia runtime/CDI 可用）；
+  当前 shell 无 `/dev/nvidia*`、未装 `nvidia-smi`；本批 embedding 走 CPU，未占用 GPU。
 - 旧版本（V1/V2 squash 之前）的数据库仍不支持原地升级，需按部署文档重建。
 - 门店软删除未实现（`active` 启停已覆盖；需要长期归档时再加 `deleted_at`）。

@@ -28,10 +28,20 @@ export function toMajor(amountMinor: number, currency: string): number {
   return amountMinor / 10 ** currencyDigits(currency)
 }
 
-/** 主单位数值 → 最小单位整数（四舍五入到该币种精度） */
-export function toMinor(amountMajor: number, currency: string): number {
+/** 主单位数值 → 最小单位整数（string/BigDecimal 思路，不用浮点乘方） */
+export function toMinor(amountMajor: number | string, currency: string): number {
   const digits = currencyDigits(currency)
-  return Math.round(Number((amountMajor * 10 ** digits).toFixed(6)))
+  const raw = (typeof amountMajor === 'string' ? amountMajor : String(amountMajor)).trim()
+  if (!/^-?\d+(\.\d+)?$/.test(raw)) {
+    throw new Error('金额格式不正确：' + raw)
+  }
+  const negative = raw.startsWith('-')
+  const unsigned = negative ? raw.slice(1) : raw
+  const [whole, fraction = ''] = unsigned.split('.')
+  const kept = (fraction + '0'.repeat(digits)).slice(0, digits)
+  const nextDigit = Number(fraction.charAt(digits) || '0')
+  const minor = Number(whole) * 10 ** digits + Number(kept || '0') + (nextDigit >= 5 ? 1 : 0)
+  return negative ? -minor : minor
 }
 
 /**

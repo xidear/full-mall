@@ -26,9 +26,25 @@ import java.util.UUID;
 public class LineRefundService {
 
     private final JdbcTemplate jdbcTemplate;
+    private final com.fullmall.exchange.app.ExchangeRateService exchangeRates;
+    private final com.fullmall.platform.audit.AuditEventService auditEvents;
+    private final String fxBaseCurrency;
+    private static final org.slf4j.Logger log =
+            org.slf4j.LoggerFactory.getLogger(LineRefundService.class);
 
-    public LineRefundService(JdbcTemplate jdbcTemplate) {
+    public LineRefundService(JdbcTemplate jdbcTemplate,
+                             com.fullmall.exchange.app.ExchangeRateService exchangeRates,
+                             com.fullmall.platform.audit.AuditEventService auditEvents,
+                             @org.springframework.beans.factory.annotation.Value("${app.fx.base-currency}")
+                             String fxBaseCurrency) {
         this.jdbcTemplate = jdbcTemplate;
+        this.exchangeRates = exchangeRates;
+        this.auditEvents = auditEvents;
+        this.fxBaseCurrency = fxBaseCurrency == null ? null
+                : fxBaseCurrency.trim().toUpperCase(java.util.Locale.ROOT);
+        if (this.fxBaseCurrency == null || this.fxBaseCurrency.isBlank()) {
+            throw new IllegalStateException("app.fx.base-currency 未配置");
+        }
     }
 
     public record LineInfo(UUID id, UUID skuId, int quantity, long unitPrice, String currency) {
@@ -109,13 +125,48 @@ public class LineRefundService {
         }
 
         UUID id = UUID.randomUUID();
+        var fx = fxSnapshot(orderId, amount, currency, java.time.Instant.now());
         jdbcTemplate.update("""
                 INSERT INTO order_line_refund (id, order_id, order_line_id, quantity,
-                                              amount_amount, currency, reason)
-                VALUES (?, ?, ?, ?, ?, ?, ?)
+                                              amount_amount, currency, reason,
+                                              fx_rate, fx_base_currency, fx_base_amount, fx_rate_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """, id, orderId, orderLineId, quantity, amount, currency,
-                reason == null ? null : reason.trim());
+                reason == null ? null : reason.trim(),
+                fx.rate(), fx.baseCurrency(), fx.baseAmount(),
+                fx.rateAt() == null ? null : java.sql.Timestamp.from(fx.rateAt()));
         return new Refunded(id, orderLineId, quantity == null ? 0 : quantity, amount);
+    }
+
+    /**
+     * 退款汇率快照：退款金额仍按原币种，不做跨币种退款；这里只记录退款时点汇率，
+     * 允许与下单时不同（用户明确要求）。没有汇率时留空并写审计，不阻塞退款。
+     */
+    private RefundFx fxSnapshot(UUID orderId, long amount, String currency,
+                                java.time.Instant at) {
+        if (currency.equals(fxBaseCurrency)) {
+            return new RefundFx(java.math.BigDecimal.ONE, fxBaseCurrency, amount, at);
+        }
+        try {
+            var conversion = exchangeRates.convert(amount, currency, fxBaseCurrency, at);
+            return new RefundFx(conversion.rate(), fxBaseCurrency, conversion.convertedAmount(),
+                    conversion.effectiveAt());
+        } catch (com.fullmall.platform.error.ApiException failure) {
+            if (!"EXCHANGE_RATE_NOT_FOUND".equals(failure.code())) {
+                throw failure;
+            }
+            log.warn("退款 {} 缺少汇率快照：{} -> {}，金额 {}（不阻塞退款，允许不同汇率）",
+                    orderId, currency, fxBaseCurrency, amount);
+            auditEvents.record(new com.fullmall.platform.audit.AuditEventService.AuditEvent(
+                    "ORDER_REFUND_FX_RATE_MISSING", "system", "order", orderId.toString(),
+                    "refund currency=" + currency + " base=" + fxBaseCurrency
+                            + " amount=" + amount, null));
+            return new RefundFx(null, fxBaseCurrency, null, null);
+        }
+    }
+
+    private record RefundFx(java.math.BigDecimal rate, String baseCurrency,
+                            Long baseAmount, java.time.Instant rateAt) {
     }
 
 

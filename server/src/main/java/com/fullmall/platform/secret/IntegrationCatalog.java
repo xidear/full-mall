@@ -86,6 +86,11 @@ public final class IntegrationCatalog {
                             new Field("directory", "存储目录", false, true, "必填：磁盘上的导出目录（如 /data/fullmall-exports），不要放在静态资源目录下"),
                             new Field("retention-days", "保留天数", false, false, "过期文件自动清理；留空表示不自动清理"))))),
 
+            new Capability("exchange_rate", "自动汇率", "按基准币种拉取参考汇率；不需要 API Key", List.of(
+                    new Provider("mock", "演示固定汇率", List.of()),
+                    new Provider("frankfurter", "Frankfurter（ECB 数据，免费无 Key）", List.of(
+                            Field.optional("base-url", "服务地址",
+                                    "默认 https://api.frankfurter.dev/v1，可换内网代理；不要填 API Key"))))),
             new Capability("moderation", "内容审核", "商品图与评价图的合规检查", List.of(
                     new Provider("tencent", "腾讯云内容安全", List.of(
                             Field.secret("secret-id", "SecretId", "访问管理 → API 密钥"),

@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { onMounted, reactive, ref } from 'vue'
 import { ElMessage } from 'element-plus'
-import { VALIDATION, formatAmount } from '@fullmall/api-client'
+import { VALIDATION, formatAmount, toMinor } from '@fullmall/api-client'
 import { api } from '../api'
 import StatusToggle from '../components/StatusToggle.vue'
 import { useEnums } from '../composables/useEnums'
@@ -143,8 +143,8 @@ async function submit() {
       type: form.type,
       // 金额口径二选一：AMOUNT 存「分」（元×100 后取整），PERCENT 存 1–99 的折扣值（展示时 /10 折）。
       // 两者混用会让 9 折变成 0.09 元或 9 元，改这里必须同时确认后端 CouponService 的解读。
-      value: form.type === 'AMOUNT' ? Math.round(form.valueYuan * 100) : form.percent,
-      minOrderAmount: Math.round(form.minOrderYuan * 100),
+      value: form.type === 'AMOUNT' ? toMinor(form.valueYuan, 'CNY') : form.percent,
+      minOrderAmount: toMinor(form.minOrderYuan, 'CNY'),
       totalQuantity: form.totalQuantity,
       perMemberLimit: form.perMemberLimit,
       validityDays: form.validityDays,

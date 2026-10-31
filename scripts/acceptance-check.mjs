@@ -263,6 +263,18 @@ async function main() {
   }
   record('AI 状态交代就绪判定与检索方式', aiReadyOk, aiReadyDetail);
 
+  // 15) 自动汇率：未配置也不能 5xx；配置/演示 mock 时能给出状态
+  const fxProvider = await get('/admin/v1/exchange-rates/provider', token);
+  let fxOk = fxProvider.status === 200;
+  let fxDetail = 'status=' + fxProvider.status;
+  if (fxOk) {
+    const body = JSON.parse(fxProvider.body);
+    fxOk = typeof body.configured === 'boolean';
+    fxDetail = 'configured=' + body.configured + ' provider=' + (body.provider || '未配置')
+      + ' demoMock=' + body.demoMock + ' lastError=' + (body.lastError || '无');
+  }
+  record('自动汇率状态可查询（未配置不 5xx）', fxOk, fxDetail);
+
   const failed = results.filter(r => !r.ok);
   console.log('\n' + (results.length - failed.length) + '/' + results.length + ' 通过');
   if (failed.length) {

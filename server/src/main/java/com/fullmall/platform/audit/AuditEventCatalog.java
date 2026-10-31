@@ -46,6 +46,7 @@ public final class AuditEventCatalog {
             new Def("EXCHANGE_RATE_CREATED", "新增汇率", "财务"),
             new Def("EXCHANGE_RATE_DELETED", "删除汇率", "财务"),
             new Def("ORDER_FX_RATE_MISSING", "订单缺少汇率快照", "财务"),
+            new Def("ORDER_REFUND_FX_RATE_MISSING", "退款缺少汇率快照", "财务"),
             new Def("PROMOTION_CREATED", "新建促销", "营销"),
             new Def("PROMOTION_UPDATED", "修改促销草稿", "营销"),
             new Def("PROMOTION_DUPLICATED", "复制促销为草稿", "营销"),

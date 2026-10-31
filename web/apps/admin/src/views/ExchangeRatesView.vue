@@ -1,9 +1,9 @@
 <script setup lang="ts">
 /**
- * 汇率（阶段 1）：手工维护 + 精确换算。
+ * 汇率（阶段 2）：手工维护 + 自动拉取状态 + 精确换算。
  *
  * <p>这里**不会改商品价或订单价**：订单仍按市场定价，历史订单不回算。
- * 换算用于报价/对账/客服解释，结果按目标币种小数位四舍五入（后端 BigDecimal）。
+ * 自动拉取失败时保留上次自动/手工汇率；未配置供应商时只用手工汇率。
  */
 import { computed, onMounted, reactive, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
@@ -33,6 +33,17 @@ interface Conversion {
 
 const rows = ref<RateRow[]>([])
 const loading = ref(false)
+const providerStatus = ref<ProviderStatus | null>(null)
+const refreshing = ref(false)
+
+interface ProviderStatus {
+  configured: boolean
+  provider?: string
+  demoMock?: boolean
+  lastAttemptAt?: string
+  lastSuccessAt?: string
+  lastError?: string
+}
 const error = ref('')
 const dialog = ref(false)
 const saving = ref(false)
@@ -146,7 +157,35 @@ async function convert() {
   }
 }
 
-onMounted(load)
+async function loadStatus() {
+  try {
+    providerStatus.value = await api.get<ProviderStatus>('/admin/v1/exchange-rates/provider')
+  } catch (cause) {
+    ElMessage.error('自动汇率状态加载失败：' + (cause instanceof Error ? cause.message : String(cause)))
+  }
+}
+
+async function refreshRates() {
+  refreshing.value = true
+  try {
+    providerStatus.value = await api.post<ProviderStatus>('/admin/v1/exchange-rates/refresh')
+    if (providerStatus.value?.lastError) {
+      ElMessage.warning('自动拉取失败，已保留上次/手工汇率：' + providerStatus.value.lastError)
+    } else {
+      ElMessage.success('自动汇率已更新')
+    }
+    await load()
+  } catch (cause) {
+    ElMessage.error('拉取失败：' + (cause instanceof Error ? cause.message : String(cause)))
+  } finally {
+    refreshing.value = false
+  }
+}
+
+onMounted(async () => {
+  await load()
+  await loadStatus()
+})
 </script>
 
 <template>
@@ -155,14 +194,32 @@ onMounted(load)
       <div>
         <h2>汇率</h2>
         <p class="muted">
-          阶段 1：手工维护 + 精确换算。不会自动改商品价或订单价，历史订单不回算。
+          手工维护 + 自动拉取状态 + 精确换算。不会自动改商品价或订单价，历史订单不回算。
         </p>
       </div>
       <div class="actions">
+        <el-button :disabled="!providerStatus?.configured" :loading="refreshing"
+                   @click="refreshRates">立即拉取</el-button>
         <el-button @click="load">刷新</el-button>
         <el-button type="primary" @click="openCreate">新增汇率</el-button>
       </div>
     </div>
+
+    <el-alert v-if="providerStatus && !providerStatus.configured" type="info" show-icon
+              :closable="false" class="mb-16"
+              title="未配置自动汇率源：当前使用手工汇率，程序其它功能不受影响">
+      <el-button link type="primary" @click="$router.push('/integrations')">去「第三方服务」配置</el-button>
+    </el-alert>
+    <el-alert v-else-if="providerStatus" :type="providerStatus.lastError ? 'warning' : 'success'"
+              show-icon :closable="false" class="mb-16"
+              :title="`自动汇率：${providerStatus.provider}${providerStatus.demoMock ? '（演示 mock）' : ''}`">
+      <div v-if="providerStatus.lastSuccessAt">
+        上次成功：{{ formatDateTime(providerStatus.lastSuccessAt) }}
+      </div>
+      <div v-if="providerStatus.lastError">
+        上次失败：{{ providerStatus.lastError }}（已保留上次/手工汇率）
+      </div>
+    </el-alert>
 
     <el-alert v-if="error" :title="error" type="error" show-icon :closable="false" class="mb-16" />
 

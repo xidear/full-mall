@@ -130,6 +130,8 @@ erDiagram
   只做精确换算，不参与订单改价。
 - `ORDERS.fx_rate / fx_base_currency / fx_base_total_amount / fx_rate_at`：下单时的汇率快照，
   用于报表/对账；缺失时为空并写审计，不回算历史订单。
+- `ORDER_LINE_REFUND.fx_*`：退款时点汇率快照；退款仍是原币种，允许与下单汇率不同。
+- `EXCHANGE_RATE_FETCH_STATE`：自动汇率供应商、上次尝试/成功时间与失败原因（单行）。
 - `PROMOTION` / `PROMOTION_REDEMPTION`：秒杀/买赠规则、活动库存、每人限购与订单命中记录。
 - `GROUP_BUY` / `GROUP_BUY_MEMBER`：拼团价快照、成团人数、支付/退款状态；订单行 `promotion_id` + `line_type` 追溯促销价与赠品。
 - `POS_SALE.points_reversed`：累计扣回的消费积分；`POS_SALE_LINE.refunded_amount` 与 `POS_TENDER.refunded_amount` 支持多次部分退款。

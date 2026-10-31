@@ -42,7 +42,8 @@ public final class BargainPricing {
         if (cost < 0) {
             throw ApiException.badRequest("BARGAIN_COST_INVALID", "成本不能为负：" + cost);
         }
-        long recommended = Math.round(cost * 1.05);
+        // 1.05 用整数比例算：cost * 105 / 100，HALF_UP 到分；禁止 double
+        long recommended = com.fullmall.platform.money.Money.mulDiv(cost, 105, 100);
         boolean belowCost = floorPrice < cost;
         if (belowCost && (!allowBelowCost || reason == null || reason.isBlank())) {
             throw ApiException.conflict("BARGAIN_BELOW_COST_UNCONFIRMED",

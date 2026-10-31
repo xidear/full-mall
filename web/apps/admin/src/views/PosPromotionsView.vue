@@ -2,6 +2,7 @@
 import { computed, onMounted, ref } from 'vue'
 import { ElMessage } from 'element-plus'
 import { api } from '../api'
+import { toMinor } from '@fullmall/api-client'
 import { useEnums } from '../composables/useEnums'
 
 const { enumLabel } = useEnums()
@@ -80,7 +81,7 @@ async function create() {
       code: form.value.code.trim(),
       title: form.value.title.trim(),
       type: form.value.type,
-      thresholdAmount: Math.round(form.value.thresholdYuan * 100),
+      thresholdAmount: toMinor(form.value.thresholdYuan, 'CNY'),
       value: Math.round(form.value.valueYuan * 100),
       scope: 'ALL',
       scopeIds: [],

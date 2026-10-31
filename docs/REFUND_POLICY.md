@@ -79,3 +79,11 @@ app.refund.partial.points-mode=PROPORTIONAL  # 按退款比例回退（向下取
 - 券的"部分消耗"（拆单分摊到行）——当前券是一单一用；
 - 佣金在部分退款下的按比例回冲（需业务口径）。
 
+
+## 5. 币种与汇率
+
+- 退款只按**原订单币种**退回，不支持跨币种退款或分账；币种不一致直接
+  `CURRENCY_MISMATCH`。
+- 退款时在 `order_line_refund` 记录 `fx_rate / fx_base_currency / fx_base_amount / fx_rate_at`；
+  允许退款时汇率与下单时不同，该快照只用于对账，**不改变退款金额**。
+- 没有可用汇率时不阻塞退款，写审计 `ORDER_REFUND_FX_RATE_MISSING`，快照留空。

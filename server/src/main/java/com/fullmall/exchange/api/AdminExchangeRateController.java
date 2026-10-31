@@ -1,5 +1,6 @@
 package com.fullmall.exchange.api;
 
+import com.fullmall.exchange.app.ExchangeRateFetchService;
 import com.fullmall.exchange.app.ExchangeRateService;
 import com.fullmall.platform.audit.AuditEventService;
 import org.springframework.http.HttpStatus;
@@ -31,10 +32,13 @@ import java.util.UUID;
 public class AdminExchangeRateController {
 
     private final ExchangeRateService service;
+    private final ExchangeRateFetchService fetcher;
     private final AuditEventService auditEvents;
 
-    public AdminExchangeRateController(ExchangeRateService service, AuditEventService auditEvents) {
+    public AdminExchangeRateController(ExchangeRateService service, ExchangeRateFetchService fetcher,
+                                       AuditEventService auditEvents) {
         this.service = service;
+        this.fetcher = fetcher;
         this.auditEvents = auditEvents;
     }
 
@@ -45,6 +49,20 @@ public class AdminExchangeRateController {
     @GetMapping
     public List<ExchangeRateService.RateView> list(@RequestParam(defaultValue = "100") int limit) {
         return service.list(limit);
+    }
+
+    /** 自动汇率状态：未配置/演示 mock/上次成功/失败原因。 */
+    @GetMapping("/provider")
+    public ExchangeRateFetchService.Status provider() {
+        return fetcher.status();
+    }
+
+    /**
+     * 立即拉取一次。失败不返回 5xx：状态里带 lastError，已有汇率保持不变。
+     */
+    @PostMapping("/refresh")
+    public ExchangeRateFetchService.Status refresh(Authentication authentication) {
+        return fetcher.refresh(authentication.getName());
     }
 
     @PutMapping

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { onMounted, reactive, ref, watch } from 'vue'
-import { formatDate, formatMoney } from '@fullmall/api-client'
+import { formatDate, formatMoney, toMinor } from '@fullmall/api-client'
 
 interface SupplierOrderLine {
   skuId: string
@@ -318,7 +318,7 @@ async function submitFeed() {
           availableQuantity: Math.max(0, Math.trunc(row.availableQuantity)),
           // 用户按「元」输入，提交前 ×100 转「分」并四舍五入；库存向下取整且不为负——
           // 后端按整数分/整数件落库，小数会被拒或被截断。
-          priceAmount: Math.max(0, Math.round(Number(row.priceAmount) * 100)),
+          priceAmount: Math.max(0, toMinor(row.priceAmount, 'CNY')),
           priceCurrency: 'CNY'
         }))
     })

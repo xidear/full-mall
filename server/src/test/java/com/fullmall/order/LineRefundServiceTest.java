@@ -108,6 +108,13 @@ class LineRefundServiceTest {
         assertThat(jdbc.queryForObject(
                 "SELECT COALESCE(SUM(amount_amount),0) FROM order_line_refund WHERE order_line_id = ?",
                 Long.class, lineA)).isEqualTo(1000);
+        // 退款汇率快照：CNY 基准为 1；退款仍原币种
+        assertThat(jdbc.queryForObject(
+                "SELECT fx_rate FROM order_line_refund WHERE id = ?",
+                java.math.BigDecimal.class, refunded.id())).isEqualByComparingTo("1");
+        assertThat(jdbc.queryForObject(
+                "SELECT fx_base_amount FROM order_line_refund WHERE id = ?",
+                Long.class, refunded.id())).isEqualTo(1000);
     }
 
     @Test
@@ -168,6 +175,13 @@ class LineRefundServiceTest {
         assertThat(jdbc.queryForObject(
                 "SELECT COALESCE(SUM(amount_amount),0) FROM order_line_refund WHERE order_line_id = ?",
                 Long.class, lineA)).isEqualTo(1000);
+        // 退款汇率快照：CNY 基准为 1；退款仍原币种
+        assertThat(jdbc.queryForObject(
+                "SELECT fx_rate FROM order_line_refund WHERE id = ?",
+                java.math.BigDecimal.class, written.get(0).id())).isEqualByComparingTo("1");
+        assertThat(jdbc.queryForObject(
+                "SELECT fx_base_amount FROM order_line_refund WHERE id = ?",
+                Long.class, written.get(0).id())).isEqualTo(1000);
     }
 
     @Test

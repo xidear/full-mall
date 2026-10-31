@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { formatDateTime } from '@fullmall/api-client'
+import { formatDateTime, toMinor } from '@fullmall/api-client'
 import { computed, onMounted, reactive, ref } from 'vue'
 import { ElMessage } from 'element-plus'
 import type { ProductPage } from '@fullmall/api-client'
@@ -179,7 +179,7 @@ async function receiveStock() {
         productionDate: new Date().toISOString().slice(0, 10),
         expiryDate: receiptForm.expiryDate || undefined,
         quantity: Math.trunc(receiptForm.quantity),
-        unitCostAmount: Math.round(Number(receiptForm.unitCost) * 100),
+        unitCostAmount: toMinor(receiptForm.unitCost, 'CNY'),
         currency: 'CNY'
       }]
     })

@@ -437,6 +437,18 @@ base64 内联大图写进详情，素材因此脱离 `asset` 表（不可检索�
 服务位置 `tools/embedding-service`，端口 41291（AGENTS §8），模型不入库；
 失败时明确 5xx，不返回空向量。语义/关键词由 `app.ai.ask.retrieval` 显式选择。
 
+## 3.1 自动汇率源（2026-10-31）
+
+| 候选 | 许可证/维护 | 结论 |
+|---|---|---|
+| **Frankfurter**（`api.frankfurter.dev/v1`，ECB 参考汇率） | MIT；开源、无 API Key；CNY 在列 | **采用**：免费、无密钥、接口稳定；失败保留上次/手工汇率 |
+| open.er-api.com | 免费层无 Key，但条款与频率限制需单独评估 | 暂不选（保留为后续适配器） |
+| exchangerate.host / Fixer | 现多需 Key，Key 不能入库 | 不选；未来如接入，Key 走环境变量/密钥管理 |
+| 爬银行牌价 | 无稳定契约、易被封、口径不透明 | 不选 |
+
+集成位置 `IntegrationCatalog` 能力 `exchange_rate`；演示/开发未配置用 `mock`，
+生产未配置不自动拉取；只存直接汇率，不做三角换算。
+
 ## 4. 禁止事项
 
 - 禁止自研字段-角色权限矩阵作为默认方案。

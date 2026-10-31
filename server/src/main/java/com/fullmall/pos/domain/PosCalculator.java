@@ -15,7 +15,7 @@ public final class PosCalculator {
         }
         long raw = switch (type) {
             case FIXED -> value;
-            case PERCENT -> Math.round(discountedBase * (value / 100.0d));
+            case PERCENT -> com.fullmall.platform.money.Money.mulDiv(discountedBase, value, 100);
         };
         long capped = maxDiscount == null ? raw : Math.min(raw, maxDiscount);
         return Math.min(Math.max(capped, 0), discountedBase);
@@ -39,7 +39,7 @@ public final class PosCalculator {
     /** 消费积分：每 1 个主单位（元/日元/第纳尔）1 分，按币种小数位换算，禁止写死 /100。 */
     public static long pointsEarned(long payable, String currency) {
         int units = com.fullmall.platform.money.CurrencyPrecision.minorUnits(currency);
-        long unitMinor = (long) Math.pow(10, units);
+        long unitMinor = java.math.BigDecimal.ONE.scaleByPowerOfTen(units).longValueExact();
         return Math.max(payable / unitMinor, 0);
     }
 

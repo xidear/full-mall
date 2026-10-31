@@ -86,7 +86,12 @@ public class IntegrationConfigService {
         for (IntegrationCatalog.Field field : providerSpec.get().fields()) {
             fields.put(field.key(), field);
         }
-        if (config == null || config.isEmpty()) {
+        if (config == null) {
+            config = Map.of();
+        }
+        // 所有字段都可选的供应商（如 mock / Frankfurter）允许空配置；有必填字段时仍要求至少填一个
+        boolean hasRequiredField = fields.values().stream().anyMatch(IntegrationCatalog.Field::required);
+        if (config.isEmpty() && hasRequiredField) {
             throw ApiException.badRequest("INTEGRATION_CONFIG_EMPTY", "配置不能为空");
         }
         for (String name : config.keySet()) {

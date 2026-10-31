@@ -105,4 +105,16 @@ class IntegrationConfigServiceTest {
                 Map.of("access-key", "a"), true, "admin"))
                 .hasMessageContaining("能力与供应商不能为空");
     }
+
+    /** 无字段/全可选字段供应商（mock、Frankfurter）允许空配置；否则演示汇率源无法启用。 */
+    @Test
+    void providerWithoutRequiredFieldsAcceptsEmptyConfig() {
+        var saved = configs.save("exchange_rate", "mock", Map.of(), true, "admin");
+        assertThat(saved.enabled()).isTrue();
+        assertThat(configs.enabledProvider("exchange_rate")).isEqualTo("mock");
+
+        var frankfurter = configs.save("exchange_rate", "frankfurter", Map.of(), true, "admin");
+        assertThat(frankfurter.enabled()).isTrue();
+        assertThat(configs.enabledProvider("exchange_rate")).isEqualTo("frankfurter");
+    }
 }

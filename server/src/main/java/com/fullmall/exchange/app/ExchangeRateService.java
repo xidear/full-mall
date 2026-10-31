@@ -108,6 +108,28 @@ public class ExchangeRateService {
     }
 
     @Transactional
+    public int recordAuto(String baseCurrency, String quoteCurrency, BigDecimal rate,
+                          String source, Instant effectiveAt) {
+        String base = currency(baseCurrency, "base");
+        String quote = currency(quoteCurrency, "quote");
+        if (base.equals(quote)) {
+            return 0;
+        }
+        if (rate == null || rate.signum() <= 0) {
+            throw ApiException.badRequest("EXCHANGE_RATE_INVALID", "自动汇率必须大于 0");
+        }
+        return jdbc.update("""
+                INSERT INTO exchange_rate (id, base_currency, quote_currency, rate, source,
+                                           effective_at, created_by)
+                VALUES (?, ?, ?, ?, ?, ?, 'system:fx')
+                ON CONFLICT (base_currency, quote_currency, effective_at)
+                DO UPDATE SET rate = EXCLUDED.rate, source = EXCLUDED.source
+                """, UUID.randomUUID(), base, quote, rate,
+                source == null || source.isBlank() ? "auto" : source.trim(),
+                Timestamp.from(effectiveAt == null ? Instant.now() : effectiveAt));
+    }
+
+    @Transactional
     public void delete(UUID id, String actor) {
         if (actor == null || actor.isBlank()) {
             throw ApiException.badRequest("ACTOR_REQUIRED", "必须记录操作人");

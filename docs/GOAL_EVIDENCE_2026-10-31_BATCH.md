@@ -61,6 +61,36 @@ POST /admin/v1/ai/ask {"question":"运费怎么算"}
 }
 ```
 
+## 3.1 SEMANTIC 检索（本机 CPU embedding，第二轮补测）
+
+```text
+embedding 服务：tools/embedding-service，端口 41291，Xenova/bge-small-zh-v1.5，512 维
+GET  http://127.0.0.1:41291/health
+→ {"ok":true,"model":"Xenova/bge-small-zh-v1.5","dim":512,"loaded":true}
+
+POST http://127.0.0.1:41291/v1/embeddings {"input":["运费怎么算","退货政策","满 99 元免运费"]}
+→ 200，dim=512；余弦 sim(运费,免运费)=0.637，sim(运费,退货)=0.407
+
+PUT  /admin/v1/ai/providers/local-embedding
+{"kind":"TEXT","protocol":"openai-embedding","endpoint":"http://127.0.0.1:41291/v1",
+ "model":"bge-small-zh-v1.5","enabled":true,"priority":5}
+→ 200
+
+POST /admin/v1/ai/semantic/reindex?kind=FAQ → 200 {"indexed":1}
+
+GET /admin/v1/ai/status
+→ {"ready":true,"chatModel":"deepseek-v4.1-flash","embeddingModel":"bge-small-zh-v1.5",
+   "retrieval":"SEMANTIC","missing":[]}
+
+POST /admin/v1/ai/ask {"question":"运费怎么算"}
+→ 200 {"answer":"满99元免运费，偏远地区运费另计。",
+       "citations":[{"sourceId":"c9c6ad16-…","score":0.777,...}],
+       "retrieval":"SEMANTIC","latencyMs":663}
+
+POST /admin/v1/ai/ask {"question":"东西怎么寄回来？"}
+→ 200 {"fallback":true,"reason":"检索结果低于可信阈值","citations":[],"topScore":0}
+```
+
 ## 4. 门店 / 促销 HTTP 实测
 
 ```text
@@ -103,16 +133,16 @@ console errors: none
 
 - `stores-admin.png`：门店列表、市场、自提、内联状态开关、编辑
 - `promotions-admin.png`：满减规则筛选 + 促销活动（类型/状态筛选、结束、复制为草稿）
-- `ai-providers.png`：状态（deepseek-v4.1-flash / KEYWORD / 就绪）+ 模型供应商表
+- `ai-providers.png`：状态（deepseek-v4.1-flash / bge-small-zh-v1.5 / SEMANTIC / 就绪）+ 模型供应商表
 
-## 7. 15052 重建
+## 7. 15052（按 Q1 选择：开发阶段跑 Vite dev）
 
 ```text
 API 容器重启 → Flyway V3 成功 → Tomcat started on port 41280
-admin：`scripts/admin-preview.sh restart` → `npm run build`（vue-tsc 0 错误）+ `vite preview` 0.0.0.0:41281
-构建产物改为 /ui/**（避免与 API 的 /assets/** 冲突导致白屏）
+admin：`scripts/admin-dev.sh restart` → Vite dev 0.0.0.0:41281（热更新；15052 的落点）
+生产构建脚本保留：`scripts/admin-preview.sh`（构建 + preview，上线前切换）
 
-GET http://company.binnarui.com:15052/                 → 200（生产构建 HTML）
+GET http://company.binnarui.com:15052/                 → 200（HTML 含 /@vite/client，dev 模式）
 GET http://company.binnarui.com:15052/admin/v1/ai/status → 401（同源代理到 API，鉴权正常）
 ```
 
@@ -134,6 +164,9 @@ npm run build --workspace @fullmall/admin
 
 ## 9. 未验证 / 已知边界
 
-- SEMANTIC 检索未验证：本机没有可用的 `openai-embedding` 供应商；KEYWORD 模式已真实验证。
+- 15052 当前是开发阶段（Vite dev）；上线前用 `scripts/admin-preview.sh` 切生产构建。
 - 15052 的 TLS/网关层未改动，只验证了 HTTP 直连映射。
+- 宿主机 NVIDIA 内核模块在（610.43.02），但当前执行环境无 `/dev/nvidia*` 与 `nvidia-smi`；
+  本批使用 CPU embedding，未使用 GPU。
 - 旧版本（V1/V2 squash 之前）的数据库仍不支持原地升级，需按部署文档重建。
+- 门店软删除未实现（`active` 启停已覆盖；需要长期归档时再加 `deleted_at`）。

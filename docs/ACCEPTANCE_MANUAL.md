@@ -71,16 +71,23 @@ python3 scripts/migrate-storage.py --verify --dir /data/full-mall/server/data/as
 通过标准：输出「库内 local 记录 N 条；缺失 0；空文件 0」。
 （当前可能有 1 条缺失，是早期目录配错时写进容器文件系统的那张图——这条正是脚本要发现的问题。）
 
-## ⑧ AI 问答（真实模型 + 引用）
+## ⑧ AI 问答（真实模型 + 语义检索 + 引用）
 
-1. 打开「AI 客服」，看「状态」：应显示对话模型 `deepseek-v4.1-flash`、检索方式「关键词（无需向量服务）」、就绪「是」。
-2. 先在「FAQ 知识库」建一条问答（例：问「运费怎么算」，答「满 99 元免运费，偏远地区另计」）。
-3. 回到「AI 客服」→ 提问「运费怎么算？」。
+1. 确认本机 embedding 服务：`curl -s http://127.0.0.1:41291/health` → `loaded:true`（可选组件，见 `tools/embedding-service/README.md`）。
+2. 打开「AI 客服」，看「状态」：对话模型 `deepseek-v4.1-flash`、嵌入模型 `bge-small-zh-v1.5`、
+   检索方式「语义（向量）」、就绪「是」。
+3. 先在「FAQ 知识库」建一条问答（例：问「运费怎么算」，答「满 99 元免运费，偏远地区另计」）。
+4. 重建索引（一次性）：
+   ```bash
+   curl -X POST 'http://127.0.0.1:41280/admin/v1/ai/semantic/reindex?kind=FAQ' \
+     -H "Authorization: Bearer <token>"
+   ```
+5. 回到「AI 客服」→ 提问「运费怎么算？」。
 
 通过标准：
-- 回答由真实模型组织（不是把片段原样拼起来），下方「引用来源」有 sourceId + 相关度 + 片段；
-- 问题与知识库无关时返回「未命中/转人工」，不编答案；
-- 模型不可达时接口返回 503 `AI_CHAT_FAILED`，页面显示错误，而不是伪装成“没有答案”。
+- 回答由真实模型组织（不是把片段原样拼起来），引用来源有 sourceId + 相关度（本机实测 0.777）+ 片段；
+- 无关问题返回「未命中/转人工」，不编答案；
+- 模型不可达时 503 `AI_CHAT_FAILED`；embedding 不可达时 503 `AI_EMBEDDING_*`，都不伪装成“没有答案”。
 
 ## ⑨ 门店管理（新增）
 
@@ -111,14 +118,16 @@ python3 scripts/migrate-storage.py --verify --dir /data/full-mall/server/data/as
 
 ```bash
 cd /data/full-mall
-scripts/admin-preview.sh restart     # 构建 admin + 用 preview 占用 41281（15052 的落点）
+scripts/admin-dev.sh restart          # 开发阶段：Vite dev 占用 41281（热更新）
+# 上线前再切生产构建（二选一，都会占用 41281）：
+# scripts/admin-preview.sh restart
 make contract-check
 node scripts/acceptance-check.mjs
 ```
 
 通过标准：
 - API 41280 启动日志出现 Flyway `V3__store_admin` 成功；
-- `http://company.binnarui.com:15052` 打开的是**生产构建产物**（不是 Vite dev），侧边栏有「门店管理」；
+- `http://company.binnarui.com:15052` 打开 admin（当前是 dev 源码服务，侧边栏有「门店管理」）；
 - 登录后「门店管理」「促销管理」「AI 客服」三页均可打开且接口不为 404。
 
 ## ⑫ 跨云迁移（不做，只验规划）

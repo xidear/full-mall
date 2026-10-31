@@ -125,6 +125,8 @@ server/data/
 # CLIP 多模态向量服务的模型权重（约 150–290MB）。按 §12：模型不入库、不随镜像，
 # 用 tools/clip-service/scripts/download-model.mjs 从 hf-mirror 拉（幂等，可离线预置）。
 tools/clip-service/models/
+# 本机 CPU embedding（bge-small-zh-v1.5，约 100MB）：同样不入库，首次启动从 hf-mirror 下载
+tools/embedding-service/models/
 # 兜底：任何模型权重文件都不入库（避免换个模型文件名又漏一次）
 *.onnx
 *.safetensors

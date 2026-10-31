@@ -424,6 +424,19 @@ base64 内联大图写进详情，素材因此脱离 `asset` 表（不可检索�
 3. **菜单按角色、不按权限**：取消权限后菜单还在，但该页请求 403（这是当前实现的真实行为，不是理想设计）；
 4. **兜底权限**：未登记路径默认要求 `permission.manage`，新增接口忘了登记映射会落到它身上。
 
+## 3.x 本机向量模型（2026-10-31）
+
+需求：没有可用的远端 embedding 时，AI 客服也要能走语义检索。
+
+| 候选 | 许可证/维护 | 结论 |
+|---|---|---|
+| `@xenova/transformers` 2.17.2 + `Xenova/bge-small-zh-v1.5`（ONNX 量化） | Apache-2.0；transformers.js 活跃；模型 23MB，CPU 可跑 | **采用**：独立进程、OpenAI 兼容 `/v1/embeddings`，主程序零改造 |
+| Ollama + embeddinggemma / nomic | 需额外守护进程与模型体积；本机无 GPU 设备节点 | 不选（保留为可选供应商） |
+| Python sentence-transformers + torch | 需 pip/torch（数 GB），宿主机无 pip | 不选 |
+
+服务位置 `tools/embedding-service`，端口 41291（AGENTS §8），模型不入库；
+失败时明确 5xx，不返回空向量。语义/关键词由 `app.ai.ask.retrieval` 显式选择。
+
 ## 4. 禁止事项
 
 - 禁止自研字段-角色权限矩阵作为默认方案。

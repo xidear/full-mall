@@ -86,6 +86,7 @@ app:
       enabled: ${APP_AI_SEMANTIC_ENABLED:true}
     # AI 客服检索方式：KEYWORD（无需向量服务）/ SEMANTIC（需要 embedding）。
     # 必须显式选择而不是失败后自动切换，否则运营以为在用语义检索。
+    # 本机可用 tools/embedding-service（41291）作为 openai-embedding 供应商。
     ask:
       retrieval: ${APP_AI_ASK_RETRIEVAL:KEYWORD}
       min-score: 0.72

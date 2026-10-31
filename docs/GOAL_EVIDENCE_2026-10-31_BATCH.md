@@ -109,7 +109,7 @@ console errors: none
 
 ```text
 API 容器重启 → Flyway V3 成功 → Tomcat started on port 41280
-admin：`npm run build`（vue-tsc 0 错误）→ `vite preview` 监听 0.0.0.0:41281
+admin：`scripts/admin-preview.sh restart` → `npm run build`（vue-tsc 0 错误）+ `vite preview` 0.0.0.0:41281
 构建产物改为 /ui/**（避免与 API 的 /assets/** 冲突导致白屏）
 
 GET http://company.binnarui.com:15052/                 → 200（生产构建 HTML）

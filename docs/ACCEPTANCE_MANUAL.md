@@ -111,6 +111,7 @@ python3 scripts/migrate-storage.py --verify --dir /data/full-mall/server/data/as
 
 ```bash
 cd /data/full-mall
+scripts/admin-preview.sh restart     # 构建 admin + 用 preview 占用 41281（15052 的落点）
 make contract-check
 node scripts/acceptance-check.mjs
 ```

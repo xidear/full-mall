@@ -28,6 +28,9 @@
   - 金额精度、汇率（审计 L10/L11，未在本批范围）
 - 环境事实：
   - 端口：API 41280 / admin 41281 / storefront 41285；`15052 → 192.168.1.15:41281`
+  - **41281 现在跑 `vite preview`（构建产物）**：`scripts/admin-preview.sh {start|restart|stop|status}`；
+    不要再直接跑 `npm run dev`，否则 15052 会退回源码服务
+  - 构建资源目录是 `/ui/**`（不是 `/assets/**`，后者代理给 API 的媒体）
   - 容器：`fullmall-api-dev`、`fullmall-worker-dev`、`fullmall-postgres-1`
   - 数据库：**未 drop**，Flyway 增量 `V3__store_admin`（baseline 未改）；旧版本（squash 前）库仍需重建
   - 模型端点：`https://company.binnarui.com:8500/v1` + `deepseek-v4.1-flash`（无需 API Key）；

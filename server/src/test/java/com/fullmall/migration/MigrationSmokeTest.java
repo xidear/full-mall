@@ -32,8 +32,9 @@ class MigrationSmokeTest {
             var result = flyway.migrate();
 
             assertThat(result.migrationsExecuted)
-                    .as("应当执行全部迁移（含 V23）")
-                    .isGreaterThanOrEqualTo(23);
+                    // baseline squash 之后只剩 V1..V5；旧断言写死 V23 会随压缩永久失败
+                    .as("应当执行全部迁移（当前 V1..V5）")
+                    .isGreaterThanOrEqualTo(5);
             assertThat(result.success).isTrue();
 
             JdbcTemplate jdbc = new JdbcTemplate(dataSource);

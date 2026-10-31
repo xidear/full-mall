@@ -29,7 +29,7 @@
 | `notification.view` | 通知中心 | 运营 | `/admin/v1/notifications/**` |
 | `theme.manage` | 主题配置 | 运营 | `/admin/v1/theme/**` |
 | `staff.manage` | 员工与权限 | 系统 | `/admin/v1/staff/**`<br>`/admin/v1/stores/**` |
-| `settings.manage` | 系统设置 | 系统 | `/admin/v1/settings/**`<br>`/admin/v1/setup/**`<br>`/admin/v1/audit/**` |
+| `settings.manage` | 系统设置 | 系统 | `/admin/v1/settings/**`<br>`/admin/v1/setup/**`<br>`/admin/v1/exchange-rates/**`<br>`/admin/v1/audit/**` |
 | `permission.manage` | 权限矩阵 | 系统 | `/admin/v1/permissions/**` |
 
 ### `dashboard.view` — 查看经营总览（工作台）
@@ -185,14 +185,15 @@
 
 ### `settings.manage` — 系统设置（系统）
 
-系统设置、首次配置引导与审计恢复。
+系统设置、汇率、首次配置引导与审计恢复。
 
 - **勾选后可做**：
   - 修改系统设置（含支付、上传上限等）
+  - 维护汇率与执行精确换算（/admin/v1/exchange-rates）
   - 首次配置引导、审计事件恢复
 - **取消后**：
-  - 设置与引导无法保存；审计恢复不可用
-- **关联接口**：`/admin/v1/settings/**`、`/admin/v1/setup/**`、`/admin/v1/audit/**`
+  - 设置、汇率与引导无法保存；审计恢复不可用
+- **关联接口**：`/admin/v1/settings/**`、`/admin/v1/setup/**`、`/admin/v1/exchange-rates/**`、`/admin/v1/audit/**`
 - **关系**：无父级、无继承（各权限互相独立）；ADMIN 角色始终拥有本权限。
 
 ### `permission.manage` — 权限矩阵（系统）

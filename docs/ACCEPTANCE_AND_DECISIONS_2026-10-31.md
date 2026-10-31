@@ -18,7 +18,7 @@
 | 9 | 「AI 客服」看状态 | 对话模型 `deepseek-v4.1-flash`、检索方式「关键词」、就绪=是 | 截图 |
 | 10 | 建一条 FAQ（运费怎么算）→ 提问 | 回答由模型组织，带引用（sourceId/0.95/片段） | §3 |
 | 11 | 提问含辱骂词 | 固定话术「已转人工」，未命中清单出现该问题 | 验收脚本 11 |
-| 12 | 跑 `make contract-check` 与 `node scripts/acceptance-check.mjs` | 四个检查 0 失败；验收 14/14 | §5、§8 |
+| 12 | 跑 `make contract-check` 与 `node scripts/acceptance-check.mjs` | 四个检查 0 失败；验收 16/16 | §5、§8 |
 
 ## 二、反问清单（如果当时问你，我会这么问）
 
@@ -101,6 +101,18 @@ embedding 服务不可用时仍明确 503，不会偷偷退回关键词。
 3. **宿主机 GPU**：NVIDIA RTX 5070 Ti（驱动 610.43.02），Docker 有 nvidia runtime/CDI；
    当前 shell 没有 `/dev/nvidia*`、未装 `nvidia-smi`，容器可用 `--gpus all`。本批按你的选择用 CPU 跑
    embedding，未占用 GPU。
-4. **金额精度/汇率**（审计 L10/L11）不在本批范围，仍按币种 2 位处理。
+4. **金额精度已完成**：后端 `Money.toMajor/parseMajor` + `CurrencyPrecision`（ISO，修正 TWD/HUF 误写 0），
+   前端统一 `@fullmall/api-client/money`，各端清掉写死 `/100`。
 5. **旧库升级**：只支持 V1/V2 之后的增量；squash 之前的库必须重建。
-6. **门店软删除**：未实现；`active` 启停已覆盖停业/不可选，等确有长期归档需求再加 `deleted_at`。
+6. **门店软删除已实现**：`deleted_at` 与 `active` 分离；删除前检查员工绑定，恢复后保持停用。
+
+## 四、第三轮追加执行决策（2026-10-31 下午）
+
+| 主题 | 选择 | 原因 / 边界 |
+|---|---|---|
+| 测试依赖下载 | 阿里云 Maven 镜像 `scripts/maven-settings-aliyun.xml` | Central 直连长时间阻塞；镜像只影响构建期，不改运行期 |
+| 金额精度 | 后端 ISO-4217 + 前端 CLDR（Intl），共享 `money.ts` | 两端都按币种而不是写死 2 位；`TWD/HUF` 修正为 2 位 |
+| 汇率 | 阶段 1：表 + 精确换算 + 管理页/接口；**不接自动改价/下单快照** | 财务口径未确认前，隐式重算订单风险更高；见 ADR-0017 |
+| 门店删除 | `deleted_at` 软删除；员工仍绑定则拒绝；恢复后保持停用 | 保留历史引用，同时避免员工工作台出现“看不到的门店” |
+| 模型超时 | 默认 180s，可按供应商 `extra.timeoutSeconds` 配 5..600 | 自营端点可能较慢；超范围直接失败，不静默截断 |
+| 9B 本地模型 | 不启动，继续用自营 `deepseek-v4.1-flash` | 按你的要求；GPU 留作以后需要时使用 |

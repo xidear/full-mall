@@ -45,8 +45,8 @@ public class StoreAdminService {
                           String phone, String openingHours) {
     }
 
-    public List<Store> list(boolean includeInactive) {
-        return repository.findAll(includeInactive);
+    public List<Store> list(boolean includeInactive, boolean includeDeleted) {
+        return repository.findAll(includeInactive, includeDeleted);
     }
 
     @Transactional
@@ -57,7 +57,7 @@ public class StoreAdminService {
         Store store = new Store(UUID.randomUUID(), normalized.code(), normalized.marketCode(),
                 normalized.name(), normalized.address(), normalized.latitude(), normalized.longitude(),
                 normalized.pickupEnabled(), true, normalized.phone(), normalized.openingHours(),
-                Instant.now());
+                Instant.now(), null);
         try {
             repository.insert(store);
         } catch (DuplicateKeyException exception) {
@@ -70,13 +70,16 @@ public class StoreAdminService {
     @Transactional
     public Store update(UUID storeId, Command command, String actor) {
         requireActor(actor);
-        Store existing = load(storeId);
+        Store existing = loadAny(storeId);
+        if (existing.deletedAt() != null) {
+            throw ApiException.conflict("STORE_DELETED", "门店已删除，恢复后才能编辑：" + storeId);
+        }
         Command normalized = normalize(command);
         validate(normalized, storeId);
         Store updated = new Store(existing.id(), normalized.code(), normalized.marketCode(),
                 normalized.name(), normalized.address(), normalized.latitude(), normalized.longitude(),
                 normalized.pickupEnabled(), existing.active(), normalized.phone(),
-                normalized.openingHours(), existing.createdAt());
+                normalized.openingHours(), existing.createdAt(), null);
         int rows = repository.update(updated);
         if (rows != 1) {
             throw ApiException.notFound("STORE_NOT_FOUND", "门店不存在：" + storeId);
@@ -92,7 +95,10 @@ public class StoreAdminService {
     @Transactional
     public Store setActive(UUID storeId, boolean active, String actor) {
         requireActor(actor);
-        Store existing = load(storeId);
+        Store existing = loadAny(storeId);
+        if (existing.deletedAt() != null) {
+            throw ApiException.conflict("STORE_DELETED", "门店已删除，恢复后才能切换状态：" + storeId);
+        }
         if (existing.active() == active) {
             return existing;
         }
@@ -105,14 +111,55 @@ public class StoreAdminService {
         return new Store(existing.id(), existing.code(), existing.marketCode(), existing.name(),
                 existing.address(), existing.latitude(), existing.longitude(),
                 existing.pickupEnabled(), active, existing.phone(), existing.openingHours(),
-                existing.createdAt());
+                existing.createdAt(), null);
     }
 
-    private Store load(UUID storeId) {
+    /**
+     * 软删除：保留行与历史引用，默认列表/自提/员工绑定都不再出现。
+     *
+     * <p>仍绑定员工时拒绝：否则员工工作台会出现"指向一个看不见的门店"的悬空绑定。
+     */
+    @Transactional
+    public Store softDelete(UUID storeId, String actor) {
+        requireActor(actor);
+        Store existing = loadAny(storeId);
+        if (existing.deletedAt() != null) {
+            return existing;
+        }
+        int bound = repository.countStaffBindings(storeId);
+        if (bound > 0) {
+            throw ApiException.conflict("STORE_HAS_STAFF",
+                    "门店仍绑定 " + bound + " 名员工，请先在员工管理解绑后再删除");
+        }
+        int rows = repository.softDelete(storeId);
+        if (rows != 1) {
+            throw ApiException.notFound("STORE_NOT_FOUND", "门店不存在：" + storeId);
+        }
+        audit("STORE_DELETED", existing, actor, "code=" + existing.code());
+        return loadAny(storeId);
+    }
+
+    /** 恢复只清 deleted_at，不自动恢复营业（active 仍为 false）。 */
+    @Transactional
+    public Store restore(UUID storeId, String actor) {
+        requireActor(actor);
+        Store existing = loadAny(storeId);
+        if (existing.deletedAt() == null) {
+            return existing;
+        }
+        int rows = repository.restore(storeId);
+        if (rows != 1) {
+            throw ApiException.notFound("STORE_NOT_FOUND", "门店不存在：" + storeId);
+        }
+        audit("STORE_RESTORED", existing, actor, "code=" + existing.code());
+        return loadAny(storeId);
+    }
+
+    private Store loadAny(UUID storeId) {
         if (storeId == null) {
             throw ApiException.badRequest("STORE_ID_REQUIRED", "必须指定门店");
         }
-        Store store = repository.findById(storeId, true);
+        Store store = repository.findById(storeId, true, true);
         if (store == null) {
             throw ApiException.notFound("STORE_NOT_FOUND", "门店不存在：" + storeId);
         }

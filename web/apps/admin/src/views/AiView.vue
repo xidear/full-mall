@@ -58,6 +58,7 @@ interface AiProviderRow {
   priority: number
   vision: boolean
   hasKey: boolean
+  timeoutSeconds: number
 }
 
 /**
@@ -75,7 +76,8 @@ const providerForm = reactive({
   model: '',
   apiKey: '',
   enabled: true,
-  priority: 100
+  priority: 100,
+  timeoutSeconds: 180
 })
 
 /** 新建供应商的默认协议（不是配置兜底）：表单初始值，运营可在下拉里改。 */
@@ -98,6 +100,7 @@ function openProvider(row?: AiProviderRow) {
   providerForm.apiKey = ''
   providerForm.enabled = row?.enabled ?? true
   providerForm.priority = row?.priority ?? 100
+  providerForm.timeoutSeconds = row?.timeoutSeconds ?? 180
   providerDialog.value = true
 }
 
@@ -107,6 +110,11 @@ async function saveProvider() {
     return
   }
   providerSaving.value = true
+  if (providerForm.timeoutSeconds < 5 || providerForm.timeoutSeconds > 600) {
+    ElMessage.error('超时时间必须在 5..600 秒')
+    providerSaving.value = false
+    return
+  }
   try {
     await api.put(`/admin/v1/ai/providers/${encodeURIComponent(providerForm.code.trim())}`, {
       kind: 'TEXT',
@@ -118,6 +126,7 @@ async function saveProvider() {
       apiKey: providerForm.apiKey.trim() || undefined,
       enabled: providerForm.enabled,
       priority: providerForm.priority,
+      extra: { timeoutSeconds: providerForm.timeoutSeconds },
       vision: false
     })
     ElMessage.success('供应商已保存')
@@ -365,6 +374,10 @@ onMounted(async () => {
         <el-form-item label="优先级">
           <el-input-number v-model="providerForm.priority" :min="0" :max="9999" />
           <span class="muted" style="margin-left: 8px">数字越小越优先</span>
+        </el-form-item>
+        <el-form-item label="超时（秒）">
+          <el-input-number v-model="providerForm.timeoutSeconds" :min="5" :max="600" />
+          <span class="muted" style="margin-left: 8px">自营/本地模型建议 180</span>
         </el-form-item>
       </el-form>
       <template #footer>

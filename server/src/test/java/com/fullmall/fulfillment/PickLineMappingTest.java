@@ -86,9 +86,9 @@ class PickLineMappingTest {
         jdbc.update("INSERT INTO market (code, name, currency, country_code)"
                 + " VALUES ('CN', '中国', 'CNY', 'CN') ON CONFLICT (code) DO NOTHING");
         jdbc.update("""
-                INSERT INTO store (id, market_code, name, address, active)
-                VALUES (?, 'CN', '映射门店', '测试地址', true)
-                """, storeId);
+                INSERT INTO store (id, code, market_code, name, address, active)
+                VALUES (?, ?, 'CN', '映射门店', '测试地址', true)
+                """, storeId, "STORE-" + storeId.toString().substring(0, 8).toUpperCase());
         UUID fulfillmentOrderId = UUID.randomUUID();
         jdbc.update("""
                 INSERT INTO fulfillment_order (id, order_id, type, status)

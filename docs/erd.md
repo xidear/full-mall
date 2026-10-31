@@ -125,6 +125,9 @@ erDiagram
 - `MEMBER_LEVEL` / `GROWTH_LEDGER`：等级折扣、积分倍率、生日礼、成长值升级。
 - `REFERRAL_BINDING` / `DISTRIBUTION_COMMISSION`：五种推广绑定模式与支付后佣金。
 - `SUPPORT_TRANSFER`：客服转单记录；`STAFF_STORE`：员工-门店数据范围。
+- `STORE`：门店资料 + `active`（营业/可选）+ `deleted_at`（软删除归档，默认查询排除）。
+- `EXCHANGE_RATE`：手工汇率（base/quote/rate/effective_at/source），同一币种对同一时刻唯一；
+  只做精确换算，不参与订单改价或历史回算。
 - `PROMOTION` / `PROMOTION_REDEMPTION`：秒杀/买赠规则、活动库存、每人限购与订单命中记录。
 - `GROUP_BUY` / `GROUP_BUY_MEMBER`：拼团价快照、成团人数、支付/退款状态；订单行 `promotion_id` + `line_type` 追溯促销价与赠品。
 - `POS_SALE.points_reversed`：累计扣回的消费积分；`POS_SALE_LINE.refunded_amount` 与 `POS_TENDER.refunded_amount` 支持多次部分退款。

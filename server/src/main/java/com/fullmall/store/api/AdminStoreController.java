@@ -5,6 +5,7 @@ import com.fullmall.store.app.StoreService;
 import com.fullmall.store.domain.Store;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.core.Authentication;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -50,8 +51,23 @@ public class AdminStoreController {
      * 门店管理页显式传 includeInactive=true 才能看到历史门店。
      */
     @GetMapping
-    public List<Store> list(@RequestParam(defaultValue = "false") boolean includeInactive) {
-        return includeInactive ? adminService.list(true) : storeService.listAll();
+    public List<Store> list(@RequestParam(defaultValue = "false") boolean includeInactive,
+                            @RequestParam(defaultValue = "false") boolean includeDeleted) {
+        if (includeDeleted || includeInactive) {
+            return adminService.list(includeInactive, includeDeleted);
+        }
+        return storeService.listAll();
+    }
+
+    /** 软删除：保留历史引用，默认列表/自提/员工绑定不再出现。 */
+    @DeleteMapping("/{id}")
+    public Store delete(@PathVariable UUID id, Authentication authentication) {
+        return adminService.softDelete(id, authentication.getName());
+    }
+
+    @PostMapping("/{id}/restore")
+    public Store restore(@PathVariable UUID id, Authentication authentication) {
+        return adminService.restore(id, authentication.getName());
     }
 
     @PostMapping

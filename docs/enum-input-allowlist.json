@@ -89,6 +89,12 @@
       "kind": "hand-typed-enum",
       "snippet": "placeholder=\"例如 STORE-SH-001\"",
       "reason": "门店编码是业务自由文本，可用「生成」拿建议值；格式由后端校验"
+    },
+    {
+      "file": "web/apps/admin/src/views/ExchangeRatesView.vue",
+      "kind": "hand-typed-enum",
+      "snippet": "placeholder=\"例如 MANUAL / 中国银行现汇\"",
+      "reason": "汇率来源是自由文本（银行/人工/第三方），没有固定候选；汇率值本身才是业务数据"
     }
   ]
 }

@@ -77,10 +77,10 @@ INSERT INTO warehouse (id, market_code, name, type)
 VALUES ('11111111-1111-1111-1111-111111111111', 'CN', '华东中心仓', 'CENTRAL')
 ON CONFLICT (id) DO NOTHING;
 
-INSERT INTO store (id, market_code, name, address, latitude, longitude, pickup_enabled, phone, opening_hours)
+INSERT INTO store (id, code, market_code, name, address, latitude, longitude, pickup_enabled, phone, opening_hours)
 VALUES
-('22222222-2222-2222-2222-222222222222', 'CN', '上海静安店', '上海市静安区南京西路 100 号', 31.230416, 121.473701, TRUE, '021-60000001', '09:00-21:00'),
-('44444444-4444-4444-4444-444444444444', 'CN', '北京朝阳店', '北京市朝阳区建国路 88 号', 39.904200, 116.407400, TRUE, '010-60000002', '10:00-22:00')
+('22222222-2222-2222-2222-222222222222', 'STORE-22222222', 'CN', '上海静安店', '上海市静安区南京西路 100 号', 31.230416, 121.473701, TRUE, '021-60000001', '09:00-21:00'),
+('44444444-4444-4444-4444-444444444444', 'STORE-44444444', 'CN', '北京朝阳店', '北京市朝阳区建国路 88 号', 39.904200, 116.407400, TRUE, '010-60000002', '10:00-22:00')
 ON CONFLICT (id) DO NOTHING;
 
 INSERT INTO supplier (id, code, name, contact_name, contact_phone)

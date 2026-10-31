@@ -52,7 +52,7 @@
 
 | 依赖 | 谁用 | 离线策略 | 风险 |
 |---|---|---|---|
-| Maven Central | `server/Dockerfile`（`dependency:go-offline`） | 内网 Nexus 镜像，或 `maven-cache` 卷预热 | 首次构建需外网 |
+| Maven Central | `server/Dockerfile`（`dependency:go-offline`） | 内网 Nexus 镜像，或 `maven-cache` 卷预热；大陆直连慢时用 `mvn -s scripts/maven-settings-aliyun.xml`（阿里云公共仓库） | 首次构建需外网 |
 | npm registry | `web/Dockerfile.vite`、`apps/storefront/Dockerfile` | 内网 npm 镜像 / 预构建镜像 | 已改 `npm ci` + COPY 根 `package-lock.json`，版本锁定；构建仍需 registry 可达（或本地缓存） |
 | Docker Hub 基础镜像 | `init.sh` | 区域镜像加速 / 私有仓库（`init.sh` 已支持） | 首次拉取需外网 |
 | GitHub（acme.sh） | `deploy/ops/Dockerfile` | 见 §5 | 内网直接失败 |

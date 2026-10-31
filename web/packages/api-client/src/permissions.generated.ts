@@ -176,10 +176,10 @@ export const PERMISSION_DOCS: Record<string, PermissionDoc> = {
     label: '系统设置',
     group: '系统',
     sortOrder: 120,
-    summary: '系统设置、首次配置引导与审计恢复。',
-    grants: ['修改系统设置（含支付、上传上限等）', '首次配置引导、审计事件恢复'],
-    revokes: ['设置与引导无法保存；审计恢复不可用'],
-    endpoints: ['/admin/v1/settings/**', '/admin/v1/setup/**', '/admin/v1/audit/**'],
+    summary: '系统设置、汇率、首次配置引导与审计恢复。',
+    grants: ['修改系统设置（含支付、上传上限等）', '维护汇率与执行精确换算（/admin/v1/exchange-rates）', '首次配置引导、审计事件恢复'],
+    revokes: ['设置、汇率与引导无法保存；审计恢复不可用'],
+    endpoints: ['/admin/v1/settings/**', '/admin/v1/setup/**', '/admin/v1/exchange-rates/**', '/admin/v1/audit/**'],
     fallback: false
   },
   'permission.manage': {

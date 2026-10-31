@@ -68,19 +68,21 @@ public class AiProviderAdminController {
     public List<Map<String, Object>> list() {
         return jdbc.query("""
                 SELECT code, kind, name, protocol, endpoint, model, enabled, priority, vision,
+                       COALESCE((extra->>'timeoutSeconds')::int, 180) AS timeout_seconds,
                        (api_key IS NOT NULL) AS has_key
                   FROM ai_provider ORDER BY kind, priority, code
-                """, (rs, rowNum) -> Map.of(
-                "code", rs.getString("code"),
-                "kind", rs.getString("kind"),
-                "name", rs.getString("name"),
-                "protocol", rs.getString("protocol"),
-                "endpoint", rs.getString("endpoint"),
-                "model", rs.getString("model"),
-                "enabled", rs.getBoolean("enabled"),
-                "priority", rs.getInt("priority"),
-                "vision", rs.getBoolean("vision"),
-                "hasKey", rs.getBoolean("has_key")));
+                """, (rs, rowNum) -> Map.ofEntries(
+                Map.entry("code", rs.getString("code")),
+                Map.entry("kind", rs.getString("kind")),
+                Map.entry("name", rs.getString("name")),
+                Map.entry("protocol", rs.getString("protocol")),
+                Map.entry("endpoint", rs.getString("endpoint")),
+                Map.entry("model", rs.getString("model")),
+                Map.entry("enabled", rs.getBoolean("enabled")),
+                Map.entry("priority", rs.getInt("priority")),
+                Map.entry("vision", rs.getBoolean("vision")),
+                Map.entry("timeoutSeconds", rs.getInt("timeout_seconds")),
+                Map.entry("hasKey", rs.getBoolean("has_key"))));
     }
 
     /** 视觉模型是否可用（前端决定「AI 识别图片」按钮是否可点）。 */

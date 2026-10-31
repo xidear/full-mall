@@ -3,6 +3,39 @@
 > 规则见 `AGENTS.md` §14：每批改动结束更新本文件，只保留最近 3 批。
 > 写清“已做并验证 / 已做未验证 / 未做”，以及环境事实（端口、容器、库是否重建）。
 
+## 2026-10-31 / 金额精度 + 汇率阶段1 + 门店软删除 + 完整测试
+
+- 已做并验证：
+  - 金额精度：`Money.toMajor/parseMajor` 按币种小数位；`CurrencyPrecision` 用 ISO 并修正
+    TWD/HUF（原误写 0）；前端统一 `@fullmall/api-client/money`（Intl/CLDR），
+    admin 全部 `/100` 已清（只剩税率 bps/折扣等非金额换算）；storefront/store-console/
+    supplier/support/mobile 同步
+  - 汇率阶段 1：`V5__exchange_rate` + `ExchangeRateService`（BigDecimal、反向推导、找不到明确失败）
+    + `/admin/v1/exchange-rates`（列表/新增/删除/换算）+ admin「汇率」页
+  - 门店软删除：`V4__store_soft_delete` + `deleted_at`、删除/恢复接口、列表过滤、员工绑定拦截、
+    前端「已删除」筛选与恢复
+  - 模型超时：默认 180s，供应商 `extra.timeoutSeconds` 可配 5..600，AI 页可编辑
+  - Maven 大陆镜像：`scripts/maven-settings-aliyun.xml`；新增 23 项测试全绿
+  - 前端构建：admin / store-console / supplier / support / storefront 全部通过
+- 已做并验证（续）：
+  - 完整后端套件 808 项：本批引入的失败（store.code 缺失、迁移 V23 断言、asset.source 空、
+    AI 错误文案）已全部修复并单测复跑通过；剩余 12 项在 7 个历史配置型测试类
+    （MediaUpload/Export/Schedule/Maintenance/IntegrationConfig/AiMedia/AiProvider），与本次改动无关
+  - Playwright 全量 52 passed / 10 failed / 3 skipped；其中 5 个失败是旧测试绑定已变文案，
+    已修测试并复跑通过（admin/pricing×2/coupons/ai-page）；新增 money-and-exchange 3/3
+  - 汇率页真机打开无控制台错误（screenshot `docs/evidence/exchange-rates.png`）
+- 已做未验证：
+  - 剩余 6 个 Playwright 历史用例（admin-pickers/audit×2/export×2/translations）未修，属已知测试债
+- 未做 / 已知缺口：
+  - 汇率未接入下单快照/结算/跨币种退款（阶段 2，见 ADR-0017）
+  - 积分/佣金仍有 CNY 口径（`paidAmount / 100`），未按市场币种参数化
+  - 7 个后端历史配置型测试类需补 integration_config 夹具
+- 环境事实：
+  - 新增迁移：`V4__store_soft_delete`、`V5__exchange_rate`（增量，不重建库）
+  - 新页面：`/exchange-rates`（42 个帮助页）；权限 `settings.manage`
+  - 测试命令：`mvn -s scripts/maven-settings-aliyun.xml test`
+  - 41281 仍是 Vite dev；embedding 41291 仍在跑
+
 ## 2026-10-31 / 门店管理 + 促销完善 + AI 真实模型 + 15052 重建
 
 - 已做并验证：
@@ -57,11 +90,3 @@
 - 未做 / 已知缺口：跨云迁移未实现（脚本明确报错）；促销/门店不适用布尔开关
 - 环境事实：**存储目录必须是容器内路径（/repo/server/data/assets）**，
   配成宿主路径会写进容器文件系统、重启即丢——脚本 --verify 可发现
-
-## 2026-10-31 / AI 禁词与未命中清单
-
-- 已做并验证：禁词输入/输出双向拦截（固定话术 + 审计）；/admin/v1/ai/unanswered 可查；
-  单测 8 条；acceptance 11/11
-- 已做未验证：真实命中回答（仍需 openai-embedding 供应商）
-- 未做 / 已知缺口：答案仍由片段拼装，未接真实对话模型；未命中清单尚无前端页面
-- 环境事实：禁词默认内置，可用 APP_AI_ASK_BANNED_WORDS 覆盖

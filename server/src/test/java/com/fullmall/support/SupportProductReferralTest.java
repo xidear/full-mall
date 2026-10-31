@@ -83,7 +83,7 @@ class SupportProductReferralTest {
         UUID id = UUID.randomUUID();
         jdbc.update("""
                 INSERT INTO staff_user (id, username, display_name, role, status, password_hash)
-                VALUES (?, ?, '客服', 'SUPPORT', 'ACTIVE', 'x')
+                VALUES (?, ?, '客服', 'CS', 'ACTIVE', 'x')
                 """, id, "cs-" + id.toString().substring(0, 6));
         return id;
     }

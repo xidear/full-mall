@@ -22,6 +22,7 @@ public record Store(
         boolean active,
         String phone,
         String openingHours,
-        Instant createdAt
+        Instant createdAt,
+        Instant deletedAt
 ) {
 }

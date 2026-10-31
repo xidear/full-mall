@@ -25,7 +25,8 @@ test('运费档位页可以新增重量阶梯并落库', async ({ page }) => {
   await expect(page.getByRole('main').getByRole('heading', { name: '运费档位' })).toBeVisible()
 
   await page.getByRole('button', { name: '新增档位' }).click()
-  await page.getByPlaceholder('ISO 3166-1，留空=其它目的地默认档').fill('SG')
+  await page.locator('.el-dialog .el-select').first().click()
+  await page.locator('.el-select-dropdown__item').filter({ hasText: 'SG' }).first().click()
   // 数字输入顺序：重量下限(0)、重量上限、运费、满额免运费；下限保持 0，只改后三个
   const numbers = page.locator('.el-dialog .el-input-number input')
   await numbers.nth(1).fill('1000')
@@ -44,7 +45,8 @@ test('税率规则页可以新增并显示计税口径', async ({ page }) => {
   await expect(page.getByRole('main').getByRole('heading', { name: '税率规则' })).toBeVisible()
 
   await page.getByRole('button', { name: '新增税率' }).click()
-  await page.getByPlaceholder('国家码或市场辖区，如 SG / CN-VAT').fill('SG')
+  await page.locator('.el-dialog .el-select input').first().fill('SG')
+  await page.locator('.el-dialog .el-select input').first().press('Enter')
   await page.getByPlaceholder('如 增值税 13%').fill('GST 9%')
   await page.locator('.el-dialog .el-input-number input').fill('9')
   await page.getByRole('button', { name: '保存' }).click()

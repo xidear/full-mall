@@ -76,7 +76,7 @@ class StoreAdminServiceTest {
         assertThat(created.code()).isEqualTo("STORE-T001");
         assertThat(created.active()).isTrue();
         assertThat(created.marketCode()).isEqualTo("CN");
-        assertThat(service.list(false)).extracting(Store::code).contains("STORE-T001");
+        assertThat(service.list(false, false)).extracting(Store::code).contains("STORE-T001");
     }
 
     @Test
@@ -117,8 +117,8 @@ class StoreAdminServiceTest {
         Store disabled = service.setActive(created.id(), false, "admin");
 
         assertThat(disabled.active()).isFalse();
-        assertThat(service.list(false)).extracting(Store::id).doesNotContain(created.id());
-        List<Store> all = service.list(true);
+        assertThat(service.list(false, false)).extracting(Store::id).doesNotContain(created.id());
+        List<Store> all = service.list(true, false);
         assertThat(all).filteredOn(store -> store.id().equals(created.id()))
                 .singleElement()
                 .satisfies(store -> assertThat(store.active()).isFalse());
@@ -137,5 +137,29 @@ class StoreAdminServiceTest {
         // PostgreSQL timestamp 是微秒精度：与 Java Instant 的纳秒直接比会因截断失败
         assertThat(updated.createdAt())
                 .isCloseTo(created.createdAt(), org.assertj.core.api.Assertions.within(1, java.time.temporal.ChronoUnit.MICROS));
+    }
+
+    @Test
+    void softDeleteHidesStoreAndRestoreKeepsItInactive() {
+        Store created = service.create(command("STORE-T007"), "admin");
+
+        Store deleted = service.softDelete(created.id(), "admin");
+
+        assertThat(deleted.deletedAt()).isNotNull();
+        assertThat(deleted.active()).isFalse();
+        assertThat(service.list(false, false)).extracting(Store::id).doesNotContain(created.id());
+        assertThat(service.list(true, true)).extracting(Store::id).contains(created.id());
+        assertThatThrownBy(() -> service.setActive(created.id(), true, "admin"))
+                .isInstanceOf(ApiException.class)
+                .satisfies(error -> assertThat(((ApiException) error).code())
+                        .isEqualTo("STORE_DELETED"));
+
+        Store restored = service.restore(created.id(), "admin");
+
+        assertThat(restored.deletedAt()).isNull();
+        // 恢复只清归档标记，不自动恢复营业
+        assertThat(restored.active()).isFalse();
+        assertThat(service.list(true, false)).extracting(Store::id).contains(created.id());
+        assertThat(service.setActive(created.id(), true, "admin").active()).isTrue();
     }
 }

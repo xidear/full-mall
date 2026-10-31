@@ -6,7 +6,7 @@
  * 失败由 StatusToggle 保持原状态并报错。
  */
 import { computed, onMounted, reactive, ref } from 'vue'
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import { api } from '../api'
 import StatusToggle from '../components/StatusToggle.vue'
 
@@ -23,6 +23,7 @@ interface StoreRow {
   phone?: string | null
   openingHours?: string | null
   createdAt: string
+  deletedAt?: string | null
 }
 
 interface MarketRow { code: string; name: string; active: boolean }
@@ -34,7 +35,7 @@ const saving = ref(false)
 const error = ref('')
 const keyword = ref('')
 const marketFilter = ref('')
-const statusFilter = ref<'ALL' | 'ACTIVE' | 'INACTIVE'>('ALL')
+const statusFilter = ref<'ALL' | 'ACTIVE' | 'INACTIVE' | 'DELETED'>('ALL')
 const dialog = ref(false)
 const editingId = ref('')
 
@@ -54,6 +55,9 @@ const filtered = computed(() => {
   const text = keyword.value.trim().toLowerCase()
   return stores.value.filter(row => {
     if (marketFilter.value && row.marketCode !== marketFilter.value) return false
+    // 已删除是独立筛选：默认/营业/停用列表都不混入归档门店
+    if (statusFilter.value === 'DELETED') return row.deletedAt != null
+    if (row.deletedAt != null) return false
     if (statusFilter.value === 'ACTIVE' && !row.active) return false
     if (statusFilter.value === 'INACTIVE' && row.active) return false
     if (!text) return true
@@ -72,7 +76,7 @@ async function load() {
   error.value = ''
   try {
     const [storeList, marketList] = await Promise.all([
-      api.get<StoreRow[]>('/admin/v1/stores', { includeInactive: true }),
+      api.get<StoreRow[]>('/admin/v1/stores', { includeInactive: true, includeDeleted: true }),
       api.get<MarketRow[]>('/admin/v1/markets')
     ])
     stores.value = storeList
@@ -176,6 +180,34 @@ async function toggleActive(row: StoreRow, next: boolean) {
   Object.assign(row, saved)
 }
 
+async function softDelete(row: StoreRow) {
+  try {
+    await ElMessageBox.confirm(
+      `删除门店「${row.name}」后，默认列表、自提选项与员工绑定下拉都不再出现；历史订单与库存保留。` +
+      '可在「已删除」筛选里恢复。确定删除吗？',
+      '确认删除门店', { confirmButtonText: '删除', cancelButtonText: '取消', type: 'warning' })
+  } catch {
+    return
+  }
+  try {
+    await api.delete(`/admin/v1/stores/${row.id}`)
+    ElMessage.success('门店已删除（可在「已删除」筛选恢复）')
+    await load()
+  } catch (cause) {
+    ElMessage.error('删除失败：' + (cause instanceof Error ? cause.message : String(cause)))
+  }
+}
+
+async function restore(row: StoreRow) {
+  try {
+    await api.post(`/admin/v1/stores/${row.id}/restore`)
+    ElMessage.success('门店已恢复（仍为停用状态，需要时再开启）')
+    await load()
+  } catch (cause) {
+    ElMessage.error('恢复失败：' + (cause instanceof Error ? cause.message : String(cause)))
+  }
+}
+
 onMounted(load)
 </script>
 
@@ -206,6 +238,7 @@ onMounted(load)
         <el-option label="全部状态" value="ALL" />
         <el-option label="营业中" value="ACTIVE" />
         <el-option label="已停用" value="INACTIVE" />
+        <el-option label="已删除" value="DELETED" />
       </el-select>
       <span class="muted">共 {{ filtered.length }} 家</span>
     </div>
@@ -234,16 +267,22 @@ onMounted(load)
           </el-tag>
         </template>
       </el-table-column>
-      <el-table-column label="状态" width="130">
+      <el-table-column label="状态" width="140">
         <template #default="{ row }">
-          <StatusToggle :active="row.active" active-text="营业中" inactive-text="已停用"
+          <el-tag v-if="row.deletedAt != null" type="info">已删除</el-tag>
+          <StatusToggle v-else :active="row.active" active-text="营业中" inactive-text="已停用"
+                        :disabled="row.deletedAt != null"
                         :confirm-text="`停用门店「${row.name}」后，顾客将不能选择该门店自提；历史订单与库存记录保留。确定吗？`"
                         :on-change="next => toggleActive(row, next)" />
         </template>
       </el-table-column>
-      <el-table-column label="操作" width="90">
+      <el-table-column label="操作" width="150">
         <template #default="{ row }">
-          <el-button link type="primary" @click="openEdit(row)">编辑</el-button>
+          <template v-if="row.deletedAt == null">
+            <el-button link type="primary" @click="openEdit(row)">编辑</el-button>
+            <el-button link type="danger" @click="softDelete(row)">删除</el-button>
+          </template>
+          <el-button v-else link type="success" @click="restore(row)">恢复</el-button>
         </template>
       </el-table-column>
     </el-table>

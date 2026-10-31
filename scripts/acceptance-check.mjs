@@ -206,6 +206,40 @@ async function main() {
   }
   record('门店管理端点：编码/市场/状态字段 + 启停可用', storeOk, storeDetail);
 
+  // 12.1) 软删除：默认列表不混入归档门店；includeDeleted 端点可用（不实际删除数据）
+  const deletedList = await get('/admin/v1/stores?includeInactive=true&includeDeleted=true', token);
+  let softOk = false, softDetail = 'status=' + deletedList.status;
+  if (deletedList.status === 200) {
+    const list = JSON.parse(deletedList.body);
+    softOk = Array.isArray(list);
+    softDetail = list.length + ' 家（含已删除）';
+  }
+  record('门店软删除列表可用（includeDeleted）', softOk, softDetail);
+
+  // 12.2) 汇率：新增 → 精确换算 → 删除（幂等清理，不留下测试数据）
+  const effectiveAt = new Date().toISOString();
+  const createRate = await fetch(API + '/admin/v1/exchange-rates', {
+    method: 'PUT', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },
+    body: JSON.stringify({ baseCurrency: 'USD', quoteCurrency: 'CNY', rate: 7.2,
+      source: 'ACCEPTANCE', effectiveAt })
+  });
+  let rateOk = false, rateDetail = 'create=' + createRate.status;
+  if (createRate.status === 201) {
+    const created = await createRate.json();
+    const conv = await get('/admin/v1/exchange-rates/convert?amount=10000&from=USD&to=CNY', token);
+    if (conv.status === 200) {
+      const body = JSON.parse(conv.body);
+      rateOk = body.convertedAmount === 72000;
+      rateDetail = '100.00 USD -> ' + body.convertedAmount + ' CNY 分';
+    }
+    const del = await fetch(API + '/admin/v1/exchange-rates/' + created.id, {
+      method: 'DELETE', headers: { Authorization: 'Bearer ' + token }
+    });
+    rateOk = rateOk && del.status === 204;
+    rateDetail += ' delete=' + del.status;
+  }
+  record('汇率新增/精确换算/删除（100 USD = 720 CNY）', rateOk, rateDetail);
+
   // 13) 促销规则：编辑需要回填范围，接口必须返回 scopeIds 数组
   const rules = await get('/admin/v1/promotions/rules', token);
   let ruleOk = false, ruleDetail = 'status=' + rules.status;

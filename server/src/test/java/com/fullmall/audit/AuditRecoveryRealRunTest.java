@@ -63,6 +63,8 @@ class AuditRecoveryRealRunTest {
         // 用系统自己写出的 payload：先入队（PENDING），再走恢复路径消费
         var entity = new com.fullmall.asset.domain.AssetEntity(
                 "恢复测试", "http://example.com/a.png", "IMAGE", "tester");
+        // source 在 DB 是 NOT NULL；实体 getter 有默认值但 JPA 仍会插 null，测试必须显式设置
+        entity.setSource("UPLOAD");
         entity.setId(UUID.randomUUID());   // 该实体 id 需手工赋值（无 @GeneratedValue）
         entity.setCreatedAt(java.time.Instant.now());
         entity.setUpdatedAt(java.time.Instant.now());

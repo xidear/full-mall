@@ -221,6 +221,7 @@ const menuGroups = [
     { path: '/markets', label: '市场配置', icon: Setting, roles: ['ADMIN'] },
     { path: '/shipping-rates', label: '运费档位', icon: Setting, roles: ['ADMIN'] },
     { path: '/tax-rules', label: '税率规则', icon: Setting, roles: ['ADMIN'] },
+    { path: '/exchange-rates', label: '汇率', icon: Coin, roles: ['ADMIN'] },
     { path: '/settings', label: '系统设置', icon: Setting, roles: ['ADMIN'] }
   ] }
 ]

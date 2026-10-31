@@ -1,7 +1,7 @@
 import { expect, test } from '@playwright/test'
 import { ADMIN_BASE } from './env'
 
-test('admin ai page explains community build without ai module', async ({ page }) => {
+test('admin ai page renders status or community notice', async ({ page }) => {
   await page.goto(ADMIN_BASE + '/login')
   await page.getByPlaceholder('请输入账号').fill('admin')
   await page.getByPlaceholder('请输入密码').fill('Admin@123456')
@@ -14,6 +14,10 @@ test('admin ai page explains community build without ai module', async ({ page }
   await page.locator('.admin-menu').getByText('AI 客服', { exact: true }).click()
   await expect(page.getByRole('main').getByRole('heading', { name: 'AI 客服' })).toBeVisible()
 
-  // 社区版构建：明确说明不含该模块，而不是报错或白屏
-  await expect(page.getByText('当前是社区版构建，不包含 AI 模块')).toBeVisible({ timeout: 10_000 })
+  // 社区版显示“不包含 AI 模块”；内部/企业版显示模型状态。两者都不能白屏。
+  await expect(
+    page.getByText('当前是社区版构建，不包含 AI 模块')
+      .or(page.getByText('对话模型'))
+      .first()
+  ).toBeVisible({ timeout: 10_000 })
 })

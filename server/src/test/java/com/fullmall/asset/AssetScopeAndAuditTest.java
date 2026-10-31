@@ -66,6 +66,7 @@ class AssetScopeAndAuditTest {
 
     private AssetEntity createFor(String owner) {
         AssetEntity asset = new AssetEntity("素材-" + owner, "https://cdn.example.com/" + owner + ".png", "IMAGE", owner);
+        asset.setSource("E2E");
         return service.createAsset(Scope.owner(owner), asset, ADMIN_ACTOR, owner);
     }
 

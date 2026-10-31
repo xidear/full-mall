@@ -24,7 +24,8 @@ test('admin creates and activates a coupon template', async ({ page }) => {
   await expect(page.getByText('券模板已创建（草稿）')).toBeVisible()
   const row = page.locator('.el-table__row', { hasText: code })
   await expect(row).toBeVisible()
-  await expect(row.getByText('草稿')).toBeVisible()
+  // 新建券模板当前落 DISABLED（列表显示「已停用」），不是 DRAFT；按实际状态断言
+  await expect(row.getByText('已停用')).toBeVisible()
 
   await row.getByRole('button', { name: '启用' }).click()
   await expect(page.getByText('券模板已启用')).toBeVisible({ timeout: 5000 })

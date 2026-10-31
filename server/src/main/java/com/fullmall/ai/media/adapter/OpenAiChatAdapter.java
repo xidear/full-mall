@@ -56,9 +56,17 @@ public class OpenAiChatAdapter implements MediaGenerationAdapter {
                 "messages", List.of(
                         Map.of("role", "system", "content", system),
                         Map.of("role", "user", "content", userContent)));
+        // 自营/本地模型可能排队较慢；默认 180s，可按供应商 extra.timeoutSeconds 覆盖。
+        // 超出 5..600 直接失败，避免"配了 0 秒"变成永远超时或"配了 1 小时"占住线程。
+        int timeoutSeconds = provider.extra() == null
+                ? 180 : provider.extra().path("timeoutSeconds").asInt(180);
+        if (timeoutSeconds < 5 || timeoutSeconds > 600) {
+            throw new IllegalStateException("供应商 " + provider.code()
+                    + " 的 timeoutSeconds 必须在 5..600，实际=" + timeoutSeconds);
+        }
         HttpRequest request = HttpRequest.newBuilder()
                 .uri(URI.create(base + "/chat/completions"))
-                .timeout(Duration.ofSeconds(120))
+                .timeout(Duration.ofSeconds(timeoutSeconds))
                 .header("Content-Type", "application/json")
                 .header("Authorization", "Bearer " + provider.apiKey())
                 .POST(HttpRequest.BodyPublishers.ofString(Json.write(body), StandardCharsets.UTF_8))

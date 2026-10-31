@@ -165,7 +165,8 @@ class AiMediaPipelineTest {
         assertThat(media.optimizePrompt("马克杯主图", "stub-chat")).contains("白底");
 
         assertThatThrownBy(() -> media.optimizePrompt("x", "no-such-provider"))
-                .hasMessageContaining("供应商不可用");
+                // 现在按协议挑供应商：错误信息明确说需要 openai-chat，而不是笼统的“供应商不可用”
+                .hasMessageContaining("没有可用的对话模型");
     }
 
     @Test

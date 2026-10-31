@@ -44,6 +44,7 @@ import MarketsView from './views/MarketsView.vue'
 import ShippingRatesView from './views/ShippingRatesView.vue'
 import TaxRulesView from './views/TaxRulesView.vue'
 import StoresView from './views/StoresView.vue'
+import ExchangeRatesView from './views/ExchangeRatesView.vue'
 
 // history 模式依赖服务端把未知路径回落 index.html（dev 靠 Vite、生产靠 nginx try_files）；
 // 少了这条回落，用户在 /orders 按 F5 得到的是 404 而不是页面。
@@ -93,6 +94,7 @@ const router = createRouter({
     { path: '/customers', name: 'customers', component: CustomersView, meta: { title: '客户管理' } },
     { path: '/staff', name: 'staff', component: StaffView, meta: { title: '员工与权限' } },
     { path: '/markets', name: 'markets', component: MarketsView, meta: { title: '市场配置' } },
+    { path: '/exchange-rates', name: 'exchange-rates', component: ExchangeRatesView, meta: { title: '汇率' } },
     { path: '/shipping-rates', name: 'shipping-rates', component: ShippingRatesView, meta: { title: '运费档位' } },
     { path: '/tax-rules', name: 'tax-rules', component: TaxRulesView, meta: { title: '税率规则' } },
     { path: '/settings', name: 'settings', component: SettingsView, meta: { title: '系统设置' } },

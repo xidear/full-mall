@@ -66,6 +66,9 @@ test('admin can load dashboard, products, inventory and theme studio', async ({ 
   const promoRow = page.locator('.el-table__row', { hasText: promoTitle })
   // 用带时间戳的标题定位这一行，避免点到种子里的同名活动；用完立刻结束，别污染演示数据。
   await promoRow.getByRole('button', { name: '结束' }).click()
+  // 结束活动现在有二次确认（价格承诺不可误操作）
+  await page.getByRole('dialog', { name: '确认结束' })
+    .getByRole('button', { name: '结束' }).click()
   await expect(page.getByText('活动已结束')).toBeVisible()
 
   await page.locator('.admin-menu').getByText('员工与权限', { exact: true }).click()
@@ -88,6 +91,5 @@ test('admin can load dashboard, products, inventory and theme studio', async ({ 
 
   await page.locator('.admin-menu').getByText('主题配置', { exact: true }).click()
   await expect(page.locator('h2', { hasText: '主题工作室' })).toBeVisible()
-  await page.getByRole('button', { name: '机械模板' }).click()
-  await expect(page.getByText('工业级选型 · 稳定交付')).toBeVisible()
+  // 旧的“机械模板 / 工业级选型”按钮已随主题工作室改版移除；这里只断言页面可达，避免测试绑定已删除的文案
 })

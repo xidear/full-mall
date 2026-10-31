@@ -80,6 +80,8 @@ public class AssetController extends BaseCrudController<AssetEntity, AssetContro
                 request.kind().trim(), scope.ownerKey());
         entity.setPurpose(request.purpose() == null || request.purpose().isBlank()
                 ? "PRODUCT" : request.purpose().trim().toUpperCase(java.util.Locale.ROOT));
+        // source 在 DB 是 NOT NULL；这条路径是人工登记/上传，来源固定 UPLOAD（AI 任务另走自己的写入）
+        entity.setSource("UPLOAD");
         return entity;
     }
 

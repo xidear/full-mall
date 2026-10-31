@@ -65,6 +65,30 @@
       "kind": "hand-typed-enum",
       "snippet": "placeholder=\"字母数字与 . _ -，如 zhangsan\"",
       "reason": "待复核"
+    },
+    {
+      "file": "web/apps/admin/src/views/AiView.vue",
+      "kind": "hand-typed-enum",
+      "snippet": "placeholder=\"例如 company-chat / local-embedding\"",
+      "reason": "供应商标识是自由文本（运营自定），没有固定候选；协议才是枚举，已用下拉"
+    },
+    {
+      "file": "web/apps/admin/src/views/AiView.vue",
+      "kind": "hand-typed-enum",
+      "snippet": "placeholder=\"例如 https://company.binnarui.com:8500/v1\"",
+      "reason": "服务地址是自由文本，无法枚举"
+    },
+    {
+      "file": "web/apps/admin/src/views/AiView.vue",
+      "kind": "hand-typed-enum",
+      "snippet": "placeholder=\"例如 deepseek-v4.1-flash\"",
+      "reason": "模型名由供应商决定，无法枚举（不同端点模型名不同）"
+    },
+    {
+      "file": "web/apps/admin/src/views/StoresView.vue",
+      "kind": "hand-typed-enum",
+      "snippet": "placeholder=\"例如 STORE-SH-001\"",
+      "reason": "门店编码是业务自由文本，可用「生成」拿建议值；格式由后端校验"
     }
   ]
 }

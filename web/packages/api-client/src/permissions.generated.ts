@@ -164,12 +164,12 @@ export const PERMISSION_DOCS: Record<string, PermissionDoc> = {
     label: '员工与权限',
     group: '系统',
     sortOrder: 110,
-    summary: '员工账号与门店：建号、改角色、设 PIN、绑定门店。',
-    grants: ['查看员工列表、设置 PIN、绑定/解绑门店', '（接口层同时覆盖 /admin/v1/stores 门店列表）'],
-    revokes: ['员工页与门店列表接口 403'],
+    summary: '员工账号与门店：建号、改角色、设 PIN、绑定门店、维护门店资料与启停。',
+    grants: ['查看员工列表、设置 PIN、绑定/解绑门店', '新建/编辑门店、启停门店（/admin/v1/stores）'],
+    revokes: ['员工页与门店管理接口 403'],
     endpoints: ['/admin/v1/staff/**', '/admin/v1/stores/**'],
     fallback: false,
-    note: '门店（/admin/v1/stores）与员工共用本权限：没有独立的门店权限码。'
+    note: '门店（/admin/v1/stores）与员工共用本权限：没有独立的门店权限码。停用门店不等于删除，历史订单与库存仍引用它。'
   },
   'settings.manage': {
     code: 'settings.manage',

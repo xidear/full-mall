@@ -184,6 +184,7 @@ const menuGroups = [
     { path: '/orders', label: '订单管理', icon: Tickets, roles: ['ADMIN', 'OPERATOR'] },
     { path: '/after-sales', label: '售后处理', icon: Service, roles: ['ADMIN', 'OPERATOR'] },
     { path: '/pos', label: '门店收银', icon: CreditCard, roles: ['ADMIN', 'OPERATOR'] },
+    { path: '/stores', label: '门店管理', icon: OfficeBuilding, roles: ['ADMIN', 'OPERATOR'] },
     { path: '/warehouse', label: '仓储作业', icon: Box, roles: ['ADMIN', 'OPERATOR'] },
     { path: '/suppliers', label: '供应商', icon: OfficeBuilding, roles: ['ADMIN', 'OPERATOR'] }
   ] },

@@ -75,6 +75,7 @@ class StoreAccessServiceTest {
     }
 
     private Store store(UUID id, String name) {
-        return new Store(id, name, "地址", BigDecimal.ZERO, BigDecimal.ZERO, true, null, null);
+        return new Store(id, "STORE-" + name, "CN", name, "地址", BigDecimal.ZERO,
+                BigDecimal.ZERO, true, true, null, null, java.time.Instant.now());
     }
 }

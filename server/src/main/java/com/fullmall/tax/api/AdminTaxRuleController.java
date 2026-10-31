@@ -40,10 +40,18 @@ public class AdminTaxRuleController {
         return taxes.jurisdictions();
     }
 
-    @PutMapping({"/admin/v1/tax-rules", "/admin/v1/tax-rules/{id}"})
-    public List<TaxService.RuleRow> upsert(@PathVariable(required = false) String id,
-                                          @RequestBody RuleBody body) {
-        String target = id == null || id.isBlank() ? UUID.randomUUID().toString() : id;
+    // 两个路径分开声明：契约检查脚本按注解逐个解析，数组形式会漏掉 /{id}（会被当成前端多调）
+    @PutMapping("/admin/v1/tax-rules")
+    public List<TaxService.RuleRow> create(@RequestBody RuleBody body) {
+        return upsert(UUID.randomUUID().toString(), body);
+    }
+
+    @PutMapping("/admin/v1/tax-rules/{id}")
+    public List<TaxService.RuleRow> update(@PathVariable String id, @RequestBody RuleBody body) {
+        return upsert(id, body);
+    }
+
+    private List<TaxService.RuleRow> upsert(String target, RuleBody body) {
         taxes.upsert(target, body.jurisdiction(), body.name(), body.rateBps(),
                 body.priceIncludesTax(), body.active());
         return taxes.list();

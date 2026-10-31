@@ -40,6 +40,9 @@ public final class EnumCatalog {
                 new Option("ONLINE", "已上线"),
                 new Option("ARCHIVED", "已归档"),
                 new Option("DELETED", "已删除")));
+        GROUPS.put("AI_PROTOCOL", List.of(
+                new Option("openai-chat", "OpenAI 兼容对话（/chat/completions）"),
+                new Option("openai-embedding", "OpenAI 兼容向量（/embeddings）")));
         GROUPS.put("AI_JOB_STATUS", List.of(
                 new Option("QUEUED", "排队中"),
                 new Option("PENDING", "待处理"),
@@ -60,8 +63,9 @@ public final class EnumCatalog {
                 new Option("ENDED", "已结束")));
         GROUPS.put("PROMOTION_CHANNEL", List.of(
                 new Option("ONLINE", "线上"),
-                new Option("OFFLINE", "线下"),
-                new Option("POS", "收银台")));
+                new Option("POS", "收银台"),
+                new Option("PICKUP", "自提"),
+                new Option("OFFLINE", "线下")));
         GROUPS.put("STAFF_STATUS", List.of(
                 new Option("ACTIVE", "启用"),
                 new Option("DISABLED", "停用")));
@@ -94,8 +98,16 @@ public final class EnumCatalog {
                 new Option("AMOUNT", "满减券"),
                 new Option("PERCENT", "折扣券")));
         GROUPS.put("PROMOTION_TYPE", List.of(
-                new Option("FULL_REDUCE", "满减"),
+                new Option("FLASH_SALE", "秒杀"),
+                new Option("BUY_GIFT", "买赠"),
+                new Option("GROUP_BUY", "拼团"),
+                new Option("FULL_REDUCTION", "满减"),
                 new Option("FULL_DISCOUNT", "满折")));
+        GROUPS.put("PROMOTION_SCOPE", List.of(
+                new Option("ALL", "全场"),
+                new Option("SKU", "指定商品"),
+                new Option("CATEGORY", "指定类目"),
+                new Option("BRAND", "指定品牌")));
         GROUPS.put("NOTIFICATION_CHANNEL", List.of(
                 new Option("IN_APP", "站内通知"),
                 new Option("SMS", "短信"),

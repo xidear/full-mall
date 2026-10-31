@@ -24,7 +24,8 @@ public class CodeSuggestionController {
     private static final Map<String, String[]> TYPES = Map.of(
             "BRAND", new String[]{"brand", "code", "BRAND-"},
             "COUPON", new String[]{"coupon_template", "code", "CPN-"},
-            "PROMOTION", new String[]{"promotion", "code", "PROMO-"});
+            "PROMOTION", new String[]{"promotion", "code", "PROMO-"},
+            "STORE", new String[]{"store", "code", "STORE-"});
 
     private final JdbcTemplate jdbc;
     private final SecureRandom random = new SecureRandom();

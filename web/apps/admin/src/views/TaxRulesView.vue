@@ -8,6 +8,7 @@
 import { onMounted, reactive, ref } from 'vue'
 import { ElMessage } from 'element-plus'
 import { api } from '../api'
+import StatusToggle from '../components/StatusToggle.vue'
 /** 辖区以国家码为主，但允许自定义（如 CN-VAT）：国家码不该靠手背。 */
 const countryOptions = ref<Array<{ code: string; name: string }>>([])
 
@@ -91,6 +92,17 @@ async function save() {
   }
 }
 
+async function toggleActive(row: RuleRow, next: boolean) {
+  // PUT 是全量替换：必须带上原有税率与口径，否则切换状态会把规则改坏
+  rows.value = await api.put<RuleRow[]>(`/admin/v1/tax-rules/${row.id}`, {
+    jurisdiction: row.jurisdiction,
+    name: row.name,
+    rateBps: row.rateBps,
+    priceIncludesTax: row.priceIncludesTax,
+    active: next
+  })
+}
+
 async function remove(row: RuleRow) {
   try {
     await api.delete(`/admin/v1/tax-rules/${row.id}`)
@@ -141,9 +153,11 @@ onMounted(async () => {
       <el-table-column label="口径" width="110">
         <template #default="{ row }">{{ row.priceIncludesTax ? '价内含税' : '净价另加' }}</template>
       </el-table-column>
-      <el-table-column label="状态" width="90">
+      <el-table-column label="状态" width="140">
         <template #default="{ row }">
-          <el-tag :type="row.active ? 'success' : 'info'">{{ row.active ? '启用' : '停用' }}</el-tag>
+          <StatusToggle :active="row.active" active-text="启用" inactive-text="停用"
+                        :confirm-text="`停用「${row.jurisdiction} ${row.name}」后，该辖区将不再计税并在报关单里标记缺失；确定吗？`"
+                        :on-change="next => toggleActive(row, next)" />
         </template>
       </el-table-column>
       <el-table-column label="操作" width="150">

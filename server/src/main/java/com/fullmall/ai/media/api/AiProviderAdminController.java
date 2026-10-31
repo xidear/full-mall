@@ -67,7 +67,7 @@ public class AiProviderAdminController {
     @org.springframework.web.bind.annotation.GetMapping
     public List<Map<String, Object>> list() {
         return jdbc.query("""
-                SELECT code, kind, name, protocol, model, enabled, priority, vision,
+                SELECT code, kind, name, protocol, endpoint, model, enabled, priority, vision,
                        (api_key IS NOT NULL) AS has_key
                   FROM ai_provider ORDER BY kind, priority, code
                 """, (rs, rowNum) -> Map.of(
@@ -75,6 +75,7 @@ public class AiProviderAdminController {
                 "kind", rs.getString("kind"),
                 "name", rs.getString("name"),
                 "protocol", rs.getString("protocol"),
+                "endpoint", rs.getString("endpoint"),
                 "model", rs.getString("model"),
                 "enabled", rs.getBoolean("enabled"),
                 "priority", rs.getInt("priority"),

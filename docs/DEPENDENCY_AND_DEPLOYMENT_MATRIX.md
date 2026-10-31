@@ -73,6 +73,8 @@
 >
 > 另一个 v3 陷阱：**StarterKit 已内置 `Link` 与 `Underline`**，再把 `@tiptap/extension-link` / `-underline`
 > 单独注册会抛 `Duplicate extension names found`；这两个包因此不作为直依赖（只在 StarterKit 内部存在）。
+| 自营对话模型端点 `https://company.binnarui.com:8500/v1`（`deepseek-v4.1-flash`，OpenAI 兼容、无 Key） | D 外部服务 | 运维在「AI 客服 → 模型供应商」登记 endpoint/model，无需 API Key | AI 问答返回 503 `AI_CHAT_NOT_CONFIGURED`；下单/后台其它功能不受影响 | 可换任意 `openai-chat` 兼容服务（自建 vLLM/Ollama、其它免费端点）；无 GPU 时优先远端 | `GET /admin/v1/ai/status` 看 `ready/chatModel`；再发一条 `/admin/v1/ai/ask` |
+| 关键词检索（`APP_AI_ASK_RETRIEVAL=KEYWORD`，默认） | A 应用内 | 无外部依赖 | 无 | 召回质量低于向量检索；文档型知识建议配 `openai-embedding` 并切 `SEMANTIC` | `/admin/v1/ai/status` 的 `retrieval` |
 | 视觉模型（默认 `moondream`，1.7GB） | D→B 可选外部服务 | **不随镜像**，由运营在「AI 供应商」表单登记 endpoint/model | **不影响主流程**：未配置时「AI 识别」按钮禁用，接口返回 409 `AI_VISION_UNAVAILABLE` | 可换成远端公共模型（DashScope/OpenAI 兼容）或客户自建 CPU 推理服务；本地 ollama 不默认启动 | `GET /admin/v1/ai/providers/vision` 看 `configured` |
 | Ollama 容器（`--profile ai`，端口 41289） | B 运行期（可选） | 运维按需 `docker compose --profile ai up -d ollama` | 素材「AI 识别」不可用；素材库/生成/检索其余功能正常 | 不默认启动；无 GPU 也能跑（CPU 推理慢） | `docker exec fullmall-ollama-1 ollama list` |
 | 模型下载源 | C（一次性，人工） | 运维执行 `ollama pull <model>` | 无模型时上述 409 | 国内网络建议走 ModelScope / hf-mirror 的 GGUF，再 `ollama create`；docker 镜像可走 dockerproxy | `ollama list` 里有该模型 |

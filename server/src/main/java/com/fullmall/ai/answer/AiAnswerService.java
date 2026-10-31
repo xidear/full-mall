@@ -1,6 +1,7 @@
 package com.fullmall.ai.answer;
 
 import com.fullmall.ai.knowledge.SemanticIndexService;
+import com.fullmall.ai.media.AiMediaService;
 import com.fullmall.platform.audit.AuditEventService;
 import com.fullmall.platform.error.ApiException;
 import org.springframework.beans.factory.annotation.Value;
@@ -9,22 +10,24 @@ import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 /**
- * AI 客服问答的最小闭环：**只依据知识库检索结果作答，检索不到就拒答**。
+ * AI 客服问答：**检索 → 真实对话模型 → 强制带引用**。
  *
- * <p>为什么不做"模型自由发挥"：没有知识依据的回答就是幻觉，客服场景下代价是错误承诺。
- * 因此这里的判定顺序是硬的：
+ * <p>判定顺序是硬的，避免把"没装好"伪装成"没答案"：
  * <ol>
- *   <li>没配对话模型 → 503（安装未完成，不是"没答案"）；</li>
- *   <li>语义检索未开启 → 503（明确告诉运维开哪个开关，不偷偷退回关键词检索）；</li>
+ *   <li>没配对话模型（protocol=openai-chat）→ 503；</li>
+ *   <li>检索模式由 {@code app.ai.ask.retrieval} 显式选择：
+ *       KEYWORD 不需要向量服务；SEMANTIC 未开启或缺 embedding → 503；</li>
  *   <li>检索为空或最高分低于阈值 → 200 + {@code fallback=true}，由前端转人工；</li>
- *   <li>只有命中片段才拼答案，并且必须带引用（sourceId + 分数）。</li>
+ *   <li>只有命中片段才调用模型，system 明确"只能依据片段"；模型说无法回答 → 仍转人工；</li>
+ *   <li>引用由服务端生成并随回答返回，模型只负责组织句子，不允许产生引用。</li>
  * </ol>
  *
- * <p>当前答案由命中片段直接拼装（可核对、不会编），后续接上真实模型时，
- * 约束不变：只允许基于这些片段生成，且必须回传同样的引用。
+ * <p>为什么检索模式必须显式：缺 embedding 时"自动退回关键词"会让运营以为语义检索在工作，
+ * 实际召回质量不同；这里把模式放进配置并在 AI 状态页展示，出问题能定位到底走了哪条路。
  */
 @Service
 public class AiAnswerService {
@@ -33,28 +36,43 @@ public class AiAnswerService {
     }
 
     public record Answer(String answer, boolean fallback, String reason,
-                         List<Citation> citations, double topScore) {
+                         List<Citation> citations, double topScore,
+                         String provider, String retrieval, long latencyMs) {
     }
 
+    private static final String SYSTEM_PROMPT = """
+            你是电商客服。只能依据用户消息里的【知识片段】回答，不得使用片段之外的知识。
+            规则：
+            1. 不编造价格、时效、退换政策；片段没有的就不要补充；
+            2. 用简体中文，2-4 句，直接给结论，不要复述规则；
+            3. 片段不足以回答时，只输出：无法回答；
+            4. 不要输出内部字段名、接口路径或编号。""";
+
     private final JdbcTemplate jdbc;
-    private final com.fullmall.ai.media.AiMediaService media;
+    private final AiMediaService media;
     private final SemanticIndexService index;
+    private final KeywordRetriever keyword;
     private final AuditEventService auditEvents;
+    private final String retrieval;
     private final double minScore;
+    private final double keywordMinScore;
     private final int topK;
 
-    public AiAnswerService(JdbcTemplate jdbc, com.fullmall.ai.media.AiMediaService media,
-                           SemanticIndexService index,
-                           AuditEventService auditEvents,
+    public AiAnswerService(JdbcTemplate jdbc, AiMediaService media, SemanticIndexService index,
+                           KeywordRetriever keyword, AuditEventService auditEvents,
+                           @Value("${app.ai.ask.retrieval}") String retrieval,
                            @Value("${app.ai.ask.min-score:0.72}") double minScore,
+                           @Value("${app.ai.ask.keyword-min-score}") double keywordMinScore,
                            @Value("${app.ai.ask.top-k:5}") int topK,
-                           @Value("${app.ai.ask.banned-words:}")
-                           String bannedWords) {
+                           @Value("${app.ai.ask.banned-words:}") String bannedWords) {
         this.jdbc = jdbc;
         this.media = media;
         this.index = index;
+        this.keyword = keyword;
         this.auditEvents = auditEvents;
+        this.retrieval = normalizeRetrieval(retrieval);
         this.minScore = minScore;
+        this.keywordMinScore = keywordMinScore;
         this.topK = topK;
         this.bannedWords = bannedWords == null || bannedWords.isBlank()
                 ? DEFAULT_BANNED
@@ -80,79 +98,129 @@ public class AiAnswerService {
         if (bannedHit != null) {
             auditEvents.record(new AuditEventService.AuditEvent("AI_QUESTION_BLOCKED", actor,
                     "ai_ask", null, "hit=" + bannedHit + " q=" + shorten(question), null));
-            return new Answer(null, true, "问题包含不当内容，已转人工处理", List.of(), 0.0);
+            return fallback("问题包含不当内容，已转人工处理", List.of(), 0.0, null, 0);
         }
 
-        String provider = enabledTextProvider();
-        if (provider == null) {
-            throw ApiException.serviceUnavailable("AI_PROVIDER_NOT_CONFIGURED",
-                    "未配置可用的对话模型：请到「第三方服务 → AI 模型」启用一个文本供应商");
-        }
-        if (!index.enabled()) {
-            throw ApiException.serviceUnavailable("AI_SEMANTIC_DISABLED",
-                    "知识库检索未开启：设置 APP_AI_SEMANTIC_ENABLED=true 并建立索引后再试");
-        }
-
-        List<Map<String, Object>> hits;
-        try {
-            hits = index.search(question.trim(), "FAQ", topK, provider);
-        } catch (ApiException failure) {
-            // 索引为空是"没有知识"→ 拒答；embedding 缺失是"没装好"→ 503，不能混成一个错误
-            if ("SEMANTIC_INDEX_EMPTY".equals(failure.code())) {
-                return refuse(actor, question, 0.0, "知识库为空");
-            }
-            if ("AI_EMBEDDING_UNAVAILABLE".equals(failure.code())) {
-                throw ApiException.serviceUnavailable("AI_EMBEDDING_NOT_CONFIGURED",
-                        "未配置可用的向量模型（embedding）：请到「第三方服务 → AI 模型」启用一个 protocol=openai-embedding 的供应商");
-            }
-            throw failure;
-        }
-
-        List<Citation> citations = new ArrayList<>();
-        for (Map<String, Object> hit : hits) {
-            double score = ((Number) hit.get("score")).doubleValue();
-            if (score < minScore) {
-                continue;
-            }
-            citations.add(new Citation(String.valueOf(hit.get("sourceId")), score,
-                    shorten(String.valueOf(hit.get("content")))));
-        }
-
+        String provider = chatProviderCode();
+        List<Citation> citations = retrieve(question);
         if (citations.isEmpty()) {
-            double best = hits.isEmpty() ? 0.0 : ((Number) hits.get(0).get("score")).doubleValue();
-            return refuse(actor, question, best, "检索结果低于可信阈值");
+            return refuse(actor, question, 0.0, "检索结果低于可信阈值");
         }
 
-        StringBuilder answer = new StringBuilder("根据知识库：\n");
-        for (int i = 0; i < citations.size(); i++) {
-            answer.append(i + 1).append(". ").append(citations.get(i).snippet()).append('\n');
+        long startedAt = System.nanoTime();
+        String answer;
+        try {
+            answer = media.chat(buildPrompt(question, citations), SYSTEM_PROMPT, provider);
+        } catch (ApiException failure) {
+            throw failure;
+        } catch (RuntimeException failure) {
+            // 模型不可达/超时/返回空：明确 503，由管理员看到真实原因；不返回"没有答案"的假象
+            throw ApiException.serviceUnavailable("AI_CHAT_FAILED",
+                    "对话模型调用失败（provider=" + provider + "）：" + failure.getMessage());
         }
-        answer.append("（以上内容来自知识库条目，可在引用中核对；如需进一步判断请转人工。）");
+        long latencyMs = Math.max(0, (System.nanoTime() - startedAt) / 1_000_000);
+        String trimmed = answer == null ? "" : answer.trim();
+        if (trimmed.isEmpty()) {
+            throw ApiException.serviceUnavailable("AI_CHAT_EMPTY",
+                    "对话模型返回空内容（provider=" + provider + "）");
+        }
 
-        String answerBanned = firstBanned(answer.toString());
+        if (trimmed.contains("无法回答")) {
+            auditEvents.record(new AuditEventService.AuditEvent("AI_KNOWLEDGE_REFUSED", actor,
+                    "ai_ask", null, "reason=模型判断片段不足 provider=" + provider
+                            + " q=" + shorten(question), null));
+            return fallback("模型判断知识片段不足以回答", citations, citations.get(0).score(),
+                    provider, latencyMs);
+        }
+
+        String answerBanned = firstBanned(trimmed);
         if (answerBanned != null) {
             auditEvents.record(new AuditEventService.AuditEvent("AI_ANSWER_BLOCKED", actor,
                     "ai_ask", null, "hit=" + answerBanned + " q=" + shorten(question), null));
-            return new Answer(null, true, "回答命中内容约束，已转人工处理", List.of(), citations.get(0).score());
+            return fallback("回答命中内容约束，已转人工处理", citations, citations.get(0).score(),
+                    provider, latencyMs);
         }
 
         auditEvents.record(new AuditEventService.AuditEvent("AI_KNOWLEDGE_ANSWERED", actor,
-                "ai_ask", null, "citations=" + citations.size()
-                + " topScore=" + citations.get(0).score(), null));
-        return new Answer(answer.toString(), false, null, citations, citations.get(0).score());
+                "ai_ask", null, "provider=" + provider + " retrieval=" + retrieval
+                + " citations=" + citations.size() + " topScore=" + citations.get(0).score()
+                + " latencyMs=" + latencyMs, null));
+        return new Answer(trimmed, false, null, citations, citations.get(0).score(),
+                provider, retrieval, latencyMs);
+    }
+
+    /** 检索结果转引用：阈值按模式取（关键词分与余弦分不是同一个尺度）。 */
+    private List<Citation> retrieve(String question) {
+        double threshold = "SEMANTIC".equals(retrieval) ? minScore : keywordMinScore;
+        List<Citation> citations = new ArrayList<>();
+        if ("SEMANTIC".equals(retrieval)) {
+            if (!index.enabled()) {
+                throw ApiException.serviceUnavailable("AI_SEMANTIC_DISABLED",
+                        "语义检索未开启：设置 APP_AI_SEMANTIC_ENABLED=true，或把 APP_AI_ASK_RETRIEVAL 改为 KEYWORD");
+            }
+            List<Map<String, Object>> hits;
+            try {
+                hits = index.search(question.trim(), "FAQ", topK, null);
+            } catch (ApiException failure) {
+                if ("SEMANTIC_INDEX_EMPTY".equals(failure.code())) {
+                    // 索引为空是"还没有知识"，不是"没装好"：交给上层按拒答处理，不要 503 吓人
+                    return List.of();
+                }
+                if ("AI_EMBEDDING_UNAVAILABLE".equals(failure.code())) {
+                    throw ApiException.serviceUnavailable("AI_EMBEDDING_NOT_CONFIGURED",
+                            "未配置向量模型（protocol=openai-embedding）；没有 embedding 时把 APP_AI_ASK_RETRIEVAL 设为 KEYWORD");
+                }
+                throw failure;
+            }
+            for (Map<String, Object> hit : hits) {
+                double score = ((Number) hit.get("score")).doubleValue();
+                if (score >= threshold) {
+                    citations.add(new Citation(String.valueOf(hit.get("sourceId")), score,
+                            shorten(String.valueOf(hit.get("content")))));
+                }
+            }
+            return citations;
+        }
+        for (KeywordRetriever.Hit hit : keyword.search(question.trim(), null, topK)) {
+            if (hit.score() >= threshold) {
+                citations.add(new Citation(hit.sourceId(), hit.score(), shorten(hit.content())));
+            }
+        }
+        return citations;
+    }
+
+    private String buildPrompt(String question, List<Citation> citations) {
+        StringBuilder prompt = new StringBuilder("【知识片段】\n");
+        for (int i = 0; i < citations.size(); i++) {
+            prompt.append('[').append(i + 1).append("] ")
+                    .append(citations.get(i).snippet()).append('\n');
+        }
+        prompt.append("\n顾客问题：").append(question.trim());
+        return prompt.toString();
+    }
+
+    private Answer fallback(String reason, List<Citation> citations, double topScore,
+                            String provider, long latencyMs) {
+        return new Answer(null, true, reason, citations, topScore, provider, retrieval, latencyMs);
     }
 
     private Answer refuse(String actor, String question, double topScore, String reason) {
         auditEvents.record(new AuditEventService.AuditEvent("AI_KNOWLEDGE_REFUSED", actor,
                 "ai_ask", null, "reason=" + reason + " topScore=" + topScore
                 + " q=" + shorten(question), null));
-        return new Answer(null, true, reason, List.of(), topScore);
+        return fallback(reason, List.of(), topScore, chatProviderCode(), 0);
     }
 
-    private String enabledTextProvider() {
+    /** 只按协议挑对话供应商：TEXT 里还有 embedding，按 kind 盲选会把问题发给向量模型。 */
+    private String chatProviderCode() {
         List<String> providers = jdbc.queryForList(
-                "SELECT code FROM ai_provider WHERE enabled AND kind = 'TEXT' LIMIT 1", String.class);
-        return providers.isEmpty() ? null : providers.get(0);
+                "SELECT code FROM ai_provider WHERE enabled AND protocol = 'openai-chat' "
+                        + "ORDER BY priority, code LIMIT 1", String.class);
+        if (providers.isEmpty()) {
+            throw ApiException.serviceUnavailable("AI_CHAT_NOT_CONFIGURED",
+                    "未配置对话模型：请到「AI 客服 → 模型供应商」启用一个 protocol=openai-chat 的供应商");
+        }
+        return providers.get(0);
     }
 
     /**
@@ -180,13 +248,22 @@ public class AiAnswerService {
         }, safeLimit);
     }
 
+    private static String normalizeRetrieval(String value) {
+        String normalized = value == null ? "" : value.trim().toUpperCase(Locale.ROOT);
+        if (!normalized.equals("SEMANTIC") && !normalized.equals("KEYWORD")) {
+            throw new IllegalArgumentException(
+                    "app.ai.ask.retrieval 只能是 SEMANTIC 或 KEYWORD，实际=" + value);
+        }
+        return normalized;
+    }
+
     private String firstBanned(String text) {
         if (text == null) {
             return null;
         }
-        String lower = text.toLowerCase(java.util.Locale.ROOT);
+        String lower = text.toLowerCase(Locale.ROOT);
         for (String word : bannedWords) {
-            if (!word.isEmpty() && lower.contains(word.toLowerCase(java.util.Locale.ROOT))) {
+            if (!word.isEmpty() && lower.contains(word.toLowerCase(Locale.ROOT))) {
                 return word;
             }
         }

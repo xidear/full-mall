@@ -1,8 +1,11 @@
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
+import { onMounted, reactive, ref } from 'vue'
 import { ElMessage } from 'element-plus'
 import { api } from '../api'
 import { documentTypeLabels, labelOf } from '../labels'
+import { useEnums } from '../composables/useEnums'
+
+const { options } = useEnums()
 
 interface AiStatus {
   code?: string
@@ -13,7 +16,10 @@ interface AiStatus {
   reason?: string
   missing?: string[]
   chatModel?: string
+  chatProvider?: string
   embeddingModel?: string
+  retrieval?: string
+  semanticEnabled?: boolean
   topK?: number
 }
 
@@ -40,6 +46,90 @@ interface UnansweredRow { at: string; type: string; actor: string; question?: st
 
 /** 未命中/被拦截的问题：运营据此补知识库，而不是让同样的空白反复出现。 */
 const unanswered = ref<UnansweredRow[]>([])
+
+interface AiProviderRow {
+  code: string
+  kind: string
+  name: string
+  protocol: string
+  endpoint: string
+  model: string
+  enabled: boolean
+  priority: number
+  vision: boolean
+  hasKey: boolean
+}
+
+/**
+ * 模型供应商管理：此前只有 PUT 接口、没有页面，运营只能改库。
+ * 供应商是"对话/向量"两类文本模型；协议候选来自后端枚举（AI_PROTOCOL），不写死。
+ */
+const providers = ref<AiProviderRow[]>([])
+const providerDialog = ref(false)
+const providerSaving = ref(false)
+const providerForm = reactive({
+  code: '',
+  name: '',
+  protocol: 'openai-chat',
+  endpoint: '',
+  model: '',
+  apiKey: '',
+  enabled: true,
+  priority: 100
+})
+
+/** 新建供应商的默认协议（不是配置兜底）：表单初始值，运营可在下拉里改。 */
+const DEFAULT_PROVIDER_PROTOCOL = 'openai-chat'
+
+async function loadProviders() {
+  try {
+    providers.value = await api.get<AiProviderRow[]>('/admin/v1/ai/providers')
+  } catch (cause) {
+    ElMessage.error('模型供应商加载失败：' + (cause instanceof Error ? cause.message : ''))
+  }
+}
+
+function openProvider(row?: AiProviderRow) {
+  providerForm.code = row?.code ?? ''
+  providerForm.name = row?.name ?? ''
+  providerForm.protocol = row ? row.protocol : DEFAULT_PROVIDER_PROTOCOL
+  providerForm.endpoint = row?.endpoint ?? ''
+  providerForm.model = row?.model ?? ''
+  providerForm.apiKey = ''
+  providerForm.enabled = row?.enabled ?? true
+  providerForm.priority = row?.priority ?? 100
+  providerDialog.value = true
+}
+
+async function saveProvider() {
+  if (!providerForm.code.trim() || !providerForm.endpoint.trim() || !providerForm.model.trim()) {
+    ElMessage.error('编码、endpoint、模型名都必须填写')
+    return
+  }
+  providerSaving.value = true
+  try {
+    await api.put(`/admin/v1/ai/providers/${encodeURIComponent(providerForm.code.trim())}`, {
+      kind: 'TEXT',
+      name: providerForm.name.trim() || providerForm.code.trim(),
+      protocol: providerForm.protocol,
+      endpoint: providerForm.endpoint.trim(),
+      model: providerForm.model.trim(),
+      // 留空 = 保留原 Key（后端 COALESCE），不把已存的密钥覆盖成空
+      apiKey: providerForm.apiKey.trim() || undefined,
+      enabled: providerForm.enabled,
+      priority: providerForm.priority,
+      vision: false
+    })
+    ElMessage.success('供应商已保存')
+    providerDialog.value = false
+    await loadProviders()
+    await loadStatus()
+  } catch (cause) {
+    ElMessage.error('保存失败：' + (cause instanceof Error ? cause.message : ''))
+  } finally {
+    providerSaving.value = false
+  }
+}
 
 async function loadUnanswered() {
   try {
@@ -116,6 +206,7 @@ function onFileChange(event: Event) {
 
 onMounted(async () => {
   await loadStatus()
+  await loadProviders()
   await loadUnanswered()
 })
 </script>
@@ -148,8 +239,43 @@ onMounted(async () => {
           <el-descriptions-item label="就绪">{{ status?.ready ? '是' : '否' }}</el-descriptions-item>
           <el-descriptions-item label="对话模型">{{ status?.chatModel ?? '—' }}</el-descriptions-item>
           <el-descriptions-item label="嵌入模型">{{ status?.embeddingModel ?? '—' }}</el-descriptions-item>
+          <el-descriptions-item label="检索方式">{{ status?.retrieval === 'SEMANTIC' ? '语义（向量）' : '关键词（无需向量服务）' }}</el-descriptions-item>
           <el-descriptions-item label="召回条数">{{ status?.topK ?? '—' }}</el-descriptions-item>
+          <el-descriptions-item label="缺少配置">{{ status?.missing?.length ? status.missing.join('、') : '无' }}</el-descriptions-item>
         </el-descriptions>
+      </section>
+
+      <section class="panel">
+        <div class="panel-header">
+          <div>
+            <h2>模型供应商</h2>
+            <p class="muted">
+              对话模型用 <code>openai-chat</code>，向量模型用 <code>openai-embedding</code>。
+              API Key 加密保存、不回显；编辑时留空表示不修改。
+            </p>
+          </div>
+          <el-button @click="openProvider()">添加供应商</el-button>
+        </div>
+        <el-table :data="providers" size="small" empty-text="尚未配置供应商">
+          <el-table-column prop="code" label="标识" width="170" />
+          <el-table-column prop="name" label="名称" width="150" />
+          <el-table-column prop="protocol" label="协议" width="170" />
+          <el-table-column prop="model" label="模型" width="180" />
+          <el-table-column prop="endpoint" label="地址" min-width="220" show-overflow-tooltip />
+          <el-table-column label="状态" width="90">
+            <template #default="{ row }">
+              <el-tag :type="row.enabled ? 'success' : 'info'">{{ row.enabled ? '启用' : '停用' }}</el-tag>
+            </template>
+          </el-table-column>
+          <el-table-column label="密钥" width="80">
+            <template #default="{ row }">{{ row.hasKey ? '已配置' : '无' }}</template>
+          </el-table-column>
+          <el-table-column label="操作" width="80">
+            <template #default="{ row }">
+              <el-button link type="primary" @click="openProvider(row)">编辑</el-button>
+            </template>
+          </el-table-column>
+        </el-table>
       </section>
 
       <section class="panel">
@@ -208,6 +334,44 @@ onMounted(async () => {
         </el-table>
       </section>
     </template>
+
+    <el-dialog v-model="providerDialog" :title="providerForm.code ? '编辑模型供应商' : '添加模型供应商'" width="560px">
+      <el-form label-width="100px">
+        <el-form-item label="标识">
+          <el-input v-model="providerForm.code" placeholder="例如 company-chat / local-embedding" maxlength="64" />
+        </el-form-item>
+        <el-form-item label="名称">
+          <el-input v-model="providerForm.name" placeholder="例如 公司自营对话模型" maxlength="64" />
+        </el-form-item>
+        <el-form-item label="协议">
+          <el-select v-model="providerForm.protocol" style="width: 100%">
+            <el-option v-for="option in options('AI_PROTOCOL')" :key="option.code"
+                       :label="option.label" :value="option.code" />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="服务地址">
+          <el-input v-model="providerForm.endpoint" placeholder="例如 https://company.binnarui.com:8500/v1" />
+        </el-form-item>
+        <el-form-item label="模型名">
+          <el-input v-model="providerForm.model" placeholder="例如 deepseek-v4.1-flash" />
+        </el-form-item>
+        <el-form-item label="API Key">
+          <el-input v-model="providerForm.apiKey" type="password" show-password
+                    :placeholder="providerForm.code ? '留空表示不修改' : '服务端不需要鉴权时留空'" />
+        </el-form-item>
+        <el-form-item label="启用">
+          <el-switch v-model="providerForm.enabled" />
+        </el-form-item>
+        <el-form-item label="优先级">
+          <el-input-number v-model="providerForm.priority" :min="0" :max="9999" />
+          <span class="muted" style="margin-left: 8px">数字越小越优先</span>
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="providerDialog = false">取消</el-button>
+        <el-button type="primary" :loading="providerSaving" @click="saveProvider">保存</el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 

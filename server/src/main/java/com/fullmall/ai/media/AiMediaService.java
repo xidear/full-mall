@@ -393,7 +393,7 @@ public class AiMediaService {
         if (userPrompt == null || userPrompt.isBlank()) {
             throw ApiException.badRequest("AI_PROMPT_REQUIRED", "提示词不能为空");
         }
-        ProviderConfig provider = pickProvider(MediaKind.TEXT, providerCode);
+        ProviderConfig provider = chatProvider(providerCode);
         MediaGenerationAdapter adapter = adapters.get(provider.protocol());
         if (adapter == null) {
             throw ApiException.serviceUnavailable("AI_PROTOCOL_UNSUPPORTED",
@@ -408,7 +408,7 @@ public class AiMediaService {
         if (prompt == null || prompt.isBlank()) {
             throw ApiException.badRequest("AI_PROMPT_REQUIRED", "提示词不能为空");
         }
-        ProviderConfig provider = pickProvider(MediaKind.TEXT, providerCode);
+        ProviderConfig provider = chatProvider(providerCode);
         MediaGenerationAdapter adapter = adapters.get(provider.protocol());
         if (adapter == null) {
             throw ApiException.conflict("AI_PROTOCOL_UNSUPPORTED", "协议未实现：" + provider.protocol());
@@ -504,6 +504,20 @@ public class AiMediaService {
         if (found.isEmpty()) {
             throw ApiException.conflict("AI_EMBEDDING_UNAVAILABLE",
                     "没有可用的 embedding 供应商（需要 protocol=openai-embedding"
+                            + (code == null ? "" : "，指定 code=" + code) + "）");
+        }
+        return found.get();
+    }
+
+    /**
+     * 对话供应商必须按协议挑：TEXT 类型里既有 chat 也有 embedding，
+     * 按 kind+优先级盲选会把问题发给 embedding 模型（表现为 400/空答案）。
+     */
+    private ProviderConfig chatProvider(String code) {
+        var found = findProviderByProtocol("openai-chat", code);
+        if (found.isEmpty()) {
+            throw ApiException.serviceUnavailable("AI_CHAT_NOT_CONFIGURED",
+                    "没有可用的对话模型（需要 protocol=openai-chat"
                             + (code == null ? "" : "，指定 code=" + code) + "）");
         }
         return found.get();

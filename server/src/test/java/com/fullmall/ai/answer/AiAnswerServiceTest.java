@@ -12,43 +12,56 @@ import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.nullable;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 /**
- * AI 问答三态：空问题 400 / 未配模型 503 / 可用时 200（命中带引用，未命中拒答）。
+ * AI 问答链路：空问题 400 / 未配模型 503 / 检索不到拒答 / 命中后由真实模型组织答案并带引用。
  *
- * <p>核心回归点：**检索不到必须拒答**，不能编答案；未配模型必须是 503 而不是"空回答"。
+ * <p>核心回归点：**检索不到必须拒答**，不能编答案；模型不可达必须是 503，不能伪装成"没有答案"。
  */
 class AiAnswerServiceTest {
 
-    private static AiAnswerService service(List<String> textProviders, boolean semanticEnabled,
-                                           List<Map<String, Object>> hits, ApiException searchError) {
+    private static AiAnswerService service(String retrieval, List<String> chatProviders,
+                                           boolean semanticEnabled,
+                                           List<Map<String, Object>> semanticHits,
+                                           ApiException searchError,
+                                           List<KeywordRetriever.Hit> keywordHits,
+                                           String chatReply) {
         JdbcTemplate jdbc = mock(JdbcTemplate.class);
-        when(jdbc.queryForList(anyString(), eq(String.class))).thenReturn(textProviders);
+        when(jdbc.queryForList(anyString(), eq(String.class))).thenReturn(chatProviders);
 
         AiMediaService media = mock(AiMediaService.class);
-        when(media.chat(anyString(), anyString(), anyString()))
-                .thenReturn("满 99 元免运费，偏远地区另计。");
+        when(media.chat(anyString(), anyString(), anyString())).thenReturn(chatReply);
 
         SemanticIndexService index = mock(SemanticIndexService.class);
         when(index.enabled()).thenReturn(semanticEnabled);
         if (searchError != null) {
-            when(index.search(anyString(), anyString(), anyInt(), anyString())).thenThrow(searchError);
+            when(index.search(anyString(), anyString(), anyInt(), nullable(String.class)))
+                    .thenThrow(searchError);
         } else {
-            when(index.search(anyString(), anyString(), anyInt(), anyString())).thenReturn(hits);
+            when(index.search(anyString(), anyString(), anyInt(), nullable(String.class)))
+                    .thenReturn(semanticHits);
         }
 
-        return new AiAnswerService(jdbc, media, index, mock(AuditEventService.class), 0.72, 5, "");
+        KeywordRetriever keyword = mock(KeywordRetriever.class);
+        when(keyword.search(anyString(), nullable(String.class), anyInt())).thenReturn(keywordHits);
+
+        return new AiAnswerService(jdbc, media, index, keyword, mock(AuditEventService.class),
+                retrieval, 0.72, 0.15, 5, "");
+    }
+
+    private static AiAnswerService keywordService(List<KeywordRetriever.Hit> hits, String chatReply) {
+        return service("KEYWORD", List.of("company-chat"), true, List.of(), null, hits, chatReply);
     }
 
     @Test
     void blankQuestionIsRejected() {
-        var svc = service(List.of("ollama"), true, List.of(), null);
+        var svc = service("KEYWORD", List.of("company-chat"), true, List.of(), null, List.of(), "答案");
 
         assertThatThrownBy(() -> svc.ask("   ", "admin"))
                 .isInstanceOf(ApiException.class)
@@ -56,18 +69,18 @@ class AiAnswerServiceTest {
     }
 
     @Test
-    void missingProviderIsServiceUnavailable() {
-        var svc = service(List.of(), true, List.of(), null);
+    void missingChatProviderIsServiceUnavailable() {
+        var svc = service("KEYWORD", List.of(), true, List.of(), null, List.of(), "答案");
 
         assertThatThrownBy(() -> svc.ask("运费怎么算", "admin"))
                 .isInstanceOf(ApiException.class)
                 .satisfies(err -> assertThat(((ApiException) err).code())
-                        .isEqualTo("AI_PROVIDER_NOT_CONFIGURED"));
+                        .isEqualTo("AI_CHAT_NOT_CONFIGURED"));
     }
 
     @Test
     void semanticDisabledIsServiceUnavailable() {
-        var svc = service(List.of("ollama"), false, List.of(), null);
+        var svc = service("SEMANTIC", List.of("company-chat"), false, List.of(), null, List.of(), "答案");
 
         assertThatThrownBy(() -> svc.ask("运费怎么算", "admin"))
                 .isInstanceOf(ApiException.class)
@@ -76,9 +89,10 @@ class AiAnswerServiceTest {
     }
 
     @Test
-    void hitAboveThresholdAnswersWithCitations() {
-        var svc = service(List.of("ollama"), true,
-                List.of(Map.of("sourceId", "faq-shipping", "content", "满 99 免运费", "score", 0.91)), null);
+    void keywordHitIsAnsweredByModelWithCitations() {
+        var svc = keywordService(List.of(new KeywordRetriever.Hit(
+                "faq-shipping", "运费怎么算", "满 99 元免运费，偏远地区另计。", 0.9)),
+                "满 99 元免运费，偏远地区另计。");
 
         var answer = svc.ask("运费怎么算", "admin");
 
@@ -86,12 +100,14 @@ class AiAnswerServiceTest {
         assertThat(answer.answer()).contains("免运费");
         assertThat(answer.citations()).hasSize(1);
         assertThat(answer.citations().get(0).sourceId()).isEqualTo("faq-shipping");
+        assertThat(answer.provider()).isEqualTo("company-chat");
+        assertThat(answer.retrieval()).isEqualTo("KEYWORD");
     }
 
     @Test
-    void lowScoreRefusesInsteadOfGuessing() {
-        var svc = service(List.of("ollama"), true,
-                List.of(Map.of("sourceId", "faq-other", "content", "无关内容", "score", 0.31)), null);
+    void lowKeywordScoreRefusesInsteadOfGuessing() {
+        var svc = keywordService(List.of(new KeywordRetriever.Hit(
+                "faq-other", "无关", "无关内容", 0.05)), "不该被调用");
 
         var answer = svc.ask("运费怎么算", "admin");
 
@@ -101,8 +117,21 @@ class AiAnswerServiceTest {
     }
 
     @Test
+    void semanticHitAboveThresholdAnswersWithCitations() {
+        var svc = service("SEMANTIC", List.of("company-chat"), true,
+                List.of(Map.of("sourceId", "faq-shipping", "content", "满 99 免运费", "score", 0.91)),
+                null, List.of(), "满 99 元免运费。");
+
+        var answer = svc.ask("运费怎么算", "admin");
+
+        assertThat(answer.fallback()).isFalse();
+        assertThat(answer.citations()).hasSize(1);
+        assertThat(answer.retrieval()).isEqualTo("SEMANTIC");
+    }
+
+    @Test
     void bannedQuestionIsRefusedWithFixedReply() {
-        var svc = service(List.of("ollama"), true, List.of(), null);
+        var svc = keywordService(List.of(), "不该被调用");
 
         var answer = svc.ask("你这个傻逼机器人", "admin");
 
@@ -113,8 +142,9 @@ class AiAnswerServiceTest {
 
     @Test
     void missingEmbeddingIsServiceUnavailable() {
-        var svc = service(List.of("ollama"), true, List.of(),
-                ApiException.conflict("AI_EMBEDDING_UNAVAILABLE", "没有可用的 embedding 供应商"));
+        var svc = service("SEMANTIC", List.of("company-chat"), true, List.of(),
+                ApiException.conflict("AI_EMBEDDING_UNAVAILABLE", "没有可用的 embedding 供应商"),
+                List.of(), "答案");
 
         assertThatThrownBy(() -> svc.ask("运费怎么算", "admin"))
                 .isInstanceOf(ApiException.class)
@@ -124,12 +154,44 @@ class AiAnswerServiceTest {
 
     @Test
     void emptyIndexRefusesInsteadOfFailing() {
-        var svc = service(List.of("ollama"), true, List.of(),
-                ApiException.notFound("SEMANTIC_INDEX_EMPTY", "索引为空"));
+        var svc = service("SEMANTIC", List.of("company-chat"), true, List.of(),
+                ApiException.notFound("SEMANTIC_INDEX_EMPTY", "索引为空"), List.of(), "答案");
 
         var answer = svc.ask("运费怎么算", "admin");
 
         assertThat(answer.fallback()).isTrue();
-        assertThat(answer.reason()).contains("知识库为空");
+        assertThat(answer.reason()).contains("阈值");
+    }
+
+    @Test
+    void modelCannotAnswerFallsBack() {
+        var svc = keywordService(List.of(new KeywordRetriever.Hit(
+                "faq-1", "退货", "7 天无理由", 0.8)), "无法回答");
+
+        var answer = svc.ask("能退货吗", "admin");
+
+        assertThat(answer.fallback()).isTrue();
+        assertThat(answer.reason()).contains("片段不足");
+        assertThat(answer.citations()).hasSize(1);
+    }
+
+    @Test
+    void modelFailureIsServiceUnavailable() {
+        JdbcTemplate jdbc = mock(JdbcTemplate.class);
+        when(jdbc.queryForList(anyString(), eq(String.class))).thenReturn(List.of("company-chat"));
+        AiMediaService media = mock(AiMediaService.class);
+        when(media.chat(anyString(), anyString(), anyString()))
+                .thenThrow(new IllegalStateException("connect timed out"));
+        SemanticIndexService index = mock(SemanticIndexService.class);
+        KeywordRetriever keyword = mock(KeywordRetriever.class);
+        when(keyword.search(anyString(), nullable(String.class), anyInt()))
+                .thenReturn(List.of(new KeywordRetriever.Hit("faq-1", "运费", "满 99 免运费", 0.9)));
+
+        var svc = new AiAnswerService(jdbc, media, index, keyword,
+                mock(AuditEventService.class), "KEYWORD", 0.72, 0.15, 5, "");
+
+        assertThatThrownBy(() -> svc.ask("运费怎么算", "admin"))
+                .isInstanceOf(ApiException.class)
+                .satisfies(err -> assertThat(((ApiException) err).code()).isEqualTo("AI_CHAT_FAILED"));
     }
 }

@@ -25,6 +25,9 @@
     此前“远端已有不同提交”判断有误，已更正。**patch-id 逐条核验**：32 个提交在 main 上全部有一一对应（唯一 `9e3608cf` 与 main `62f0fa65` 仅差 `.env`）。
     2026-11-03 用户决定：**冻结该分支** —— 已打归档 tag `archive/spike-spring-boot-4`（指向 `498fd1b0`）并推到远端，
     `docs/SYNC_AND_TECH_STACK_DECISIONS.md` §6 已标注“勿再在其上开发”。分支本身保留不动。
+  - 另在 Gitea 侧加了分支保护（Gitea 28.2.0，`POST /repos/tangpan/full-mall/branch_protections`，`enable_push=false`），
+    读回确认规则存在；**但“能否拦住推送”未做实测**（用户叫停，避免冒写风险）。
+    远端分支头为 `c9b9974b`（比本地 `498fd1b0` 新，说明有别的机器推过），本地若要推需先 pull。
     另在 Gitea 加了分支保护规则（`enable_push=false`，Gitea 28.2.0，仓库此前无任何保护规则），API 读回已确认生效；
     未做推送实测（对真分支做试探推送风险大于收益），远端分支头仍为 `c9b9974b`。
 - 环境事实：

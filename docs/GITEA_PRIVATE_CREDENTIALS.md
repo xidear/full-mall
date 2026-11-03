@@ -8,7 +8,7 @@
 
 | 仓库 | 地址 | 定位 | 是否含凭据 |
 |---|---|---|---|
-| Gitea（内部，唯一开发源） | `https://company.binnarui.com:8148/xidear/full-mall.git` | 内部完整仓库，**单分支 `main`** | 是：`.env` 入库 |
+| Gitea（内部，唯一开发源） | 局域网 SSH `ssh://git@192.168.1.3:2223/tangpan/full-mall.git`；Web `https://home.binnarui.cn:33000` | 内部完整仓库，**单分支 `main`** | 是：`.env` 入库 |
 | GitHub（公开分叉） | `https://github.com/xidear/full-mall.git` | 对外源码，独立提交历史 | 否：只有 `.env.example` |
 | Gitee（公开分叉） | `https://gitee.com/xidear/full-mall.git` | 对外源码，独立提交历史 | 否：只有 `.env.example` |
 
@@ -20,7 +20,7 @@
 
 | 项 | 位置 | 说明 |
 |---|---|---|
-| Gitea 用户名/密码 | 本机凭据库 `~/.git-credentials`（`credential.helper=store`） | 不写入 `.git/config`、不写入 remote URL |
+| Gitea 用户名/密码 | 本机凭据库 `~/.git-credentials`（`credential.helper=store`）；SSH 推送优先，见 `~/.ssh/config` 的 `gitea` 主机别名 | 不写入 `.git/config`、不写入 remote URL |
 | Gitea 开发用凭据 | 本仓库 `.env` 的 `GITEA_USERNAME` / `GITEA_PASSWORD` | 仅内部仓库 |
 | GitHub 推送凭据 | 本机凭据库或本机凭据管理器 | 公开仓库，禁止写入仓库文件 |
 | Gitee 凭据 | 本机凭据库或 CI secret | 公开仓库，禁止写入仓库文件 |
@@ -31,8 +31,14 @@
 ```bash
 git credential fill <<'EOF'
 protocol=https
-host=company.binnarui.com:8148
+host=home.binnarui.cn:33000
 EOF
+```
+
+SSH 推送（推荐，无需每次输入密码）：
+
+```bash
+ssh -T -p 2223 git@192.168.1.3    # 期望输出 Hi there, tangpan! You've successfully authenticated...
 ```
 
 ## 3. 使用方式

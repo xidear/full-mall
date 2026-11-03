@@ -9,7 +9,7 @@
 
 | 仓库 | 地址 | 定位 | 是否含凭据 | 推送策略 |
 |---|---|---|---|---|
-| Gitea（默认） | `https://company.binnarui.com:8148/xidear/full-mall.git` | 公司内部完整仓库，**唯一开发源** | 含：`.env` 入库 | **默认唯一推送目标** |
+| Gitea（默认） | 局域网 SSH `ssh://git@192.168.1.3:2223/tangpan/full-mall.git`；公网 Web `https://home.binnarui.cn:33000` | 公司内部完整仓库，**唯一开发源** | 含：`.env` 入库 | **默认唯一推送目标** |
 | GitHub | `https://github.com/xidear/full-mall.git` | 对外公开源码分叉 | 不含 | 仅用户明确说“推 GitHub”时 |
 | Gitee | `https://gitee.com/xidear/full-mall.git` | 对外公开源码分叉 | 不含 | 仅用户明确说“推 Gitee”时 |
 
@@ -23,10 +23,15 @@
 
 ```bash
 git remote -v
-# gitea  https://company.binnarui.com:8148/xidear/full-mall.git
+# gitea  ssh://git@192.168.1.3:2223/tangpan/full-mall.git
 ```
 
-> remote URL **不得**包含用户名密码。认证交给本机凭据库：`git config credential.helper store`（值存 `~/.git-credentials`，权限 0600）。
+> remote URL **不得**包含用户名密码。SSH 推送使用 `~/.ssh/id_ed25519`，公钥登记在 Gitea 账号 `tangpan`（Settings → SSH / GPG Keys）；
+> HTTPS 推送则交给本机凭据库：`git config credential.helper store`（值存 `~/.git-credentials`，权限 0600）。
+>
+> Gitea 部署事实（2026-11-03 核对）：QNAP NAS `192.168.1.3` 上的 Container Station 容器 `gitea-run`，
+> 容器内 SSH 端口 `2222` 映射为 NAS `2223`，Web 端口 `3000`；公网 Web 入口 `https://home.binnarui.cn:33000`（TLS）。
+> Gitea 只接受 HTTPS：`http://192.168.1.3:3000` 会返回 400。公网 SSH 映射（`home.binnarui.cn:32222 → 192.168.1.3:2222`）在 2026-11-03 实测为 connection refused，局域网不可达时先用 Web 入口。
 
 ## 2. 推送规则（强制）
 
@@ -50,7 +55,7 @@ git remote -v
 - 新机器：
 
 ```bash
-git clone https://company.binnarui.com:8148/xidear/full-mall.git full-mall
+git clone ssh://git@192.168.1.3:2223/tangpan/full-mall.git full-mall
 cd full-mall
 docker compose --profile core --profile app up -d
 ```
@@ -187,7 +192,7 @@ openssl rand -base64 32
 ### 5.1 Gitea 内部开发（推荐）
 
 ```bash
-git clone https://company.binnarui.com:8148/xidear/full-mall.git full-mall
+git clone ssh://git@192.168.1.3:2223/tangpan/full-mall.git full-mall
 cd full-mall
 docker compose --profile core --profile app --profile tools up -d
 ```

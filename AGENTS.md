@@ -188,9 +188,12 @@ cp -r "$SRC"/* "$DST"
 - [ ] 命令/代码失败时会暴露错误，而不是吞掉
 ## 6. Git 推送规则（强制）
 
-- **默认只推 Gitea**：`gitea` remote（`ssh://git@company.binnarui.com:32223/tangpan/full-mall.git`）。
-  > 2026-10-30 纠正：此前这里记的是 `https://company.binnarui.com:8148/xidear/full-mall.git`，
-  > 与仓库实际配置不符。**以 `git remote -v` 的实际值为准**；换机器先跑一次 `git remote -v` 核对，不要照抄本文件。
+- **默认只推 Gitea**：`gitea` remote（`ssh://git@192.168.1.3:2223/tangpan/full-mall.git`，局域网直连）。
+  > 2026-10-30 纠正：此前这里记的是 `https://company.binnarui.com:8148/xidear/full-mall.git`。
+  > 2026-11-03 纠正：Gitea 实际跑在家用 **QNAP NAS `192.168.1.3`** 的 Container Station 上（容器 `gitea-run`），
+  > SSH 为容器端口 `2222` 映射到 NAS `2223`，Web 为 `3000`（公网 `https://home.binnarui.cn:33000`，带 TLS）。
+  > Gitea 只接受 HTTPS，`http://192.168.1.3:3000` 会返回 400「Client sent an HTTP request to an HTTPS server」。
+  > **以 `git remote -v` 的实际值为准**；换机器先跑一次 `git remote -v` 核对，不要照抄本文件。
 - **已完成并验证的改动批次默认自动提交并推送到 Gitea**（2026-10-30 用户授权），不再逐次询问；
   仍然**只推 Gitea**。GitHub / Gitee 必须由用户明确点名才推。自动推送前仍要执行下面的推送前检查
   （远端/分支确认、`git status`、暂存区密钥扫描）；任何一项不通过就**不推**，并如实报告原因。

@@ -18,5 +18,9 @@
 | 0012 | POS 收银、组合支付与现金财务 | Accepted（设计） |
 | 0013 | 国家与行政区划数据的来源与治理 | Accepted |
 | 0014 | 市场 / 语言 / 收货地三轴分离 | Accepted（设计） |
+| 0015 | 角色表（role）取代硬编码角色串 | Accepted |
+| 0016 | AI 答案模型与检索策略 | Accepted |
+| 0017 | 汇率阶段 1（直接汇率 + 快照） | Accepted |
+| 0018 | 三方通道统一模型：能力 / 供应商 / 用途绑定 | 提议 |
 
 新增 ADR 使用 `NNNN-short-title.md`，不要修改已接受 ADR 的决策内容；如需变更，新增一条 superseding ADR。

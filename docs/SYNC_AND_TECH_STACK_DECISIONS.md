@@ -100,6 +100,10 @@
 
 分支：`spike/spring-boot-4`（**未合并**，main 保持 3.4.5 绿色）。
 
+> **2026-11-03 冻结**：本 spike 的 32 个提交已全部 cherry-pick 进 `main`（`23e496a6` 合并，165 测试全绿），
+> 两分支 `server/pom.xml` 除 `.env` 外无差异。分支本身已打归档 tag `archive/spike-spring-boot-4`，
+> **勿再在其上开发**（它落后 main 597 个提交）；如需再做 Boot 4 相关升级，基于当前 `main` 新开分支。
+
 | 项 | 实测 |
 |---|---|
 | `spring-boot-starter-parent` | 4.1.1 可解析（Spring Framework 7.0.9） |

@@ -23,7 +23,8 @@
     两分支 `server/pom.xml` 除 `.env` 外无差异（Boot 4.1.1 / Modulith 2.1.1 / springdoc 3.1.1 / Testcontainers 2.0.5 一致）。
     分支只是没删：停在 10-19，落后 main 597 个提交，本地仅领先 1 个 `498fd1b0`（= main `7fddc24f` 的重复提交）。
     此前“远端已有不同提交”判断有误，已更正。**patch-id 逐条核验**：32 个提交在 main 上全部有一一对应（唯一 `9e3608cf` 与 main `62f0fa65` 仅差 `.env`）。
-    2026-11-03 用户决定：**本地与远端分支都保留不动**（内容已存档在 main，故无需处理）。
+    2026-11-03 用户决定：**冻结该分支** —— 已打归档 tag `archive/spike-spring-boot-4`（指向 `498fd1b0`）并推到远端，
+    `docs/SYNC_AND_TECH_STACK_DECISIONS.md` §6 已标注“勿再在其上开发”。分支本身保留不动。
 - 环境事实：
   - NAS SSH：`ssh admin@192.168.1.3`（22 端口）可登录；docker 需用全路径 `/share/CACHEDEV1_DATA/.qpkg/container-station/bin/docker`
     （登录 shell 的 PATH 里没有 docker）。

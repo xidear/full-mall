@@ -17,8 +17,7 @@
     Gitea 地址由 `company.binnarui.com:8148` 改为实际地址。
   - 推送验证：`git push gitea main` → `5c1a3b0..b0d0872`，`git ls-remote gitea` 头部一致。
 - 已做未验证：
-  - 公网 SSH 入口经实测为 **`home.binnarui.cn:22223`**（iKuai `22223 → 192.168.1.3:2223`），`git ls-remote` 正常；
-    iKuai 另有 `32222 → 192.168.1.3:2222`，NAS 未监听 2222，实测 refused（映射生效但目标端口错位）。
+  - 公网 SSH：`home.binnarui.cn:32223`（iKuai 32222 → 192.168.1.3:2223）与 `:22223` 均实测认证成功；曾因错指 2222 而 refused，已修。
 - 未做 / 已知缺口：
   - `spike/spring-boot-4`：**远端没有新提交**（此前“远端已有不同提交”的判断有误，已核实 remote 头为 `633b52ff`，本地仅领先 1 个提交 `498fd1b0`）。该分支 32 个提交未合并、落后 main 596 个提交，未推送，待用户决定是否保留。
 - 环境事实：

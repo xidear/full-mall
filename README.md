@@ -213,7 +213,7 @@ cd web && npx playwright test
 
 三个仓库同名 `full-mall`，但**不是分支关系**：
 
-- 内部完整仓库（Gitea，唯一开发源）：`ssh://git@home.binnarui.cn:22223/tangpan/full-mall.git`（公网 SSH；Web https://home.binnarui.cn:33000） —— 单分支 `main`，`.env` 已入库，内部同事 clone 后即可 `docker compose up`，无需配置凭据。
+- 内部完整仓库（Gitea，唯一开发源）：`ssh://git@home.binnarui.cn:32223/tangpan/full-mall.git`（公网 SSH；Web https://home.binnarui.cn:33000） —— 单分支 `main`，`.env` 已入库，内部同事 clone 后即可 `docker compose up`，无需配置凭据。
 - GitHub 公开分叉：https://github.com/xidear/full-mall —— 独立提交，只有 `.env.example`。
 - Gitee 公开分叉：https://gitee.com/xidear/full-mall —— 独立提交，只有 `.env.example`。
 

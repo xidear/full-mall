@@ -3,6 +3,29 @@
 > 规则见 `AGENTS.md` §14：每批改动结束更新本文件，只保留最近 3 批。
 > 写清“已做并验证 / 已做未验证 / 未做”，以及环境事实（端口、容器、库是否重建）。
 
+## 2026-11-03 / Gitea 地址校正 + SSH 推送
+
+- 已做并验证：
+  - Gitea 实际部署：**QNAP NAS `192.168.1.3`** 的 Container Station，容器 `gitea-run`（`0.0.0.0:2223->2222`、`0.0.0.0:3000->3000`）。
+    NAS 固件升级重启后容器需等 dockerd 起来（`docker ps` 首次数十秒无响应属正常，勿当成失败）。
+  - **Gitea 只接受 HTTPS**：`http://192.168.1.3:3000` 返回 400 `Client sent an HTTP request to an HTTPS server`；公网 Web `https://home.binnarui.cn:33000` 实测 200。
+  - SSH：新增 `~/.ssh/id_ed25519` 公钥到账号 `tangpan`（API `POST /api/v1/user/keys`，201），`ssh -T gitea` 输出 `Hi there, tangpan!`。
+    `~/.ssh/config` 增加 `Host gitea` 别名（`192.168.1.3:2223`，原 config 已备份为 `config.bak.*`）。
+  - 修正根因：仓库本地 `core.sshCommand` 写死 `/home/xidear/.ssh/id_ed25519_gitea_dsh`（另一台 Linux 机器路径），
+    本机不存在 → 每次推送都回退，已改为 `ssh -F ~/.ssh/config`。
+  - 文档校正：`AGENTS.md` §6、`docs/GIT_AND_ENVIRONMENTS.md`、`docs/GITEA_PRIVATE_CREDENTIALS.md`、`docs/PROJECT_MEMORY.md`、`README.md` 的
+    Gitea 地址由 `company.binnarui.com:8148` 改为实际地址。
+  - 推送验证：`git push gitea main` → `5c1a3b0..b0d0872`，`git ls-remote gitea` 头部一致。
+- 已做未验证：
+  - 公网 SSH 入口经实测为 **`home.binnarui.cn:22223`**（iKuai `22223 → 192.168.1.3:2223`），`git ls-remote` 正常；
+    iKuai 另有 `32222 → 192.168.1.3:2222`，NAS 未监听 2222，实测 refused（映射生效但目标端口错位）。
+- 未做 / 已知缺口：
+  - `spike/spring-boot-4` 本地领先 1 个提交，远端已有不同提交，`git push` 被拒；按“不改写已推送历史”未强推，待确认后再处理。
+- 环境事实：
+  - NAS SSH：`ssh admin@192.168.1.3`（22 端口）可登录；docker 需用全路径 `/share/CACHEDEV1_DATA/.qpkg/container-station/bin/docker`
+    （登录 shell 的 PATH 里没有 docker）。
+  - Gitea 密码登录 API 也走 HTTPS：`curl -k https://192.168.1.3:3000/api/v1/...`（自签证书需 `-k`）。
+
 ## 2026-11-03 / 快递100 真链路 + ARM 测试环境
 
 - 已做并验证：

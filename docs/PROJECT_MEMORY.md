@@ -41,7 +41,7 @@ Full Mall 是一个**源码开放（source-available，非 OSI 开源）**的跨
 
 | 远端 | 地址 | 用途 |
 |---|---|---|
-| Gitea（默认） | 局域网 SSH `ssh://git@192.168.1.3:2223/tangpan/full-mall.git`（公网 Web `https://home.binnarui.cn:33000`） | **内部完整仓库，唯一开发源**；单分支 `main`，`.env` 入库 |
+| Gitea（默认） | 公网 SSH `ssh://git@home.binnarui.cn:22223/tangpan/full-mall.git`（Web `https://home.binnarui.cn:33000`） | **内部完整仓库，唯一开发源**；单分支 `main`，`.env` 入库 |
 | GitHub | `https://github.com/xidear/full-mall.git` | 对外公开源码分叉，独立提交，无凭据 |
 | Gitee | `https://gitee.com/xidear/full-mall.git` | 对外公开源码分叉，独立提交，无凭据 |
 

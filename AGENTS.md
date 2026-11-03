@@ -188,10 +188,12 @@ cp -r "$SRC"/* "$DST"
 - [ ] 命令/代码失败时会暴露错误，而不是吞掉
 ## 6. Git 推送规则（强制）
 
-- **默认只推 Gitea**：`gitea` remote（`ssh://git@192.168.1.3:2223/tangpan/full-mall.git`，局域网直连）。
+- **默认只推 Gitea**：`gitea` remote（`ssh://git@home.binnarui.cn:22223/tangpan/full-mall.git`，公网 SSH；局域网内可换 `192.168.1.3:2223`）。
   > 2026-10-30 纠正：此前这里记的是 `https://company.binnarui.com:8148/xidear/full-mall.git`。
   > 2026-11-03 纠正：Gitea 实际跑在家用 **QNAP NAS `192.168.1.3`** 的 Container Station 上（容器 `gitea-run`），
-  > SSH 为容器端口 `2222` 映射到 NAS `2223`，Web 为 `3000`（公网 `https://home.binnarui.cn:33000`，带 TLS）。
+  > 容器内 SSH 端口 `2222` 映射到 NAS `2223`；Web 为 `3000`（公网 `https://home.binnarui.cn:33000`，带 TLS）。
+  > 公网 SSH 入口为 `ssh://git@home.binnarui.cn:22223`（iKuai 映射 22223 → 192.168.1.3:2223，2026-11-03 实测可用）。
+  > 注意 iKuai 里另有一条 `32222 → 192.168.1.3:2222` 的映射，但 NAS 上**没有**监听 2222，走它会 connection refused。
   > Gitea 只接受 HTTPS，`http://192.168.1.3:3000` 会返回 400「Client sent an HTTP request to an HTTPS server」。
   > **以 `git remote -v` 的实际值为准**；换机器先跑一次 `git remote -v` 核对，不要照抄本文件。
 - **已完成并验证的改动批次默认自动提交并推送到 Gitea**（2026-10-30 用户授权），不再逐次询问；

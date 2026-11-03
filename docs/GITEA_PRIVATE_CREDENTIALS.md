@@ -8,7 +8,7 @@
 
 | 仓库 | 地址 | 定位 | 是否含凭据 |
 |---|---|---|---|
-| Gitea（内部，唯一开发源） | 局域网 SSH `ssh://git@192.168.1.3:2223/tangpan/full-mall.git`；Web `https://home.binnarui.cn:33000` | 内部完整仓库，**单分支 `main`** | 是：`.env` 入库 |
+| Gitea（内部，唯一开发源） | 公网 SSH `ssh://git@home.binnarui.cn:22223/tangpan/full-mall.git`；Web `https://home.binnarui.cn:33000` | 内部完整仓库，**单分支 `main`** | 是：`.env` 入库 |
 | GitHub（公开分叉） | `https://github.com/xidear/full-mall.git` | 对外源码，独立提交历史 | 否：只有 `.env.example` |
 | Gitee（公开分叉） | `https://gitee.com/xidear/full-mall.git` | 对外源码，独立提交历史 | 否：只有 `.env.example` |
 

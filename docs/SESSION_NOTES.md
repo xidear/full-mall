@@ -20,7 +20,7 @@
   - 公网 SSH 入口经实测为 **`home.binnarui.cn:22223`**（iKuai `22223 → 192.168.1.3:2223`），`git ls-remote` 正常；
     iKuai 另有 `32222 → 192.168.1.3:2222`，NAS 未监听 2222，实测 refused（映射生效但目标端口错位）。
 - 未做 / 已知缺口：
-  - `spike/spring-boot-4` 本地领先 1 个提交，远端已有不同提交，`git push` 被拒；按“不改写已推送历史”未强推，待确认后再处理。
+  - `spike/spring-boot-4`：**远端没有新提交**（此前“远端已有不同提交”的判断有误，已核实 remote 头为 `633b52ff`，本地仅领先 1 个提交 `498fd1b0`）。该分支 32 个提交未合并、落后 main 596 个提交，未推送，待用户决定是否保留。
 - 环境事实：
   - NAS SSH：`ssh admin@192.168.1.3`（22 端口）可登录；docker 需用全路径 `/share/CACHEDEV1_DATA/.qpkg/container-station/bin/docker`
     （登录 shell 的 PATH 里没有 docker）。

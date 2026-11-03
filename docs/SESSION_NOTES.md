@@ -19,7 +19,10 @@
 - 已做未验证：
   - 公网 SSH：`home.binnarui.cn:32223`（iKuai 32222 → 192.168.1.3:2223）与 `:22223` 均实测认证成功；曾因错指 2222 而 refused，已修。
 - 未做 / 已知缺口：
-  - `spike/spring-boot-4`：**远端没有新提交**（此前“远端已有不同提交”的判断有误，已核实 remote 头为 `633b52ff`，本地仅领先 1 个提交 `498fd1b0`）。该分支 32 个提交未合并、落后 main 596 个提交，未推送，待用户决定是否保留。
+  - `spike/spring-boot-4`：**该 spike 成果早已 cherry-pick 进 main**（main 上 `f1aad567`→`7fddc24f`→`23e496a6` 合并，165 测试全绿）；
+    两分支 `server/pom.xml` 除 `.env` 外无差异（Boot 4.1.1 / Modulith 2.1.1 / springdoc 3.1.1 / Testcontainers 2.0.5 一致）。
+    分支只是没删：停在 10-19，落后 main 597 个提交，本地仅领先 1 个 `498fd1b0`（= main `7fddc24f` 的重复提交）。
+    此前“远端已有不同提交”判断有误，已更正。**patch-id 逐条核验**：32 个提交在 main 上全部有一一对应（唯一 `9e3608cf` 与 main `62f0fa65` 仅差 `.env`）。分支未推送、未删除，待用户决定。
 - 环境事实：
   - NAS SSH：`ssh admin@192.168.1.3`（22 端口）可登录；docker 需用全路径 `/share/CACHEDEV1_DATA/.qpkg/container-station/bin/docker`
     （登录 shell 的 PATH 里没有 docker）。

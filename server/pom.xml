@@ -349,5 +349,49 @@
 </plugins>
             </build>
         </profile>
+        <!-- ARM 主机（ARM64 Linux / Apple Silicon）上 zonky 嵌入式 PG 会以
+             "Missing embedded postgres binaries" 失败：默认只带 amd64 / darwin-x86_64 变体。
+             这里按 CPU 架构补对应二进制变体，amd64 机器完全不受影响。
+             版本必须跟随 embedded-postgres 的 BOM（当前 2.2.2 -> 14.22.0），升级时要一起改。 -->
+        <profile>
+            <id>embedded-postgres-linux-arm64</id>
+            <activation>
+                <property>
+                    <name>os.arch</name>
+                    <value>aarch64</value>
+                </property>
+                <os>
+                    <name>Linux</name>
+                </os>
+            </activation>
+            <dependencies>
+                <dependency>
+                    <groupId>io.zonky.test.postgres</groupId>
+                    <artifactId>embedded-postgres-binaries-linux-arm64v8</artifactId>
+                    <version>14.22.0</version>
+                    <scope>test</scope>
+                </dependency>
+            </dependencies>
+        </profile>
+        <profile>
+            <id>embedded-postgres-darwin-arm64</id>
+            <activation>
+                <property>
+                    <name>os.arch</name>
+                    <value>aarch64</value>
+                </property>
+                <os>
+                    <name>Mac OS X</name>
+                </os>
+            </activation>
+            <dependencies>
+                <dependency>
+                    <groupId>io.zonky.test.postgres</groupId>
+                    <artifactId>embedded-postgres-binaries-darwin-arm64v8</artifactId>
+                    <version>14.22.0</version>
+                    <scope>test</scope>
+                </dependency>
+            </dependencies>
+        </profile>
     </profiles>
 </project>

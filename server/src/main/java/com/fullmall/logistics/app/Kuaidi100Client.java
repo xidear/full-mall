@@ -42,11 +42,23 @@ public class Kuaidi100Client {
         return customer != null && !customer.isBlank() && key != null && !key.isBlank();
     }
 
-    /** 查询轨迹原始 JSON；调用方用 `Kuaidi100Response` 解析。 */
+    /** 用环境变量里的凭据查询；后台配置优先的场景请用 {@link #query(String, String, String, String)}。 */
     public String query(String carrierCode, String trackingNo) {
         if (!configured()) {
             throw com.fullmall.platform.error.ApiException.conflict("LOGISTICS_NOT_CONFIGURED",
                     "快递100 未配置（app.logistics.kuaidi100.customer/key），无法查询真实轨迹");
+        }
+        return query(customer, key, carrierCode, trackingNo);
+    }
+
+    /**
+     * 用调用方给定的凭据查询：凭据的唯一来源是后台配置（集成/系统设置），
+     * 环境变量只是迁移期兼容，因此凭据必须能由上层传进来。
+     */
+    public String query(String customer, String key, String carrierCode, String trackingNo) {
+        if (customer == null || customer.isBlank() || key == null || key.isBlank()) {
+            throw com.fullmall.platform.error.ApiException.conflict("LOGISTICS_NOT_CONFIGURED",
+                    "快递100 customer/key 不能为空，无法查询真实轨迹");
         }
         var form = Kuaidi100Query.build(customer, key, carrierCode, trackingNo);
         String body = form.asMap().entrySet().stream()

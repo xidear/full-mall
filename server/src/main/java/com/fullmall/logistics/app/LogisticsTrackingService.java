@@ -20,7 +20,8 @@ import java.util.UUID;
  * 物流轨迹查询。
  *
  * <p>**演示用 mock，生产用后台配置**：`logistics_provider` 配置项决定实现
- * （`mock` / `kuaidi100`）。密钥走环境变量 `app.logistics.api-key`，**不进数据库、不进后台表单**。
+ * （`mock` / `kuaidi100`）。生产凭据由后台「系统设置 → 物流 Customer / 物流 Key」维护，
+ * 环境变量 `app.logistics.api-key` 只在后台未填时兜底（会打 WARN），不再作为唯一来源。
  *
  * <p>**错误暴露策略（重要）**：供应商不可用时
  * <ul>
@@ -40,6 +41,7 @@ public class LogisticsTrackingService {
     private final SystemSettingService settings;
     private final RiskAlertService riskAlerts;
     private final JdbcTemplate jdbcTemplate;
+    private final Kuaidi100Client kuaidi100;
     private final String apiKey;
     /** 演示模式：无论后台配置了什么服务商，一律用 mock（不产生外网调用）。 */
     private final boolean demoForced;
@@ -47,12 +49,14 @@ public class LogisticsTrackingService {
     public LogisticsTrackingService(SystemSettingService settings, RiskAlertService riskAlerts,
                                     JdbcTemplate jdbcTemplate,
                                     com.fullmall.market.app.MarketIntegrationService integrations,
+                                    Kuaidi100Client kuaidi100,
                                     @Value("${app.logistics.api-key:}") String apiKey,
                                     @Value("${app.mode:dev}") String appMode) {
         this.settings = settings;
         this.riskAlerts = riskAlerts;
         this.jdbcTemplate = jdbcTemplate;
         this.integrations = integrations;
+        this.kuaidi100 = kuaidi100;
         this.apiKey = apiKey;
         this.demoForced = "demo".equalsIgnoreCase(appMode);
     }
@@ -125,8 +129,11 @@ public class LogisticsTrackingService {
         // AK 由后台填写（logistics_key），环境变量作为兜底
         String customer = settings.rawValue("logistics_customer");
         String key = settings.rawValue("logistics_key");
+        boolean keyFromEnv = false;
         if (key == null || key.isBlank()) {
+            // 环境变量只是迁移期兼容：唯一来源是后台配置（AGENTS §1 禁止双源）
             key = apiKey;
+            keyFromEnv = key != null && !key.isBlank();
         }
         if (key == null || key.isBlank()) {
             return unavailable("kuaidi100", shipment, "未配置物流服务商 AK（后台「物流 Key」）");
@@ -134,12 +141,16 @@ public class LogisticsTrackingService {
         if (customer == null || customer.isBlank()) {
             return unavailable("kuaidi100", shipment, "未配置快递100 customer（后台「物流 Customer」）");
         }
-        // 请求体构造已完成并可单测；真正的 HTTP 调用需要 AK 才能联调，这里显式失败而不是假装成功
-        Kuaidi100Query.Form form = Kuaidi100Query.build(customer, key,
-                shipment.carrierCode(), shipment.trackingNo());
-        return unavailable("kuaidi100", shipment,
-                "快递100 请求已构造（sign=" + form.sign().substring(0, 8) + "…），"
-                        + "但未配置联调环境，未发起网络调用");
+        if (keyFromEnv) {
+            log.warn("快递100 凭据来自环境变量（APP_LOGISTICS_KEY），后台未配置；生产请在后台填写");
+        }
+        try {
+            // 解析失败（status!=200 / 字段缺失）必须抛到这里，由 unavailable() 转成「内部告警 + 顾客通用提示」
+            return Kuaidi100Response.parse(
+                    kuaidi100.query(customer, key, shipment.carrierCode(), shipment.trackingNo()));
+        } catch (RuntimeException error) {
+            return unavailable("kuaidi100", shipment, "快递100 查询失败：" + error.getMessage());
+        }
     }
 
     /**

@@ -3,6 +3,31 @@
 > 规则见 `AGENTS.md` §14：每批改动结束更新本文件，只保留最近 3 批。
 > 写清“已做并验证 / 已做未验证 / 未做”，以及环境事实（端口、容器、库是否重建）。
 
+## 2026-11-03 / 快递100 真链路 + ARM 测试环境
+
+- 已做并验证：
+  - **快递100 真链路**：`LogisticsTrackingService` 之前只构造请求就抛 503（client 与 decoder 早就有但没接线）。
+    现在按「后台配置 Customer/Key → 真发 HTTP → `Kuaidi100Response` 解析」，失败统一 `unavailable()`
+    （内部 `risk_alert` + 顾客通用文案）；cookie 环境变量只在后台未填时兜底并打 WARN。
+  - 测试：`mvn -Dtest=LogisticsTrackingServiceTest,Kuaidi100ClientTest,Kuaidi100QueryTest,Kuaidi100ResponseTest test`
+    → **12 tests / 0 failures / 0 errors，BUILD SUCCESS**（新增用例用本地桩服务验证签名、解析、密钥不外泄）。
+  - ARM 主机测试可用：`server/pom.xml` 增加 `os.arch=aarch64` 自动激活的 profile，
+    补 `embedded-postgres-binaries-linux-arm64v8` / `-darwin-arm64v8`（14.22.0）。
+- 已做未验证：
+  - 全量后端套件（本批只跑了物流相关 12 项，全量在跑，结果见下一条交接）
+  - 演示模式仍走内置轨迹、不发外网；尚未给 `deploy/wiremock` 加快递100 mapping（E2E 需要时再加）
+- 未做 / 已知缺口：
+  - 快递100 凭据仍在 `system_setting`（后台「物流 Key/Customer」），尚未迁到 `integration_config` 加密存储；
+    与「所有三方凭据统一走集成目录」的目标还差一次迁移
+  - 告警通道（企微/飞书/钉钉）多通道、短信按用途勾选、邮件 126/QQ —— 三项未开始
+- 环境事实：
+  - 本机 aarch64：官方 `maven:3.9-eclipse-temurin-21` 是 amd64 镜像，已用 `alpine`/`debian` 自建同名镜像；
+    **镜像里必须有 uid 501 的 passwd 条目**，否则 `initdb` 报 `could not look up effective user ID`
+  - docker CLI 默认 context 是 `colima` → 指向 macOS 路径不可达，必须 `docker context use default`；
+    daemon 侧 pull 的 DNS 坏（`[::1]:53 refused`），拉镜像会失败，只能由容器内下载后 commit
+  - `docker run -v /tmp/...` 的路径由**宿主机**解析，不是当前容器；m2 缓存要用宿主机可见路径
+    （`/Volumes/256/xidear/works/.dsh-maven-repo`），否则容器内 uid 501 写不进 root 属主的目录
+  - 依赖下载慢：Maven 用阿里云镜像（`-s` 指向 settings.xml），JDK/Maven 二进制用 `mirrors.huaweicloud.com`
 ## 2026-10-31 / 自动汇率 + 退款汇率快照 + 金额去浮点
 
 - 已做并验证：
@@ -47,35 +72,3 @@
   - migration 到 V6；export 集成目录已修正为容器内 `/repo/server/data/exports`
   - 41281 Vite dev / embedding 41291 / API 41280
 
-## 2026-10-31 / 金额精度 + 汇率阶段1 + 门店软删除 + 完整测试
-
-- 已做并验证：
-  - 金额精度：`Money.toMajor/parseMajor` 按币种小数位；`CurrencyPrecision` 用 ISO 并修正
-    TWD/HUF（原误写 0）；前端统一 `@fullmall/api-client/money`（Intl/CLDR），
-    admin 全部 `/100` 已清（只剩税率 bps/折扣等非金额换算）；storefront/store-console/
-    supplier/support/mobile 同步
-  - 汇率阶段 1：`V5__exchange_rate` + `ExchangeRateService`（BigDecimal、反向推导、找不到明确失败）
-    + `/admin/v1/exchange-rates`（列表/新增/删除/换算）+ admin「汇率」页
-  - 门店软删除：`V4__store_soft_delete` + `deleted_at`、删除/恢复接口、列表过滤、员工绑定拦截、
-    前端「已删除」筛选与恢复
-  - 模型超时：默认 180s，供应商 `extra.timeoutSeconds` 可配 5..600，AI 页可编辑
-  - Maven 大陆镜像：`scripts/maven-settings-aliyun.xml`；新增 23 项测试全绿
-  - 前端构建：admin / store-console / supplier / support / storefront 全部通过
-- 已做并验证（续）：
-  - 完整后端套件 808 项：本批引入的失败（store.code 缺失、迁移 V23 断言、asset.source 空、
-    AI 错误文案）已全部修复并单测复跑通过；剩余 12 项在 7 个历史配置型测试类
-    （MediaUpload/Export/Schedule/Maintenance/IntegrationConfig/AiMedia/AiProvider），与本次改动无关
-  - Playwright 全量 52 passed / 10 failed / 3 skipped；其中 5 个失败是旧测试绑定已变文案，
-    已修测试并复跑通过（admin/pricing×2/coupons/ai-page）；新增 money-and-exchange 3/3
-  - 汇率页真机打开无控制台错误（screenshot `docs/evidence/exchange-rates.png`）
-- 已做未验证：
-  - 剩余 6 个 Playwright 历史用例（admin-pickers/audit×2/export×2/translations）未修，属已知测试债
-- 未做 / 已知缺口：
-  - 汇率未接入下单快照/结算/跨币种退款（阶段 2，见 ADR-0017）
-  - 积分/佣金仍有 CNY 口径（`paidAmount / 100`），未按市场币种参数化
-  - 7 个后端历史配置型测试类需补 integration_config 夹具
-- 环境事实：
-  - 新增迁移：`V4__store_soft_delete`、`V5__exchange_rate`（增量，不重建库）
-  - 新页面：`/exchange-rates`（42 个帮助页）；权限 `settings.manage`
-  - 测试命令：`mvn -s scripts/maven-settings-aliyun.xml test`
-  - 41281 仍是 Vite dev；embedding 41291 仍在跑

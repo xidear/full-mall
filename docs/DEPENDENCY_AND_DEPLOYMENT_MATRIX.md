@@ -83,6 +83,18 @@
 | `@xenova/transformers` 2.17.2 + `sharp` 0.33.5（Apache-2.0 / MIT，ONNX 版 CLIP） | D（可选工具，`tools/clip-service`） | 开发者本地 `npm install --ignore-scripts` | **不影响主程序**：未配置时「图片内容」搜索按钮禁用，接口 409 `CLIP_UNAVAILABLE` | 模型文件从 hf-mirror 下到 `./models`（`node scripts/download-model.mjs`），运行时不联网；sharp 用 npm 预编译包，绕开 GitHub 下载与 node-gyp | `GET /admin/v1/assets/image-search/status` → `{available}` |
 | CLIP 模型（clip-vit-base-patch32 量化版，约 150MB） | D | `tools/clip-service/scripts/download-model.mjs` | 同上（能力不可用，功能不受影响） | 仓库不入库模型；客户可改为远端多模态服务 | `curl /health`（41290） |
 
+## 3.1b 本轮新增（2026-11-03：快递100 真链路 + ARM 测试二进制）
+
+| 依赖 | 层 | 谁装 | 缺了会怎样 | 离线/降级 | 验证方式 |
+|---|---|---|---|---|---|
+| 快递100 实时查询 `https://poll.kuaidi100.com/poll/query.do` | D 外部服务（可选） | 运营在「系统设置 → 物流 Key / 物流 Customer」填写；环境变量 `APP_LOGISTICS_KEY` 仅后台未填时兜底并打 WARN | 未配置：`/api/v1/orders/*/tracking` 返回 503 `LOGISTICS_UNAVAILABLE`（顾客看通用文案），内部落 `risk_alert` | 演示模式（`app.mode=demo`）直接返回内置轨迹，不发外网；测试用本地桩服务 | `mvn -Dtest=Kuaidi100ClientTest,LogisticsTrackingServiceTest test`；运行期看 `risk_alert.rule_code=LOGISTICS_PROVIDER_UNAVAILABLE` |
+| `io.zonky.test.postgres:embedded-postgres-binaries-linux-arm64v8` / `-darwin-arm64v8`（14.22.0，跟随 embedded-postgres 2.2.2 的 BOM） | C 构建/测试期 | Maven 按 `os.arch=aarch64` 自动激活 `server/pom.xml` 的 profile，无需人工安装 | ARM 主机上跑任何 `@SpringBootTest` 都会以 `Missing embedded postgres binaries` 失败（**不是业务失败**） | 走内网 Nexus / 本地 `~/.m2`；版本必须跟随 embedded-postgres BOM，升级时同改 | `mvn -Dtest=ServerContextTest test` |
+
+> ARM 主机的第二个坑（实测）：嵌入式 PG 用 `initdb` 起库，而 `initdb` 会查 `getpwuid(geteuid())`。
+> 用 `docker run -u <uid>` 跑测试时，若镜像里没有该 uid 的 `/etc/passwd` 条目，会直接报
+> `initdb: could not look up effective user ID`——看起来像“arm64 二进制不可用”，其实是缺 passwd 行。
+> 官方 `maven:3.9-eclipse-temurin-21` 是 amd64 镜像，aarch64 机器需自建镜像并补该行。
+
 ## 3.2 已决策待实施：行政区划数据集（ADR-0013，2026-10-29）
 
 | 依赖 | 层 | 谁负责安装 | 离线怎么办 | 缺失时的表现 | 如何验证 |

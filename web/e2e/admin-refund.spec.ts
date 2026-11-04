@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test'
-import { ADMIN_BASE, API_BASE } from './env'
+import { API_BASE, login } from './env'
 
 const API = API_BASE
 const SKU = 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb'
@@ -26,13 +26,7 @@ test('admin refunds part of an order from the order detail', async ({ page, requ
   expect((await request.post(`${API}/api/v1/payments/mock/${order.id}/pay`)).ok()).toBeTruthy()
 
   // 后台登录并打开该订单
-  await page.goto(ADMIN_BASE + '/login')
-  await page.getByPlaceholder('请输入账号').fill('admin')
-  await page.getByPlaceholder('请输入密码').fill('Admin@123456')
-  const question = await page.locator('.captcha-question').innerText()
-  const numbers = (question.match(/\d+/g) ?? []).map(Number)
-  await page.getByPlaceholder('请输入验证码').fill(String(numbers[0] + numbers[1]))
-  await page.getByRole('button', { name: '登录' }).click()
+  await login(page)
   await expect(page.getByRole('heading', { name: '经营总览' })).toBeVisible()
 
   await page.locator('.admin-menu').getByText('订单管理', { exact: true }).click()

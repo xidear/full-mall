@@ -65,7 +65,10 @@ public final class IntegrationCatalog {
                             Field.secret("secret-id", "SecretId", "访问管理 → API 密钥"),
                             Field.secret("secret-key", "SecretKey", "与 SecretId 成对；留空表示沿用旧值"),
                             Field.text("sdk-app-id", "SDK AppID", "短信控制台的应用 ID，纯数字"),
-                            Field.text("sign-name", "短信签名", "已审核通过的签名内容"))))),
+                            Field.text("sign-name", "短信签名", "已审核通过的签名内容"))),
+                    // 演示占位：与邮件/公众号一致。没有这一项时后台把 sms/OTP_LOGIN 绑 mock 会被拒（实测 400），
+                    // 演示环境就完全跑不了短信链路。
+                    new Provider("mock", "演示占位", List.of()))),
 
             new Capability("payment", "支付", "在线支付与退款回调", List.of(
                     new Provider("wechat", "微信支付", List.of(

@@ -107,6 +107,13 @@ public class ChannelSendService {
             return new Result(capability, usageKey, "mock", true);
         }
         var target = resolved.get();
+        if (demo && !"mock".equals(target.provider())) {
+            // 演示模式不联网：绑了真实供应商时，既不能真发（违反演示口径），也不能假装成功（AGENTS §1），
+            // 只能明确拒绝并把改法写清楚。e2e 实测过：放行会真的打到阿里云（假凭据拿到 404，接口报 500）。
+            throw ApiException.conflict("CHANNEL_PROVIDER_DEMO_FORBIDDEN",
+                    "演示模式不允许「" + capability + " / " + usageKey + "」走真实供应商 " + target.provider()
+                            + "：请改绑 mock，或切到生产模式并配置真实凭据");
+        }
         if ("mock".equals(target.provider())) {
             // 生产环境绑定 mock 等于「假装发成功」：明确拒绝，让配置错误当场暴露（AGENTS §1）。
             if (production) {

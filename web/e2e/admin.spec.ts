@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test'
-import { ADMIN_BASE } from './env'
+import { login } from './env'
 
 /**
  * 守住的回归：后台每个菜单页仍能打开，且核心列表真的渲染出数据行（不是白屏/500）。
@@ -7,14 +7,7 @@ import { ADMIN_BASE } from './env'
  * 验证码是后端出的数字加法题（无需 OCR）。失败先看 41281 能否打开、种子是否被重灌。
  */
 test('admin can load dashboard, products, inventory and theme studio', async ({ page }) => {
-  await page.goto(ADMIN_BASE + '/login')
-  await page.getByPlaceholder('请输入账号').fill('admin')
-  await page.getByPlaceholder('请输入密码').fill('Admin@123456')
-  await expect(page.locator('.captcha-question')).toHaveText(/\d+ \+ \d+/)
-  const question = await page.locator('.captcha-question').innerText()
-  const numbers = (question.match(/\d+/g) ?? []).map(Number)
-  await page.getByPlaceholder('请输入验证码').fill(String(numbers[0] + numbers[1]))
-  await page.getByRole('button', { name: '登录' }).click()
+  await login(page)
   await expect(page.getByRole('heading', { name: '经营总览' })).toBeVisible()
 
   await page.locator('.admin-menu').getByText('商品管理', { exact: true }).click()

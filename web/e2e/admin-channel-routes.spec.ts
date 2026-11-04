@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test'
-import { ADMIN_BASE } from './env'
+import { ADMIN_BASE, login } from './env'
 
 /**
  * 通道路由（ADR-0018）页面回归：
@@ -7,16 +7,6 @@ import { ADMIN_BASE } from './env'
  *
  * 依赖：41280 API + 41281 admin 已起，账号 admin / Admin@123456（验证码是后端出的加法题）。
  */
-async function login(page: import('@playwright/test').Page) {
-  await page.goto(ADMIN_BASE + '/login')
-  await page.getByPlaceholder('请输入账号').fill('admin')
-  await page.getByPlaceholder('请输入密码').fill('Admin@123456')
-  const question = await page.locator('.captcha-question').innerText()
-  const numbers = (question.match(/\d+/g) ?? []).map(Number)
-  await page.getByPlaceholder('请输入验证码').fill(String(numbers[0] + numbers[1]))
-  await page.getByRole('button', { name: '登录' }).click()
-  await expect(page.getByRole('heading', { name: '经营总览' })).toBeVisible()
-}
 
 test('admin can bind a usage route and send a test message', async ({ page }) => {
   // 后台首屏要按需编译 + 需要登录/验证码：60s 不足以覆盖整条链路
@@ -33,9 +23,9 @@ test('admin can bind a usage route and send a test message', async ({ page }) =>
   // 邮件能力：先配一个 mock 供应商（演示占位），再绑用途，全程不联网
   const capabilitySelect = page.locator('.el-form-item', { hasText: '能力' }).first().locator('.el-select')
   await capabilitySelect.click()
-  await page.locator('.el-select-dropdown__item', { hasText: '邮件' }).first().click()
+  await page.locator('.el-select-dropdown:visible .el-select-dropdown__item', { hasText: '邮件' }).first().click()
   await page.locator('.el-form-item', { hasText: '服务商' }).first().locator('.el-select').click()
-  await page.locator('.el-select-dropdown__item', { hasText: '演示占位' }).first().click()
+  await page.locator('.el-select-dropdown:visible .el-select-dropdown__item', { hasText: '演示占位' }).first().click()
   await page.locator('.el-form-item', { hasText: '启用' }).first().locator('.el-switch').click()
   await page.getByRole('button', { name: '保存' }).click()
   await expect(page.locator('.el-message').last()).toContainText('已保存')
@@ -56,8 +46,10 @@ test('admin can bind a usage route and send a test message', async ({ page }) =>
     await expect(page.locator('.el-message').last()).toContainText('已取消绑定')
   }
 
+  // 只点可见下拉里的项：Element Plus 会把关闭的 popper 留在 DOM 里，
+  // 短信行现在也有「演示占位」候选，不加 :visible 会点到隐藏项上并等到超时（实测 150s）。
   await row.locator('.el-select').click()
-  await page.locator('.el-select-dropdown__item', { hasText: '演示占位' }).first().click()
+  await page.locator('.el-select-dropdown:visible .el-select-dropdown__item', { hasText: '演示占位' }).first().click()
   // 未绑定的行：先选供应商，再打开「已绑定」开关才真正落库（避免误绑）
   await boundSwitch.click()
   await expect(page.locator('.el-message').last()).toContainText('已绑定')

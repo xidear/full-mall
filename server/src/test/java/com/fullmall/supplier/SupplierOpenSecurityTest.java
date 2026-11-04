@@ -121,6 +121,21 @@ class SupplierOpenSecurityTest {
         return headers;
     }
 
+    /**
+     * 预检必须放行：浏览器的 OPTIONS 请求不会带签名头，若被 HMAC 过滤器拦成 401，
+     * 分端口部署（门户 41283 → API 41280）时门户连不上开放接口（实测现象：Failed to fetch）。
+     */
+    @Test
+    void preflightIsAllowedWithoutSignature() {
+        HttpHeaders headers = new HttpHeaders();
+        headers.setOrigin("http://localhost:41283");
+        headers.setAccessControlRequestMethod(HttpMethod.GET);
+        ResponseEntity<String> response = rest.exchange("/open/v1/ping", HttpMethod.OPTIONS,
+                new HttpEntity<>(headers), String.class);
+        assertThat(response.getStatusCode().is2xxSuccessful()).isTrue();
+        assertThat(response.getHeaders().getAccessControlAllowOrigin()).isEqualTo("http://localhost:41283");
+    }
+
     private ResponseEntity<String> ping(String nonce, String secret) throws Exception {
         return rest.exchange("/open/v1/ping", HttpMethod.GET,
                 new HttpEntity<>(signedHeaders(nonce, secret)), String.class);

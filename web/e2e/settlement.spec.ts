@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test'
 import { e2ePhone } from './utils/e2ePhone'
-import { ADMIN_BASE, API_BASE } from './env'
+import { API_BASE, login } from './env'
 
 const API = API_BASE
 const SUPPLIER_ID = '33333333-3333-3333-3333-333333333333'
@@ -9,11 +9,11 @@ const SUPPLIER_SKU = 'bbbb0000-0000-0000-0000-0000000000c1'
 test('admin generates settlement and sees payable in dialog', async ({ page, request }) => {
   const captcha = await (await request.get(`${API}/admin/v1/auth/captcha`)).json()
   const operands = (captcha.question.match(/\d+/g) ?? []).map(Number)
-  const login = await (await request.post(`${API}/admin/v1/auth/login`, {
+  const adminSession = await (await request.post(`${API}/admin/v1/auth/login`, {
     data: { username: 'admin', password: 'Admin@123456',
             captchaId: captcha.captchaId, captchaAnswer: operands[0] + operands[1] }
   })).json()
-  const authorization = { Authorization: `Bearer ${login.token}` }
+  const authorization = { Authorization: `Bearer ${adminSession.token}` }
 
   // 造一笔已支付的供应商代发订单
   const phone = e2ePhone()
@@ -44,13 +44,7 @@ test('admin generates settlement and sees payable in dialog', async ({ page, req
   expect(generated.ok(), await generated.text()).toBeTruthy()
 
   // 界面：供应商页 → 结算 → 列表出现应付金额
-  await page.goto(ADMIN_BASE + '/login')
-  await page.getByPlaceholder('请输入账号').fill('admin')
-  await page.getByPlaceholder('请输入密码').fill('Admin@123456')
-  const question = await page.locator('.captcha-question').innerText()
-  const numbers = (question.match(/\d+/g) ?? []).map(Number)
-  await page.getByPlaceholder('请输入验证码').fill(String(numbers[0] + numbers[1]))
-  await page.getByRole('button', { name: '登录' }).click()
+  await login(page)
   await expect(page.getByRole('heading', { name: '经营总览' })).toBeVisible()
 
   await page.locator('.admin-menu').getByText('供应商', { exact: true }).click()

@@ -102,6 +102,7 @@ CREATE TABLE integration_route (
 | 告警派发 | `AlertDispatchService`（`@Async` 线程池 `alertExecutor`）先 `alert_im` 再补 `sms`/`email`，失败汇总写回 `alert_error` | 告警不能阻塞主业务事务 |
 | admin 接口 | `GET/PUT/DELETE /admin/v1/channel-routes`、`POST /admin/v1/channel-routes/test`、`POST /admin/v1/risk-alerts/{id}/recover` | 运营改完配置必须能当场发一条验证，告警处理完必须能收掉 |
 | 测试 | `ChannelSenderConfigTest`、`ImWebhookChannelTest`（本地 HTTP 桩）、`SmtpEmailChannelTest`（GreenMail）、`ChannelRoutingTest`（13 个用例，真库） | 不靠外网也不靠真实邮箱凭据 |
+| 演示模式拦截真实供应商 | 演示环境（`app.mode=demo`）里某用途若绑到真实供应商，发送时抛 `CHANNEL_PROVIDER_DEMO_FORBIDDEN`（409）；未绑定的用途仍按 mock 记账并发 WARN。实测发现：放行时 `POST /admin/v1/channel-routes/test` 会真的打到阿里云（假凭据拿到 404），接口变成 500 | 演示口径是「只走官方 mock、不联网」，既不能真发也不能假装成功；`sms` 能力同时补了 `mock`（演示占位）供应商，否则演示环境连「把短信绑到 mock」都做不到（实测绑定时 409） |
 | 遗留（本批已收尾） | 后台设置里的 `sms_provider`/`sms_access_key`/`sms_secret_key`/`sms_sign_name` 已从 `SetupView`/`SettingsView`/`SystemSettingService`/`SetupService` 全部删除，并用 `V10__retire_sms_settings.sql` 清掉 `system_setting`/`market_setting` 的历史行；页面改为指向「通道路由」的说明 | 只删代码不删数据时，页面会把历史行原样回传，保存就被 `INVALID_SETTING_KEY` 拒绝（e2e 实测 400）；`adminSettings()` 同时改为只回显仍受支持的键 |
 | 页面验证 | Playwright（Edge）：`web/e2e/admin-channel-routes.spec.ts` 桌面走完“配供应商 → 绑用途 → 测试发送”，手机尺寸 390×844 校验页面无横向溢出；与 `admin`/`markets`/`admin-pickers` 一起 5/5 通过 | 运营的真实路径必须在真浏览器里走通，不能只靠接口测试 |
 | 验收脚本 | `node scripts/acceptance-check.mjs` 17/17；未新增“通道”专项断言 | 该脚本面向演示环境的能力就绪/资金/枚举口径，通道行为已由 `ChannelRoutingTest` 覆盖 |

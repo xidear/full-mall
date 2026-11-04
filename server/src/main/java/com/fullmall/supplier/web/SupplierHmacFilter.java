@@ -21,6 +21,7 @@ import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContext;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Component;
+import org.springframework.web.cors.CorsUtils;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import javax.crypto.Mac;
@@ -83,6 +84,11 @@ public class SupplierHmacFilter extends OncePerRequestFilter {
 
     @Override
     protected boolean shouldNotFilter(HttpServletRequest request) {
+        // 预检请求不带签名头（浏览器不会给 OPTIONS 加自定义头），必须放过去交给 MVC 的 CORS 处理，
+        // 否则分端口部署时供应门户发不出任何 /open/** 请求：预检被这里拦成 401 且没有 Allow-Origin（实测现象）。
+        if (CorsUtils.isPreFlightRequest(request)) {
+            return true;
+        }
         return !request.getRequestURI().startsWith("/open/");
     }
 

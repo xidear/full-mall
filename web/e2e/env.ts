@@ -1,3 +1,5 @@
+import type { Page } from '@playwright/test'
+import { expect } from '@playwright/test'
 /**
  * E2E 目标地址：默认值保持本地约定端口，可用环境变量覆盖。
  *
@@ -29,3 +31,30 @@ export const MOBILE_BASE = base('E2E_MOBILE_BASE', 'http://localhost:41286')
  * 页面表现就是"会员明明登录了却没有数据"。
  */
 export const STOREFRONT_HOST = new URL(STOREFRONT_BASE).hostname
+
+/**
+ * 后台登录（账号固定 admin）：验证码是后端出的加法题，题目异步拉取且可能刷新。
+ *
+ * <p>踩过的坑：各 spec 手写「读题目 → 填答案 → 点登录」，题目刷新时会把旧答案提交给新题，
+ * 页面停在登录页提示「请输入验证码」，用例就以「等不到经营总览」的形式失败（本轮 3 次被误判成产品缺陷）。
+ * 这里改成填完再点、点完看结果，失败重试整轮，3 次都失败才抛错并给出排查方向。
+ */
+export async function login(page: Page): Promise<void> {
+  const dashboard = page.getByRole('heading', { name: '经营总览' })
+  const captchaError = page.locator('.el-alert', { hasText: '验证码' })
+  for (let attempt = 1; attempt <= 3; attempt += 1) {
+    await page.goto(ADMIN_BASE + '/login')
+    await page.getByPlaceholder('请输入账号').fill('admin')
+    await page.getByPlaceholder('请输入密码').fill('Admin@123456')
+    await expect(page.locator('.captcha-question')).toHaveText(/\d+ \+ \d+/)
+    const question = await page.locator('.captcha-question').innerText()
+    const numbers = (question.match(/\d+/g) ?? []).map(Number)
+    await page.getByPlaceholder('请输入验证码').fill(String(numbers[0] + numbers[1]))
+    await page.getByRole('button', { name: '登录' }).click()
+    await expect(dashboard.or(captchaError)).toBeVisible()
+    if (await dashboard.isVisible()) {
+      return
+    }
+  }
+  throw new Error('后台登录失败：3 次尝试后仍停在登录页（先确认 41280 API 已起、演示种子已灌、账号 admin/Admin@123456）')
+}

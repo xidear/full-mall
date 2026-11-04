@@ -33,9 +33,6 @@ const form = reactive<Record<string, string>>({
   'distribution.min-withdrawal': '10000',
   payment_provider: 'mock',
   logistics_provider: 'mock',
-  sms_provider: 'mock',
-  sms_access_key: '',
-  sms_secret_key: '',
   logistics_key: '',
   logistics_customer: ''
 })
@@ -248,18 +245,36 @@ async function finish() {
       <el-form-item label="物流 Customer">
         <el-input v-model="form.logistics_customer" />
       </el-form-item>
-      <el-form-item label="短信服务商">
-        <el-select v-model="form.sms_provider" style="width: 100%">
+      <!-- 短信不再在这里配：按用途路由到具体供应商，见「第三方服务 → 通道路由」 -->
+      <el-form-item label="短信">
+        <span class="muted">短信按用途（登录验证码 / 订单通知 / 故障告警）在「第三方服务 → 通道路由」里选择供应商并启用。</span>
+      </el-form-item>
+      <el-button type="primary" :loading="saving" @click="saveStep">保存并下一步</el-button>
+    </el-form>
+
+    <el-form label-width="160px" v-else-if="active === 2">
+      <el-form-item label="支付服务商">
+        <el-select v-model="form.payment_provider" style="width: 100%">
           <el-option label="mock（仅演示）" value="mock" />
-          <el-option label="阿里云" value="aliyun" />
-          <el-option label="腾讯云" value="tencent" />
+          <el-option label="微信支付" value="wechat" />
+          <el-option label="支付宝" value="alipay" />
         </el-select>
       </el-form-item>
-      <el-form-item label="短信 AccessKey">
-        <el-input v-model="form.sms_access_key" placeholder="留空表示不修改" />
+      <el-form-item label="物流服务商">
+        <el-select v-model="form.logistics_provider" style="width: 100%">
+          <el-option label="mock（仅演示）" value="mock" />
+          <el-option label="快递100" value="kuaidi100" />
+        </el-select>
       </el-form-item>
-      <el-form-item label="短信 Secret">
-        <el-input v-model="form.sms_secret_key" type="password" placeholder="留空表示不修改" />
+      <el-form-item label="物流 Key">
+        <el-input v-model="form.logistics_key" placeholder="留空表示不修改；已配置显示 ******" />
+      </el-form-item>
+      <el-form-item label="物流 Customer">
+        <el-input v-model="form.logistics_customer" />
+      </el-form-item>
+      <!-- 短信不再在这里配：按用途路由到具体供应商，见「第三方服务 → 通道路由」 -->
+      <el-form-item label="短信">
+        <span class="muted">短信按用途（登录验证码 / 订单通知 / 故障告警）在「第三方服务 → 通道路由」里选择供应商并启用。</span>
       </el-form-item>
       <el-button type="primary" :loading="saving" @click="saveStep">保存并下一步</el-button>
     </el-form>

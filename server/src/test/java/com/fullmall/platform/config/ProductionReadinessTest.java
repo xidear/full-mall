@@ -28,7 +28,7 @@ class ProductionReadinessTest {
         assertThat(report.production()).isTrue();
         assertThat(report.ready()).isFalse();          // 有缺口
         assertThat(report.items()).extracting(ProductionReadinessChecker.Item::key)
-                .containsExactly("payment", "logistics", "sms");
+                .containsExactly("payment", "logistics");
         // 关键：构造与检查都不抛异常——启动不会被阻断
         assertThat(report.items()).allSatisfy(item -> assertThat(item.hint()).isNotBlank());
     }
@@ -37,8 +37,7 @@ class ProductionReadinessTest {
     void configuredRealProvidersAreReady() {
         var checker = new ProductionReadinessChecker(settings(Map.of(
                 "payment_provider", "wechat",
-                "logistics_provider", "kuaidi100",
-                "sms_provider", "aliyun")), "prod");
+                "logistics_provider", "kuaidi100")), "prod");
 
         assertThat(checker.check().ready()).isTrue();
         assertThat(checker.usableInProduction("payment")).isTrue();
@@ -58,6 +57,6 @@ class ProductionReadinessTest {
 
         assertThat(checker.productionMode()).isFalse();
         assertThat(checker.usableInProduction("payment")).isTrue();
-        assertThat(checker.usableInProduction("sms")).isTrue();
+        assertThat(checker.usableInProduction("logistics")).isTrue();
     }
 }

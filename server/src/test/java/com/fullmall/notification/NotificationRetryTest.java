@@ -48,20 +48,31 @@ class NotificationRetryTest {
 
     @Autowired
     JdbcTemplate jdbc;
+    @Autowired
+    com.fullmall.platform.secret.IntegrationConfigService configs;
+    @Autowired
+    com.fullmall.platform.channel.IntegrationRouteService routes;
+
+    @org.junit.jupiter.api.BeforeEach
+    void bindMockEmailRoute() {
+        // 重试必须走已绑定的通道；未绑定时 retry 会如实再次失败（见 ChannelRoutingTest）。
+        configs.save("email", "mock", java.util.Map.of(), true, "tester");
+        routes.bind("email", "ORDER_EVENT", "mock", null);
+    }
 
     private UUID failed(String channel) {
         UUID id = UUID.randomUUID();
         jdbc.update("""
                 INSERT INTO notification (id, recipient_type, recipient_id, event_type, channel,
                                           title, content, status, error_message)
-                VALUES (?, 'STAFF', 'ALL', 'TEST_EVENT', ?, '标题', '内容', 'FAILED', '之前失败')
+                VALUES (?, 'STAFF', 'ALL', 'CHANNEL_TEST', ?, '标题', '内容', 'FAILED', '之前失败')
                 """, id, channel);
         return id;
     }
 
     @Test
     void retriesFailedNotificationToSent() {
-        UUID id = failed("SMS");   // dev/test 环境有 mock sender
+        UUID id = failed("EMAIL");
 
         var retried = notifications.retry(id);
 
@@ -71,7 +82,7 @@ class NotificationRetryTest {
 
     @Test
     void refusesToRetryAlreadySent() {
-        UUID id = failed("SMS");
+        UUID id = failed("EMAIL");
         notifications.retry(id);
 
         assertThatThrownBy(() -> notifications.retry(id))

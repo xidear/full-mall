@@ -1,6 +1,7 @@
 package com.fullmall.platform.secret;
 
 import io.zonky.test.db.postgres.embedded.EmbeddedPostgres;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -48,6 +49,13 @@ class IntegrationConfigServiceTest {
     @Autowired
     JdbcTemplate jdbc;
 
+    /** 每个用例都从空表开始：同一能力可能有多个供应商，用例之间不能互相看见对方的行。 */
+    @BeforeEach
+    void clearIntegrations() {
+        jdbc.update("DELETE FROM integration_route");
+        jdbc.update("DELETE FROM integration_config");
+    }
+
     @Test
     void savesEncryptedAndNeverEchoesSecrets() {
         var saved = configs.save("sms", "aliyun",
@@ -67,8 +75,22 @@ class IntegrationConfigServiceTest {
         assertThat(view.hint()).containsEntry("sign-name", "示例签名");
         assertThat(view.hint()).doesNotContainKeys("access-key-id", "access-key-secret");
 
-        var resolved = configs.resolve("sms");
+        // sms 是多供应商能力：resolve() 会拒绝猜「哪一个」（ADR-0018），必须指名供应商
+        var resolved = configs.resolveProvider("sms", "aliyun");
         assertThat(resolved).containsEntry("access-key-secret", "SK456");
+    }
+
+    @Test
+    void ambiguousResolveIsRejectedForMultiProviderCapability() {
+        configs.save("sms", "aliyun", Map.of("access-key-id", "AK", "access-key-secret", "SK",
+                "sign-name", "签名"), true, "admin");
+        configs.save("sms", "tencent", Map.of("secret-id", "ID", "secret-key", "KEY",
+                "sdk-app-id", "1400", "sign-name", "签名"), true, "admin");
+
+        assertThatThrownBy(() -> configs.resolve("sms"))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("resolveProvider");
+        assertThat(configs.enabledProviders("sms")).containsExactlyInAnyOrder("aliyun", "tencent");
     }
 
     @Test

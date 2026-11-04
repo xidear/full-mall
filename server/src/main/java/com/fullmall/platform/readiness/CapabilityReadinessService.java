@@ -27,19 +27,20 @@ public class CapabilityReadinessService {
     }
 
     private final IntegrationConfigService integrations;
+    private final com.fullmall.platform.channel.IntegrationRouteService routes;
     private final JdbcTemplate jdbc;
     private final String envPayment;
-    private final String envSms;
     private final String envLogistics;
 
-    public CapabilityReadinessService(IntegrationConfigService integrations, JdbcTemplate jdbc,
+    public CapabilityReadinessService(IntegrationConfigService integrations,
+                                      com.fullmall.platform.channel.IntegrationRouteService routes,
+                                      JdbcTemplate jdbc,
                                       @Value("${app.payment.provider:}") String envPayment,
-                                      @Value("${app.sms.provider:}") String envSms,
                                       @Value("${app.logistics.provider:}") String envLogistics) {
         this.integrations = integrations;
+        this.routes = routes;
         this.jdbc = jdbc;
         this.envPayment = envPayment;
-        this.envSms = envSms;
         this.envLogistics = envLogistics;
     }
 
@@ -48,12 +49,44 @@ public class CapabilityReadinessService {
         items.add(fromIntegration("storage", "素材存储", true));
         items.add(fromIntegration("export", "导出文件存储", true));
         items.add(compareWithEnv("payment", "支付", envPayment));
-        items.add(compareWithEnv("sms", "短信", envSms));
+        items.add(routed("sms", "短信"));
         items.add(compareWithEnv("logistics", "物流查询", envLogistics));
         items.add(fromIntegration("moderation", "内容审核", false));
         items.add(ai());
         boolean ready = items.stream().allMatch(i -> "CONFIGURED".equals(i.state()));
         return new Report(ready, items);
+    }
+
+    /**
+     * 多供应商能力（短信/邮件/公众号/告警群）的就绪状态按**用途**算：
+     * 只配了供应商但没绑定用途 = 该动作依然发不出去，必须报 MISSING 而不是 CONFIGURED。
+     */
+    private Item routed(String capability, String label) {
+        List<com.fullmall.platform.channel.IntegrationRouteService.UsageView> rows =
+                routes.matrix().stream().filter(row -> row.capability().equals(capability)).toList();
+        if (rows.isEmpty()) {
+            return new Item(capability, label, "MISSING", null, List.of("用途"),
+                    "能力「" + label + "」没有登记任何用途");
+        }
+        List<String> providers = new ArrayList<>();
+        List<String> unbound = new ArrayList<>();
+        for (var row : rows) {
+            if (row.provider() == null) {
+                unbound.add(row.label());
+            } else if (!providers.contains(row.provider())) {
+                providers.add(row.provider());
+            }
+        }
+        if (providers.isEmpty()) {
+            return new Item(capability, label, "MISSING", null, unbound,
+                    "请到「系统设置 → 集成配置」配置供应商，再到「通道路由」勾选用途");
+        }
+        if (!unbound.isEmpty()) {
+            return new Item(capability, label, "MISSING", String.join(",", providers), unbound,
+                    "以下用途尚未绑定通道，对应消息发不出去：" + String.join("、", unbound));
+        }
+        return new Item(capability, label, "CONFIGURED", String.join(",", providers), List.of(),
+                "来源：通道路由");
     }
 
     private Item fromIntegration(String capability, String label, boolean directoryRequired) {

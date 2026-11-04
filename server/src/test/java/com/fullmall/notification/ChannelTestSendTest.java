@@ -12,7 +12,10 @@ import org.springframework.test.context.DynamicPropertySource;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-/** 渠道自检：mock 渠道返回 SENT；未知渠道明确拒绝。 */
+/**
+ * 渠道自检（ADR-0018 之后）：发测试消息走「用途路由」——
+ * 没绑定就必须失败并说清原因，绑了 mock 才算发送成功（且标明未真实发出）。
+ */
 @SpringBootTest(
         webEnvironment = SpringBootTest.WebEnvironment.NONE,
         properties = {
@@ -42,13 +45,29 @@ class ChannelTestSendTest {
 
     @Autowired
     NotificationService notifications;
+    @Autowired
+    com.fullmall.platform.secret.IntegrationConfigService configs;
+    @Autowired
+    com.fullmall.platform.channel.IntegrationRouteService routes;
 
     @Test
-    void sendsTestMessageAndReportsStatus() {
+    void testMessageFailsWithReasonWhenNoRouteBound() {
         var sent = notifications.sendTest("sms", null, null, null);
 
         assertThat(sent.channel()).isEqualTo("SMS");
         assertThat(sent.eventType()).isEqualTo("CHANNEL_TEST");
+        assertThat(sent.status()).isEqualTo("FAILED");
+        assertThat(sent.errorMessage()).contains("尚未绑定通道");
+    }
+
+    @Test
+    void testMessageGoesThroughBoundProvider() {
+        configs.save("email", "mock", java.util.Map.of(), true, "tester");
+        routes.bind("email", "ORDER_EVENT", "mock", null);
+
+        var sent = notifications.sendTest("email", null, null, null);
+
+        assertThat(sent.channel()).isEqualTo("EMAIL");
         assertThat(sent.status()).isEqualTo("SENT");
         assertThat(sent.errorMessage()).isNull();
     }

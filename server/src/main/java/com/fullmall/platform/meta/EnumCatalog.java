@@ -108,12 +108,17 @@ public final class EnumCatalog {
                 new Option("SKU", "指定商品"),
                 new Option("CATEGORY", "指定类目"),
                 new Option("BRAND", "指定品牌")));
+        // 只列真的能发出去的通道：APP 推送还没实现，放进来等于给运营一个必失败的选项。
         GROUPS.put("NOTIFICATION_CHANNEL", List.of(
                 new Option("IN_APP", "站内通知"),
                 new Option("SMS", "短信"),
                 new Option("EMAIL", "邮件"),
-                new Option("WECHAT", "微信"),
-                new Option("APP", "APP 推送")));
+                new Option("WECHAT", "微信")));
+        GROUPS.put("RISK_ALERT_SEVERITY", List.of(
+                new Option("FATAL", "致命（立即告警）"),
+                new Option("HIGH", "严重（即时告警）"),
+                new Option("MEDIUM", "中等（仅记录）"),
+                new Option("LOW", "轻微（仅记录）")));
     }
 
     private EnumCatalog() {

@@ -20,9 +20,9 @@ import java.util.Set;
  *
  * <p>同一市场同一能力**只能有一个启用**（部分唯一索引兜底）：两个同时启用会让"用哪家"不确定。
  *
- * <p>兼容：本表没有该市场的任何记录时返回 empty，调用方回退到旧的全局设置
- * （{@code sms_provider} / {@code logistics_provider}…）——这是一次性迁移期的显式兼容，
- * 不是永久的双写；后台一旦为本市场配了启用项，就以本表为准。
+ * <p>没有该市场的记录时返回 empty。**不回退到任何全局开关**：通道用哪家由「第三方服务 → 通道路由」
+ * （ADR-0018）按用途决定，本表只回答“这个市场是否允许该能力”。此前的 `sms_provider` 一类全局键
+ * 已随 V10 迁移清掉，不要在这里再引回来。
  */
 @Service
 public class MarketIntegrationService {

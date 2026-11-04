@@ -108,12 +108,8 @@ const form = reactive<Record<string, string>>({
   default_currency: 'CNY',
   // 存储默认就是真实本地磁盘；"mock" 只是 ConfigurableAssetStorage 里的历史别名，新装站点不再写它
   storage_provider: 'local',
-  sms_provider: 'mock',
   payment_provider: 'mock',
   logistics_provider: 'mock',
-  sms_access_key: '',
-  sms_secret_key: '',
-  sms_sign_name: '',
   logistics_key: '',
   logistics_customer: '',
   map_provider: '',
@@ -523,13 +519,9 @@ async function save() {
             </el-select>
             <span class="muted">{{ adapterHint('storage', form.storage_provider) }}</span>
           </el-form-item>
-          <el-form-item label="短信适配器">
-            <el-select v-model="form.sms_provider" style="width: 100%">
-              <el-option v-for="option in adapterOptions('sms')" :key="option.code"
-                         :label="option.label + (option.available ? '' : '（' + option.note + '）')"
-                         :value="option.code" :disabled="!option.available" />
-            </el-select>
-            <span class="muted">{{ adapterHint('sms', form.sms_provider) }}</span>
+          <!-- 短信不在这里配：按用途路由到具体供应商，见「第三方服务 → 通道路由」 -->
+          <el-form-item label="短信">
+            <span class="muted">短信按用途（登录验证码 / 订单通知 / 故障告警）在「第三方服务 → 通道路由」选择供应商；本页不再保存短信服务商。</span>
           </el-form-item>
           <el-form-item label="支付适配器">
             <el-select v-model="form.payment_provider" style="width: 100%">
@@ -561,7 +553,6 @@ async function save() {
               <el-option label="短信" value="SMS" />
               <el-option label="邮件" value="EMAIL" />
               <el-option label="微信" value="WECHAT" />
-              <el-option label="APP 推送" value="APP" />
             </el-select>
           </el-form-item>
           <el-form-item label="操作">

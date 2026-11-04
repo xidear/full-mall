@@ -141,7 +141,8 @@ public class IntegrationConfigService {
         }
 
         // 与下面的 upsert 同事务：否则中间态出现两条 enabled=true，enabledProvider()/resolve() 拿到谁不确定。
-        if (enabled) {
+        // 多供应商能力（短信/邮件/公众号/告警群）例外——它们就是要并存，由 integration_route 决定用途走谁。
+        if (enabled && !isMultiProvider(capability)) {
             jdbc.update("UPDATE integration_config SET enabled = false WHERE capability = ? AND provider <> ?",
                     capability, provider);
         }
@@ -174,8 +175,24 @@ public class IntegrationConfigService {
                 capability, capability);
     }
 
+    /** 多供应商能力必须按 (能力, 服务商) 取配置；用「第一个启用的」会静默挑错通道。 */
+    private void rejectAmbiguous(String capability, String operation) {
+        if (isMultiProvider(capability)) {
+            throw new IllegalStateException("能力「" + capability + "」支持多个供应商，不能用 " + operation
+                    + "() 取配置：请用 resolveProvider(capability, provider)");
+        }
+    }
+
+    /** 该能力是否允许并存多个供应商（来自集成目录，不在本类维护第二份清单）。 */
+    public boolean isMultiProvider(String capability) {
+        String normalized = capability == null ? "" : capability.trim().toLowerCase(java.util.Locale.ROOT);
+        return IntegrationCatalog.capabilities().stream()
+                .anyMatch(item -> item.code().equals(normalized) && item.multiProvider());
+    }
+
     /** 当前启用的服务商标识；未配置返回 null（由调用方决定回退或失败）。 */
     public String enabledProvider(String capability) {
+        rejectAmbiguous(capability, "enabledProvider");
         List<String> providers = jdbc.queryForList("""
                 SELECT provider FROM integration_config
                  WHERE capability = ? AND enabled
@@ -186,6 +203,7 @@ public class IntegrationConfigService {
 
     /** 供适配器装配用：取出解密后的完整配置（仅内部调用，绝不暴露给 HTTP 层）。 */
     public Map<String, String> resolve(String capability) {
+        rejectAmbiguous(capability, "resolve");
         // 无启用行抛 409 而不是返回空 Map：带空密钥调下游会把"没配置"表现成"供应商鉴权失败"，排查方向全错。
         var rows = jdbc.query("""
                 SELECT config_enc FROM integration_config
@@ -209,6 +227,7 @@ public class IntegrationConfigService {
      * 而 resolve() 只解密 config_enc，于是"配置已保存但读不到"，适配器会误判成未配置。
      */
     public Map<String, String> resolveAll(String capability) {
+        rejectAmbiguous(capability, "resolveAll");
         List<String> hints = jdbc.query("""
                 SELECT COALESCE(config_hint::text, '{}') FROM integration_config
                  WHERE capability = ? AND enabled
@@ -227,6 +246,49 @@ public class IntegrationConfigService {
         if (!secrets.isEmpty()) {
             readMap(cipher.decrypt(secrets.get(0))).forEach((k, v) ->
                     merged.put(k, v == null ? null : String.valueOf(v)));
+        }
+        return merged;
+    }
+
+
+    /** 该能力下已启用配置的服务商（供后台勾选矩阵渲染；只有标识，不含任何密钥）。 */
+    public List<String> enabledProviders(String capability) {
+        return jdbc.queryForList("""
+                SELECT provider FROM integration_config
+                 WHERE capability = ? AND enabled
+                 ORDER BY provider
+                """, String.class, capability);
+    }
+
+    /**
+     * 按「能力 + 服务商」取配置：路由选中谁就取谁，不再"取第一个启用的"。
+     *
+     * <p>未配置或已停用时抛 409 并带上页面指引——返回空 Map 会让下游把"没配置"
+     * 表现成"供应商鉴权失败"，排查方向全错。
+     */
+    public Map<String, String> resolveProvider(String capability, String provider) {
+        List<Object[]> rows = jdbc.query("""
+                SELECT config_hint::text AS hint, config_enc, enabled FROM integration_config
+                 WHERE capability = ? AND provider = ?
+                """, (rs, rowNum) -> new Object[]{rs.getString("hint"),
+                rs.getBytes("config_enc"), rs.getBoolean("enabled")},
+                capability, provider);
+        if (rows.isEmpty()) {
+            throw ApiException.conflict("INTEGRATION_PROVIDER_NOT_CONFIGURED",
+                    "能力「" + capability + "」的供应商「" + provider
+                            + "」尚未在后台配置：请到「系统设置 → 集成配置」填写后启用");
+        }
+        Object[] row = rows.get(0);
+        if (!Boolean.TRUE.equals(row[2])) {
+            throw ApiException.conflict("INTEGRATION_PROVIDER_DISABLED",
+                    "能力「" + capability + "」的供应商「" + provider + "」已停用，请在「系统设置 → 集成配置」启用");
+        }
+        Map<String, String> merged = new LinkedHashMap<>();
+        readMap((String) row[0]).forEach((k, v) -> merged.put(k, v == null ? null : String.valueOf(v)));
+        byte[] encrypted = (byte[]) row[1];
+        if (encrypted != null) {
+            readMap(cipher.decrypt(new String(encrypted, java.nio.charset.StandardCharsets.UTF_8)))
+                    .forEach((k, v) -> merged.put(k, v == null ? null : String.valueOf(v)));
         }
         return merged;
     }

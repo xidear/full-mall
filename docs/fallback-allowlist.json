@@ -103,12 +103,6 @@
       "reason": "数值型上限/时长，非资金与安全判定"
     },
     {
-      "file": "server/src/main/java/com/fullmall/notification/config/NotificationChannelConfig.java",
-      "category": "value-default",
-      "snippet": "@Value(\"${app.mode:dev}\")",
-      "reason": "运行模式默认 dev；生产需显式 APP_MODE=prod（已在部署清单标注）"
-    },
-    {
       "file": "server/src/main/java/com/fullmall/ops/app/OpsService.java",
       "category": "value-default",
       "snippet": "@Value(\"${app.ops.agents:local=http://127.0.0.1:41287}\")",
@@ -557,6 +551,12 @@
       "category": "value-default",
       "snippet": "@Value(\"${app.ai.ask.top-k:5}\")",
       "reason": "检索条数上限：纯性能参数，与配置完整性无关"
+    },
+    {
+      "file": "server/src/main/java/com/fullmall/platform/channel/ChannelSendService.java",
+      "category": "value-default",
+      "snippet": "@Value(\"${app.mode:dev}\")",
+      "reason": "运行模式默认 dev；生产需显式 APP_MODE=prod（已在部署清单标注）"
     }
   ]
 }

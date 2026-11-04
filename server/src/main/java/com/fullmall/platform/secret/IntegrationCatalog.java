@@ -39,11 +39,23 @@ public final class IntegrationCatalog {
     public record Provider(String code, String label, List<Field> fields) {
     }
 
-    public record Capability(String code, String label, String description, List<Provider> providers) {
+    /**
+     * 一个能力。{@code multiProvider=true} 表示该能力允许**同时启用多个供应商**（例如短信同时配阿里云与腾讯云），
+     * 由 {@code integration_route} 决定某用途走谁；其余能力仍保持「同一时刻只启用一个」的旧约束。
+     */
+    public record Capability(String code, String label, String description, boolean multiProvider,
+                             List<Provider> providers) {
+        public Capability(String code, String label, String description, List<Provider> providers) {
+            this(code, label, description, false, providers);
+        }
+
+        static Capability multi(String code, String label, String description, List<Provider> providers) {
+            return new Capability(code, label, description, true, providers);
+        }
     }
 
     private static final List<Capability> ALL = List.of(
-            new Capability("sms", "短信", "验证码、通知短信", List.of(
+            Capability.multi("sms", "短信", "验证码、通知短信（可同时配置多家，按用途分别启用）", List.of(
                     new Provider("aliyun", "阿里云短信", List.of(
                             Field.secret("access-key-id", "AccessKey ID", "控制台 RAM 用户的 AccessKey ID"),
                             Field.secret("access-key-secret", "AccessKey Secret", "与 AccessKey ID 成对；留空表示沿用旧值"),
@@ -120,7 +132,41 @@ public final class IntegrationCatalog {
                     new Provider("ollama", "本机 Ollama", List.of(
                             Field.text("base-url", "接口地址", "默认 http://127.0.0.1:41289"),
                             Field.text("text-model", "文本模型", "例如 qwen2.5:3b"),
-                            Field.optional("image-model", "图像模型", "例如 moondream"))))));
+                            Field.optional("image-model", "图像模型", "例如 moondream"))))),
+
+            // 邮件：126/QQ 为预设 SMTP（host/port/SSL 固定，运营只填账号 + 授权码）；
+            // smtp 留给自建服务器（字段先备好，实现随后续批次接入）。
+            Capability.multi("email", "邮件", "验证码、通知与告警邮件（可同时配置多个邮箱）", List.of(
+                    new Provider("126", "网易 126 邮箱", List.of(
+                            Field.text("username", "发件邮箱", "完整邮箱地址，例如 shop@126.com"),
+                            Field.secret("password", "授权码", "邮箱设置 → POP3/SMTP 开启后获取的授权码，不是登录密码"),
+                            Field.optional("from-name", "发件人名称", "收件人看到的显示名，例如「示例商城」"))),
+                    new Provider("qq", "QQ 邮箱", List.of(
+                            Field.text("username", "发件邮箱", "完整邮箱地址，例如 shop@qq.com"),
+                            Field.secret("password", "授权码", "QQ 邮箱设置 → 账户 → 开启 SMTP 后获取的授权码"),
+                            Field.optional("from-name", "发件人名称", "收件人看到的显示名"))),
+                    new Provider("mock", "演示占位", List.of()))),
+
+            // 公众号模板消息：与邮件/短信同一套路由，避免再出现「读 app.sms.provider 决定微信通道」的双源。
+            Capability.multi("wechat", "公众号消息", "模板消息推送", List.of(
+                    new Provider("wechat", "微信公众号", List.of(
+                            Field.text("app-id", "AppID", "公众号后台 → 开发 → 基本配置"),
+                            Field.secret("app-secret", "AppSecret", "与 AppID 成对；留空表示沿用旧值"),
+                            Field.text("template-id", "模板 ID", "模板消息的模板 ID"))),
+                    new Provider("mock", "演示占位", List.of()))),
+
+            // 内部告警群机器人：企微 / 飞书 / 钉钉，都是 HTTPS webhook，不需要重 SDK。
+            Capability.multi("alert_im", "告警群机器人", "FATAL/HIGH 告警与恢复通知（可同时接企微/飞书/钉钉）", List.of(
+                    new Provider("wecom", "企业微信群机器人", List.of(
+                            Field.text("webhook-url", "Webhook 地址", "群设置 → 群机器人 → 添加后复制的完整地址"),
+                            Field.optional("mention", "提醒手机号", "需要 @ 值班人时填写，多个用英文逗号分隔"))),
+                    new Provider("feishu", "飞书群机器人", List.of(
+                            Field.text("webhook-url", "Webhook 地址", "群设置 → 群机器人 → 自定义机器人 → Webhook 地址"),
+                            Field.optionalSecret("secret", "签名密钥", "机器人开启「签名校验」时填写"))),
+                    new Provider("dingtalk", "钉钉群机器人", List.of(
+                            Field.text("webhook-url", "Webhook 地址", "群设置 → 智能群助手 → 自定义机器人 → Webhook 地址"),
+                            Field.optionalSecret("secret", "加签密钥", "安全设置选「加签」时填写"))),
+                    new Provider("mock", "演示占位", List.of()))));
 
     private IntegrationCatalog() {
     }

@@ -39,9 +39,8 @@ public class SystemSettingService {
             "media_public_base_url",
             "upload.admin-image-max-bytes", "upload.admin-video-max-bytes",
             "upload.member-image-max-bytes", "upload.member-video-max-bytes",
-            "storage_provider", "sms_provider", "payment_provider", "logistics_provider",
+            "storage_provider", "payment_provider", "logistics_provider",
             // 第三方服务的凭据（后台填写，读写时脱敏；演示模式不生效）
-            "sms_access_key", "sms_secret_key", "sms_sign_name",
             "logistics_key", "logistics_customer", "map_provider", "map_key",
             // 分销：比例/等级/冻结/提现全部可配，保存即生效
             "distribution.level1-mode", "distribution.level1-value",
@@ -56,7 +55,7 @@ public class SystemSettingService {
 
     /** 敏感配置：读接口必须脱敏，写接口不得把掩码值写回库。 */
     private static final Set<String> SECRET_KEYS = Set.of(
-            "sms_access_key", "sms_secret_key", "logistics_key", "map_key");
+            "logistics_key", "map_key");
 
     /** 掩码占位符：前端原样回传表示"不修改"。 */
     public static final String SECRET_MASK = "******";
@@ -187,7 +186,7 @@ public class SystemSettingService {
     public static final Set<String> MARKET_SCOPED_KEYS = Set.of(
             "company_name", "icp_number", "public_security_record", "business_license_no",
             "service_phone", "service_email", "default_currency", "enabled_locales",
-            "sms_provider", "payment_provider", "logistics_provider", "storage_provider");
+            "payment_provider", "logistics_provider", "storage_provider");
 
     /** 市场级可覆盖项的中文名（后端单一来源，前端不要再写一份）。 */
     private static final java.util.Map<String, String> SCOPED_LABELS = new java.util.LinkedHashMap<>();
@@ -201,7 +200,6 @@ public class SystemSettingService {
         SCOPED_LABELS.put("service_email", "客服邮箱");
         SCOPED_LABELS.put("default_currency", "默认币种");
         SCOPED_LABELS.put("enabled_locales", "语言候选");
-        SCOPED_LABELS.put("sms_provider", "短信服务商");
         SCOPED_LABELS.put("payment_provider", "支付服务商");
         SCOPED_LABELS.put("logistics_provider", "物流服务商");
         SCOPED_LABELS.put("storage_provider", "存储服务商");
@@ -269,7 +267,7 @@ public class SystemSettingService {
     /**
      * 取某市场的生效值：市场级 → 全局 → 空串。
      *
-     * <p>通道服务商（`sms_provider` / `logistics_provider` / `storage_provider`）必须走这里，
+     * <p>通道服务商（`payment_provider` / `logistics_provider` / `storage_provider`）必须走这里，
      * 否则香港站会用到大陆配置的服务商。
      *
      * <p>覆盖语义：**market_setting 有这一行就用它，哪怕是空串**；没有这一行才回退全局。
@@ -290,7 +288,14 @@ public class SystemSettingService {
     }
 
     public Map<String, String> adminSettings() {
-        Map<String, String> values = new java.util.LinkedHashMap<>(repository.findAll());
+        // 只回显仍被支持的键：库里可能有已下线的历史行（例如短信服务商已改为按用途路由），
+        // 页面会把它原样回传，保存时就会被 INVALID_SETTING_KEY 拒绝——下线键不能再出现在读接口里。
+        Map<String, String> values = new java.util.LinkedHashMap<>();
+        repository.findAll().forEach((key, value) -> {
+            if (ALLOWED_KEYS.contains(key)) {
+                values.put(key, value);
+            }
+        });
         for (String key : SECRET_KEYS) {
             String value = values.get(key);
             if (value != null && !value.isBlank()) {

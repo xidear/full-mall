@@ -141,6 +141,11 @@
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-jdbc</artifactId>
         </dependency>
+        <!-- 邮件通道（Jakarta Mail，实现由 spring-boot 管理版本）：126/QQ/自建 SMTP 都用它 -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-mail</artifactId>
+        </dependency>
         <!-- 新 CRUD 模块的 JPA 基座（存量 JdbcTemplate 不动，见 TECHNICAL_ARCHITECTURE_V2 §2） -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
@@ -231,6 +236,14 @@
         <dependency>
             <groupId>org.springframework.security</groupId>
             <artifactId>spring-security-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <!-- GreenMail（Apache 2.0，活跃维护）：进程内 SMTP 服务器；
+             邮件通道用它验证「真的发出去了」，不需要真实邮箱凭据 -->
+        <dependency>
+            <groupId>com.icegreen</groupId>
+            <artifactId>greenmail</artifactId>
+            <version>2.1.3</version>
             <scope>test</scope>
         </dependency>
         <dependency>

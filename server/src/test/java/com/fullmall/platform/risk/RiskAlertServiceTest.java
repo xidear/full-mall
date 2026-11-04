@@ -18,7 +18,8 @@ import static org.mockito.Mockito.when;
 class RiskAlertServiceTest {
 
     private final JdbcTemplate jdbcTemplate = mock(JdbcTemplate.class);
-    private final RiskAlertService service = new RiskAlertService(jdbcTemplate);
+    private final AlertDispatchService dispatch = mock(AlertDispatchService.class);
+    private final RiskAlertService service = new RiskAlertService(jdbcTemplate, dispatch);
 
     @Test
     void skipsWhenSameRuleAndSubjectAlreadyAlertedInWindow() {

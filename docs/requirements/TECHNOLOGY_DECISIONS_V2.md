@@ -73,6 +73,17 @@ Full Mall 的落地：
 | 功能开关 | Unleash（Apache-2.0）、FF4j（Apache-2.0） | 需要集中 UI/灰度用 Unleash；嵌入式轻量用 FF4j；不自研开关表 |
 | 风险预警 | OPA/Casbin + 规则引擎 | 规则与授权共用策略层；阈值告警走通知 |
 
+### 1.4b 三方通道（短信 / 邮件 / 公众号 / 告警群，ADR-0018）
+
+| 领域 | 候选 | 结论 |
+|---|---|---|
+| 短信 | 阿里云 Dysmsapi（官方 SDK）、腾讯云 SMS（官方 SDK） | 采用。两家均为**官方 SDK**，同一接口封装；不自写签名/HTTP 组装 |
+| 邮件 | Jakarta Mail（随 Spring Boot `spring-boot-starter-mail`） | 采用。SMTP + 授权码；126/QQ 为预设（host/port/SSL 内置），自建 SMTP 需显式 host/port |
+| 告警群机器人 | 企微 / 飞书 / 钉钉 Webhook（官方协议） | 采用。三家都是 HTTPS POST JSON，**不引重 SDK**；钉钉加签（HmacSHA256 + timestamp）自实现并用桩验证 |
+| 邮件测试服务器 | GreenMail 2.1.3（Apache-2.0） | 采用（仅 test scope）。替代“登录真实邮箱手测”，且能断言报文与失败路径 |
+| 通道路由 | 自建 `integration_route`（能力 + 用途 → 供应商） | 采用（已写 ADR-0018）。现成开源方案均为“一个渠道一个供应商”（Spring `NotificationSender` 选择器），无法表达“验证码走阿里云、告警走腾讯云” |
+| 不采用 | 自写 SMTP 客户端、自写阿里云签名算法、一个能力只能选一家 | — |
+
 ### 1.5 客服 / AI
 
 | 领域 | 候选 | 建议 |

@@ -95,6 +95,15 @@
 > `initdb: could not look up effective user ID`——看起来像“arm64 二进制不可用”，其实是缺 passwd 行。
 > 官方 `maven:3.9-eclipse-temurin-21` 是 amd64 镜像，aarch64 机器需自建镜像并补该行。
 
+## 3.1c 本轮新增（2026-11-04：通道路由 ADR-0018：邮件 + 告警群机器人）
+
+| 依赖 | 层 | 谁装 | 缺了会怎样 | 离线/降级 | 验证方式 |
+|---|---|---|---|---|---|
+| `spring-boot-starter-mail`（Jakarta Mail，版本跟随 Spring Boot 4.1.1 BOM） | A 随镜像 | Maven 打包进 jar | 邮件通道无法启动（类不存在，启动期即失败） | 内网 Nexus / `~/.m2` 预热 | `mvn -Dtest=SmtpEmailChannelTest test` |
+| 126 / QQ 邮箱 SMTP（`smtp.126.com:465` / `smtp.qq.com:465`，SSL） | D 外部服务（可选） | 运营在「系统设置 → 三方服务」选 126/QQ 并填邮箱 + 授权码 | 未配置：该用途未绑定即发送失败（`CHANNEL_ROUTE_NOT_CONFIGURED`）；配了但授权码错：SMTP 535，错误写回 `notification.error_message` | 演示模式不走网络；自建 SMTP 预设留给以后（需 host/port） | `mvn -Dtest=SmtpEmailChannelTest test`（GreenMail 进程内 SMTP） |
+| 企微 / 飞书 / 钉钉 群机器人 Webhook | D 外部服务（可选） | 运营在「三方服务」选 `alert_im` 并填 Webhook 地址（钉钉可选加签密钥） | 未配置/未绑定：`risk_alert.alerted=false` + `alert_error` 记明原因（管理端可见）；业务级 HTTP 200 + `errcode!=0` 也算失败 | 演示模式不走网络；测试用本地 HTTP 桩 | `mvn -Dtest=ImWebhookChannelTest,ChannelRoutingTest test` |
+| `com.icegreen:greenmail`（2.1.3，Apache-2.0，仅 test scope） | C 构建/测试期 | Maven 自动拉取，不进镜像 | 邮件通道测试无法断言「真的发出去了」 | 内网 Nexus / `~/.m2` | `mvn -Dtest=SmtpEmailChannelTest test` |
+
 ## 3.2 已决策待实施：行政区划数据集（ADR-0013，2026-10-29）
 
 | 依赖 | 层 | 谁负责安装 | 离线怎么办 | 缺失时的表现 | 如何验证 |

@@ -1,6 +1,6 @@
 # ADR-0018 三方通道统一模型：能力 / 供应商 / 用途绑定
 
-- 状态：提议（2026-11-03）
+- 状态：采纳（2026-11-04，已实现并验证）
 - 决策人：产品 + 后端
 - 关联：ADR-0005（第三方服务封装）、AGENTS §1（禁止静默兜底）、§13（枚举必须可选）、§10.5（告警分级）
 
@@ -86,3 +86,24 @@ CREATE TABLE integration_route (
 2. 每个 sender 家族至少一条桩服务测试（签名正确、报文解析、失败不假装成功）；
 3. admin：未配置时页面显示“未配置 + 去配置入口”，不允许空下拉；
 4. `risk_alert` 增加 `alerted/alerted_at`，FATAL 立即发、恢复发一条，未发出必须留痕。
+
+## 实现记录（2026-11-04）
+
+实现与上文决策的差异与补充（以代码为准）：
+
+| 项 | 实际实现 | 原因 |
+|---|---|---|
+| 迁移 | `V8__channel_routing.sql` 建 `integration_route`、扩 `risk_alert`；`V9__multi_provider_capabilities.sql` 删 `integration_config_one_enabled` | V1 的部分唯一索引与“同一能力可存多家”直接冲突，而能力清单不应在 SQL 里再写一份 |
+| 解析入口 | `IntegrationRouteService.find/require/missing`（非 `ChannelResolver`） | 命名与现有 `Integration*Service` 一致 |
+| 用途清单 | 9 个：`sms` OTP_LOGIN/ORDER_EVENT/ALERT_FATAL（告警类必填收件人）、`email` 同三个、`wechat` ORDER_EVENT、`alert_im` ALERT_FATAL/ALERT_RECOVERY | 实现需要邮件告警与公众号事件通知 |
+| 供应商候选 | `sms` 仅 `aliyun`/`tencent`（无 `huawei` 与 `mock`）；`email` 为 `126`/`qq`/`mock`；`wechat` 为 `wechat`/`mock` | 未实现的供应商不进候选（避免 dhl/fedex 类死配置）；演示占位只给已实现 mock 分支的能力 |
+| 未配置错码 | `CHANNEL_ROUTE_NOT_CONFIGURED` / `INTEGRATION_PROVIDER_NOT_CONFIGURED` / `INTEGRATION_PROVIDER_DISABLED` / `CHANNEL_RECIPIENT_REQUIRED` / `CHANNEL_USAGE_UNSUPPORTED` / `CHANNEL_MOCK_FORBIDDEN` / `CHANNEL_EVENT_UNMAPPED` | 统一前缀便于前端按 code 映射文案（§9.5） |
+| 生产与 mock | 非演示模式下显式绑定 `mock` 会报 `CHANNEL_MOCK_FORBIDDEN`（只有 `app.mode=demo` 才走 mock） | “mock 静默生效”是本仓库明令禁止的兜底形态 |
+| 告警派发 | `AlertDispatchService`（`@Async` 线程池 `alertExecutor`）先 `alert_im` 再补 `sms`/`email`，失败汇总写回 `alert_error` | 告警不能阻塞主业务事务 |
+| admin 接口 | `GET/PUT/DELETE /admin/v1/channel-routes`、`POST /admin/v1/channel-routes/test`、`POST /admin/v1/risk-alerts/{id}/recover` | 运营改完配置必须能当场发一条验证，告警处理完必须能收掉 |
+| 测试 | `ChannelSenderConfigTest`、`ImWebhookChannelTest`（本地 HTTP 桩）、`SmtpEmailChannelTest`（GreenMail）、`ChannelRoutingTest`（13 个用例，真库） | 不靠外网也不靠真实邮箱凭据 |
+| 遗留（本批已收尾） | 后台设置里的 `sms_provider`/`sms_access_key`/`sms_secret_key`/`sms_sign_name` 已从 `SetupView`/`SettingsView`/`SystemSettingService`/`SetupService` 全部删除，并用 `V10__retire_sms_settings.sql` 清掉 `system_setting`/`market_setting` 的历史行；页面改为指向「通道路由」的说明 | 只删代码不删数据时，页面会把历史行原样回传，保存就被 `INVALID_SETTING_KEY` 拒绝（e2e 实测 400）；`adminSettings()` 同时改为只回显仍受支持的键 |
+| 页面验证 | Playwright（Edge）：`web/e2e/admin-channel-routes.spec.ts` 桌面走完“配供应商 → 绑用途 → 测试发送”，手机尺寸 390×844 校验页面无横向溢出；与 `admin`/`markets`/`admin-pickers` 一起 5/5 通过 | 运营的真实路径必须在真浏览器里走通，不能只靠接口测试 |
+| 验收脚本 | `node scripts/acceptance-check.mjs` 17/17；未新增“通道”专项断言 | 该脚本面向演示环境的能力就绪/资金/枚举口径，通道行为已由 `ChannelRoutingTest` 覆盖 |
+| 遗留2 | 告警“超时未处理 → 升级”未实现，只有去重与恢复通知 | 升级策略需要值班表与班次定义，属独立需求 |
+

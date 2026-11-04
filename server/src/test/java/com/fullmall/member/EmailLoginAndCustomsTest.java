@@ -65,12 +65,20 @@ class EmailLoginAndCustomsTest {
 
     @Autowired
     JdbcTemplate jdbc;
+    @Autowired
+    com.fullmall.platform.secret.IntegrationConfigService configs;
+    @Autowired
+    com.fullmall.platform.channel.IntegrationRouteService routes;
 
     private static final String PHONE = "19900000001";
     private static final String EMAIL = "cross-border@example.com";
 
     @BeforeEach
     void setup() {
+        // 邮箱验证码要真发出去：没有绑定「登录验证码（邮件）」就必然 503（ADR-0018），
+        // 所以这里显式绑一个 mock 供应商 —— 演示占位不会联网，但通路是真的。
+        configs.save("email", "mock", java.util.Map.of(), true, "tester");
+        routes.bind("email", "OTP_LOGIN", "mock", null);
         jdbc.update("DELETE FROM member_otp");
         jdbc.update("DELETE FROM member_session");
         jdbc.update("DELETE FROM member WHERE phone = ?", PHONE);

@@ -1,8 +1,9 @@
 package com.fullmall.notification.app;
 
-import com.fullmall.notification.channel.NotificationChannelSender;
 import com.fullmall.notification.domain.Notification;
 import com.fullmall.notification.infra.NotificationRepository;
+import com.fullmall.platform.channel.ChannelSendService;
+import com.fullmall.platform.error.ApiException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -11,10 +12,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
 import java.util.List;
-import java.util.Map;
 import java.util.UUID;
-import java.util.function.Function;
-import java.util.stream.Collectors;
 
 @Service
 public class NotificationService {
@@ -23,20 +21,19 @@ public class NotificationService {
 
     private final NotificationRepository repository;
     private final JdbcTemplate jdbcTemplate;
-    private final Map<String, NotificationChannelSender> senders;
+    /** 外部渠道统一走通道路由：渠道 → 能力 → 用途 → 供应商（ADR-0018）。 */
+    private final ChannelSendService channels;
     /** 实时通道（本进程内存；多副本需 Redis，见 NotificationStreamService 注释）。 */
     private final NotificationStreamService streams;
 
     public NotificationService(NotificationRepository repository,
                                JdbcTemplate jdbcTemplate,
-                               List<NotificationChannelSender> senders,
+                               ChannelSendService channels,
                                NotificationStreamService streams) {
         this.repository = repository;
         this.jdbcTemplate = jdbcTemplate;
+        this.channels = channels;
         this.streams = streams;
-        this.senders = senders.stream().collect(Collectors.toMap(
-                NotificationChannelSender::channel,
-                Function.identity()));
     }
 
     /**
@@ -123,21 +120,17 @@ public class NotificationService {
                     "NOTIFICATION_NOT_RETRYABLE",
                     "只有 FAILED 的通知可以重试，当前=" + existing.status());
         }
-        NotificationChannelSender sender = senders.get(existing.channel());
-        if (sender == null) {
-            repository.updateDelivery(id, "FAILED", null,
-                    "No sender configured for " + existing.channel());
-            throw com.fullmall.platform.error.ApiException.conflict(
-                    "NOTIFICATION_CHANNEL_UNAVAILABLE",
-                    "渠道 " + existing.channel() + " 未配置发送器，重试仍会失败");
+        if ("IN_APP".equals(existing.channel())) {
+            repository.updateDelivery(id, "SENT", Instant.now(), null);
+            return repository.findById(id).orElseThrow();
         }
         try {
-            sender.send(existing);
+            channels.sendChannel(existing.channel(), existing.eventType(), existing.recipientId(),
+                    existing.title(), existing.content());
             repository.updateDelivery(id, "SENT", Instant.now(), null);
         } catch (RuntimeException error) {
             repository.updateDelivery(id, "FAILED", null, error.getMessage());
-            throw com.fullmall.platform.error.ApiException.conflict(
-                    "NOTIFICATION_RETRY_FAILED", "重试失败：" + error.getMessage());
+            throw ApiException.conflict("NOTIFICATION_RETRY_FAILED", "重试失败：" + error.getMessage());
         }
         return repository.findById(id).orElseThrow();
     }
@@ -153,10 +146,9 @@ public class NotificationService {
      */
     public Notification sendTest(String channel, String title, String content, String eventType) {
         String normalized = channel == null ? "" : channel.trim().toUpperCase(java.util.Locale.ROOT);
-        if (!senders.containsKey(normalized)) {
-            throw com.fullmall.platform.error.ApiException.badRequest(
-                    "NOTIFICATION_CHANNEL_INVALID",
-                    "未知渠道 " + channel + "，可选：" + senders.keySet());
+        if (!ChannelSendService.SUPPORTED_CHANNELS.contains(normalized)) {
+            throw ApiException.badRequest("NOTIFICATION_CHANNEL_INVALID",
+                    "未知渠道 " + channel + "，可选：" + ChannelSendService.SUPPORTED_CHANNELS);
         }
         String event = eventType == null || eventType.isBlank()
                 ? "CHANNEL_TEST" : eventType.trim().toUpperCase(java.util.Locale.ROOT);
@@ -294,14 +286,14 @@ public class NotificationService {
                 linkFor(eventType));
         repository.insert(base);
 
-        NotificationChannelSender sender = senders.get(channel);
-        if (sender == null) {
-            repository.updateDelivery(base.id(), "FAILED", null, "No sender configured for " + channel);
-            log.warn("No notification sender configured for channel {}", channel);
-            return base.withDelivery("FAILED", null, "No sender configured for " + channel);
+        // 站内消息落库即送达；外部渠道按路由决定供应商，失败原因必须写回通知记录，
+        // 让运营在「通知中心」能直接看到「为什么没发出去」（未绑定通道 / 供应商报错）。
+        if ("IN_APP".equals(channel)) {
+            repository.updateDelivery(base.id(), "SENT", Instant.now(), null);
+            return base.withDelivery("SENT", Instant.now(), null);
         }
         try {
-            sender.send(base);
+            channels.sendChannel(channel, eventType, base.recipientId(), title, content);
             repository.updateDelivery(base.id(), "SENT", Instant.now(), null);
             return base.withDelivery("SENT", Instant.now(), null);
         } catch (RuntimeException exception) {

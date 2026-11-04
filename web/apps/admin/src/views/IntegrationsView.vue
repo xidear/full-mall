@@ -29,6 +29,7 @@ interface Capability {
   code: string
   label: string
   description: string
+  multiProvider?: boolean
   providers: Provider[]
 }
 
@@ -40,8 +41,30 @@ interface Integration {
   secretsConfigured: boolean
 }
 
+/**
+ * 通道路由：哪个业务动作用哪家供应商。
+ * 候选（可用供应商）由后端按「已配置且已启用」算出来，页面不猜。
+ */
+interface UsageRoute {
+  capability: string
+  key: string
+  label: string
+  description: string
+  provider?: string
+  recipient?: string
+  needsRecipient: boolean
+  availableProviders: string[]
+}
+
 const capabilities = ref<Capability[]>([])
 const rows = ref<Integration[]>([])
+const usages = ref<UsageRoute[]>([])
+const routesLoading = ref(false)
+const busyUsage = ref('')
+// 收件人只在「已绑定但还没填过」时可编辑；绑定时提交，避免每次输入都发请求
+const recipients = ref<Record<string, string>>({})
+// 未绑定行里先选好的供应商：开关一打开就用它绑定（否则页面显示 A、实际绑 B）
+const pendingProviders = ref<Record<string, string>>({})
 const loading = ref(false)
 const saving = ref(false)
 const catalogError = ref('')
@@ -85,6 +108,105 @@ async function load() {
   }
 }
 
+async function loadRoutes() {
+  routesLoading.value = true
+  try {
+    usages.value = await api.get<UsageRoute[]>('/admin/v1/channel-routes')
+    for (const usage of usages.value) {
+      if (usage.recipient) recipients.value[usageId(usage)] = usage.recipient
+    }
+  } catch (cause) {
+    ElMessage.error(cause instanceof Error ? cause.message : '通道路由加载失败')
+  } finally {
+  routesLoading.value = false
+  }
+}
+
+function usageId(usage: UsageRoute): string {
+  return usage.capability + '/' + usage.key
+}
+
+function providerLabel(usage: UsageRoute, code?: string): string {
+  if (!code) return ''
+  const capability = capabilities.value.find(item => item.code === usage.capability)
+  return capability?.providers.find(item => item.code === code)?.label ?? code
+}
+
+/**
+ * 绑定 / 改绑 / 解绑都在列表里直接完成（AGENTS §13.1）。
+ * 失败时保持原状态并报原因：不允许「先翻转再回滚」那种视觉欺骗。
+ */
+async function toggleRoute(usage: UsageRoute, bound: boolean) {
+  const id = usageId(usage)
+  if (busyUsage.value) return
+  busyUsage.value = id
+  try {
+    if (!bound) {
+      await api.delete('/admin/v1/channel-routes/' + usage.capability + '/' + usage.key)
+      ElMessage.success('已取消绑定：' + usage.label)
+    } else {
+      const provider = pendingProviders.value[id] ?? usage.provider ?? usage.availableProviders[0]
+      if (!provider) {
+        ElMessage.error('该能力尚未配置并启用任何供应商，请先在上方保存供应商凭据')
+        return
+      }
+      const recipient = (recipients.value[id] ?? '').trim()
+      await api.put('/admin/v1/channel-routes/' + usage.capability + '/' + usage.key, {
+        provider,
+        recipient: recipient || undefined
+      })
+      ElMessage.success('已绑定：' + usage.label + ' → ' + providerLabel(usage, provider))
+    }
+    await loadRoutes()
+  } catch (cause) {
+    ElMessage.error(apiErrorMessage(cause, '保存失败'))
+  } finally {
+    busyUsage.value = ''
+  }
+}
+
+async function changeProvider(usage: UsageRoute, provider: string) {
+  const id = usageId(usage)
+  if (!usage.provider) {
+    // 未绑定的行只记住选择，真正生效要点开关，避免误绑
+    pendingProviders.value[id] = provider
+    return
+  }
+  busyUsage.value = id
+  try {
+    await api.put('/admin/v1/channel-routes/' + usage.capability + '/' + usage.key, {
+      provider,
+      recipient: (recipients.value[id] ?? '').trim() || undefined
+    })
+    ElMessage.success('已改绑：' + usage.label + ' → ' + providerLabel(usage, provider))
+    await loadRoutes()
+  } catch (cause) {
+    ElMessage.error(apiErrorMessage(cause, '改绑失败'))
+    await loadRoutes()
+  } finally {
+    busyUsage.value = ''
+  }
+}
+
+async function testRoute(usage: UsageRoute) {
+  busyUsage.value = usageId(usage)
+  try {
+    const result = await api.post<{ provider: string, mock: boolean }>('/admin/v1/channel-routes/test', {
+      capability: usage.capability,
+      usageKey: usage.key,
+      recipient: (recipients.value[usageId(usage)] ?? '').trim() || undefined
+    })
+    ElMessage.success(result.mock
+      ? '测试完成：当前为演示模式（' + result.provider + '），消息未真正发送'
+      : '测试消息已通过 ' + result.provider + ' 发出')
+    await loadRoutes()
+  } catch (cause) {
+    ElMessage.error(apiErrorMessage(cause, '测试发送失败'))
+  } finally {
+    busyUsage.value = ''
+  }
+}
+
 async function save() {
   if (saving.value) return
   if (!form.value.capability || !form.value.provider) {
@@ -97,7 +219,9 @@ async function save() {
     // 敏感字段留空 = 沿用旧值（服务端语义），因此这里只是"不提交该键"
     if (value) config[field.key] = value
   }
-  if (Object.keys(config).length === 0) {
+  // 没有可填字段的供应商（例如演示占位 mock）本来就没有配置项：
+  // 这里强行要求「至少一项」会让它永远保存不了。
+  if (fields.value.length > 0 && Object.keys(config).length === 0) {
     ElMessage.error('至少填写一项配置（密钥可留空沿用旧值，但首次配置必须填）')
     return
   }
@@ -122,6 +246,7 @@ async function save() {
 onMounted(async () => {
   await loadCatalog()
   await load()
+  await loadRoutes()
 })
 </script>
 
@@ -130,7 +255,7 @@ onMounted(async () => {
     <h1>第三方服务</h1>
     <el-alert type="info" :closable="false" show-icon class="mb-16"
               title="密钥只加密入库，页面永不回显"
-              description="能力、服务商与配置项都从后端清单选择，不需要手填键名；键名含 secret/key/token/password 的字段按敏感处理，留空表示沿用旧值。同一能力只能启用一个服务商。" />
+              description="能力、服务商与配置项都从后端清单选择，不需要手填键名；键名含 secret/key/token/password 的字段按敏感处理，留空表示沿用旧值。短信/邮件/公众号/告警群可以同时启用多家供应商，具体哪个动作用哪家，由下方「通道路由」决定。" />
 
     <el-alert v-if="catalogError" :title="catalogError" type="error" show-icon :closable="false" class="mb-16" />
 
@@ -164,7 +289,11 @@ onMounted(async () => {
 
       <el-form-item label="启用">
         <el-switch v-model="form.enabled" />
-        <span class="field-hint">启用后同能力的其它服务商会自动停用</span>
+        <span class="field-hint">
+          {{ capability?.multiProvider
+            ? '该能力支持多家并存；停用其中一家只影响绑定到它的用途'
+            : '单供应商能力：启用后同能力的其它服务商会自动停用' }}
+        </span>
       </el-form-item>
 
       <el-form-item>
@@ -200,6 +329,56 @@ onMounted(async () => {
         </template>
       </el-table-column>
     </el-table>
+
+    <h2 class="section-title">通道路由</h2>
+    <el-alert type="info" :closable="false" show-icon class="mb-16"
+              title="哪个业务动作用哪家供应商"
+              description="供应商配好并启用后，在这里按用途勾选。没有绑定的用途在正式环境会明确失败（不会偷偷用其它供应商），加急告警类用途必须填收件人。" />
+
+    <el-table :data="usages" v-loading="routesLoading" empty-text="尚未登记任何通信用途">
+      <el-table-column label="用途" min-width="200">
+        <template #default="{ row }">
+          {{ row.label }}
+          <div class="muted-code">{{ row.description }}</div>
+        </template>
+      </el-table-column>
+      <el-table-column label="供应商" width="220">
+        <template #default="{ row }">
+          <el-select v-if="row.availableProviders.length > 0"
+                     :model-value="row.provider ?? pendingProviders[row.capability + '/' + row.key] ?? ''"
+                     :placeholder="row.provider ? '选择供应商' : '未绑定'"
+                     :disabled="busyUsage === row.capability + '/' + row.key"
+                     style="width: 100%" @change="(value: string) => changeProvider(row, value)">
+            <el-option v-for="code in row.availableProviders" :key="code"
+                       :label="providerLabel(row, code) + '（' + code + '）'" :value="code" />
+          </el-select>
+          <span v-else class="muted-code">未配置供应商</span>
+        </template>
+      </el-table-column>
+      <el-table-column label="收件人" width="240">
+        <template #default="{ row }">
+          <el-input v-if="row.needsRecipient" v-model="recipients[row.capability + '/' + row.key]"
+                    :placeholder="row.needsRecipient ? '手机号/邮箱，告警送达地址' : ''"
+                    :disabled="busyUsage === row.capability + '/' + row.key" />
+          <span v-else class="muted-code">不需要</span>
+        </template>
+      </el-table-column>
+      <el-table-column label="已绑定" width="110">
+        <template #default="{ row }">
+          <el-switch :model-value="!!row.provider"
+                     :loading="busyUsage === row.capability + '/' + row.key"
+                     :disabled="!row.provider && row.availableProviders.length === 0"
+                     @change="(value: boolean) => toggleRoute(row, value)" />
+        </template>
+      </el-table-column>
+      <el-table-column label="操作" width="130">
+        <template #default="{ row }">
+          <el-button size="small" :disabled="!row.provider"
+                     :loading="busyUsage === row.capability + '/' + row.key"
+                     @click="testRoute(row)">测试发送</el-button>
+        </template>
+      </el-table-column>
+    </el-table>
   </div>
 </template>
 
@@ -229,5 +408,10 @@ onMounted(async () => {
   margin-left: 6px;
   color: #a8aeb8;
   font-size: 11px;
+}
+
+.section-title {
+  margin: 28px 0 12px;
+  font-size: 16px;
 }
 </style>

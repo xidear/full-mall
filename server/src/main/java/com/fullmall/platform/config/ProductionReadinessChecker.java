@@ -81,7 +81,8 @@ public class ProductionReadinessChecker implements ApplicationListener<Applicati
         List<Item> items = new ArrayList<>();
         items.add(provider("payment", settings.rawValue("payment_provider"), "app.payment.provider"));
         items.add(provider("logistics", settings.rawValue("logistics_provider"), "app.logistics.provider"));
-        items.add(provider("sms", settings.rawValue("sms_provider"), "app.sms.provider"));
+        // 短信/邮件/公众号/告警群是「多供应商 + 按用途路由」的能力（ADR-0018），
+        // 就绪状态由 CapabilityReadinessService 按用途算；这里不再读 sms_provider（避免双源真相）。
         return new Report("prod".equals(mode), items);
     }
 
@@ -93,7 +94,6 @@ public class ProductionReadinessChecker implements ApplicationListener<Applicati
         String value = switch (capability) {
             case "payment" -> settings.rawValue("payment_provider");
             case "logistics" -> settings.rawValue("logistics_provider");
-            case "sms" -> settings.rawValue("sms_provider");
             default -> throw new IllegalArgumentException("未知能力: " + capability);
         };
         String normalized = value == null ? "" : value.trim().toLowerCase(Locale.ROOT);

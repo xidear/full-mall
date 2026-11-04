@@ -41,7 +41,15 @@ class CapabilityReadinessServiceTest {
         JdbcTemplate jdbc = mock(JdbcTemplate.class);
         when(jdbc.queryForList(anyString(), eq(String.class))).thenReturn(aiProviders);
 
-        return new CapabilityReadinessService(integrations, jdbc, paymentEnv, "", "").check();
+        var routes = mock(com.fullmall.platform.channel.IntegrationRouteService.class);
+        when(routes.matrix()).thenReturn(List.of(
+                new com.fullmall.platform.channel.IntegrationRouteService.UsageView(
+                        "sms", "OTP_LOGIN", "登录验证码", "", "aliyun", null, false,
+                        List.of("aliyun")),
+                new com.fullmall.platform.channel.IntegrationRouteService.UsageView(
+                        "sms", "ALERT_FATAL", "故障告警", "", "aliyun", "13800000000", true,
+                        List.of("aliyun"))));
+        return new CapabilityReadinessService(integrations, routes, jdbc, paymentEnv, "").check();
     }
 
     @Test

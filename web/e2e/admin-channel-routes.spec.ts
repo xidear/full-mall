@@ -79,5 +79,19 @@ test('channel route table stays inside a phone viewport', async ({ page }) => {
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)
   expect(overflow).toBeLessThanOrEqual(1)
 
+  // 标题必须横着排：只断言“没溢出”曾漏掉过标题被右侧 4 个控件挤成一列竖排的缺陷，
+  // 所以这里连标题自身的盒子一起卡住（一行 24px 字高的标题宽高比不可能小于 2）。
+  const titleBox = await page.locator('.admin-header h1').boundingBox()
+  expect(titleBox).not.toBeNull()
+  expect(titleBox!.width).toBeGreaterThanOrEqual(80)
+  expect(titleBox!.height).toBeLessThanOrEqual(60)
+
+  // 宽表自己可横向滚动（收件人/操作列在手机上靠滑动可达）
+  const tableScrolls = await page.evaluate(() => {
+    const wrap = document.querySelector('.el-scrollbar__wrap')
+    return wrap === null ? -1 : wrap.scrollWidth - wrap.clientWidth
+  })
+  expect(tableScrolls).toBeGreaterThan(0)
+
   await page.screenshot({ path: 'test-results/channel-routes-mobile.png', fullPage: true })
 })

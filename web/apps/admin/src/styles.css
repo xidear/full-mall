@@ -232,6 +232,19 @@ body {
   font-size: 13px;
 }
 
+/* 折叠按钮与标题块要并排：不写 flex 时 el-button 是 inline-block，标题块另起一行，
+   窄屏下还会被右侧操作区挤成一列竖排文字（实测 390px 宽时标题竖着排）。 */
+.header-title {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  min-width: 0;
+}
+
+.header-title > div {
+  min-width: 0;
+}
+
 /* Element Plus 默认的警告色（#e6a23c）在浅黄底上只有 2:1，标题/正文读不清。
    选择器要压过 .el-alert.is-light .el-alert__description（0,3,0） */
 /* 注意：dialog 会被 teleport 到 body，不能只在 .admin-main 里覆盖 */
@@ -465,5 +478,28 @@ body {
 
   .variant-row {
     grid-template-columns: 1fr;
+  }
+}
+
+/* 手机宽度下标题与操作各占一行：并排时右侧 4 个控件（通知/改密/帮助/退出）会把标题挤到 40px 宽，
+   副标题跟着一字一行。宁可多占一行高度，也不让标题读不出来。 */
+@media (max-width: 640px) {
+  .admin-header {
+    flex-wrap: wrap;
+    row-gap: 12px;
+  }
+
+  .header-title {
+    flex: 1 1 100%;
+  }
+
+  .header-actions {
+    width: 100%;
+    justify-content: flex-end;
+    flex-wrap: wrap;
+  }
+
+  .admin-header p {
+    display: none;
   }
 }

@@ -259,7 +259,7 @@ onMounted(async () => {
 
     <el-alert v-if="catalogError" :title="catalogError" type="error" show-icon :closable="false" class="mb-16" />
 
-    <el-form v-if="capabilities.length > 0" label-width="150px" style="max-width: 780px">
+    <el-form v-if="capabilities.length > 0" label-width="150px" style="max-width: 780px" class="integration-form">
       <el-form-item label="能力">
         <el-select v-model="form.capability" style="width: 260px">
           <el-option v-for="item in capabilities" :key="item.code"
@@ -379,10 +379,44 @@ onMounted(async () => {
         </template>
       </el-table-column>
     </el-table>
+    <p class="muted route-scroll-hint">窄屏下表格可左右滑动查看收件人与操作列。</p>
   </div>
 </template>
 
 <style scoped>
+/* 手机宽度下 150px 的标签列会把输入框挤到 160px 左右：占位提示被截断、字段说明一字一行。
+   小屏改成标签独占一行，输入框吃满宽度（只作用于本页的供应商配置表单，不动全站 el-form 默认值）。 */
+
+/* 只在表格真的溢出时提示：宽屏一行放得下就不必教人滑动。 */
+.route-scroll-hint {
+  display: none;
+}
+
+@media (max-width: 640px) {
+  .route-scroll-hint {
+    display: block;
+    margin: 6px 0 0;
+    font-size: 12px;
+  }
+}
+
+@media (max-width: 640px) {
+  .integration-form :deep(.el-form-item) {
+    display: block;
+  }
+
+  .integration-form :deep(.el-form-item__label) {
+    display: block;
+    width: auto;
+    padding: 0 0 4px;
+    text-align: left;
+  }
+
+  .integration-form :deep(.el-form-item__content) {
+    margin-left: 0;
+  }
+}
+
 .mb-16 {
   margin-bottom: 16px;
 }

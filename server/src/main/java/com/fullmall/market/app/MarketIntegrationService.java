@@ -1,6 +1,7 @@
 package com.fullmall.market.app;
 
 import com.fullmall.platform.error.ApiException;
+import com.fullmall.platform.secret.IntegrationCatalog;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -27,25 +28,28 @@ import java.util.Set;
 @Service
 public class MarketIntegrationService {
 
-    /** 与 integration_config 的能力白名单保持一致，外加地址校验。 */
-    private static final Set<String> CAPABILITIES =
-            Set.of("sms", "payment", "storage", "moderation", "logistics", "ai", "address");
+    /**
+     * 能力白名单直接取自 {@link IntegrationCatalog}：这里曾经自己维护一份 7 项清单，
+     * 与目录里的 11 项长期分叉（目录有 email/wechat/alert_im/export/exchange_rate，
+     * 这里却多出一个谁也没实现的 address）——这就是 AGENTS §1 的「双源真相」，已合并。
+     */
+    private static final Set<String> CAPABILITIES = IntegrationCatalog.capabilityCodes();
 
     /**
-     * 每个能力支持的服务商（AGENTS §13：枚举必须可选、禁止手填）。
+     * 每个能力支持的服务商——同样只认 {@link IntegrationCatalog}（AGENTS §13：枚举可选、唯一来源）。
      *
-     * <p>这里是**唯一来源**：后台下拉从 {@link #catalog()} 取，保存时用同一份清单校验，
-     * 避免"填错一个字、永远不生效"的死配置。新增服务商只改这里。
-     *
-     * <p>`ai` 不在静态清单里——它的服务商来自 `ai_provider` 表（由后台 AI 供应商页维护）。
+     * <p>合并前这份静态清单里有 8 个「谁也没实现」的候选（payment 的 mock/stripe/paypal、
+     * storage 的 aliyun-oss/s3、logistics 的 dhl/fedex、moderation 的 mock）：运营选了也永远不会生效。
+     * 现在唯一来源是目录，目录里只登记真的接得上的服务商。
      */
-    private static final Map<String, List<String>> PROVIDERS = Map.of(
-            "payment", List.of("mock", "alipay", "wechat", "stripe", "paypal"),
-            "logistics", List.of("mock", "kuaidi100", "dhl", "fedex"),
-            "sms", List.of("mock", "aliyun", "tencent"),
-            "storage", List.of("local", "aliyun-oss", "qiniu", "s3"),
-            "moderation", List.of("mock", "aliyun", "tencent"),
-            "address", List.of("amap", "tencent-map", "google"));
+    private static final Map<String, List<String>> PROVIDERS = IntegrationCatalog.capabilities().stream()
+            .collect(java.util.stream.Collectors.collectingAndThen(
+                    java.util.stream.Collectors.toMap(
+                            IntegrationCatalog.Capability::code,
+                            cap -> cap.providers().stream().map(IntegrationCatalog.Provider::code).toList(),
+                            (left, right) -> left,
+                            java.util.TreeMap::new),
+                    java.util.Collections::unmodifiableMap));
 
     private final JdbcTemplate jdbcTemplate;
 

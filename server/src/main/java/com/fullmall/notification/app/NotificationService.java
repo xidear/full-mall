@@ -50,6 +50,7 @@ public class NotificationService {
             case "REFUND_REQUESTED", "REFUND_COMPLETED" -> "/after-sales";
             case "STOCK_LOW", "NEAR_EXPIRY" -> "/inventory";
             case "SUPPLIER_RETURN" -> "/suppliers";
+            case "ALERT_FATAL", "ALERT_RECOVERY" -> "/alerts";
             default -> null;
         };
     }

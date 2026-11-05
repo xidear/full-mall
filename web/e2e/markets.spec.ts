@@ -97,3 +97,34 @@ test('公开接口：市场语言候选 + 国别地址格式 + 区划字典（�
   expect(missing.status()).toBe(404)
   expect((await missing.json()).code).toBe('ADDRESS_FORMAT_MISSING')
 })
+test('市场「通道启用」的能力/服务商候选来自合并后的单一清单（无 address、有 alert_im）', async ({ page }) => {
+  await loginAdmin(page)
+  await page.locator('.admin-menu').getByText('市场配置', { exact: true }).click()
+  await expect(page.getByRole('main').getByRole('heading', { name: '市场配置' })).toBeVisible()
+
+  await page.locator('.el-table__row').filter({ hasText: 'CN' }).first()
+    .getByRole('button', { name: '编辑' }).click()
+  const dialog = page.getByRole('dialog')
+
+  // 清单合并（ADR-0018 收尾）：能力下拉必须等于 IntegrationCatalog 的 11 项，
+  // 不再出现谁也没实现的「地址」（address）。断言在 UI 上做，才能证明运营看到的就是唯一来源。
+  const capabilitySelect = dialog.locator('.integration-row .el-select').first()
+  await capabilitySelect.click()
+  const options = page.locator('.el-select-dropdown:visible .el-select-dropdown__item')
+  await expect(options.filter({ hasText: '告警群机器人' }).first()).toBeVisible()
+  await expect(options.filter({ hasText: '邮件' }).first()).toBeVisible()
+  // 「地址」在目录里没有实现，因此不应出现在候选里
+  await expect(page.locator('.el-select-dropdown:visible .el-select-dropdown__item', { hasText: '地址' }))
+    .toHaveCount(0)
+
+  // 服务商候选同样只有实现过的：物流能力只给快递100与演示占位，没有 dhl/fedex
+  await options.filter({ hasText: '物流查询' }).first().click()
+  const providerSelect = dialog.locator('.integration-row .el-select').nth(1)
+  await providerSelect.click()
+  const providerOptions = page.locator('.el-select-dropdown:visible .el-select-dropdown__item')
+  await expect(providerOptions.filter({ hasText: '快递100' }).first()).toBeVisible()
+  await expect(page.locator('.el-select-dropdown:visible .el-select-dropdown__item', { hasText: 'DHL' }))
+    .toHaveCount(0)
+  await page.keyboard.press('Escape')
+  await dialog.getByRole('button', { name: '取消' }).click()
+})

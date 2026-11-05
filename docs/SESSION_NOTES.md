@@ -3,6 +3,20 @@
 > 规则见 `AGENTS.md` §14：每批改动结束更新本文件，只保留最近 3 批。
 > 写清“已做并验证 / 已做未验证 / 未做”，以及环境事实（端口、容器、库是否重建）。
 
+## 2026-11-05 / 告警站内信默认通道 + 超时升级 + 清单合并
+
+- 已做并验证：
+  - **清单合并（ADR-0018 收尾）**：`MarketIntegrationService.CAPABILITIES`/`PROVIDERS` 改为从 `IntegrationCatalog` 派生，市场侧不再有静态清单；删掉从未实现的 `address` 能力与 `stripe`/`paypal`/`aliyun-oss`/`s3`/`dhl`/`fedex`/`moderation.mock` 候选，给 `logistics` 补 `mock`（演示分支真实存在）。`MarketScopedConsolidationTest` 8/8（含新增 `unimplementedProviderIsRejected`）；`IntegrationConfigServiceTest` 6/6。
+  - **站内信默认通道（ADR-0019）**：`AlertDispatchService` 先写 `notification(channel=IN_APP, event_type=ALERT_FATAL|ALERT_RECOVERY, link=/alerts)` 再试群机器人/短信/邮件；`alerted` 表示「至少一条送到」，外部通道失败原因仍写进 `alert_error`。新增 `AlertEscalationTest`（嵌入式 PG）4/4。
+  - **超时升级**：`V11__alert_escalation.sql` 加 `acknowledged_by`/`escalation_level`/`escalated_at` + 部分索引；`RiskAlertService.acknowledge/escalationCandidates/escalate`；`AlertEscalationJob`（每分钟，FATAL 15min / HIGH 1h，最多 3 级，条件更新防并发）；`POST /admin/v1/risk-alerts/{id}/ack`。
+  - **管理端页面**：`/alerts`（`AlertsView.vue`），表格 10 列（升级级别紧跟状态）+ 窄屏（≤640px）卡片列表；菜单/路由/help 目录/HELP_INDEX 已同步，`check-help-coverage` 43 页通过。
+  - **API 实测（41280，jar 已重建并重启容器）**：`ack` 200（acknowledgedBy=admin）→ 重复 `ack` 409 `RISK_ALERT_ALREADY_ACKNOWLEDGED` → 未登录 401 → 巡检把 20 分钟前的 FATAL 升到 L1 并写 `channel=IN_APP` 站内信（`[升级 L1]` 文案）→ 确认后 70s 不再升级 → `recover` 200 且收到 `ALERT_RECOVERY`。
+  - **Playwright（edge）**：`alerts.spec.ts` 3/3（桌面确认+恢复、通知接口契约、390×844 卡片列表）；`markets.spec.ts` 3/3（新增用例断言能力下拉有「告警群机器人」「邮件」、无「地址」，物流只有快递100/演示占位、无 DHL）；`help-drawer.spec.ts` 1/1。
+  - **门禁**：`check-api-alignment`（451 路由 / 230 调用 / 0 未匹配）、`check-fallbacks`（93 处）、`check-enum-inputs`（16 处）、`check-money-float`、`generate-permission-help --check`、admin `npm run build` 全通过。
+- 已做未验证：手机尺寸只验 390×844（iPhone 12/13 档），未覆盖平板与横屏。
+- 未做 / 已知缺口：升级只按严重度分档，没有值班表/班次（「该叫谁」仍是全体 STAFF 广播）；`risk_alert` 的 MEDIUM/LOW 不外发也不升级（按设计）。
+- 环境事实：本地栈 `fullmall-pg`（postgres:17-alpine，密码 `change-me-local`，用户/库均 `fullmall`）、`fullmall-redis`、`fullmall-api`（`--network fullmall-dev`，`SPRING_PROFILES_ACTIVE=api,dev`、`APP_MODE=demo`、`SPRING_DATASOURCE_URL=jdbc:postgresql://fullmall-pg:5432/fullmall`）；admin `npx vite --port 41281`；E2E 需要 `E2E_DB_CONTAINER=fullmall-pg`（`alerts.spec.ts` 用 psql 造 FATAL 告警，演示模式不会自然产生）。Flyway 已到 **v11**。
+
 ## 2026-11-04 / 通道路由（ADR-0018）：多供应商 + 按用途绑定 + 告警派发
 
 - 已做并验证：
@@ -66,29 +80,3 @@
   - NAS SSH：`ssh admin@192.168.1.3`（22 端口）可登录；docker 需用全路径 `/share/CACHEDEV1_DATA/.qpkg/container-station/bin/docker`
     （登录 shell 的 PATH 里没有 docker）。
   - Gitea 密码登录 API 也走 HTTPS：`curl -k https://192.168.1.3:3000/api/v1/...`（自签证书需 `-k`）。
-
-## 2026-11-03 / 快递100 真链路 + ARM 测试环境
-
-- 已做并验证：
-  - **快递100 真链路**：`LogisticsTrackingService` 之前只构造请求就抛 503（client 与 decoder 早就有但没接线）。
-    现在按「后台配置 Customer/Key → 真发 HTTP → `Kuaidi100Response` 解析」，失败统一 `unavailable()`
-    （内部 `risk_alert` + 顾客通用文案）；cookie 环境变量只在后台未填时兜底并打 WARN。
-  - 测试：`mvn -Dtest=LogisticsTrackingServiceTest,Kuaidi100ClientTest,Kuaidi100QueryTest,Kuaidi100ResponseTest test`
-    → **12 tests / 0 failures / 0 errors，BUILD SUCCESS**（新增用例用本地桩服务验证签名、解析、密钥不外泄）。
-  - ARM 主机测试可用：`server/pom.xml` 增加 `os.arch=aarch64` 自动激活的 profile，
-    补 `embedded-postgres-binaries-linux-arm64v8` / `-darwin-arm64v8`（14.22.0）。
-- 已做未验证：
-  - 全量后端套件（本批只跑了物流相关 12 项，全量在跑，结果见下一条交接）
-  - 演示模式仍走内置轨迹、不发外网；尚未给 `deploy/wiremock` 加快递100 mapping（E2E 需要时再加）
-- 未做 / 已知缺口：
-  - 快递100 凭据仍在 `system_setting`（后台「物流 Key/Customer」），尚未迁到 `integration_config` 加密存储；
-    与「所有三方凭据统一走集成目录」的目标还差一次迁移
-  - 告警通道（企微/飞书/钉钉）多通道、短信按用途勾选、邮件 126/QQ —— 三项未开始
-- 环境事实：
-  - 本机 aarch64：官方 `maven:3.9-eclipse-temurin-21` 是 amd64 镜像，已用 `alpine`/`debian` 自建同名镜像；
-    **镜像里必须有 uid 501 的 passwd 条目**，否则 `initdb` 报 `could not look up effective user ID`
-  - docker CLI 默认 context 是 `colima` → 指向 macOS 路径不可达，必须 `docker context use default`；
-    daemon 侧 pull 的 DNS 坏（`[::1]:53 refused`），拉镜像会失败，只能由容器内下载后 commit
-  - `docker run -v /tmp/...` 的路径由**宿主机**解析，不是当前容器；m2 缓存要用宿主机可见路径
-    （`/Volumes/256/xidear/works/.dsh-maven-repo`），否则容器内 uid 501 写不进 root 属主的目录
-  - 依赖下载慢：Maven 用阿里云镜像（`-s` 指向 settings.xml），JDK/Maven 二进制用 `mirrors.huaweicloud.com`

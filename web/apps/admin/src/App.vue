@@ -8,7 +8,7 @@ import {
   Bell, Box, Brush, ChatDotRound, Coin, Collection, Connection, CreditCard, DataBoard,
   Discount, Document, Download, Expand, Fold, Goods, Grid, Key, List, MagicStick,
   Monitor, OfficeBuilding, Odometer, Picture, Present, PriceTag, Service, Setting, Ticket,
-  Tickets, Timer, UserFilled, Wallet
+  Tickets, Timer, UserFilled, Wallet, WarningFilled
 } from '@element-plus/icons-vue'
 import { VALIDATION, formatDateTime } from '@fullmall/api-client'
 import { api } from './api'
@@ -204,7 +204,9 @@ const menuGroups = [
     { path: '/exports', label: '导出中心', icon: Download, roles: ['ADMIN', 'OPERATOR'] }
   ] },
   { key: 'ops', label: '运维', icon: Monitor, items: [
-    { path: '/ops', label: '运维中心', icon: Monitor, roles: ['ADMIN'] }
+    { path: '/ops', label: '运维中心', icon: Monitor, roles: ['ADMIN'] },
+    // 接口是 hasRole('ADMIN')：菜单只给 ADMIN，否则运营点进去只会拿到 403
+    { path: '/alerts', label: '风险告警', icon: WarningFilled, roles: ['ADMIN'] }
   ] },
   { key: 'system', label: '系统', icon: Setting, items: [
     { path: '/notifications', label: '通知中心', icon: Bell, roles: ['ADMIN', 'OPERATOR'] },

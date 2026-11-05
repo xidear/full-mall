@@ -10,7 +10,7 @@
 
 | 现象 | 证据 |
 |---|---|
-| 能力清单有两份且不一致 | `IntegrationCatalog` 8 项（含 export/exchange_rate，无 address）；`MarketIntegrationService.CAPABILITIES` 7 项（含 address，无 export/exchange_rate），注释还写着“与 integration_config 保持一致” |
+| 能力清单有两份且不一致 | `IntegrationCatalog` 8 项（含 export/exchange_rate，无 address）；`MarketIntegrationService.CAPABILITIES` 7 项（含 address，无 export/exchange_rate），注释还写着“与 integration_config 保持一致”。**2026-11-05 已合并**：市场侧改为从目录派生，见文末「清单合并」 |
 | 通道列了但没实现 | `logistics` 候选含 `dhl`/`fedex`，`LogisticsTrackingService` 只有 `mock`/`kuaidi100`；`kuaidi100` 之前连 HTTP 都没发 |
 | 市场能力配了没人读 | `market_integration` 的 `sms`/`storage`/`moderation`/`ai`/`address` 全仓无消费者 |
 | 凭据双源 | 支付：`payment_provider_config` + `market_integration`；短信/物流：`app.sms.provider` 环境变量 + 后台系统设置 |
@@ -106,5 +106,14 @@ CREATE TABLE integration_route (
 | 遗留（本批已收尾） | 后台设置里的 `sms_provider`/`sms_access_key`/`sms_secret_key`/`sms_sign_name` 已从 `SetupView`/`SettingsView`/`SystemSettingService`/`SetupService` 全部删除，并用 `V10__retire_sms_settings.sql` 清掉 `system_setting`/`market_setting` 的历史行；页面改为指向「通道路由」的说明 | 只删代码不删数据时，页面会把历史行原样回传，保存就被 `INVALID_SETTING_KEY` 拒绝（e2e 实测 400）；`adminSettings()` 同时改为只回显仍受支持的键 |
 | 页面验证 | Playwright（Edge）：`web/e2e/admin-channel-routes.spec.ts` 桌面走完“配供应商 → 绑用途 → 测试发送”，手机尺寸 390×844 校验页面无横向溢出；与 `admin`/`markets`/`admin-pickers` 一起 5/5 通过 | 运营的真实路径必须在真浏览器里走通，不能只靠接口测试 |
 | 验收脚本 | `node scripts/acceptance-check.mjs` 17/17；未新增“通道”专项断言 | 该脚本面向演示环境的能力就绪/资金/枚举口径，通道行为已由 `ChannelRoutingTest` 覆盖 |
-| 遗留2 | 告警“超时未处理 → 升级”未实现，只有去重与恢复通知 | 升级策略需要值班表与班次定义，属独立需求 |
+| 遗留2（2026-11-05 已收尾） | 告警“超时未处理 → 升级”曾只有去重与恢复通知；现已实现站内信默认通道 + 三态状态机 + 分档升级 | 见 ADR-0019；升级策略不需要值班表——按严重度分档（FATAL 15 分钟 / HIGH 1 小时、最多 3 级）即可，值班表是“通知谁”的问题，不是“多久催一次”的问题 |
 
+## 清单合并（2026-11-05 收尾）
+
+本 ADR 背景里记的「能力清单有两份」已合并为一份，唯一来源是 `IntegrationCatalog`：
+
+- `MarketIntegrationService.CAPABILITIES` = `IntegrationCatalog.capabilityCodes()`；`PROVIDERS` 由 `IntegrationCatalog.capabilities()` 派生（能力 → 服务商标识）。市场侧不再有任何静态清单。
+- 合并前市场侧那两个「谁也没实现」的候选按 AGENTS §1 删掉：`address` 能力（`amap`/`tencent-map`/`google` 全仓无消费者）整条移除；`payment` 的 `stripe`/`paypal`、`storage` 的 `aliyun-oss`/`s3`、`moderation` 的 `mock`、`logistics` 的 `dhl`/`fedex` 不再可选——运营选了也永远不会生效。
+- 反向补齐：`logistics` 目录里补了 `mock`（`LogisticsTrackingService` 确有 mock 分支，演示模式强制走它），否则市场级下拉没有可选项。
+- 特例保留：`ai` 的服务商仍来自 `ai_provider` 表（后台 AI 供应商页维护），目录里只登记能力本身；`catalog()` 在派生结果上覆盖 `ai` 一项。
+- 新增不变量测试：`MarketScopedConsolidationTest.unimplementedProviderIsRejected` 断言 `dhl`/`stripe` 这类未实现标识在启用时被拒绝（`不支持服务商`），避免清单再悄悄长出死配置。

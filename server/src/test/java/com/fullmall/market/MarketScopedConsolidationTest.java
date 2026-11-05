@@ -121,8 +121,8 @@ class MarketScopedConsolidationTest {
         integrations.setEnabled("HK", "logistics", "kuaidi100", true);
         assertThat(integrations.enabledProvider("HK", "logistics")).contains("kuaidi100");
 
-        integrations.setEnabled("HK", "logistics", "dhl", true);
-        assertThat(integrations.enabledProvider("HK", "logistics")).contains("dhl");
+        integrations.setEnabled("HK", "logistics", "mock", true);
+        assertThat(integrations.enabledProvider("HK", "logistics")).contains("mock");
         // 旧的一个必须被关掉，否则"用哪家"不确定
         assertThat(integrations.isEnabled("HK", "logistics", "kuaidi100")).isFalse();
         // 另一个市场不受影响
@@ -132,7 +132,7 @@ class MarketScopedConsolidationTest {
     @Test
     void capabilityViewReflectsMarketIntegration() {
         assertThat(capabilities.evaluate("HK", "HK").paymentEnabled()).isFalse();
-        integrations.setEnabled("HK", "payment", "stripe", true);
+        integrations.setEnabled("HK", "payment", "alipay", true);
         assertThat(capabilities.evaluate("HK", "HK").paymentEnabled()).isTrue();
         assertThat(capabilities.evaluate("CN", "CN").paymentEnabled()).isFalse();
     }
@@ -161,6 +161,22 @@ class MarketScopedConsolidationTest {
                         () -> integrations.enabledProvider("HK", "paymnet"))
                 .isInstanceOf(com.fullmall.platform.error.ApiException.class)
                 .hasMessageContaining("不支持的能力");
+    }
+
+    /**
+     * 清单合并后的新不变量：只有目录里登记过的服务商才能启用。
+     * 合并前 "dhl"/"stripe" 这类「谁也没实现」的标识能存进去，运营选了也永远不会生效（AGENTS §1）。
+     */
+    @Test
+    void unimplementedProviderIsRejected() {
+        org.assertj.core.api.Assertions.assertThatThrownBy(
+                        () -> integrations.setEnabled("HK", "logistics", "dhl", true))
+                .isInstanceOf(com.fullmall.platform.error.ApiException.class)
+                .hasMessageContaining("不支持服务商");
+        org.assertj.core.api.Assertions.assertThatThrownBy(
+                        () -> integrations.setEnabled("HK", "payment", "stripe", true))
+                .isInstanceOf(com.fullmall.platform.error.ApiException.class)
+                .hasMessageContaining("不支持服务商");
     }
 
     @Test

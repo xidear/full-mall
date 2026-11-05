@@ -119,7 +119,10 @@ public final class IntegrationCatalog {
             new Capability("logistics", "物流查询", "运单轨迹查询与推送", List.of(
                     new Provider("kuaidi100", "快递100", List.of(
                             Field.text("customer", "客户编号", "快递100 企业版 customer"),
-                            Field.secret("key", "授权 Key", "快递100 企业版 key"))))),
+                            Field.secret("key", "授权 Key", "快递100 企业版 key"))),
+                    // 演示占位：LogisticsTrackingService 里 mock 分支会返回固定轨迹（演示模式强制走它），
+                    // 市场级启用需要一个可选的服务商标识，否则后台下拉里没有可选项。
+                    new Provider("mock", "演示占位", List.of()))),
 
             new Capability("ai", "AI 模型", "文本、图像、多模态供应商", List.of(
                     new Provider("openai", "OpenAI 兼容", List.of(
@@ -180,6 +183,11 @@ public final class IntegrationCatalog {
 
     public static Set<String> capabilityCodes() {
         return ALL.stream().map(Capability::code).collect(java.util.stream.Collectors.toUnmodifiableSet());
+    }
+
+    /** 服务商标识清单（供后台下拉与保存校验）；未知能力返回空列表而不是抛错，由调用方决定报哪条错误码。 */
+    public static List<String> providerCodes(String capability) {
+        return providers(capability).stream().map(Provider::code).toList();
     }
 
     /** 该能力允许的服务商对象（供设置页判断"哪些真的能用"）。 */

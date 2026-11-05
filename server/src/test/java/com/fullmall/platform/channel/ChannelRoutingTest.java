@@ -206,8 +206,12 @@ class ChannelRoutingTest {
         assertThat(view.alertedAt()).isNotNull();
     }
 
+    /**
+     * 站内信是默认通道（2026-11-05 改造）：没绑群机器人也照样算「已推送」（IN_APP），
+     * 但外部通道为什么没发出去仍必须写进 alertError——「站内信到了」不能掩盖「没人被叫醒」。
+     */
     @Test
-    void alertWithoutBoundRobotRecordsWhyItWasNotSent() {
+    void alertWithoutBoundRobotStillDeliversInAppAndRecordsWhyExternalFailed() {
         riskAlerts.raise("STOCK_RECONCILE_FAILED", RiskAlertService.Severity.FATAL,
                 "sku-1", "库存对账不平", Duration.ofMinutes(1));
         UUID id = jdbc.queryForObject("SELECT id FROM risk_alert WHERE rule_code = ?", UUID.class,
@@ -216,7 +220,9 @@ class ChannelRoutingTest {
         dispatch.dispatchNow(id, false);
 
         var view = riskAlerts.findById(id);
-        assertThat(view.alerted()).isFalse();
+        assertThat(view.alerted()).isTrue();
+        assertThat(view.alertChannel()).contains("IN_APP");
+        assertThat(view.alertChannel()).doesNotContain("alert_im");
         assertThat(view.alertError()).contains("尚未绑定通道");
     }
 

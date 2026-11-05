@@ -37,7 +37,9 @@ public class RiskAlertService {
 
     public record RiskAlert(UUID id, String ruleCode, Severity severity, String subject,
                             String detail, Instant createdAt, boolean alerted, Instant alertedAt,
-                            String alertChannel, String alertError, Instant recoveredAt) {
+                            String alertChannel, String alertError, Instant recoveredAt,
+                            Instant acknowledgedAt, String acknowledgedBy, int escalationLevel,
+                            Instant escalatedAt) {
     }
 
     /**
@@ -105,10 +107,97 @@ public class RiskAlertService {
         return findById(id);
     }
 
+    /**
+     * 确认处理：值班人认领这条告警，升级巡检从此不再升级它。
+     *
+     * <p>为什么必须有：只有「恢复」没有「确认」时，值班人半夜被叫起来看一眼发现是已知问题，
+     * 既不能收掉告警（问题还在）也不能让它停下来（会一直升级刷屏）。确认就是第三种状态。
+     */
+    @Transactional
+    public RiskAlert acknowledge(UUID id, String operator) {
+        if (operator == null || operator.isBlank()) {
+            throw ApiException.badRequest("RISK_ALERT_OPERATOR_REQUIRED", "确认告警必须带操作人");
+        }
+        List<Object[]> rows = jdbcTemplate.query("""
+                SELECT acknowledged_at, recovered_at FROM risk_alert WHERE id = ?
+                """, (rs, rowNum) -> new Object[]{rs.getTimestamp("acknowledged_at"),
+                rs.getTimestamp("recovered_at")}, id);
+        if (rows.isEmpty()) {
+            throw ApiException.notFound("RISK_ALERT_NOT_FOUND", "告警不存在: " + id);
+        }
+        if (rows.get(0)[0] != null) {
+            throw ApiException.conflict("RISK_ALERT_ALREADY_ACKNOWLEDGED", "该告警已被确认: " + id);
+        }
+        if (rows.get(0)[1] != null) {
+            throw ApiException.conflict("RISK_ALERT_ALREADY_RECOVERED", "该告警已恢复，无需确认: " + id);
+        }
+        int updated = jdbcTemplate.update("""
+                UPDATE risk_alert SET acknowledged_at = now(), acknowledged_by = ?
+                 WHERE id = ? AND acknowledged_at IS NULL
+                """, operator.trim(), id);
+        if (updated != 1) {
+            throw new IllegalStateException("确认告警失败: " + id + "，影响行数=" + updated);
+        }
+        return findById(id);
+    }
+
+    /**
+     * 待升级的告警：未恢复、未确认、级别未到上限，且距上次升级（没升级过则从创建时刻算）已超过该级别的间隔。
+     *
+     * <p>间隔按严重度分档（FATAL 更急）；放在这里而不是塞进 SQL，是为了让「为什么是这个间隔」有地方写清。
+     */
+    public List<RiskAlert> escalationCandidates(Instant now, java.time.Duration fatalInterval,
+                                                java.time.Duration highInterval, int maxLevel) {
+        if (now == null) {
+            throw new IllegalArgumentException("升级巡检缺少当前时间");
+        }
+        if (maxLevel < 1) {
+            throw new IllegalArgumentException("升级上限必须 ≥ 1，实际=" + maxLevel);
+        }
+        return jdbcTemplate.query("""
+                SELECT id, rule_code, severity, subject, detail, created_at, alerted, alerted_at,
+                       alert_channel, alert_error, recovered_at, acknowledged_at, acknowledged_by,
+                       escalation_level, escalated_at
+                  FROM risk_alert
+                 WHERE recovered_at IS NULL AND acknowledged_at IS NULL
+                   AND severity IN ('FATAL', 'HIGH') AND escalation_level < ?
+                 ORDER BY created_at
+                """, (rs, rowNum) -> map(rs), maxLevel).stream()
+                .filter(alert -> {
+                    java.time.Duration interval = alert.severity() == Severity.FATAL ? fatalInterval : highInterval;
+                    Instant since = alert.escalatedAt() != null ? alert.escalatedAt() : alert.createdAt();
+                    return !now.isBefore(since.plus(interval));
+                })
+                .toList();
+    }
+
+    /** 记一次升级（级别 +1）并异步派发升级通知；并发安全用「级别未变」条件更新兜底。 */
+    @Transactional
+    public RiskAlert escalate(UUID id) {
+        List<Integer> levels = jdbcTemplate.query("""
+                SELECT escalation_level FROM risk_alert
+                 WHERE id = ? AND recovered_at IS NULL AND acknowledged_at IS NULL
+                """, (rs, rowNum) -> rs.getInt("escalation_level"), id);
+        if (levels.isEmpty()) {
+            throw ApiException.conflict("RISK_ALERT_NOT_ESCALATABLE", "该告警已恢复或已确认，不再升级: " + id);
+        }
+        int current = levels.get(0);
+        int updated = jdbcTemplate.update("""
+                UPDATE risk_alert SET escalation_level = escalation_level + 1, escalated_at = now()
+                 WHERE id = ? AND escalation_level = ? AND recovered_at IS NULL AND acknowledged_at IS NULL
+                """, id, current);
+        if (updated != 1) {
+            throw ApiException.conflict("RISK_ALERT_ESCALATION_RACED", "告警升级被并发修改，请重试: " + id);
+        }
+        alerts.dispatchEscalationAsync(id, current + 1);
+        return findById(id);
+    }
+
     public RiskAlert findById(UUID id) {
         return jdbcTemplate.query("""
                 SELECT id, rule_code, severity, subject, detail, created_at, alerted, alerted_at,
-                       alert_channel, alert_error, recovered_at
+                       alert_channel, alert_error, recovered_at, acknowledged_at, acknowledged_by,
+                       escalation_level, escalated_at
                   FROM risk_alert WHERE id = ?
                 """, (rs, rowNum) -> map(rs), id)
                 .stream().findFirst()
@@ -121,7 +210,8 @@ public class RiskAlertService {
         }
         return jdbcTemplate.query("""
                 SELECT id, rule_code, severity, subject, detail, created_at, alerted, alerted_at,
-                       alert_channel, alert_error, recovered_at
+                       alert_channel, alert_error, recovered_at, acknowledged_at, acknowledged_by,
+                       escalation_level, escalated_at
                   FROM risk_alert ORDER BY created_at DESC LIMIT ?
                 """, (rs, rowNum) -> map(rs), limit);
     }
@@ -129,12 +219,17 @@ public class RiskAlertService {
     private RiskAlert map(java.sql.ResultSet rs) throws java.sql.SQLException {
         java.sql.Timestamp alertedAt = rs.getTimestamp("alerted_at");
         java.sql.Timestamp recoveredAt = rs.getTimestamp("recovered_at");
+        java.sql.Timestamp acknowledgedAt = rs.getTimestamp("acknowledged_at");
+        java.sql.Timestamp escalatedAt = rs.getTimestamp("escalated_at");
         return new RiskAlert(rs.getObject("id", UUID.class), rs.getString("rule_code"),
                 Severity.valueOf(rs.getString("severity")), rs.getString("subject"),
                 rs.getString("detail"), rs.getTimestamp("created_at").toInstant(),
                 rs.getBoolean("alerted"), alertedAt == null ? null : alertedAt.toInstant(),
                 rs.getString("alert_channel"), rs.getString("alert_error"),
-                recoveredAt == null ? null : recoveredAt.toInstant());
+                recoveredAt == null ? null : recoveredAt.toInstant(),
+                acknowledgedAt == null ? null : acknowledgedAt.toInstant(),
+                rs.getString("acknowledged_by"), rs.getInt("escalation_level"),
+                escalatedAt == null ? null : escalatedAt.toInstant());
     }
 
     private String truncate(String detail) {

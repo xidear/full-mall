@@ -1,6 +1,7 @@
 package com.fullmall.platform.risk;
 
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -37,5 +38,16 @@ public class RiskAlertController {
     @PreAuthorize("hasRole('ADMIN')")
     public RiskAlertService.RiskAlert recover(@PathVariable UUID id) {
         return service.recover(id);
+    }
+
+    /**
+     * 确认处理：值班人认领告警，升级巡检从此不再升级它。
+     *
+     * <p>与「恢复」的区别：确认=我看到了、正在处理（问题仍在）；恢复=问题已解决。
+     */
+    @PostMapping("/admin/v1/risk-alerts/{id}/ack")
+    @PreAuthorize("hasRole('ADMIN')")
+    public RiskAlertService.RiskAlert acknowledge(@PathVariable UUID id, Authentication authentication) {
+        return service.acknowledge(id, authentication == null ? null : authentication.getName());
     }
 }

@@ -2,6 +2,7 @@ package com.fullmall.platform.risk;
 
 import com.fullmall.platform.channel.ChannelSendService;
 import com.fullmall.platform.channel.IntegrationRouteService;
+import com.fullmall.notification.app.NotificationService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -31,12 +32,15 @@ public class AlertDispatchService {
     private final ChannelSendService channels;
     private final IntegrationRouteService routes;
     private final JdbcTemplate jdbc;
+    /** 站内信是告警的默认通道：不外发、无需配置，落库即送达（通知中心一定能看到）。 */
+    private final NotificationService notifications;
 
     public AlertDispatchService(ChannelSendService channels, IntegrationRouteService routes,
-                                JdbcTemplate jdbc) {
+                                JdbcTemplate jdbc, NotificationService notifications) {
         this.channels = channels;
         this.routes = routes;
         this.jdbc = jdbc;
+        this.notifications = notifications;
     }
 
     /** 异步入口：raise() 落库后调用，不阻塞业务请求。 */
@@ -58,8 +62,22 @@ public class AlertDispatchService {
         }
     }
 
+    /** 升级派发：告警超时没人处理，按级别再推一轮（AGENTS §10.5「超时未处理升级」）。 */
+    @Async("alertExecutor")
+    public void dispatchEscalationAsync(UUID alertId, int level) {
+        try {
+            dispatch(alertId, false, level);
+        } catch (RuntimeException error) {
+            log.error("告警升级派发异常 alertId={} level={}", alertId, level, error);
+        }
+    }
+
     /** 同步实现：测试直接调用，生产通过异步入口触发。 */
     public void dispatchNow(UUID alertId, boolean recovery) {
+        dispatch(alertId, recovery, 0);
+    }
+
+    private void dispatch(UUID alertId, boolean recovery, int escalationLevel) {
         List<String> sent = new ArrayList<>();
         List<String> failures = new ArrayList<>();
         String ruleCode;
@@ -89,11 +107,17 @@ public class AlertDispatchService {
             return;
         }
 
-        String text = recovery
-                ? "[已恢复] " + ruleCode + " · " + subject + "\n" + safe(detail)
-                : "[" + severity + "] " + ruleCode + " · " + subject + "\n" + safe(detail);
+        String prefix = recovery ? "[已恢复] "
+                : escalationLevel > 0 ? "[升级 L" + escalationLevel + "] " : "[" + severity + "] ";
+        String text = prefix + ruleCode + " · " + subject + "\n" + safe(detail)
+                + (escalationLevel > 0
+                ? "\n（超过处理时限仍未确认，第 " + escalationLevel + " 次升级；请在后台「风险告警」确认处理）"
+                : "");
         String usageKey = recovery ? "ALERT_RECOVERY" : "ALERT_FATAL";
 
+        // 站内信永远先发、不受任何开关影响：它是「默认选择」——外部通道全挂时管理端仍看得到这条告警，
+        // alerted 也就不会因为「没配群机器人」而变成 false（AGENTS §10.5）。
+        inApp(recovery, severity, subject, text, sent, failures);
         attempt("alert_im", usageKey, null, text, sent, failures);
         if (!recovery) {
             attempt("sms", "ALERT_FATAL", routeRecipient("sms", "ALERT_FATAL"), text, sent, failures);
@@ -112,6 +136,18 @@ public class AlertDispatchService {
             log.warn("告警已派发 alertId={} channel={} rule={}", alertId, sent, ruleCode);
         } else {
             log.error("告警未能派发 alertId={} rule={} reason={}", alertId, ruleCode, error);
+        }
+    }
+
+    /** 站内信：写进通知中心（STAFF/ALL）；失败只记入 failures，不影响其它通道。 */
+    private void inApp(boolean recovery, String severity, String subject, String text,
+                        List<String> sent, List<String> failures) {
+        try {
+            notifications.notifyStaff(recovery ? "ALERT_RECOVERY" : "ALERT_FATAL",
+                    (recovery ? "[已恢复] " : "[" + severity + "] ") + subject, text);
+            sent.add("IN_APP");
+        } catch (RuntimeException error) {
+            failures.add("inapp: " + error.getMessage());
         }
     }
 

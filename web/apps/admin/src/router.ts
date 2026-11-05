@@ -24,6 +24,7 @@ import CostsView from './views/CostsView.vue'
 import ExportsView from './views/ExportsView.vue'
 import SkuMatrixView from './views/SkuMatrixView.vue'
 import LicenseView from './views/LicenseView.vue'
+import AlertsView from './views/AlertsView.vue'
 import ExpiringView from './views/ExpiringView.vue'
 import IntegrationsView from './views/IntegrationsView.vue'
 import MaterialView from './views/MaterialView.vue'
@@ -79,6 +80,7 @@ const router = createRouter({
     // 规格改价已改为商品列表里的弹窗（作用域是单个商品）；旧地址重定向
     { path: '/price-rule', redirect: { path: '/products' } },
     { path: '/expiring', name: 'expiring', component: ExpiringView, meta: { title: '临期商品' } },
+    { path: '/alerts', name: 'alerts', component: AlertsView, meta: { title: '风险告警' } },
     { path: '/integrations', name: 'integrations', component: IntegrationsView, meta: { title: '第三方服务' } },
     { path: '/materials', name: 'materials', component: MaterialView, meta: { title: '素材库' } },
     { path: '/pos-promotions', name: 'pos-promotions', component: PosPromotionsView, meta: { title: 'POS 专属促销' } },

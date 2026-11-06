@@ -7,20 +7,24 @@
 
 - 已做并验证：
   - **GitHub 推送**：`publish/github` → `github.com:xidear/full-mall` `main`，快进（`58469eaf..2e3b41cd`，无强推）。
-    GitHub 现有仓库早在 2024 就存在且是本分支祖先，直接 FF；远程树里 `docs/GITEA_PRIVATE_CREDENTIALS.md` 与 `.env` 均为 404。
+    两个公开仓库都已在 2026-10-18 创建（无需新建仓库）；GitHub 原 `main` 是本分支祖先，直接快进、无强推。
+    公开端树里 `docs/GITEA_PRIVATE_CREDENTIALS.md` 与 `.env` 双双不存在（GitHub API 404；Gitee contents 返回 `[]`，需按目录列举复核）。
   - **Gitee 自动镜像**：新增 `.github/workflows/mirror-gitee.yml`，push 到 GitHub main / 打 tag 时触发。
     实测成功：Run 42230154087 全绿，Gitee `main` = `2e3b41cd` = GitHub `main`；
     Gitee 侧 `xidear/full-mall` 已存在（公开，默认分支 main）。
+    注意：首次运行挂死期间，为保证 Gitee 不是空的，用本机快进直推过一次（`58469eaf..11119caf`）；镜像通道打通后不再手工推。
   - **令牌落到 GitHub secret**：`GITEE_TOKEN` 已用 libsodium sealed box 加密写入（`pynacl`），仓库里没有明文。
   - **文档**：`docs/GIT_AND_ENVIRONMENTS.md` §1/§2/§3.2–3.5/§4.1 与 `AGENTS.md` §6 改为新拓扑（GitHub 唯一源、Gitee 只读镜像、`publish/gitee` 降为备用）。
 - 已做未验证：无。Gitee 同步已按 sha 核对，不是“看起来跑了”。
 - 未做 / 已知缺口：
   - **令牌需轮换**：GitHub PAT 是 7 天临时令牌（约 2026-11-13 过期），Gitee 令牌在对话中明文出现过；两者都应尽快重新生成，Gitee 的新值更新到 GitHub secret 即可。
   - `Gitee /mirrors` API 全方法 405（未开放），将来若开通 Gitee 企业版可改为 Gitee 侧拉取并删除本工作流。
-  - GitHub Actions 的 `CI` 工作流仍在跑（与本批无关），未跟进其结果。
+  - GitHub Actions 里仓库自带的 `CI` / `Secret Guard` 工作流与本批无关：`Secret Guard` 每次 `skipped`（既有行为，未查原因），`CI` 长时间 `in_progress`，本批未跟到结论。
 - 环境事实：本机到 github.com **直连被封**（DNS 解析到 20.250.119.72，443 超时），可用代理是 NAS `192.168.1.3:7890`
   （文档里的 `192.168.1.2:7893` 已不可用，已改）；GitHub 推送实际走 SSH（全局 `url.git@github.com:.insteadof https://github.com/` + `~/.ssh/id_ed25519_github`）。
   远端：`gitea`（主）、`github`（公开源）；分支 `main`/`publish/github`/`publish/gitee`；里程碑 `milestone/2026-11-06-demo-ready`。
+- 收尾核对（2026-11-06 22:11):`publish/github` = `c28e6a53`，GitHub `main` = `c28e6a5`，Gitee `main` = `c28e6a5`，Gitea `main` = `c91dc73`（公开端已剔除私有清单与 `.msg3.tmp`）。
+
 ## 2026-11-06 / 发布分支模型 + 里程碑标签
 
 - 已做并验证：

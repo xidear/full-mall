@@ -3,6 +3,24 @@
 > 规则见 `AGENTS.md` §14：每批改动结束更新本文件，只保留最近 3 批。
 > 写清“已做并验证 / 已做未验证 / 未做”，以及环境事实（端口、容器、库是否重建）。
 
+## 2026-11-06 / 公开端拓扑：GitHub 唯一源 + Gitee 自动镜像
+
+- 已做并验证：
+  - **GitHub 推送**：`publish/github` → `github.com:xidear/full-mall` `main`，快进（`58469eaf..2e3b41cd`，无强推）。
+    GitHub 现有仓库早在 2024 就存在且是本分支祖先，直接 FF；远程树里 `docs/GITEA_PRIVATE_CREDENTIALS.md` 与 `.env` 均为 404。
+  - **Gitee 自动镜像**：新增 `.github/workflows/mirror-gitee.yml`，push 到 GitHub main / 打 tag 时触发。
+    实测成功：Run 42230154087 全绿，Gitee `main` = `2e3b41cd` = GitHub `main`；
+    Gitee 侧 `xidear/full-mall` 已存在（公开，默认分支 main）。
+  - **令牌落到 GitHub secret**：`GITEE_TOKEN` 已用 libsodium sealed box 加密写入（`pynacl`），仓库里没有明文。
+  - **文档**：`docs/GIT_AND_ENVIRONMENTS.md` §1/§2/§3.2–3.5/§4.1 与 `AGENTS.md` §6 改为新拓扑（GitHub 唯一源、Gitee 只读镜像、`publish/gitee` 降为备用）。
+- 已做未验证：无。Gitee 同步已按 sha 核对，不是“看起来跑了”。
+- 未做 / 已知缺口：
+  - **令牌需轮换**：GitHub PAT 是 7 天临时令牌（约 2026-11-13 过期），Gitee 令牌在对话中明文出现过；两者都应尽快重新生成，Gitee 的新值更新到 GitHub secret 即可。
+  - `Gitee /mirrors` API 全方法 405（未开放），将来若开通 Gitee 企业版可改为 Gitee 侧拉取并删除本工作流。
+  - GitHub Actions 的 `CI` 工作流仍在跑（与本批无关），未跟进其结果。
+- 环境事实：本机到 github.com **直连被封**（DNS 解析到 20.250.119.72，443 超时），可用代理是 NAS `192.168.1.3:7890`
+  （文档里的 `192.168.1.2:7893` 已不可用，已改）；GitHub 推送实际走 SSH（全局 `url.git@github.com:.insteadof https://github.com/` + `~/.ssh/id_ed25519_github`）。
+  远端：`gitea`（主）、`github`（公开源）；分支 `main`/`publish/github`/`publish/gitee`；里程碑 `milestone/2026-11-06-demo-ready`。
 ## 2026-11-06 / 发布分支模型 + 里程碑标签
 
 - 已做并验证：
@@ -32,36 +50,4 @@
 - 已做未验证：手机尺寸只验 390×844（iPhone 12/13 档），未覆盖平板与横屏。
 - 未做 / 已知缺口：升级只按严重度分档，没有值班表/班次（「该叫谁」仍是全体 STAFF 广播）；`risk_alert` 的 MEDIUM/LOW 不外发也不升级（按设计）。
 - 环境事实：本地栈 `fullmall-pg`（postgres:17-alpine，密码 `change-me-local`，用户/库均 `fullmall`）、`fullmall-redis`、`fullmall-api`（`--network fullmall-dev`，`SPRING_PROFILES_ACTIVE=api,dev`、`APP_MODE=demo`、`SPRING_DATASOURCE_URL=jdbc:postgresql://fullmall-pg:5432/fullmall`）；admin `npx vite --port 41281`；E2E 需要 `E2E_DB_CONTAINER=fullmall-pg`（`alerts.spec.ts` 用 psql 造 FATAL 告警，演示模式不会自然产生）。Flyway 已到 **v11**。
-
-## 2026-11-04 / 通道路由（ADR-0018）：多供应商 + 按用途绑定 + 告警派发
-
-- 已做并验证：
-  - **数据层**：`V8__channel_routing.sql`（`integration_route(capability, usage_key, provider, recipient)`；`risk_alert` 加 `alerted/alerted_at/alert_channel/alert_error/recovered_at`；severity CHECK 扩到 `FATAL/HIGH/MEDIUM/LOW`；回填仅在能力恰好只有一家启用供应商时生效）、`V9__multi_provider_capabilities.sql`（删 `integration_config_one_enabled`——V1 的部分唯一索引阻断了“短信同时有阿里云+腾讯云”，单供应商唯一性改由 `IntegrationConfigService` 保证）。
-  - **通道内核**：`platform/channel/**`（`ChannelUsage` 9 个用途、`IntegrationRouteService`、`ChannelSendService`、`sender/` 下 `AliyunSmsChannel`/`TencentSmsChannel`/`SmtpEmailChannel`/`WechatTemplateChannel`/`ImWebhookChannel`）；旧 `notification/channel/**` 与 `NotificationChannelConfig` 已删除。
-  - **告警派发**：`AlertDispatchService`（`@Async("alertExecutor")`，`dispatchNow` 供测试同步调用）+ `RiskAlertService.recover` + `POST /admin/v1/risk-alerts/{id}/recover`。
-  - **接口**：`GET/PUT/DELETE /admin/v1/channel-routes`、`POST /admin/v1/channel-routes/test`。
-  - **后台页面**：`IntegrationsView.vue` 新增“通道路由”矩阵（供应商下拉 + 收件人 + 列表内绑定开关 + 测试发送），供应商候选由后端下发，前端不写死。
-  - **后端测试全绿**：`mvn test` 全量 **834 个用例**（docker `maven-temurin21-local`，每类独立 JVM）。首轮 5 处失败全是“通道改成真发送”后的断言过期，逐个修完并单类回归通过：`NotificationRetryTest`（事件类型要用真实存在的 `CHANNEL_TEST`）、`ChannelTestSendTest`、`IntegrationConfigServiceTest`（多供应商下 `resolve()` 必须拒绝猜、用例间要清表）、`EmailLoginAndCustomsTest`（邮箱验证码要先绑 `email/OTP_LOGIN`）。新增 `ChannelSenderConfigTest`(5)、`ImWebhookChannelTest`(6，本地 HTTP 桩：钉钉加签 / HTTP200+业务错误码 / 不可识别响应)、`SmtpEmailChannelTest`(3，GreenMail)、`ChannelRoutingTest`(13，嵌入式 PG + 真库，含告警派发到企微桩)。
-  - **页面回归（Playwright，Edge，宿主机）**：新增 `web/e2e/admin-channel-routes.spec.ts`（桌面：配供应商 → 绑用途 → 测试发送；手机尺寸 390×844：无横向溢出 + 标题横排 + 宽表可横向滚动）。与 `admin.spec`、`markets.spec`、`admin-pickers.spec`、`channel-test.spec`、`distribution-settings.spec`、`setup-wizard.spec` 合计 **9/9 通过**（逐个单跑全绿；早期一次合并跑里 2 个失败是 `sms_provider` 死配置未清理、保存被 400 拒绝引起的连锁，清理后复跑通过）。
-  - **演示模式串外网的真实缺陷**：`app.mode=demo` 下把「短信 / OTP_LOGIN」绑到阿里云后，`POST /admin/v1/channel-routes/test` 真的打到了阿里云（假凭据拿到 404），接口报 500 → `ChannelSendService` 增加演示拦截：绑定真实供应商一律 `CHANNEL_PROVIDER_DEMO_FORBIDDEN`(409)，未绑定用途仍走 mock + WARN；同时 `IntegrationCatalog` 给 `sms` 补 `mock`（演示占位）供应商，否则演示环境连「把短信绑到 mock」都会被拒（实测 409）。新增 `ChannelDemoModeTest`(4) 卡住这条路径，接口复测：绑 aliyun → 409 且无外网调用，绑 mock → 200 且 `provider=mock`。
-  - **门户连不上开放接口的真实缺陷**：分端口跑 E2E 时供应商门户报 `Failed to fetch`（`web/e2e/supplier-settlements` 一直红）。根因是 `SupplierHmacFilter` 把浏览器的 CORS 预检（`OPTIONS`，按规范不带签名头）拦成 401，响应里没有 `Access-Control-Allow-Origin` → 预检失败 → 后续请求全被浏览器丢弃。修法：`shouldNotFilter` 放行 `CorsUtils.isPreFlightRequest`，交给 MVC 的 CORS 处理；补 `SupplierOpenSecurityTest.preflightIsAllowedWithoutSignature`（断言 2xx + Allow-Origin），实测预检返回 200 且带 `Access-Control-Allow-Origin: http://localhost:41283`，门户用例转绿。
-  - **E2E 登录收敛到共享助手**：24 个 spec 各自手写「读验证码题目 → 填答案 → 点登录」，题目刷新时会提交旧答案（本轮 3 次被误判成产品缺陷）。改成 `web/e2e/env.ts` 的 `login(page)`：填完再点、点完看结果、失败整轮重试 3 次，仍失败抛错并给排查方向；同时把 24 个 spec 的重复块与 3 个本地包装函数、22 处失效的 `ADMIN_BASE` 导入一起收掉。
-  - **手机尺寸修掉的真实缺陷**：`.admin-header` 没给 `.header-title` 写 flex，390px 宽时右侧 4 个控件把标题挤成竖排一字一行（整页无横向溢出，所以只断言“没溢出”漏掉了它）→ 补 `.header-title` flex + `@media (max-width: 640px)` 让标题与操作各占一行、隐藏副标题；供应商配置表单在小屏把 150px 标签列改成标签独占一行；`通道路由` 宽表加“可左右滑动”提示。e2e 断言同步加严：标题盒宽 ≥80px 且高 ≤60px、表格 `scrollWidth - clientWidth > 0`。
-  - **验收脚本**：`node scripts/acceptance-check.mjs` **17/17 通过**（首跑“汇率换算”失败是启动瞬间 mock 汇率刷新的时间戳竞争，重跑稳定通过；另手工 `PUT /admin/v1/exchange-rates` + `convert` 实测 100 USD → 72000 分，接口本身正确）。
-  - **契约与静态检查**：`make contract-check` 通过（后端 450 路由 / 前端 227 调用 / 未匹配 0；权限 15 条；兜底 93 处已登记；枚举 16 处已登记；金额浮点 7 文件）、`python3 scripts/check-help-coverage.py` 通过（42 页面）、`npm run build --workspace @fullmall/admin` 通过（含 `vue-tsc --noEmit`）。
-  - **过程中修掉的真实缺陷**：① `JdbcTemplate` 传 `Instant` → PG 无法推断类型（`Can't infer the SQL type ... java.time.Instant`），改 `OffsetDateTime`；② 演示供应商（mock）没有可填字段，前端“至少填一项配置”的校验让它**永远保存不了**，改为按字段清单是否为空判断；③ 未绑定行里先选的供应商没被记住，开关打开时会绑到“第一家可用供应商”，与页面显示不一致 → 加 `pendingProviders`；④ `el-switch` 的 `role=switch` 落在 0×0 隐藏 input 上，e2e 点不到 → 改为点可见的 `.el-switch`。
-  - **文档**：`docs/adr/0018-third-party-channel-routing.md`（采纳 + 实现记录）、`docs/adr/README.md`、`docs/DEPENDENCY_AND_DEPLOYMENT_MATRIX.md` §3.1c、`docs/requirements/TECHNOLOGY_DECISIONS_V2.md` §1.4b、`docs/fallback-allowlist.json`。
-- 已做未验证：
-  - 真实阿里云/腾讯云短信、126/QQ 真实邮箱、企微/飞书/钉钉真实机器人：无凭据。按用户口径（“演示模式只用官方 mock，生产再在 admin 配 key”）只验证了官方协议报文与失败路径（本地桩 + GreenMail）。
-- 未做 / 已知缺口：
-  - 短信死配置入口已回收：`SetupView`/`SettingsView` 的短信服务商与短信密钥输入框已删除（改成指向「通道路由」的说明），`SystemSettingService` 的 4 个 `sms_*` 键与 `SetupService` 的就绪项一并移除，`V10__retire_sms_settings.sql` 清掉 `system_setting`/`market_setting` 的历史行；`adminSettings()` 改为只回显仍受支持的键。
-  - `MarketIntegrationService.CAPABILITIES`（市场级 7 项）未与全局 `IntegrationCatalog` 合并：它管 `market_integration`（某市场是否启用某通道），职责不同，本批明确不做。
-  - 告警“升级（超时未处理 → 升级）”未实现，只做了去重 + 恢复通知。
-- 环境事实：
-  - 宿主机 macOS Darwin 27.0.0 arm64；docker 走 colima（`colima start --cpu 4 --memory 4`，context `colima`）；宿主机无 JDK/Maven，Java 构建与测试全部在 `maven-temurin21-local` 容器内。
-  - **`docker pull` 走国内镜像可用**：`docker.m.daocloud.io/library/postgres:17-alpine`、`docker.m.daocloud.io/library/redis:7-alpine` 均拉取成功（拉完 `docker tag` 成短名）。此前“守护进程 pull 必失败”的结论只对直连 Docker Hub 成立。
-  - 本地 E2E 栈（本次手工起；`scripts/dev-stack.sh` 用 `--network host`，在 macOS 上不通）：`docker network create fullmall-dev`；`fullmall-pg`（postgres:17-alpine，`-p 5432:5432`）、`fullmall-redis`（redis:7-alpine）、`fullmall-api`（`java -jar server/target/fullmall-server-0.1.0-SNAPSHOT.jar`，`-p 41280:41280`，`SPRING_PROFILES_ACTIVE=api,dev`、`APP_MODE=demo`、`APP_SECRET_KEY` 必填否则启动即失败、`SPRING_DATA_REDIS_HOST=fullmall-redis`）；admin 用宿主机 `npx vite --port 41281`。
-  - e2e 收尾脚本默认找容器 `fullmall-postgres-1`（compose 名），换容器名时要传 `E2E_DB_CONTAINER=fullmall-pg`，否则只打印清理失败并以退出码 1 结束。
-  - Maven 缓存 `/Volumes/256/xidear/works/.dsh-maven-repo`，settings `/Volumes/256/xidear/works/.dsh-maven-settings.xml`（国内镜像）。
-  - 新增依赖 `spring-boot-starter-mail`（随镜像）与 `com.icegreen:greenmail:2.1.3`（test scope），已登记 `docs/DEPENDENCY_AND_DEPLOYMENT_MATRIX.md` §3.1c。
 

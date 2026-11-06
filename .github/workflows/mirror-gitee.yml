@@ -1,0 +1,48 @@
+# GitHub → Gitee 单向镜像（2026-11-06 采用）
+#
+# 为什么是「GitHub 推 Gitee」而不是「Gitee 拉 GitHub」：
+# Gitee 的仓库镜像接口（/api/v5/repos/{owner}/{repo}/mirrors）对本账号全部方法返回 405，
+# 即该功能未开放（需企业版/手动在网页开启）。用 Actions 推送是唯一可自动化且可验证的等价方案。
+# 公开端的唯一真相是 GitHub：本仓库只推 GitHub，Gitee 只做只读镜像。
+#
+# 依赖 secret：GITEE_TOKEN（Gitee 私人令牌，勾选 projects 仓库读写）。缺失时任务直接失败，不跳过。
+# 只在 GitHub 上运行：Gitea 也读 .github/workflows，重复执行没有意义且会因缺 secret 而红。
+name: Mirror to Gitee
+
+on:
+  push:
+    branches: [main]
+    tags: ["*"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: mirror-gitee
+  cancel-in-progress: true
+
+jobs:
+  mirror:
+    if: github.server_url == 'https://github.com'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Push branches and tags to Gitee
+        env:
+          GITEE_TOKEN: ${{ secrets.GITEE_TOKEN }}
+          GIT_TERMINAL_PROMPT: "0"
+        run: |
+          set -euo pipefail
+          if [ -z "${GITEE_TOKEN}" ]; then
+            echo "::error::GITEE_TOKEN secret 未配置，镜像未执行"
+            exit 1
+          fi
+          # GitHub 是公开端唯一真相 → Gitee 用 force 覆盖，避免两边历史上分叉后无法快进。
+          # 只在 mirror 仓库上用 force 是安全的：Gitee 侧不接受任何直接提交。
+          git push --force "https://xidear:${GITEE_TOKEN}@gitee.com/xidear/full-mall.git" \
+            "refs/remotes/origin/*:refs/heads/*" --tags
+          echo "镜像完成：$(git rev-parse --short HEAD)"

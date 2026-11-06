@@ -3,6 +3,22 @@
 > 规则见 `AGENTS.md` §14：每批改动结束更新本文件，只保留最近 3 批。
 > 写清“已做并验证 / 已做未验证 / 未做”，以及环境事实（端口、容器、库是否重建）。
 
+## 2026-11-06 / 发布分支模型 + 里程碑标签
+
+- 已做并验证：
+  - **发布分支**：`publish/gitee`、`publish/github` 从 `main` 派生，逐个剔除 `docs/GITEA_PRIVATE_CREDENTIALS.md`；
+    已用 `git ls-tree` 校验两条分支都不含该文件，`.env` 本就不入库。
+  - **里程碑标签**：`milestone/2026-11-06-demo-ready`（附注标签，annotated）打在 `main` 上，已推 Gitea（`git ls-remote --tags` 可验证）。
+  - **文档**：`docs/GIT_AND_ENVIRONMENTS.md` 升到 3.1——§1 仓库关系、§3.1 开发分支、§3.2 发布分支（含刷新流程）、
+    §3.3 里程碑标签、§3.4 `.gitignore` 策略；`AGENTS.md` §6 同步（分支模型 + 里程碑规则）。
+  - **纠错**：文档里“`.env` 已入库 / 是已跟踪文件 / 首次加入需 `git add -f .env`”三处说法与仓库事实相反
+    （`git ls-files` 无 `.env`，`.gitignore` 第 28 行忽略），已全部改成“`cp .env.example .env`，不入库”。
+- 已做未验证：未向 Gitee / GitHub 实际推送过——按用户要求本轮只准备分支；首次推送前仍需核对远端与凭据。
+- 未做 / 已知缺口：发布分支目前与 `main` 同树，尚无“同步 main”的真实演练；`publish/gitee` 与 `publish/github` 初始内容相同，
+  后续两边独立演进后需要各自维护。
+- 环境事实：仓库 `/Users/xidear/Projects/full-mall`，remote 仅 `gitea`（`ssh://git@home.binnarui.cn:32223/tangpan/full-mall.git`）；
+  分支 `main` / `publish/gitee` / `publish/github`；标签 `milestone/2026-11-06-demo-ready`、`archive/spike-spring-boot-4`；
+  本轮不涉及数据库与容器。
 ## 2026-11-05 / 告警站内信默认通道 + 超时升级 + 清单合并
 
 - 已做并验证：
@@ -49,34 +65,3 @@
   - Maven 缓存 `/Volumes/256/xidear/works/.dsh-maven-repo`，settings `/Volumes/256/xidear/works/.dsh-maven-settings.xml`（国内镜像）。
   - 新增依赖 `spring-boot-starter-mail`（随镜像）与 `com.icegreen:greenmail:2.1.3`（test scope），已登记 `docs/DEPENDENCY_AND_DEPLOYMENT_MATRIX.md` §3.1c。
 
-## 2026-11-03 / Gitea 地址校正 + SSH 推送
-
-- 已做并验证：
-  - Gitea 实际部署：**QNAP NAS `192.168.1.3`** 的 Container Station，容器 `gitea-run`（`0.0.0.0:2223->2222`、`0.0.0.0:3000->3000`）。
-    NAS 固件升级重启后容器需等 dockerd 起来（`docker ps` 首次数十秒无响应属正常，勿当成失败）。
-  - **Gitea 只接受 HTTPS**：`http://192.168.1.3:3000` 返回 400 `Client sent an HTTP request to an HTTPS server`；公网 Web `https://home.binnarui.cn:33000` 实测 200。
-  - SSH：新增 `~/.ssh/id_ed25519` 公钥到账号 `tangpan`（API `POST /api/v1/user/keys`，201），`ssh -T gitea` 输出 `Hi there, tangpan!`。
-    `~/.ssh/config` 增加 `Host gitea` 别名（`192.168.1.3:2223`，原 config 已备份为 `config.bak.*`）。
-  - 修正根因：仓库本地 `core.sshCommand` 写死 `/home/xidear/.ssh/id_ed25519_gitea_dsh`（另一台 Linux 机器路径），
-    本机不存在 → 每次推送都回退，已改为 `ssh -F ~/.ssh/config`。
-  - 文档校正：`AGENTS.md` §6、`docs/GIT_AND_ENVIRONMENTS.md`、`docs/GITEA_PRIVATE_CREDENTIALS.md`、`docs/PROJECT_MEMORY.md`、`README.md` 的
-    Gitea 地址由 `company.binnarui.com:8148` 改为实际地址。
-  - 推送验证：`git push gitea main` → `5c1a3b0..b0d0872`，`git ls-remote gitea` 头部一致。
-- 已做未验证：
-  - 公网 SSH：`home.binnarui.cn:32223`（iKuai 32222 → 192.168.1.3:2223）与 `:22223` 均实测认证成功；曾因错指 2222 而 refused，已修。
-- 未做 / 已知缺口：
-  - `spike/spring-boot-4`：**该 spike 成果早已 cherry-pick 进 main**（main 上 `f1aad567`→`7fddc24f`→`23e496a6` 合并，165 测试全绿）；
-    两分支 `server/pom.xml` 除 `.env` 外无差异（Boot 4.1.1 / Modulith 2.1.1 / springdoc 3.1.1 / Testcontainers 2.0.5 一致）。
-    分支只是没删：停在 10-19，落后 main 597 个提交，本地仅领先 1 个 `498fd1b0`（= main `7fddc24f` 的重复提交）。
-    此前“远端已有不同提交”判断有误，已更正。**patch-id 逐条核验**：32 个提交在 main 上全部有一一对应（唯一 `9e3608cf` 与 main `62f0fa65` 仅差 `.env`）。
-    2026-11-03 用户决定：**冻结该分支** —— 已打归档 tag `archive/spike-spring-boot-4`（指向 `498fd1b0`）并推到远端，
-    `docs/SYNC_AND_TECH_STACK_DECISIONS.md` §6 已标注“勿再在其上开发”。分支本身保留不动。
-  - 另在 Gitea 侧加了分支保护（Gitea 28.2.0，`POST /repos/tangpan/full-mall/branch_protections`，`enable_push=false`），
-    读回确认规则存在；**但“能否拦住推送”未做实测**（用户叫停，避免冒写风险）。
-    远端分支头为 `c9b9974b`（比本地 `498fd1b0` 新，说明有别的机器推过），本地若要推需先 pull。
-    另在 Gitea 加了分支保护规则（`enable_push=false`，Gitea 28.2.0，仓库此前无任何保护规则），API 读回已确认生效；
-    未做推送实测（对真分支做试探推送风险大于收益），远端分支头仍为 `c9b9974b`。
-- 环境事实：
-  - NAS SSH：`ssh admin@192.168.1.3`（22 端口）可登录；docker 需用全路径 `/share/CACHEDEV1_DATA/.qpkg/container-station/bin/docker`
-    （登录 shell 的 PATH 里没有 docker）。
-  - Gitea 密码登录 API 也走 HTTPS：`curl -k https://192.168.1.3:3000/api/v1/...`（自签证书需 `-k`）。

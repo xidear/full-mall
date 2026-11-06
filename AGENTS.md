@@ -201,10 +201,15 @@ cp -r "$SRC"/* "$DST"
   （远端/分支确认、`git status`、暂存区密钥扫描）；任何一项不通过就**不推**，并如实报告原因。
 - 用户说“git 推送”“推送一下”且没有特别说明时，**只推 Gitea**，不得推 GitHub 或 Gitee。
 - 只有用户明确说“推 GitHub”“推 Gitee”时，才推对应公开端。
-- **仓库模型**：Gitea 是公司内部完整仓库，**只有一个分支 `main`**；**不存在 `gitea-dev` 分支**。
+- **仓库模型**：Gitea 是公司内部完整仓库，开发分支只有 `main`；**不存在 `gitea-dev` 分支**。
+  另有两条**发布分支** `publish/gitee`、`publish/github`（2026-11-06 新增，从 `main` 派生并剔除
+  `docs/GITEA_PRIVATE_CREDENTIALS.md`），它们是“可安全外发的内容基线”，**不参与日常开发**；
+  推公开端只允许从这两条分支推，`main` 只推 Gitea。详见 `docs/GIT_AND_ENVIRONMENTS.md` §3.2。
   > 2026-10-30 纠正：此前这里写「`.env` 已入库」，实际 `.env` **被 `.gitignore` 忽略、从未入库**，
   > 仓库只提交 `.env.example`。内部同事 clone 后执行 `cp .env.example .env` 再填本地值即可构建。
-- **GitHub 与 Gitee 是各自独立的公开分叉**，不是从 Gitea 派生的分支，也不做整仓镜像推送；两者都禁止包含 `.env`、真实密钥、证书、私钥、token 和 `docs/GITEA_PRIVATE_CREDENTIALS.md`。
+- **GitHub 与 Gitee 是各自独立的公开仓库**，各自有提交历史，不做整仓镜像推送；发布分支只是安全基线。
+  两者都禁止包含 `.env`、真实密钥、证书、私钥、token 和 `docs/GITEA_PRIVATE_CREDENTIALS.md`。
+- **里程碑**：每完成一个可交付批次，在 `main` 打附注标签 `milestone/<yyyy-mm-dd>-<主题>` 并推 Gitea（`git push gitea <tag>`）。
 - 推送前必须：确认远端与分支、`git status`、`git diff --cached` 密钥扫描、确认目标远端；Gitea 的 `.env` 只允许推 Gitea。
 - remote URL 不得包含用户名密码；认证使用本机凭据库（`credential.helper=store`）。
 - GitHub 推送使用 `git -c http.version=HTTP/1.1`；直连失败时可使用代理 `192.168.1.2:7893`。

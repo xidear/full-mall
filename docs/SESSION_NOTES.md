@@ -13,11 +13,17 @@
     实测成功：Run 42230154087 全绿，Gitee `main` = `2e3b41cd` = GitHub `main`；
     Gitee 侧 `xidear/full-mall` 已存在（公开，默认分支 main）。
     注意：首次运行挂死期间，为保证 Gitee 不是空的，用本机快进直推过一次（`58469eaf..11119caf`）；镜像通道打通后不再手工推。
-  - **令牌落到 GitHub secret**：`GITEE_TOKEN` 已用 libsodium sealed box 加密写入（`pynacl`），仓库里没有明文。
+  - **认证改为 SSH 证书（当日晚些时候）**：GitHub 直连恢复、证书可用后，把临时私人令牌整套下线。
+    - GitHub：`~/.ssh/id_ed25519_github`（`ssh -T git@github.com` 返回 `Hi xidear!`）。
+    - Gitee 本机：新生成 `~/.ssh/id_ed25519_gitee`，公钥登记为 Gitee 账户公钥（id 6170661），`~/.ssh/config` 增加`Host gitee.com`；`git ls-remote git@gitee.com:xidear/full-mall.git`通过。
+    - Gitee 镜像（Actions）：新生成 `~/.ssh/id_ed25519_gitee_ci`，登记为账户公钥（id 6170664），私钥写入 GitHub secret `GITEE_SSH_KEY`；`GITEE_TOKEN` secret 已删除（204）。
+    - **实测 Gitee 部署公钥只读**：`POST /repos/{owner}/{repo}/keys`添加后推送被拒（`Could not read from remote repository`），因此只能用账户级密钥；已写进文档 §3.3 注释，避免后人重复踩。
+    - 镜像工作流改 `git@gitee.com:` 推送，Run 42235875032 全绿，Gitee `main` = GitHub `main` = `f94a35cd`。
   - **文档**：`docs/GIT_AND_ENVIRONMENTS.md` §1/§2/§3.2–3.5/§4.1 与 `AGENTS.md` §6 改为新拓扑（GitHub 唯一源、Gitee 只读镜像、`publish/gitee` 降为备用）。
 - 已做未验证：无。Gitee 同步已按 sha 核对，不是“看起来跑了”。
 - 未做 / 已知缺口：
-  - **令牌需轮换**：GitHub PAT 是 7 天临时令牌（约 2026-11-13 过期），Gitee 令牌在对话中明文出现过；两者都应尽快重新生成，Gitee 的新值更新到 GitHub secret 即可。
+  - **临时令牌仍待你手动删除（API 删不掉）**：GitHub 经典 PAT（`ghp_` 前缀，scope 含 `repo`/`workflow` 等，2026-11-13 13:28 UTC 自动过期）无法通过 API 吊销——`DELETE /authorization`、`GET /authorizations` 对 UI 创建的 PAT 均返回 404，该端点只覆盖 OAuth App 授权。请到 https://github.com/settings/tokens 删除该条。
+    Gitee 私人令牌已不被任何工作流使用，同样建议到 Gitee → 设置 → 私人令牌 删除。两者的值都不在仓库、remote URL、secret 里。
   - `Gitee /mirrors` API 全方法 405（未开放），将来若开通 Gitee 企业版可改为 Gitee 侧拉取并删除本工作流。
   - GitHub Actions 里仓库自带的 `CI` / `Secret Guard` 工作流与本批无关：`Secret Guard` 每次 `skipped`（既有行为，未查原因），`CI` 长时间 `in_progress`，本批未跟到结论。
 - 环境事实：本机到 github.com **直连被封**（DNS 解析到 20.250.119.72，443 超时），可用代理是 NAS `192.168.1.3:7890`

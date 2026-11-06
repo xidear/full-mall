@@ -3,12 +3,14 @@
 # 为什么不用「Gitee 拉取」：Gitee 的 /api/v5/repos/{owner}/{repo}/mirrors 对本账号所有方法返回 405，
 # 该功能未开放（需企业版或在网页手动开启）。
 #
-# 已知坑：2026-11-06 首次运行时 Push 步骤零输出挂 10 分钟（git-remote-https 建立连接后无响应），
-# 说明 GitHub 托管 runner 到 gitee.com 的链路不可靠。因此本工作流先做连通性预检，
-# 再用 lowSpeedLimit 让推送在卡住时明确失败——不允许“看起来在跑其实已经死了”。
+# 认证方式（2026-11-06 改）：**SSH 证书**，不再用私人令牌。
+# - secret `GITEE_SSH_KEY`：Gitee 账户级 ed25519 私钥（与本机密钥分开一把，注释 full-mall CI）。
+# - 为什么不用「部署公钥」：Gitee 部署公钥是**只读**的，实测推送被拒（Could not read from remote repository），
+#   靠它推镜像必然失败；所以用账户级密钥。代价是这把密钥能干 xidear 名下所有 Gitee 仓库，泄露必须立刻删 key。
+# - 缺 secret 直接失败，不静默跳过。
 #
-# 依赖 secret：GITEE_TOKEN（Gitee 私人令牌，含 projects 读写）。缺失即失败。
-# 只在 GitHub 上运行：Gitea 也会读 .github/workflows，重复执行无意义。
+# 已知坑：2026-11-06 首次运行 Push 步骤零输出挂 10 分钟（git-remote-https 建连后无响应），
+# 现先 curl 预检 gitee.com，再以 lowSpeedLimit 让卡死的推送明确失败。
 name: Mirror to Gitee
 
 on:
@@ -44,21 +46,28 @@ jobs:
             exit 1
           fi
 
-      - name: Push branches and tags to Gitee
+      - name: Push branches and tags to Gitee (SSH)
         env:
-          GITEE_TOKEN: ${{ secrets.GITEE_TOKEN }}
-          GIT_TERMINAL_PROMPT: "0"
+          GITEE_SSH_KEY: ${{ secrets.GITEE_SSH_KEY }}
         run: |
           set -euo pipefail
-          if [ -z "${GITEE_TOKEN}" ]; then
-            echo "::error::GITEE_TOKEN secret 未配置，镜像未执行"
+          if [ -z "${GITEE_SSH_KEY}" ]; then
+            echo "::error::GITEE_SSH_KEY secret 未配置，镜像未执行"
             exit 1
           fi
-          # lowSpeedLimit/lowSpeedTime：15 秒内低于 1KB/s 即判定链路死了并失败，
-          # 避免像 2026-11-06 那次一样静默挂满整个 timeout。
+          install -d -m 700 ~/.ssh
+          printf "%s\n" "$GITEE_SSH_KEY" > ~/.ssh/id_ed25519_gitee
+          chmod 600 ~/.ssh/id_ed25519_gitee
+          # keyscan 失败就不写 known_hosts，后面 StrictHostKeyChecking=yes 会直接报错——不静默放行。
+          if ! ssh-keyscan -t ed25519 gitee.com >> ~/.ssh/known_hosts 2>/dev/null; then
+            echo "::error::无法获取 gitee.com 主机密钥，镜像未执行"
+            exit 1
+          fi
+          export GIT_SSH_COMMAND="ssh -i ~/.ssh/id_ed25519_gitee -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes"
+          # 明文密码/令牌一律不参与；SSH 已由上面的密钥承担认证。
           git -c credential.helper= \
               -c http.lowSpeedLimit=1000 \
               -c http.lowSpeedTime=15 \
-              push --force "https://xidear:${GITEE_TOKEN}@gitee.com/xidear/full-mall.git" \
+              push --force git@gitee.com:xidear/full-mall.git \
               "refs/remotes/origin/*:refs/heads/*" --tags
           echo "镜像完成：$(git rev-parse --short HEAD)"

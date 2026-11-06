@@ -101,8 +101,9 @@ git push github publish/github:main
 **只推 GitHub**：Gitee 侧不接受直接提交，任何人不要再 `git push` 到 Gitee。
 
 - 实现：`.github/workflows/mirror-gitee.yml`，push 到 GitHub `main` 或打 tag 时触发，也支持手动 `workflow_dispatch`。
-- 令牌：GitHub 仓库 secret `GITEE_TOKEN`（Gitee 私人令牌）。缺 secret 时任务**直接失败**，不会静默跳过。
-  > 令牌不写进仓库、不写进 remote URL、不写进文档。轮换方式：Gitee → 设置 → 私人令牌 重新生成，然后更新 GitHub secret。
+- 认证：**SSH 证书**，不用私人令牌（2026-11-06 起）。secret `GITEE_SSH_KEY` = Gitee 账户级 ed25519 私钥，工作流写进 `~/.ssh/id_ed25519_gitee` 后以 `git@gitee.com:` 推送。缺 secret 时任务**直接失败**，不会静默跳过。
+  > 本机同用途密钥是 `~/.ssh/id_ed25519_gitee`（`~/.ssh/config` 的 `Host gitee.com` 指向它）；CI 用另一把 `~/.ssh/id_ed25519_gitee_ci`，两把分开便于单独吊销。
+  > 为什么不用「部署公钥」：Gitee 部署公钥**只读**，实测推送被拒（`Could not read from remote repository`），推镜像必然失败。账户级密钥能写，代价是它覆盖 xidear 名下所有 Gitee 仓库，泄露须立刻到 Gitee → 设置 → SSH 公钥 删除该 key 并换新。
 - 为什么不是「Gitee 拉取 GitHub」：Gitee 的 `/api/v5/repos/{owner}/{repo}/mirrors` 对本人账号所有方法都返回 **405**，该功能未开放（需企业版或在网页端手动开启）。若将来开通，可直接在 Gitee 网页「仓库 → 管理 → 仓库镜像」配置拉取，并删除本工作流。
 - **踩过的坑（2026-11-06）**：首次运行 `Push` 步骤零输出挂满 10 分钟（`git-remote-https` 建连后无响应），表现为“一直在跑其实已经死了”。现在先 `curl -m 15` 预检 `gitee.com`，再用 `http.lowSpeedLimit=1000`/`http.lowSpeedTime=15` 让卡死的推送在 15 秒内失败，job 超时收紧到 5 分钟。
 - 验证方式：`curl https://gitee.com/api/v5/repos/xidear/full-mall/branches/main` 的 sha 应等于 GitHub `main` 的 sha。
@@ -127,7 +128,7 @@ git push github publish/github:main
 | Gitea 凭据（用户名/密码） | clone/push Gitea | 本机凭据库 `~/.git-credentials`；**不写 remote URL、不写 `.git/config`** |
 | `GITEA_URL` / `GITEA_USERNAME` / `GITEA_PASSWORD` | Gitea API 与脚本 | Gitea `.env`（仅内部仓库） |
 | `GITHUB_TOKEN`（PAT） | 调 GitHub API（查运行/写 secret） | 临时环境变量，用完即删；不入库、不写 remote（推送用 SSH 私钥 `~/.ssh/id_ed25519_github`） |
-| `GITEE_TOKEN` | **GitHub Actions 镜像推送到 Gitee** | GitHub 仓库 secret；7 天期临时令牌过期后必须重新生成并更新 secret |
+| `GITEE_SSH_KEY` | **GitHub Actions 镜像推送到 Gitee（SSH）** | GitHub 仓库 secret（私钥内容）；对应公钥登记在 Gitee 账户 SSH 公钥，标题 `full-mall CI (GitHub Actions)` |
 
 ### 4.2 本地基础设施（demo/local only）
 

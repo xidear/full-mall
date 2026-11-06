@@ -209,7 +209,10 @@ cp -r "$SRC"/* "$DST"
   > 仓库只提交 `.env.example`。内部同事 clone 后执行 `cp .env.example .env` 再填本地值即可构建。
 - **公开端拓扑**：GitHub 是公开端唯一真相，Gitee 是它的只读镜像（GitHub Actions `mirror-gitee.yml` 自动推送，Gitee 侧不接受直接提交）。
   两者都禁止包含 `.env`、真实密钥、证书、私钥、token 和 `docs/GITEA_PRIVATE_CREDENTIALS.md`。
-  镜像令牌是 GitHub 仓库 secret，不是仓库文件；令牌泄露或过期时更新 secret，不得写进代码/文档/remote URL。
+- **公开端认证一律用 SSH 证书，不用私人令牌**（2026-11-06）：
+  GitHub → `~/.ssh/id_ed25519_github`；Gitee 本机 → `~/.ssh/id_ed25519_gitee`；
+  Gitee 镜像（Actions）→ `~/.ssh/id_ed25519_gitee_ci`，私钥存 GitHub 仓库 secret `GITEE_SSH_KEY`。
+  私钥只在本机与 secret 里，**不得**入库、写进文档或 remote URL。文档里的 `ghp_`/`access_token` 一律视为已泄露待轮换。
 - **里程碑**：每完成一个可交付批次，在 `main` 打附注标签 `milestone/<yyyy-mm-dd>-<主题>` 并推 Gitea（`git push gitea <tag>`）。
 - 推送前必须：确认远端与分支、`git status`、`git diff --cached` 密钥扫描、确认目标远端；Gitea 的 `.env` 只允许推 Gitea。
 - remote URL 不得包含用户名密码；认证使用本机凭据库（`credential.helper=store`）。
